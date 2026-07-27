@@ -4,6 +4,8 @@ New patcher for *Cyber Troopers Virtual-On* on Windows: five of original VO_Patc
 
 VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the game belong to SEGA.
 
+<img width="644" height="538" alt="Screenshot_20260727_151200" src="https://github.com/user-attachments/assets/fe7f1356-b500-42c3-87ea-0d48e0d19c8f" />
+
 ## What the patches do
 
 - **Remove SE playback wait** - sound effects fire without their built-in
