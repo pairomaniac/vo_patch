@@ -15,6 +15,8 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 - **Hide "Now Loading . . ."** - removes the loading text.
 - **Enemy Fei-Yen hypermode SE** - restores the sound an enemy Fei-Yen makes
   when it powers up. It was silent due to a bug.
+- **No disc required** - skips the "Please insert VIRTUAL ON CD" prompt. The
+  drive is still looked for, so mount the image anyway if you want music.
 - **Skip the processor check** - the same as `ProcessorCheck=Off` in
   `v_on.ini`, without having to edit the ini. Skips the "requires MMX
   Technology Pentium" check with it.
@@ -31,7 +33,7 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 - **Remove the menu bar, Extras dialog on F11** - the menu bar is only ever a
   strip across the top, so it goes, and F11 opens a settings box instead:
   frame rate, No shot, SE, CD, Kill and Scorekeeping.
-
+  
 ## Usage
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
@@ -101,6 +103,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | Sound 22050 → 44100 Hz | `0x189546`, `0x189552` | `WAVEFORMATEX` `nSamplesPerSec` and `nAvgBytesPerSec` |
 | Hide "Now Loading . . ." | `0x2c7678` | first byte → `NUL` |
 | Enemy Fei-Yen hypermode SE | `0x058189`, `0x170dc9` | `cmp [eax+0x68], 1` → `2` |
+| **No disc required** | `0x1c76d4` | `je` past the nag → `nop` |
 | **Skip the processor check** | `0x107930` | `or [0xbf84c8], 1` → `nop`, so the check is never enabled |
 | **Let v_on.ini set Motion** | `0x10afbe`, `0x10afeb`, `0x10b002`, `0x1c6941`–`0x1c8bd3` | fallbacks `3` → `1`, four overwrites → `nop` |
 | **Raise timer resolution** | `0x1f423e`, `0xa8` | stub in `.text` padding, entry point redirected |
@@ -137,6 +140,12 @@ command ID, so clicks are posted straight to the main window.
 
 F11 rather than F9 or F10: F9 disconnects a network game, and F10 is a system
 key the message loop discards during a match.
+
+**No disc.** A helper scans the drives and returns -1 when the disc is
+absent; the caller then loops on a message box. Removing the branch to that
+loop lets it fall through to the success path. The scan itself is left in, so
+the drive is still found and recorded when a disc or mounted image is present
+- which is what the CD music needs.
 
 **Processor check.** The four `[Processor]` keys build a bit mask at
 `0xbf84c8`, one bit each, set when the key reads anything other than `Off` —
