@@ -6,6 +6,9 @@
 Uses GTK4 where it is available and Tk otherwise, so it runs on Linux
 without XWayland and on Windows without installing anything. Force one
 with VOPATCH_UI=gtk or VOPATCH_UI=tk.
+
+Version 0.3
+https://github.com/pairomaniac/vo_patch
 """
 
 import hashlib
@@ -40,6 +43,10 @@ FEATURES = [
          (0x00058189, '01', '02'),
          (0x00170dc9, '01', '02')]),
 
+    ('nocd', 'No disc required',
+     'Skips the "Please insert VIRTUAL ON CD" check. The drive is still\n'
+     'looked for, so mount the image anyway if you want the CD music.', [
+         (0x001c76d4, '0f840a000000', '909090909090')]),
     ('nocpucheck', 'Skip the processor check',
      'Same as ProcessorCheck=Off in v_on.ini, without editing the ini.\n'
      'Also skips the MMX, Pentium and vendor checks behind it.', [
@@ -140,7 +147,7 @@ DI_FIND = re.compile(
     rb'\x6a\x06[\s\S]{0,20}?\xff(?:[\x50-\x57]\x34|[\x90-\x97]\x34\x00\x00\x00)')
 
 # Not part of VO_Patch; the UI rules a line above these.
-OURS = ('nocpucheck', 'motion', 'timer', 'debugbox', 'continuefix',
+OURS = ('nocd', 'nocpucheck', 'motion', 'timer', 'debugbox', 'continuefix',
         'dinput')
 
 
