@@ -66,6 +66,33 @@ events, so configure it as **Keyboard only** in F7 and bind as usual.
 Synthetic keys arrive through the same DirectInput path as real ones, so
 **Keep input after alt-tab** applies to a remapped pad too.
 
+## Music
+
+The BGM is Redbook CD audio: the game drives it with 37 `mciSendCommandA`
+calls against the `cdaudio` device. It needs a disc, or a virtual drive that
+presents the audio tracks - without it has nothing to play, so the game
+runs silent but otherwise fine.
+
+**You can also use a CD audio emulator, such as this fork of [ogg-winmm](https://github.com/ayuanx/ogg-winmm)**
+
+## Resolution
+
+The game asks for 640x480 exclusive fullscreen and the display stretches it.
+The 4:3 framebuffer is baked into the rasteriser, so this is a scaling problem
+rather than something to patch.
+
+**Linux.** gamescope, integer-scaled and pillarboxed:
+
+```bash
+gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
+```
+
+`-S fit` fills more of the screen without whole-number scaling.
+
+**Windows.** GPU control panel, *Adjust desktop size and position* → aspect
+ratio, with scaling performed on the GPU. Some monitors override this in their
+own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
+
 ## Patches
 
 | Patch | Offsets | Change |
@@ -164,3 +191,10 @@ jmp   0x5e7930          ; original entry point
 
 Hardcoded addresses are fine here: no `DYNAMICBASE`, so the image always
 loads at `0x400000`. Not needed under Wine.
+
+---
+
+Written with AI assistance. Every offset and byte sequence is checked against
+the original executable before it is written, and the patcher refuses anything
+that is not the unmodified disc file - but this is a hobby project poking at a
+30-year-old binary so expect bugs.
