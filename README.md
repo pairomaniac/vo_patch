@@ -4,36 +4,59 @@ New patcher for *Cyber Troopers Virtual-On* on Windows: four of original VO_Patc
 
 VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the game belong to SEGA.
 
-<img width="454" height="416" alt="image" src="https://github.com/user-attachments/assets/cd5a80f7-a54a-45a6-a316-ef11d4e09de0" />
+<img width="476" height="628" alt="image" src="https://github.com/user-attachments/assets/70a3a0b6-92c7-48b8-9a23-6e0939f0ae8f" />
+
 
 ## What the patches do
 
-- **Remove SE playback wait** - sound effects fire without their built-in
-  delay, so rapid-fire weapons sound like the arcade.
-- **Sound 22050 → 44100 Hz** - doubles the audio output rate. Subtle; the
-  samples themselves are still 8-bit.
-- **Hide "Now Loading . . ."** - removes the loading text.
-- **Enemy Fei-Yen hypermode SE** - restores the sound an enemy Fei-Yen makes
-  when it powers up. It was silent due to a bug.
-- **No disc required** - skips the "Please insert VIRTUAL ON CD" prompt. The
-  drive is still looked for, so mount the image anyway if you want music.
-- **Skip the processor check** - the same as `ProcessorCheck=Off` in
-  `v_on.ini`, without having to edit the ini. Skips the "requires MMX
-  Technology Pentium" check with it.
-- **Let v_on.ini set Motion** - makes `Motion=` in `v_on.ini` work and stick,
-  and falls back to full frame rate rather than one frame in three when the
-  key is missing. Anything but 1/1 flickers.
-- **Raise timer resolution** - stops the game running in slow motion on
-  Windows 2000 and later. Not needed on Wine.
-- **Fix the lose-a-round crash** - stops the game crashing when you lose as
-  Temjin, Viper II, Apharmd or Raiden.
-- **Keep input after alt-tab** - the keyboard keeps working after you alt-tab
-  away or open one of the F-key dialogs. Without it, input dies for the rest
-  of the session.
-- **Remove the menu bar, Extras dialog on F11** - the menu bar is only ever a
-  strip across the top, so it goes, and F11 opens a settings box instead:
-  frame rate, No shot, SE, CD, Kill and Scorekeeping.
-  
+The patcher splits these into two groups. **Essential** are ticked by
+default and fix things that are broken on modern systems; **Extra** are
+up to taste.
+
+### Essential
+
+- **Skip processor check** - the same as `ProcessorCheck=Off` in `v_on.ini`,
+without having to edit the ini. Skips the "requires MMX Technology Pentium"
+check with it.
+- **Raise multimedia timer resolution** - stops the game running in slow
+motion on Windows 2000 and later. Not needed on Wine.
+- **Allow v_on.ini to save Motion value** - `MOTION` is an FPS divisor: 1/1
+draws every frame, 1/3 draws one frame in three. This makes `Motion=` in
+`v_on.ini` work and stick, and falls back to full frame rate rather than one
+frame in three when the key is missing. Anything but 1/1 flickers.
+- **Fix crash on round loss** - stops the game crashing when you lose as
+Temjin, Viper II, Apharmd or Raiden.
+- **Fix keyboard input after ALT+TAB** - the keyboard keeps working after you
+alt-tab away or open one of the F-key dialogs. Without it, input dies for the
+rest of the session.
+
+### Extra
+
+- **Disable menu bar (Extras menu on F11)** - the menu bar was only ever a
+strip across the top, so it goes, and F11 opens a dialog in its place holding
+the Debug options: Motion, No shot, SE, CD, Kill, Scorekeeping and **Quit
+Program**. Every other menu was always on a key as well, and still is:
+
+| Key | Opens |
+| --- | --- |
+| **F1** | Help |
+| **F3** | Pause |
+| **F4** | High / low resolution |
+| **F5** | Graphic Settings |
+| **F6** | Mode Settings |
+| **F7** | Device Settings |
+| **F8** | Sound Test |
+| **F11** | Extras, the new dialog |
+- **Disable disc check** - skips the "Please insert VIRTUAL ON CD" prompt. The
+drive is still looked for, so mount the image anyway if you want music.
+- **Arcade sound effect timing** - sound effects fire without their built-in
+delay, so rapid-fire weapons sound like the arcade.
+- **Increase sound output frequency** - 22050 to 44100 Hz. Subtle; the
+samples themselves are still 8-bit.
+- **Enemy Fei-Yen hypermode sound fix** - restores the sound an enemy Fei-Yen
+makes when it powers up. It was silent due to a bug.
+- **Hide loading screen text** - removes the "Now Loading . . ." text.
+
 ## Usage
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
@@ -42,18 +65,29 @@ Windows, with Python from python.org - Tk ships with it, nothing else needed:
 py vo-patch.py
 ```
 
-Linux, GTK4 if present (native Wayland), Tk otherwise:
+On Linux it uses GTK4 if it can and Tk if it cannot.
+
+| Distro | GTK4 | Tk |
+| --- | --- | --- |
+| Debian, Ubuntu, Mint | `python3-gi gir1.2-gtk-4.0` | `python3-tk` |
+| Fedora, RHEL | `python3-gobject gtk4` | `python3-tkinter` |
+| Arch, EndeavourOS | `python-gobject gtk4` | `tk` |
 
 ```bash
-sudo dnf install python3-gobject gtk4     # or python3-tkinter
+sudo apt install python3-gi gir1.2-gtk-4.0   # Debian, Ubuntu, Mint
+sudo dnf install python3-gobject gtk4        # Fedora
 python3 vo-patch.py
 ```
 
-`VOPATCH_UI=gtk` or `VOPATCH_UI=tk` forces one.
+`VOPATCH_UI=gtk` or `VOPATCH_UI=tk` forces one rather than letting it pick.
 
-Select `v_on.exe`, tick, Apply. Only the unmodified disc file is accepted -
-6,650,880 bytes, MD5 `a464b0ff32d5bab499f265e45658504e`. The original is
-copied to `v_on.exe.bak` first; restore it to change your selection.
+Select `v_on.exe` and press Apply. Open a list and press the (i) next to a patch
+to read what it does, and untick anything you do not want.
+
+Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
+`a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
+before anything is written, and **Restore original** puts it back so you can
+change your selection.
 
 ## Gamepad
 
@@ -109,7 +143,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Raise timer resolution** | `0x1f423e`, `0xa8` | stub in `.text` padding, entry point redirected |
 | **Fix the lose-a-round crash** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Keep input after alt-tab** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **Menu bar off, F11 dialog** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x60c258` | dialog built in unused section padding |
+| **Menu bar off, F11 dialog** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
 
@@ -128,18 +162,8 @@ tolerated. Each block only undoes a translation the routine has already reset
 and is self-balancing, so `nop` is safe.
 
 **F11 dialog.** The Debug options only ever existed as menu items, so there
-was no dialog to open. This builds one in the padding at the end of three
-sections: the template in `.rsrc`, the window-proc hook and dialog procedure
-in `.text`, tables in `.rdata`. `DialogBoxIndirectParamA` is fetched with
-`GetProcAddress` so the template need not be a resource, and the font matches
-the game's own dialogs.
-
-Check box state is read from the game's own flags, found by scanning for the
-sequence it uses to check-mark each menu item. Each control's ID is the game's
-command ID, so clicks are posted straight to the main window.
-
-F11 rather than F9 or F10: F9 disconnects a network game, and F10 is a system
-key the message loop discards during a match.
+was no dialog to open. This popup menu restores those options, while getting
+rid of the top menu. Also added Quit Program option under this menu.
 
 **No disc.** A helper scans the drives and returns -1 when the disc is
 absent; the caller then loops on a message box. Removing the branch to that
@@ -147,10 +171,7 @@ loop lets it fall through to the success path. The scan itself is left in, so
 the drive is still found and recorded when a disc or mounted image is present
 - which is what the CD music needs.
 
-**Processor check.** The four `[Processor]` keys build a bit mask at
-`0xbf84c8`, one bit each, set when the key reads anything other than `Off` —
-the bit means the check is enabled. Detection returns `0x33` straight away
-when bit 0 is clear, so removing the `or` skips the MMX, Pentium and vendor
+**Processor check.** Disables the CPU detection - skips the MMX, Pentium and vendor
 checks with it.
 
 **Motion.** `MOTION` is logic ticks per rendered frame; 3 draws one frame in
