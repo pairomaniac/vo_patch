@@ -6,7 +6,6 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 
 <img width="476" height="628" alt="image" src="https://github.com/user-attachments/assets/70a3a0b6-92c7-48b8-9a23-6e0939f0ae8f" />
 
-
 ## What the patches do
 
 The patcher splits these into two groups. **Essential** are ticked by
@@ -37,16 +36,17 @@ strip across the top, so it goes, and F11 opens a dialog in its place holding
 the Debug options: Motion, No shot, SE, CD, Kill, Scorekeeping and **Quit
 Program**. Every other menu was always on a key as well, and still is:
 
-| Key | Opens |
-| --- | --- |
-| **F1** | Help |
-| **F3** | Pause |
-| **F4** | High / low resolution |
-| **F5** | Graphic Settings |
-| **F6** | Mode Settings |
-| **F7** | Device Settings |
-| **F8** | Sound Test |
-| **F11** | Extras, the new dialog |
+    | Key | Opens |
+    | --- | --- |
+    | **F1** | Help |
+    | **F3** | Pause |
+    | **F4** | High / low resolution |
+    | **F5** | Graphic Settings |
+    | **F6** | Mode Settings |
+    | **F7** | Device Settings |
+    | **F8** | Sound Test |
+    | **F11** | Extras, the new dialog |
+
 - **Disable disc check** - skips the "Please insert VIRTUAL ON CD" prompt. The
 drive is still looked for, so mount the image anyway if you want music.
 - **Arcade sound effect timing** - sound effects fire without their built-in
@@ -149,78 +149,64 @@ Bold entries are not part of original VO_Patch.
 
 ## Notes
 
-**Lose-a-round crash.** Ten continue-screen routines dereference a stack slot
-holding a float constant:
+The short version of how each one works, in the order of the list above.
 
-```asm
-mov eax, [ebp-4]        ; = 0xC000CDE4, the float -2.0126
-fld  dword ptr [eax+8]  ; access violation
-```
+**Processor check.** `ProcessorCheck=Off` does not switch the check off, it
+stops the game switching it *on*. One `or` sets the flag that the MMX,
+Pentium and vendor branches all read; nopping it leaves the flag clear
+whatever the ini says.
 
-The address falls in the old Windows 9x ring-0 range, where the read was
-tolerated. Each block only undoes a translation the routine has already reset
-and is self-balancing, so `nop` is safe.
+**Timer resolution.** The game calls `timeGetTime` but never
+`timeBeginPeriod`, so it runs slow wherever the default timer period is
+coarse. A stub in `.text` padding calls `timeBeginPeriod(1)` and jumps to the
+real entry point. VO_Patch shipped `vo_speed.exe` for the same job. No-op
+under Wine.
 
-**F11 dialog.** The Debug options only ever existed as menu items, so there
-was no dialog to open. This popup menu restores those options, while getting
-rid of the top menu. Also added Quit Program option under this menu.
-
-**No disc.** A helper scans the drives and returns -1 when the disc is
-absent; the caller then loops on a message box. Removing the branch to that
-loop lets it fall through to the success path. The scan itself is left in, so
-the drive is still found and recorded when a disc or mounted image is present
-- which is what the CD music needs.
-
-**Processor check.** Disables the CPU detection - skips the MMX, Pentium and vendor
-checks with it.
-
-**Motion.** `MOTION` is logic ticks per rendered frame; 3 draws one frame in
-three, and the picture flickers at anything but 1/1. The ini value is read
-correctly, then four routines overwrite it with 2 or 3 - one at start-up and
-three more that fire on resolution and view changes. Removing all four lets
-the ini value stand:
+**Motion.** The value parsed out of `Motion=` was always correct - four
+routines then overwrote it, one at start-up and three that fire on
+resolution and view changes. Removing all four lets it stand:
 
 ```ini
 [Option]
 Motion=1
 ```
 
-The value parsed from `Motion=` is left alone, but the three fallbacks - key
-missing, above 5, below 0 - wrote 3, so a typo or a missing key put the
-flicker back. They write 1 now.
+Its fallbacks for a missing or bad value wrote 3, so a typo put the flicker
+back; they write 1 now. The Debug menu and the Extras dialog use another
+path, so runtime changes still work.
 
-The Debug menu and the Extras dropdown write `MOTION` through a separate path,
-so they still change it at runtime.
-
-**Alt-tab.** The game acquires its DirectInput keyboard `DISCL_FOREGROUND`
-and never re-acquires after losing focus. `DISCL_BACKGROUND` removes the
-condition.
-
-**Sample rate.** This is the DirectSound buffer, not the samples, which are
-8-bit at 7500 or 11025 Hz. VO_Patch leaves `nAvgBytesPerSec` at the 22050
-value; this sets both.
-
-**Timer resolution.** `v_on.exe` calls `timeGetTime` but never
-`timeBeginPeriod`, so it runs slow where the default period is coarse.
-VO_Patch shipped `vo_speed.exe` for this; the checkbox does it in-process
-instead, via a stub at the entry point:
+**Lose-a-round crash.** Ten continue-screen routines read through a pointer
+that is really a float constant:
 
 ```asm
-push  offset "winmm.dll"
-call  [LoadLibraryA]
-push  offset "timeBeginPeriod"
-push  eax
-call  [GetProcAddress]
-test  eax, eax
-jz    skip
-push  1
-call  eax
-skip:
-jmp   0x5e7930          ; original entry point
+mov eax, [ebp-4]        ; = 0xC000CDE4, the float -2.0126
+fld dword ptr [eax+8]   ; access violation
 ```
 
-Hardcoded addresses are fine here: no `DYNAMICBASE`, so the image always
-loads at `0x400000`. Not needed under Wine.
+That address was readable on Windows 9x and is not now. Each block only
+undoes a translation the routine has already reset, so `nop` is safe. The ten
+are similar but not identical, hence listed out one by one.
+
+**Alt-tab.** The game acquires its DirectInput keyboard `DISCL_FOREGROUND`
+and never re-acquires it after losing focus. `DISCL_BACKGROUND` removes the
+condition.
+
+**F11 dialog.** No dialog resource ever existed, so one is built at runtime
+from a template written into unused space - over the old menu, which this
+same patch unhooks. Every control carries the game's own command ID, so
+clicks go straight to the main window and **Quit Program** is just the *Exit
+Game* command; the check boxes read the game's own flags. F11 because F9
+disconnects a network game and F10 is a Windows system key.
+
+**No disc.** A helper returns -1 when no disc is found and the caller loops
+on a message box. Removing the branch into that loop falls through to the
+success path. The scan is untouched, so a mounted image is still found, which
+is what the CD audio needs.
+
+**Sample rate.** This is the DirectSound buffer format, not the samples,
+which are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only
+`nSamplesPerSec`, leaving `nAvgBytesPerSec` inconsistent; both are set here.
+
 
 ---
 
