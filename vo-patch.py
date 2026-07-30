@@ -7,7 +7,7 @@ Uses GTK4 where it is available and Tk otherwise, so it runs on Linux
 without XWayland and on Windows without installing anything. Force one
 with VOPATCH_UI=gtk or VOPATCH_UI=tk.
 
-Version 0.4
+Version 0.4.1
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -200,7 +200,29 @@ ESSENTIAL = ('nocpucheck', 'timer', 'motion', 'continuefix', 'dinput')
 EXTRA = ('debugbox', 'nocd', 'sound_wait', 'samplerate', 'feiyen',
          'noloading')
 
-assert set(BY_KEY) == set(ESSENTIAL) | set(EXTRA), 'patch list out of sync'
+def _check_table():
+    """Fail at import, not half way through somebody's executable.
+
+    A site whose old and new strings are different lengths would otherwise
+    patch silently and wrongly: a short new leaves the tail of the original
+    instruction in place, and a long one writes past the bytes that were
+    verified. Two patches sharing a byte would depend on tick order."""
+    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
+        raise AssertionError('patch list and display order disagree')
+    owner = {}
+    for key in BY_KEY:
+        for off, old, new in BY_KEY[key][2] or ():
+            if len(old) != len(new):
+                raise AssertionError('%s at 0x%08x: %d bytes replaced by %d'
+                                     % (key, off, len(old) // 2,
+                                        len(new) // 2))
+            for byte in range(off, off + len(old) // 2):
+                if owner.setdefault(byte, key) != key:
+                    raise AssertionError('%s and %s both patch 0x%08x'
+                                         % (owner[byte], key, byte))
+
+
+_check_table()
 
 
 def default_state():
@@ -210,13 +232,13 @@ def default_state():
 def apply_feature(buf, sites):
     for off, old, new in sites:
         old, new = bytes.fromhex(old), bytes.fromhex(new)
-        if bytes(buf[off:off + len(old)]) != old:
+        if buf[off:off + len(old)] != old:
             raise ValueError('unexpected bytes at 0x%08x' % off)
-        buf[off:off + len(new)] = new
+        buf[off:off + len(old)] = new
 
 
 def apply_dinput(buf):
-    hits = list(DI_FIND.finditer(bytes(buf)))
+    hits = list(DI_FIND.finditer(buf))
     if len(hits) != 1:
         raise ValueError('expected one call site, found %d' % len(hits))
     buf[hits[0].start() + 1] = 0x0A
