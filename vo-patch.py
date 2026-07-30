@@ -3,9 +3,7 @@
 
     python3 vo-patch.py
 
-Uses GTK4 where it is available and Tk otherwise, so it runs on Linux
-without XWayland and on Windows without installing anything. Force one
-with VOPATCH_UI=gtk or VOPATCH_UI=tk.
+GTK4 where it is available, Tk otherwise. VOPATCH_UI=gtk or =tk forces one.
 
 Version 0.4.1
 https://github.com/pairomaniac/vo_patch
@@ -181,8 +179,8 @@ FEATURES = [
           '909090909090909090909090909090909090909090909090909090909090909090909090909090909090')]),
 ]
 
-# The alt-tab fix is found by signature rather than offset, so it cannot go
-# in FEATURES. SetCooperativeLevel: DISCL_FOREGROUND -> DISCL_BACKGROUND.
+# Found by signature rather than offset, so it cannot live in FEATURES.
+# SetCooperativeLevel: DISCL_FOREGROUND -> DISCL_BACKGROUND.
 DI_FIND = re.compile(
     rb'\x6a\x06[\s\S]{0,20}?\xff(?:[\x50-\x57]\x34|[\x90-\x97]\x34\x00\x00\x00)')
 
@@ -193,9 +191,8 @@ BY_KEY['dinput'] = (
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
     'keyboard input for the rest of the session.', None)
 
-# Display order. Essentials fix what is broken on modern systems; extras are
-# taste. Everything starts ticked either way - the split is there to say which
-# ones matter, not to make people go and tick the rest.
+# Display order. Essential fixes what is broken on modern systems, extra is
+# taste; both start ticked.
 ESSENTIAL = ('nocpucheck', 'timer', 'motion', 'continuefix', 'dinput')
 EXTRA = ('debugbox', 'nocd', 'sound_wait', 'samplerate', 'feiyen',
          'noloading')
@@ -203,10 +200,7 @@ EXTRA = ('debugbox', 'nocd', 'sound_wait', 'samplerate', 'feiyen',
 def _check_table():
     """Fail at import, not half way through somebody's executable.
 
-    A site whose old and new strings are different lengths would otherwise
-    patch silently and wrongly: a short new leaves the tail of the original
-    instruction in place, and a long one writes past the bytes that were
-    verified. Two patches sharing a byte would depend on tick order."""
+    A length mismatch would patch silently and wrongly."""
     if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
         raise AssertionError('patch list and display order disagree')
     owner = {}
@@ -326,8 +320,7 @@ class Patcher:
 
 
 def describe(text):
-    """Split a description into prose and any 'key<TAB>meaning' rows, so both
-    front ends can lay the rows out as a table with the key in bold."""
+    """Split a description into prose and any 'key<TAB>meaning' rows."""
     prose, rows = [], []
     for line in text.split('\n'):
         if '\t' in line:
@@ -338,12 +331,8 @@ def describe(text):
     return ' '.join(prose), rows
 
 
-# Taken off the game's own artwork: the deep navy of the box art, the cyan of
-# the logo, Fei-Yen's magenta, the amber of "CYBER TROOPERS" and the green of
-# the HUD readouts. Both toolkits are themed with this rather than following
-# the desktop, so the two look the same and neither depends on libadwaita,
-# whose .success and .error classes plain GTK4 does not have. Every accent
-# clears 4.9:1 against every surface it is drawn on.
+# From the game's artwork. Both toolkits paint themselves with this rather
+# than following the desktop theme.
 PALETTE = {
     'ink': '#0b1020',       # window
     'card': '#151d33',      # panel
@@ -606,7 +595,6 @@ def run_gtk():
             return row
 
         def _info(self, title, text):
-            """A popover, so the description costs no height until asked for."""
             prose, rows = describe(text)
             box = Gtk.Box(orientation=VERTICAL, spacing=8)
             margins(box, 12)
@@ -777,8 +765,7 @@ def run_tk():
             bubble.hide()
 
     class Info:
-        """Click-to-open description bubble. Tk has no popover, and putting the
-        text inline would double the height of every list."""
+        """Click-to-open description bubble; Tk has no popover."""
 
         def __init__(self, parent, title, text, app):
             self.app, self.title, self.text, self.win = app, title, text, None
@@ -875,8 +862,8 @@ def run_tk():
             self._log(INTRO)
 
         def _body(self, parent):
-            """The window sizes itself to the content. Only once the content
-            would be taller than the screen does this start scrolling."""
+            """Size to the content, scrolling only if it outgrows the
+            screen."""
             holder = ttk.Frame(parent, style='Ink.TFrame')
             holder.pack(fill='both', expand=True)
             self.canvas = tk.Canvas(holder, highlightthickness=0,
@@ -930,14 +917,12 @@ def run_tk():
         # -- look
 
         def _styles(self):
-            """clam is the only stock theme that lets every colour be set, so
-            the palette applies on Windows and Linux alike.
+            """Theme the widgets. clam is the only stock theme where every
+            colour can be set.
 
-            Every style below is a *named* style. Setting the root '.' style
-            would be shorter but it also repaints Tk's file dialog, which is
-            built from ttk widgets around a canvas that iconlist.tcl hardcodes
-            to white - so the palette half-applies and the file list becomes
-            unreadable. Naming the styles keeps the dialog at its defaults."""
+            These must all stay *named* styles. Setting the root '.' style
+            also repaints Tk's file dialog, whose file list is a canvas
+            iconlist.tcl hardcodes to white."""
             p = PALETTE
             style = ttk.Style()
             if 'clam' in style.theme_names():
@@ -1102,8 +1087,7 @@ def run_tk():
                                           state='disabled',
                                           command=self._restore)
             self.restore_btn.pack(side='right', padx=(0, 8))
-            # width=1 so a long note can never widen the window; it takes
-            # whatever space the buttons leave and clips past that
+            # width=1 so a long note cannot widen the window
             self.status = ttk.Label(bar, text=NO_FILE, style='Bar.TLabel',
                                     foreground=self.dim, font=self.small,
                                     width=1, anchor='w')
@@ -1115,8 +1099,7 @@ def run_tk():
             colour = self.dim if ok is None else \
                 PALETTE['ok'] if ok else PALETTE['bad']
             font = self.small if ok is None else self.bold
-            # the bar has no room to wrap, and a long note would widen the
-            # whole window; the copy in the card above shows it in full
+            # the card above shows it in full
             short = text if len(text) <= 52 else text[:51] + '\u2026'
             self.status.config(text=short, foreground=colour, font=font)
             self.file_note.config(text=text, foreground=colour, font=font)
@@ -1174,8 +1157,10 @@ def run_tk():
 
 
 def probe_gtk():
-    """Return None if GTK4 is usable, otherwise why it is not. A missing
-    typelib raises ValueError from require_version rather than ImportError."""
+    """None if GTK4 is usable, otherwise why not.
+
+    A missing typelib raises ValueError from require_version, not
+    ImportError."""
     try:
         import gi
         gi.require_version('Gtk', '4.0')
@@ -1194,8 +1179,7 @@ def probe_tk():
 
 
 def main():
-    """GTK4 by preference - it is a native Wayland client, so no XWayland -
-    and Tk if it is not installed. VOPATCH_UI=gtk or =tk forces one."""
+    """GTK4 if it is there, Tk if not. VOPATCH_UI=gtk or =tk forces one."""
     forced = os.environ.get('VOPATCH_UI', '').lower()
     gtk_why = 'skipped, VOPATCH_UI=tk' if forced == 'tk' else probe_gtk()
     if gtk_why is None:
