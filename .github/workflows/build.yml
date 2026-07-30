@@ -1,0 +1,62 @@
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyinstaller==6.21.0
+
+      # Everything about the build lives in vo-patch.spec, including the
+      # version, which it reads out of the script.
+      - run: pyinstaller vo-patch.spec --noconfirm
+
+      # A frozen build fails at import time or not at all, so check the
+      # artifact itself: without tkinter the exe is dead on arrival.
+      - name: Inspect the bundle
+        shell: bash
+        run: |
+          ls -l dist/
+          pyi-archive_viewer -l -b dist/*.exe > listing.txt
+          grep -q '_tkinter' listing.txt || { echo 'tkinter was not bundled'; exit 1; }
+          grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
+          if grep -q 'gi/' listing.txt; then echo 'gi leaked into the bundle'; exit 1; fi
+          echo "$(grep -c . listing.txt) entries, tkinter present, gi absent"
+
+      - name: Checksum
+        shell: bash
+        run: cd dist && sha256sum *.exe | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vo-patch-windows
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+
+      # gh is preinstalled on the runner, so no third party action is needed
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" \
+                 --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" \
+            dist/*.exe dist/SHA256SUMS.txt --clobber
