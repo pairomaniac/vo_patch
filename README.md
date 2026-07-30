@@ -6,35 +6,40 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 
 <img width="476" height="628" alt="image" src="https://github.com/user-attachments/assets/70a3a0b6-92c7-48b8-9a23-6e0939f0ae8f" />
 
+
+## Download
+
+**Windows:** Get `vo-patch-*.exe` from the
+[latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
+
+It is unsigned, so SmartScreen calls it an unknown publisher on the first run - the build log can be found under this repository's Actions.
+
+**Linux:** check [Running from source](https://github.com/pairomaniac/vo_patch/edit/main/README.md#running-from-source).
+
 ## What the patches do
 
-The patcher splits these into two groups. **Essential** are ticked by
-default and fix things that are broken on modern systems; **Extra** are
-up to taste.
+**Essential** are ticked by default and fix things that are broken on modern
+systems; **Extra** are up to taste. How each one works is under
+[Notes](#notes).
 
 ### Essential
 
-- **Skip processor check** - the same as `ProcessorCheck=Off` in `v_on.ini`,
-without having to edit the ini. Skips the "requires MMX Technology Pentium"
-check with it.
+- **Skip processor check** - lets the game start on a modern CPU, without you
+having to set `ProcessorCheck=Off` in `v_on.ini` first.
 - **Raise multimedia timer resolution** - stops the game running in slow
 motion on Windows 2000 and later. Not needed on Wine.
-- **Allow v_on.ini to save Motion value** - `MOTION` is an FPS divisor: 1/1
-draws every frame, 1/3 draws one frame in three. This makes `Motion=` in
-`v_on.ini` work and stick, and falls back to full frame rate rather than one
-frame in three when the key is missing. Anything but 1/1 flickers.
-- **Fix crash on round loss** - stops the game crashing when you lose as
-Temjin, Viper II, Apharmd or Raiden.
-- **Fix keyboard input after ALT+TAB** - the keyboard keeps working after you
-alt-tab away or open one of the F-key dialogs. Without it, input dies for the
-rest of the session.
+- **Allow v_on.ini to save Motion value** - makes `Motion=` work and stick.
+It is an FPS divisor: 1/1 draws every frame, and anything less flickers.
+- **Fix crash on round loss** - stops the crash when you lose as Temjin,
+Viper II, Apharmd or Raiden.
+- **Fix keyboard input after ALT+TAB** - without it, alt-tabbing away or
+opening an F-key dialog kills the keyboard for the rest of the session.
 
 ### Extra
 
-- **Disable menu bar (Extras menu on F11)** - the menu bar was only ever a
-strip across the top, so it goes, and F11 opens a dialog in its place holding
-the Debug options: Motion, No shot, SE, CD, Kill, Scorekeeping and **Quit
-Program**. Every other menu was always on a key as well, and still is:
+- **Disable menu bar (Extras menu on F11)** - drops the strip across the top
+and puts the Debug options on F11 instead: Motion, No shot, SE, CD, Kill,
+Scorekeeping and **Quit Program**. Every other menu was always on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -47,17 +52,16 @@ Program**. Every other menu was always on a key as well, and still is:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Disable disc check** - skips the "Please insert VIRTUAL ON CD" prompt. The
-drive is still looked for, so mount the image anyway if you want music.
+- **Disable disc check** - skips the "Please insert VIRTUAL ON CD" prompt.
+Mount the image anyway if you want the CD music.
 - **Arcade sound effect timing** - sound effects fire without their built-in
 delay, so rapid-fire weapons sound like the arcade.
-- **Increase sound output frequency** - 22050 to 44100 Hz. Subtle; the
-samples themselves are still 8-bit.
+- **Increase sound output frequency** - 22050 to 44100 Hz. Subtle.
 - **Enemy Fei-Yen hypermode sound fix** - restores the sound an enemy Fei-Yen
-makes when it powers up. It was silent due to a bug.
-- **Hide loading screen text** - removes the "Now Loading . . ." text.
+makes when it powers up, which a bug left silent.
+- **Hide loading screen text** - removes "Now Loading . . .".
 
-## Usage
+## Running from source
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
@@ -80,6 +84,10 @@ python3 vo-patch.py
 ```
 
 `VOPATCH_UI=gtk` or `VOPATCH_UI=tk` forces one rather than letting it pick.
+
+To build the Windows binary yourself, `pip install pyinstaller` and run
+`pyinstaller vo-patch.spec`. The spec takes the version out of the script, so
+that is the only place it is written down.
 
 Select `v_on.exe` and press Apply. Open a list and press the (i) next to a patch
 to read what it does, and untick anything you do not want.
