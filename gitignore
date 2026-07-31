@@ -1,0 +1,9 @@
+# PyInstaller writes both of these next to the spec.
+build/
+dist/
+
+__pycache__/
+*.pyc
+
+# Backups the patcher makes beside the game.
+*.bak
