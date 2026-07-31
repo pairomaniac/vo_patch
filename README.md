@@ -31,7 +31,8 @@ having to set `ProcessorCheck=Off` in `v_on.ini` first.
 - **Raise multimedia timer resolution** - stops the game running at about
 70% speed on Windows 2000 and later. Not needed on Wine.
 - **Allow v_on.ini to save Motion value** - makes `Motion=` work and stick.
-It is an FPS divisor: 1/1 draws every frame, and anything less flickers.
+`Motion=1` is the game's 60 fps mode; higher values divide it down and
+flicker.
 - **Fix crash on round loss** - stops the crash when you lose as Temjin,
 Viper II, Apharmd or Raiden.
 - **Fix keyboard input after ALT+TAB** - without it, alt-tabbing away or
@@ -203,6 +204,11 @@ Motion=1
 Its fallbacks for a missing or bad value wrote 3, so a typo put the flicker
 back; they write 1 now. The Debug menu and the Extras dialog use another
 path, so runtime changes still work.
+
+The value sets a frame budget: 2 and up pick 33, 50, 66 or 83 ms from a
+table, and 1 falls through to a calculation that gives 16.7 ms. That is the
+60 fps case, and it is why **Raise timer resolution** matters most here - a
+15.6 ms clock cannot meet a 16.7 ms budget until the second tick.
 
 **Lose-a-round crash.** Ten continue-screen routines read through a pointer
 that is really a float constant:
