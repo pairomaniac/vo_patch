@@ -102,6 +102,9 @@ change your selection.
 
 ## Gamepad
 
+<img width="382" height="267" alt="xinput1" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
+<img width="382" height="267" alt="xinput2" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
+
 **XInput gamepad support** adds a *Gamepad (XInput)* profile to F7 alongside
 *Keyboard only*, and hides the legacy joystick profiles. All twelve
 actions are bound from the F7 screen, for both players, and the keyboard
