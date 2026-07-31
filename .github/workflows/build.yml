@@ -37,16 +37,23 @@ jobs:
           if grep -q 'gi/' listing.txt; then echo 'gi leaked into the bundle'; exit 1; fi
           echo "$(grep -c . listing.txt) entries, tkinter present, gi absent"
 
+      # Printed to the log rather than shipped: the log is the provenance,
+      # and a checksum file next to its own binary proves nothing.
       - name: Checksum
         shell: bash
-        run: cd dist && sha256sum *.exe | tee SHA256SUMS.txt
+        run: cd dist && sha256sum *.exe
+
+      # The script is what Linux users run, so release it with the exe.
+      - name: Stage the script
+        shell: bash
+        run: cp vo-patch.py dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: vo-patch-windows
           path: |
             dist/*.exe
-            dist/SHA256SUMS.txt
+            dist/vo-patch.py
 
       # gh is preinstalled on the runner, so no third party action is needed
       - name: Attach to the release
@@ -59,4 +66,4 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
-            dist/*.exe dist/SHA256SUMS.txt --clobber
+            dist/*.exe dist/vo-patch.py --clobber
