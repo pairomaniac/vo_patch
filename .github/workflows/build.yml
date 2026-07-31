@@ -21,12 +21,25 @@ jobs:
 
       - run: pip install pyinstaller==6.21.0
 
+      # The exe is named from the script, so a mismatched tag ships the
+      # wrong filename under the right release.
+      - name: Tag matches the script version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(grep -oP '(?<=^Version )\S+' vo-patch.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME but the script says $version"
+            exit 1
+          fi
+          echo "tag and script agree on $version"
+
       # Everything about the build lives in vo-patch.spec, including the
       # version, which it reads out of the script.
       - run: pyinstaller vo-patch.spec --noconfirm
 
       # A frozen build fails at import time or not at all, so check the
-      # artifact itself: without tkinter the exe is dead on arrival.
+      # bundle: no tkinter and the exe is dead on arrival.
       - name: Inspect the bundle
         shell: bash
         run: |
@@ -37,15 +50,14 @@ jobs:
           if grep -q 'gi/' listing.txt; then echo 'gi leaked into the bundle'; exit 1; fi
           echo "$(grep -c . listing.txt) entries, tkinter present, gi absent"
 
-      # Printed to the log rather than shipped: the log is the provenance,
-      # and a checksum file next to its own binary proves nothing.
+      # To the log, not an asset: a checksum beside its own binary proves
+      # nothing.
       - name: Checksum
         shell: bash
         run: cd dist && sha256sum *.exe
 
-      # The script is what Linux users run, so release it alongside the
-      # exe, named to match. The runner checks out CRLF, which would leave a
-      # CR in the shebang and break ./vo-patch.py on Linux.
+      # Linux users run the script, so ship it too. Strip CR or the shebang
+      # breaks when it is run directly.
       - name: Stage the script
         shell: bash
         run: |
