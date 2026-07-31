@@ -5,7 +5,7 @@
 
 GTK4 where it is available, Tk otherwise. VOPATCH_UI=gtk or =tk forces one.
 
-Version 0.5.0
+Version 0.5.1
 https://github.com/pairomaniac/vo_patch
 """
 
