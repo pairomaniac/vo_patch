@@ -71,8 +71,8 @@ FEATURES = [
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
     ('timer', 'Raise multimedia timer resolution',
-     'Stops the game running in slow motion on Windows 2000 and later.\n'
-     'Not needed under Wine.', [
+     'Stops the game running at about 70% speed on Windows 2000 and\n'
+     'later. Not needed under Wine.', [
          (0x001f423e, '00' * 62,
           '68624e5f00ff1504d56503686c4e5f0050ff1508d5650385c074046a01ff'
           'd0e9ce2affff77696e6d6d2e646c6c0074696d65426567696e506572696f'
@@ -179,11 +179,14 @@ FEATURES = [
           '909090909090909090909090909090909090909090909090909090909090909090909090909090909090')]),
 
     ('padxinput', 'XInput gamepad support',
-     'Adds a Gamepad (XInput) device profile that binds all twelve\n'
-     'actions from the F7 screen, for both players. Pad 1 drives 1P and\n'
-     'pad 2 drives 2P; the keyboard keeps working alongside it.\n'
-     'A is accept, Select is camera, Start is pause.\n'
-     'Retires v_on.ini, which the game then rebuilds.', [
+     'Adds a Gamepad (XInput) device profile. All twelve actions bind\n'
+     'from the F7 screen, for both players: pad 1 drives 1P, pad 2 drives\n'
+     '2P, and the keyboard keeps working alongside it.\n'
+     'A\tAccept, and skips the intro\n'
+     'Select\tCamera\n'
+     'Start\tPause\n'
+     'Moves v_on.ini aside, since old binds do not fit the new device\n'
+     'list. The game writes a fresh one.', [
          # the routine lives in .rdata padding, so mark it executable
          (0x000001c4, '40000040', '40000060'),
          # F7 page: drop the letter, digit and named-key sections
