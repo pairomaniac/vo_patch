@@ -53,9 +53,10 @@ FEATURES = [
      'ini. Takes the MMX, Pentium and vendor checks with it.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
     ('motion', 'Allow v_on.ini to save Motion value',
-     'Motion is an FPS divisor, and anything but 1/1 flickers. The game\n'
-     'read Motion= and then overwrote it, so it never stuck. Now it\n'
-     'does, and a missing or out of range value falls back to 1/1.\n'
+     'Motion=1 is the game\'s 60 fps mode; higher values divide it down\n'
+     'and flicker. The game read Motion= and then overwrote it, so it\n'
+     'never stuck. Now it does, and a missing or bad value falls back\n'
+     'to 1/1.\n'
      '1/1\tevery frame, the fallback now\n'
      '1/3\tone frame in three, the old fallback', [
          (0x0010afbe, 'c705d0846c0003000000', 'c705d0846c0001000000'),
