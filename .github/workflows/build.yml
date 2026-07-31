@@ -43,17 +43,32 @@ jobs:
         shell: bash
         run: cd dist && sha256sum *.exe
 
-      # The script is what Linux users run, so release it with the exe.
+      # The script is what Linux users run, so release it alongside the
+      # exe, named to match. The runner checks out CRLF, which would leave a
+      # CR in the shebang and break ./vo-patch.py on Linux.
       - name: Stage the script
         shell: bash
-        run: cp vo-patch.py dist/
+        run: |
+          python - <<'EOF'
+          import pathlib, re
+          src = pathlib.Path('vo-patch.py')
+          text = src.read_bytes().replace(b'\r\n', b'\n')
+          version = re.search(rb'^Version (\S+)', text, re.M).group(1).decode()
+          pathlib.Path('dist/vo-patch-%s.py' % version).write_bytes(text)
+          print('staged vo-patch-%s.py' % version)
+          EOF
+          if grep -q $'\r' dist/vo-patch-*.py; then
+            echo 'a CR survived - ./vo-patch.py would not run on Linux'
+            exit 1
+          fi
+          ls -l dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: vo-patch-windows
           path: |
             dist/*.exe
-            dist/vo-patch.py
+            dist/*.py
 
       # gh is preinstalled on the runner, so no third party action is needed
       - name: Attach to the release
@@ -66,4 +81,4 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
-            dist/*.exe dist/vo-patch.py --clobber
+            dist/*.exe dist/*.py --clobber
