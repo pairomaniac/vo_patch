@@ -1,6 +1,8 @@
 # Virtual-On (PC, 1997) - v_on.exe patcher
 
-New patcher for *Cyber Troopers Virtual-On* on Windows: four of original VO_Patch's byte edits plus fixes of my own.
+New patcher for *Cyber Troopers Virtual-On* on Windows: four of original
+VO_Patch's byte edits, fixes of my own, and XInput gamepad support for both
+players.
 
 VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the game belong to SEGA.
 
@@ -14,20 +16,22 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 
 It is unsigned, so SmartScreen calls it an unknown publisher on the first run - the build log can be found under this repository's Actions.
 
-**Linux:** check [Running from source](https://github.com/pairomaniac/vo_patch/edit/main/README.md#running-from-source).
+**Linux:** check [Running from source](#running-from-source).
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed between releases.
 
 ## What the patches do
 
-**Essential** are ticked by default and fix things that are broken on modern
-systems; **Extra** are up to taste. How each one works is under
-[Notes](#notes).
+**Essential** fix things that are broken on modern systems; **Extra** are up
+to taste. Everything starts ticked, so untick what you do not want before
+patching. How each one works is under [Notes](#notes).
 
 ### Essential
 
 - **Skip processor check** - lets the game start on a modern CPU, without you
 having to set `ProcessorCheck=Off` in `v_on.ini` first.
-- **Raise multimedia timer resolution** - stops the game running in slow
-motion on Windows 2000 and later. Not needed on Wine.
+- **Raise multimedia timer resolution** - stops the game running at about
+70% speed on Windows 2000 and later. Not needed on Wine.
 - **Allow v_on.ini to save Motion value** - makes `Motion=` work and stick.
 It is an FPS divisor: 1/1 draws every frame, and anything less flickers.
 - **Fix crash on round loss** - stops the crash when you lose as Temjin,
@@ -182,11 +186,12 @@ stops the game switching it *on*. One `or` sets the flag that the MMX,
 Pentium and vendor branches all read; nopping it leaves the flag clear
 whatever the ini says.
 
-**Timer resolution.** The game calls `timeGetTime` but never
-`timeBeginPeriod`, so it runs slow wherever the default timer period is
-coarse. A stub in `.text` padding calls `timeBeginPeriod(1)` and jumps to the
-real entry point. VO_Patch shipped `vo_speed.exe` for the same job. No-op
-under Wine.
+**Timer resolution.** Each frame is gated on `timeGetTime`: the game advances
+only once a budget has elapsed, 33 ms at `Motion=2` and 16.7 ms at `Motion=1`.
+It never calls `timeBeginPeriod`, so the clock ticks every 15.6 ms and a 33 ms
+budget waits for the third tick, at 46.8 ms - about 70% speed. A stub in
+`.text` padding calls `timeBeginPeriod(1)` and jumps to the real entry point.
+VO_Patch shipped `vo_speed.exe` for the same job. No-op under Wine.
 
 **Motion.** The value parsed out of `Motion=` was always correct - four
 routines then overwrote it, one at start-up and three that fire on
