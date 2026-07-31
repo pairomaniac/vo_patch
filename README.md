@@ -18,8 +18,6 @@ It is unsigned, so SmartScreen calls it an unknown publisher on the first run - 
 
 **Linux:** check [Running from source](#running-from-source).
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed between releases.
-
 ## What the patches do
 
 **Essential** fix things that are broken on modern systems; **Extra** are up
