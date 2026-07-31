@@ -4,7 +4,7 @@ New patcher for *Cyber Troopers Virtual-On* on Windows: four of original VO_Patc
 
 VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the game belong to SEGA.
 
-<img width="476" height="628" alt="image" src="https://github.com/user-attachments/assets/70a3a0b6-92c7-48b8-9a23-6e0939f0ae8f" />
+<img width="473" height="622" alt="image" src="https://github.com/user-attachments/assets/b19d8759-c314-442a-8ed7-a478513ce429" />
 
 
 ## Download
@@ -52,6 +52,9 @@ Scorekeeping and **Quit Program**. Every other menu was always on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
+- **XInput gamepad support** - adds a *Gamepad (XInput)* device profile and
+binds every action to a modern controller, for both players. See
+[Gamepad](#gamepad).
 - **Disable disc check** - skips the "Please insert VIRTUAL ON CD" prompt.
 Mount the image anyway if you want the CD music.
 - **Arcade sound effect timing** - sound effects fire without their built-in
@@ -99,16 +102,27 @@ change your selection.
 
 ## Gamepad
 
-The game predates XInput and reads pads through the Windows 95 joystick API
-(`joyGetPosEx`). Modern controllers still show up, but several of the device
-profiles under F7 only read two buttons.
+**XInput gamepad support** adds a *Gamepad (XInput)* profile to F7 alongside
+*Keyboard only*, and hides the legacy joystick profiles. All twelve
+actions are bound from the F7 screen, for both players, and the keyboard
+keeps working alongside the pad.
 
-Mapping the pad to keyboard keys avoids the whole problem - `input-remapper`
-on Linux, Joy2Key or Steam Input. Both feed the game ordinary key
-events, so configure it as **Keyboard only** in F7 and bind as usual.
+Pad 1 drives 1P and pad 2 drives 2P. Sticks, triggers, bumpers and face
+buttons are all in the bind list; the sticks are read as eight directions.
 
-Synthetic keys arrive through the same DirectInput path as real ones, so
-**Keep input after alt-tab** applies to a remapped pad too.
+| Button | Does |
+| --- | --- |
+| **A** | Accept - skips the intro, confirms menus |
+| **Select** | Camera |
+| **Start** | Pause |
+
+Defaults on both sides: left stick moves, right stick turns, LT and RB fire
+left and right, RT fires both, LB dashes, A jumps, X guards. **Default** on
+the F7 page puts them back.
+
+Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
+the unpatched game do not survive the new device list; the game writes a fresh
+one. **Restore original** puts it back.
 
 ## Music
 
@@ -151,6 +165,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Raise timer resolution** | `0x1f423e`, `0xa8` | stub in `.text` padding, entry point redirected |
 | **Fix the lose-a-round crash** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Keep input after alt-tab** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
+| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x1bc13b`, `0x1c530e`, `0x0971bd`, F7 page constants, four `.rdata` caves | routine and tables in section padding, both players' profile dispatch repointed |
 | **Menu bar off, F11 dialog** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
@@ -210,6 +225,23 @@ disconnects a network game and F10 is a Windows system key.
 on a message box. Removing the branch into that loop falls through to the
 success path. The scan is untouched, so a mounted image is still found, which
 is what the CD audio needs.
+
+**XInput gamepad.** The game predates XInput and reads pads through the
+Windows 95 joystick API, which on a modern controller reports a partial view -
+one trigger unreachable, axis order inconsistent between Windows and Wine. So
+the pad is not read through it at all. A routine in `.rdata` padding calls
+`XInputGetState` and folds the result into the game's own action tables,
+which is what makes both levers, dash and guard work from one pad.
+
+It hangs off the *Keyboard only(Simple)* profile, the only F7 page that binds
+all twelve actions, with its input list swapped for pad inputs. Bindings are
+one byte per action, so pad entries occupy `0xE0`-`0xEF` in the scancode
+space, which the game does not otherwise use. Player 2 is a full mirror -
+its own handler, bindings, lever words and action tables - so both sides are
+the same routine with a different parameter block.
+
+Start and A are also posted as key messages from the message pump rather than
+the input tick, because the tick does not run on the intro or while paused.
 
 **Sample rate.** This is the DirectSound buffer format, not the samples,
 which are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only
