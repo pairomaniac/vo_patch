@@ -3,21 +3,26 @@
 
     sudo dnf install nasm      # or: sudo apt install nasm
     python3 asm/build.py            # assemble and write
-    python3 asm/build.py --check    # verify only, exit 1 on a mismatch
+    python3 asm/build.py --check    # verify only, writes nothing
 
 vo-patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
 in when the assembly changes, and --check catches assembly edited without them
 being regenerated.
+
+Everything nasm needs is built in a temporary directory, so neither mode
+leaves anything behind in the tree.
 """
 
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+TARGET = os.path.join(ROOT, 'vo-patch.py')
 
 sys.path.insert(0, HERE)
 import layout                                             # noqa: E402
@@ -35,65 +40,72 @@ MAGICS = [
 def hexblob(name, raw):
     out = ['%s = bytes.fromhex(\n' % name]
     text = raw.hex()
-    for i in range(0, len(text), 68):
-        out.append("    '%s'\n" % text[i:i + 68])
+    for i in range(0, len(text), 64):
+        out.append("    '%s'\n" % text[i:i + 64])
     out.append(')\n')
     return ''.join(out)
 
 
-def main(check=False):
-    inc, data = layout.build()
-    open(os.path.join(HERE, 'strings.inc'), 'w').write(inc)
+def assemble(source, tmp, includes=False):
+    """nasm -f bin, with strings.inc generated into tmp when asked."""
+    args = ['nasm', '-f', 'bin']
+    if includes:
+        inc, _data = layout.build()
+        with open(os.path.join(tmp, 'strings.inc'), 'w') as fh:
+            fh.write(inc)
+        args += ['-I', tmp + os.sep]
+    out = os.path.join(tmp, os.path.basename(source) + '.bin')
+    args += ['-o', out, os.path.join(HERE, source)]
+    subprocess.check_call(args)
+    with open(out, 'rb') as fh:
+        return fh.read()
 
-    binpath = os.path.join(HERE, 'vocd.bin')
-    subprocess.check_call(['nasm', '-f', 'bin', '-I', HERE + os.sep,
-                           '-o', binpath, os.path.join(HERE, 'vocd.asm')])
-    code = open(binpath, 'rb').read()
 
-    body = ['VOCD_MAGICS = {\n']
-    for name, value, note in MAGICS:
-        body.append("    '%s': 0x%08X,%s# %s\n"
-                    % (name, value, ' ' * (13 - len(name)), note))
-    body.append('}\n\n')
-    body.append(hexblob('VOCD_CODE', code))
-    body.append('\n')
-    body.append(hexblob('VOCD_DATA', data))
-
-    path = os.path.join(ROOT, 'vo-patch.py')
-    src = open(path).read()
-    new, n = re.subn(r'(# VOCD BLOB BEGIN\n).*?(# VOCD BLOB END)',
-                     lambda m: m.group(1) + ''.join(body) + m.group(2),
-                     src, flags=re.S)
+def replace(text, name, body):
+    """Swap the contents of one # NAME BLOB BEGIN/END pair."""
+    new, n = re.subn(r'(# %s BLOB BEGIN\n).*?(# %s BLOB END)' % (name, name),
+                     lambda m: m.group(1) + body + m.group(2),
+                     text, flags=re.S)
     if n != 1:
-        raise SystemExit('markers not found in vo-patch.py')
+        raise SystemExit('%s BLOB markers not found in vo-patch.py' % name)
+    return new
 
+
+def main(check=False):
+    with tempfile.TemporaryDirectory() as tmp:
+        code = assemble('vocd.asm', tmp, includes=True)
+        levers = assemble('levers.asm', tmp)
+    _inc, data = layout.build()
+
+    vocd = ['VOCD_MAGICS = {\n']
+    for name, value, note in MAGICS:
+        vocd.append("    '%s': 0x%08X,%s# %s\n"
+                    % (name, value, ' ' * (13 - len(name)), note))
+    vocd.append('}\n\n')
+    vocd.append(hexblob('VOCD_CODE', code))
+    vocd.append('\n')
+    vocd.append(hexblob('VOCD_DATA', data))
+
+    with open(TARGET, encoding='utf-8') as fh:
+        src = fh.read()
+    new = replace(src, 'VOCD', ''.join(vocd))
+    new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
+
+    sizes = ('vocd %d + %d bytes, levers %d bytes'
+             % (len(code), len(data), len(levers)))
     if check:
         if new != src:
-            raise SystemExit(
-                'vocd.asm does not match the blob in vo-patch.py.\n'
-                'Run: python3 asm/build.py')
-        print('vocd.asm matches vo-patch.py (%d + %d bytes)'
-              % (len(code), len(data)))
+            raise SystemExit('the assembly does not match the blobs in '
+                             'vo-patch.py.\nRun: python3 asm/build.py')
+        print('assembly matches vo-patch.py (%s)' % sizes)
     else:
-        open(path, 'w').write(new)
-        print('code %d bytes, data %d bytes, written to vo-patch.py'
-              % (len(code), len(data)))
-    check_levers(new)
+        with open(TARGET, 'w', encoding='utf-8') as fh:
+            fh.write(new)
+        print('written to vo-patch.py (%s)' % sizes)
 
-
-def check_levers(source):
-    """levers.asm is one site inside the XInput patch rather than a blob of
-    its own, so it is pasted in by hand. Assemble it and make sure the bytes
-    in vo-patch.py still say the same thing."""
-    binpath = os.path.join(HERE, 'levers.bin')
-    subprocess.check_call(['nasm', '-f', 'bin', '-o', binpath,
-                           os.path.join(HERE, 'levers.asm')])
-    want = open(binpath, 'rb').read().hex()
-    if want in source:
-        print('levers.asm matches vo-patch.py (%d bytes)' % (len(want) // 2))
-    else:
-        raise SystemExit('levers.asm assembles to bytes vo-patch.py does not '
-                         'contain:\n  ' + want)
+    # The tables are what actually gets written to somebody's executable, so
+    # never report success without running their checks too.
+    subprocess.check_call([sys.executable, TARGET, '--selfcheck'])
 
 
 if __name__ == '__main__':
