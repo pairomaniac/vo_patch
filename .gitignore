@@ -7,7 +7,8 @@ __pycache__/
 
 # Backups the patcher makes beside the game.
 *.bak
+*.ini.patched
 
-# Ignore generated assembler output
+# layout.py writes these when run on its own; build.py uses a temp directory.
 asm/strings.inc
 asm/*.bin
