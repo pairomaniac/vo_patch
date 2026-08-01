@@ -5,9 +5,12 @@ VO_Patch's byte edits, fixes of my own, XInput gamepad support for both
 players, and CD music played from files so the soundtrack works with no disc
 and nothing mounted.
 
-VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the game belong to SEGA.
+VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights
+to the game belong to SEGA. The CC0 dedication in `LICENSE` covers this
+repository's own code and nothing else - not the game, and not the byte
+sequences quoted from it.
 
-<img width="480" height="624" alt="image" src="https://github.com/user-attachments/assets/116e05e0-2351-4268-b12d-d7c7d1dc0104" />
+<img width="480" height="624" alt="The patcher, with the patch lists and the CD music section" src="https://github.com/user-attachments/assets/116e05e0-2351-4268-b12d-d7c7d1dc0104" />
 
 
 ## Download
@@ -15,7 +18,9 @@ VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights t
 **Windows:** Get `vo-patch-*.exe` from the
 [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
 
-It is unsigned, so SmartScreen calls it an unknown publisher on the first run - the build log can be found under this repository's Actions.
+It is unsigned, so SmartScreen calls it an unknown publisher on the first run.
+If you would rather see how it was built than take that on trust, the log is
+under this repository's Actions.
 
 **Linux:** check [Running from source](#running-from-source).
 
@@ -29,11 +34,13 @@ patching. How each one works is under [Notes](#notes).
 
 - **Skip processor check** - lets the game start on a modern CPU, without you
 having to set `ProcessorCheck=Off` in `v_on.ini` first.
-- **Fix the frame rate (60 FPS)** - the multimedia timer resolution, without
-which the game runs at about 70% speed on Windows 2000 and later (not needed
-on Wine); `Motion=` in `v_on.ini`, which never worked; and the *Motion Type*
-radios on F5, which only ever offered 1/3 and 1/2 speed and now read
-**30 FPS** and **60 FPS**.
+- **Fix the frame rate (60 FPS)** - three fixes for the same complaint:
+    - the multimedia timer resolution, without which the game runs at about
+      70% speed on Windows 2000 and later (not needed on Wine),
+    - `Motion=` in `v_on.ini`, which was read correctly and then overwritten,
+      so it never stuck,
+    - the *Motion Type* radios on F5, which only ever offered 1/3 and 1/2
+      speed and now read **30 FPS** and **60 FPS**.
 - **Fix crash on round loss** - stops the crash when you lose as Temjin,
 Viper II, Apharmd or Raiden.
 - **Fix keyboard input after ALT+TAB** - without it, alt-tabbing away or
@@ -70,8 +77,24 @@ boxes on, Field Graphic Rich, Screen Large.
 - **Miscellaneous sound fixes** - three small ones together: sound effects
 fire without their built-in delay so rapid-fire weapons sound like the arcade,
 output goes from 22050 to 44100 Hz, and an enemy Fei-Yen gets back the
-power-up sound a bug left silent.
+hypermode sound a bug left silent.
 - **Hide loading screen text** - removes "Now Loading . . .".
+
+## Using the patcher
+
+Select `v_on.exe` and press **Apply patches**. Open a list and press the (i)
+next to a patch to read what it does, and untick anything you do not want.
+
+Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
+`a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
+before anything is written, and **Restore original** puts it back so you can
+change your selection. Nothing is written unless every selected patch applied,
+so a failure leaves the game exactly as it was.
+
+If **XInput gamepad support** was among them, `v_on.ini` is moved to
+`v_on.ini.bak` at the same time and the game writes a fresh one. **Restore
+original** puts that back too, keeping whatever the patched game wrote as
+`v_on.ini.patched`.
 
 ## Running from source
 
@@ -81,7 +104,9 @@ Windows, with Python from python.org - Tk ships with it, nothing else needed:
 py vo-patch.py
 ```
 
-On Linux it uses GTK4 if it can and Tk if it cannot.
+On Linux it uses GTK4 if it can and Tk if it cannot. GTK4 has to be 4.10 or
+newer; anything older falls back to Tk, which looks slightly plainer and works
+the same.
 
 | Distro | GTK4 | Tk |
 | --- | --- | --- |
@@ -101,13 +126,12 @@ To build the Windows binary yourself, `pip install pyinstaller` and run
 `pyinstaller vo-patch.spec`. The spec takes the version out of the script, so
 that is the only place it is written down.
 
-Select `v_on.exe` and press Apply. Open a list and press the (i) next to a patch
-to read what it does, and untick anything you do not want.
-
-Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
-`a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
-before anything is written, and **Restore original** puts it back so you can
-change your selection.
+To change the machine code the patches install, see [asm/](asm/). The assembly
+lives there and `asm/build.py` copies the assembled bytes into `vo-patch.py` -
+the hex in the script is generated and should never be edited by hand. CI
+checks the two still agree on every push. `python3 vo-patch.py --selfcheck`
+validates the patch tables without needing a copy of the game;
+`python3 tools/selftest.py path/to/v_on.exe` applies them to a real one.
 
 ## Gamepad
 
@@ -212,7 +236,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | Enemy Fei-Yen hypermode SE | `0x058189`, `0x170dc9` | `cmp [eax+0x68], 1` → `2` |
 | **No disc required** | `0x1c76d4` | `je` past the nag → `nop` |
 | **Skip the processor check** | `0x107930` | `or [0xbf84c8], 1` → `nop`, so the check is never enabled |
-| **Let v_on.ini set Motion** | `0x10afbe`, `0x10afeb`, `0x10b002`, `0x1c6941`–`0x1c8bd3` | fallbacks `3` → `1`, four overwrites → `nop` |
+| **Let v_on.ini set Motion** | `0x10afbe`, `0x10afeb`, `0x10b002`, `0x1c6941`–`0x1c8bd3` | three fallbacks `3` → `1`, eight stores in four routines → `nop` |
 | **Raise timer resolution** | `0x1f423e`, `0xa8` | stub in `.text` padding, entry point redirected |
 | **Better ini defaults** | `0x10acd7`, `0x10b088`, `0x10b131`, `0x10b1b0`–`0x10b1c4` | fallback immediates changed, Field Graphic branched into the Rich path |
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
@@ -226,7 +250,33 @@ Bold entries are not part of original VO_Patch.
 
 ## Notes
 
-How each one works, in the order of the table above.
+Not every row needs one - the four inherited byte edits do what they say on
+the tin. These are the rest, in the order of the table above.
+
+**Sample rate.** This is the DirectSound buffer format, not the samples, which
+are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
+leaving `nAvgBytesPerSec` inconsistent; both are set here.
+
+**No disc, CD music.** A helper returns -1 when no disc is found and the
+caller loops on a message box; removing the branch into that loop falls
+through to the success path. The scan itself is untouched, so a mounted image
+is still found.
+
+The music logic is small: open `cdaudio`, set TMSF, read the track count and
+every length once, then only whole tracks, stops and the occasional pause. No
+notifications, no position polling, so a finished track just goes quiet -
+which is what the disc did too. Little enough to answer without one. A routine
+in a new `.vocd` section takes over the `mciSendCommandA` import, builds the
+table of contents from the WAV file sizes and turns each play request into
+`mciSendStringA` against `waveaudio`. Lengths come from the file size rather
+than the header, the ripper always writing 44100 Hz 16-bit stereo.
+
+This is the one patch that cannot be a byte edit in place: the padding at the
+end of `.text` has 24 bytes left after the timer stub and the F11 dialog, and
+the zero runs in `.data` are globals the game writes at runtime. The
+executable gets a section of its own and grows by about 3 KB, and the entry
+point is repointed at the setup thunk, which chains to whatever it was before
+- hence this patch running after all the others.
 
 **Processor check.** `ProcessorCheck=Off` does not switch the check off, it
 stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and
@@ -258,6 +308,20 @@ choosing which radio starts selected goes from 3 to 2.
 It is the last resource in the file and ends on the section's virtual size
 with mapped padding after it, so it can; the size in the resource directory is
 updated and the *Fast* radio widened to fit.
+
+**Ini defaults.** One routine reads `v_on.ini`; every key is the same block,
+look the string up and write a hardcoded value if it is absent. Several of
+those are the least attractive option going - Sky off, every texture off,
+Field Graphic Normal. A four-byte edit each.
+
+Field Graphic is the exception. Rich clears `0x6817f0`, sets `0x6817c8` and
+calls the routine that loads the richer field, while the missing-key path only
+does the middle one. So that branch is replaced with a jump into the Rich
+block and the fifteen bytes padded out.
+
+`ScrSize` is a bit field rather than a size: bit 0 is Screen Normal, bit 2 is
+low resolution, the 320x240 mode F4 toggles. A default of 0 is Screen Large at
+640x480.
 
 **Lose-a-round crash.** Ten continue-screen routines read through a pointer
 that is really a float constant:
@@ -298,40 +362,6 @@ and the result read as two diagonals rather than a spread. A short routine
 after each tick strips that back off, and only when a pad was read, so the
 keyboard path is untouched.
 
-**No disc, CD music.** A helper returns -1 when no disc is found and the
-caller loops on a message box; removing the branch into that loop falls
-through to the success path. The scan itself is untouched, so a mounted image
-is still found.
-
-The music logic is small: open `cdaudio`, set TMSF, read the track count and
-every length once, then only whole tracks, stops and the occasional pause. No
-notifications, no position polling, so a finished track just goes quiet -
-which is what the disc did too. Little enough to answer without one. A routine
-in a new `.vocd` section takes over the `mciSendCommandA` import, builds the
-table of contents from the WAV file sizes and turns each play request into
-`mciSendStringA` against `waveaudio`. Lengths come from the file size rather
-than the header, the ripper always writing 44100 Hz 16-bit stereo.
-
-This is the one patch that cannot be a byte edit in place: `.text` has no room
-left and the zero runs in `.data` are globals the game writes at runtime. The
-executable gets a section of its own and grows by about 3 KB, and the entry
-point is repointed at the setup thunk, which chains to whatever it was before
-- hence this patch running after all the others.
-
-**Ini defaults.** One routine reads `v_on.ini`; every key is the same block,
-look the string up and write a hardcoded value if it is absent. Several of
-those are the least attractive option going - Sky off, every texture off,
-Field Graphic Normal. A four-byte edit each.
-
-Field Graphic is the exception. Rich clears `0x6817f0`, sets `0x6817c8` and
-calls the routine that loads the richer field, while the missing-key path only
-does the middle one. So that branch is replaced with a jump into the Rich
-block and the fifteen bytes padded out.
-
-`ScrSize` is a bit field rather than a size: bit 0 is Screen Normal, bit 2 is
-low resolution, the 320x240 mode F4 toggles. A default of 0 is Screen Large at
-640x480.
-
 **F11 dialog.** No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
@@ -343,14 +373,9 @@ Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing, `SendDlgItemMessage`
 against a missing control being a no-op.
 
-**Sample rate.** This is the DirectSound buffer format, not the samples, which
-are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
-leaving `nAvgBytesPerSec` inconsistent; both are set here.
-
-
 ---
 
 Written with AI assistance. Every offset and byte sequence is checked against
 the original executable before it is written, and the patcher refuses anything
 that is not the unmodified disc file - but this is a hobby project poking at a
-30-year-old binary so expect bugs.
+nearly 30-year-old binary so expect bugs.
