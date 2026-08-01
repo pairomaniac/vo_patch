@@ -72,7 +72,9 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX is not on the CI runner, so this was a no-op; a packed unsigned exe
+    # also looks worse to SmartScreen than an unpacked one.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,                  # no console window behind the GUI
