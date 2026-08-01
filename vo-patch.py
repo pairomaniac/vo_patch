@@ -5,15 +5,18 @@
 
 GTK4 where it is available, Tk otherwise. VOPATCH_UI=gtk or =tk forces one.
 
-Version 0.5.1
+Version 0.6.0
 https://github.com/pairomaniac/vo_patch
 """
 
+import ctypes
 import hashlib
 import os
 import re
 import shutil
+import struct
 import sys
+import threading
 
 EXE_SIZE = 6650880
 
@@ -22,43 +25,103 @@ ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 # Each site: (offset, original, patched).
 
 FEATURES = [
-    ('sound_wait', 'Arcade sound effect timing',
-     'Drops the built-in delay before each sound effect, so rapid-fire\n'
-     'weapons sound like the arcade.', [
-         (0x002bba60, '0f', '01')]),
-
-    ('samplerate', 'Increase sound output frequency',
-     '22050 to 44100 Hz. Subtle, since the samples are 8-bit either way.\n'
-     'May misbehave on some cards.', [
+    ('sound', 'Miscellaneous sound fixes',
+     'Three small ones, bundled because nobody wants them separately.\n'
+     '\n'
+     'Arcade timing\tDrops the delay before each sound effect, so rapid-fire weapons sound like the arcade.\n'
+     'Output frequency\t22050 to 44100 Hz. Subtle, the samples being 8-bit either way. May misbehave on some cards.\n'
+     'Enemy Fei-Yen\tRestores the hypermode sound a bug left silent.', [
+         (0x002bba60, '0f', '01'),
          (0x00189546, '2256', '44ac'),
-         (0x00189552, '88580100', '10b10200')]),
+         (0x00189552, '88580100', '10b10200'),
+         (0x00058189, '01', '02'),
+         (0x00170dc9, '01', '02')]),
 
     ('noloading', 'Hide loading screen text',
      'Hides "Now Loading . . .". Loads are instant on modern hardware.', [
          (0x002c7678, '4e', '00')]),
 
 
-    ('feiyen', 'Enemy Fei-Yen hypermode sound fix',
-     'Restores the sound an enemy Fei-Yen makes going hypermode. A bug\n'
-     'left it silent.', [
-         (0x00058189, '01', '02'),
-         (0x00170dc9, '01', '02')]),
+    ('defaults', 'Better defaults with no v_on.ini',
+     'What the game falls back on when a key is missing, which on a first\n'
+     'run is all of them. An existing v_on.ini wins, and F5 overrides both.\n'
+     '\n'
+     'Sky\tOn, was Off.\n'
+     'Texture\tAll three on, were all off.\n'
+     'Field Graphic\tRich, was Normal.\n'
+     'Screen\tLarge, was Normal.', [
+         (0x0010acd7, '00000000', '01000000'),
+         (0x0010b088, '01000000', '00000000'),
+         (0x0010b131, 'c705c817680000000000e950000000',
+                      'e92300000090909090909090909090'),
+         (0x0010b1b0, '00000000', '01000000'),
+         (0x0010b1ba, '00000000', '01000000'),
+         (0x0010b1c4, '00000000', '01000000')]),
 
-    ('nocd', 'Disable disc check',
-     'Skips the "Please insert VIRTUAL ON CD" prompt. The drive is still\n'
-     'checked, so mount the image anyway if you want the CD music.', [
+    ('nodisc', 'CD music from files, no disc needed',
+     'The soundtrack comes from music\\trackNN.wav beside the game, and the\n'
+     'disc check goes with it. Neither is much use without the other.\n'
+     '\n'
+     'Disc check\tSkips the "Please insert VIRTUAL ON CD" prompt. The drive is still scanned, so a mounted image is still found.\n'
+     'CD music\tRip the tracks in the CD MUSIC section below. With none there the game asks the drive as it always did.\n'
+     'Section\tThe one patch that adds a section to the executable rather than editing bytes in place, so the file grows by about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
+
     ('nocpucheck', 'Skip processor check',
-     'The same as ProcessorCheck=Off in v_on.ini, without editing the\n'
-     'ini. Takes the MMX, Pentium and vendor checks with it.', [
+     'ProcessorCheck=Off without needing an ini. Takes the MMX, Pentium and\n'
+     'vendor checks with it.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
-    ('motion', 'Allow v_on.ini to save Motion value',
-     'Motion=1 is the game\'s 60 fps mode; higher values divide it down\n'
-     'and flicker. The game read Motion= and then overwrote it, so it\n'
-     'never stuck. Now it does, and a missing or bad value falls back\n'
-     'to 1/1.\n'
-     '1/1\tevery frame, the fallback now\n'
-     '1/3\tone frame in three, the old fallback', [
+    ('framerate', 'Fix the frame rate (60 FPS)',
+     'Three fixes for one complaint: the game not running at full speed.\n'
+     '\n'
+     'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
+     'Motion value\tMakes Motion= in v_on.ini work and stick. It is a divisor: 1 draws every frame, 2 draws half.\n'
+     'Motion Type\tThe F5 radios wrote 3 and 2, so 60 fps was unreachable from the interface. They write 2 and 1 now, and read 30 FPS and 60 FPS.', [
+         (0x001f423e, '00' * 62,
+          '68624e5f00ff1504d56503686c4e5f0050ff1508d5650385c074046a01ff'
+          'd0e9ce2affff77696e6d6d2e646c6c0074696d65426567696e506572696f'
+          '6400'),
+         (0x000000a8, '30791e00', '3e4e1f00'),
+         (0x000273c1, '833d0843be0003', '833d0843be0002'),
+         (0x000275d3, 'c7050843be0003000000', 'c7050843be0002000000'),
+         (0x000275e2, 'c7050843be0002000000', 'c7050843be0001000000'),
+         (0x006035ac, '2c040000', '30040000'),
+         (0x0060c064, '230008002c04ffff800046006100730074000000000000000900015000'
+                      '00000085005400290008002d04ffff800053006d006f006f0074006800'
+                      '000000000000090003500000000044006200240008002e04ffff800054'
+                      '0079007000650031000000000009000150000000006e00620024000800'
+                      '2f04ffff80005400790070006500320000000000090001500000000098'
+                      '006200240008003104ffff800054007900700065003300000000000000'
+                      '0250000000000f00050022000800ffffffff8200530063007200650065'
+                      '006e0000000000000000000250000000000f00540032000800ffffffff'
+                      '82004d006f00740069006f006e00200054007900700065000000000000'
+                      '000250000000000f00600032000a00ffffffff82005300630072006500'
+                      '65006e002000530070006c006900740000000000000007000050000000'
+                      '0010001900af001900ffffffff80005400650078007400750072006500'
+                      '00000000070000500000000010003700af001800ffffffff8000440069'
+                      '00730070006c006100790020004f0062006a0065006300740073000000'
+                      '000000000250000000000f000f002b000900ffffffff82004600690065'
+                      '006c006400200047007200610070006800690063000000000000000250'
+                      '00000000160069001a000800ffffffff82002800320050002000560053'
+                      '0029000000000000000000',
+          '290008002c04ffff800033003000200046005000530000000000000009'
+          '0001500000000085005400290008002d04ffff80003600300020004600'
+          '50005300000000000000090003500000000044006200240008002e04ff'
+          'ff8000540079007000650031000000000009000150000000006e006200'
+          '240008002f04ffff800054007900700065003200000000000900015000'
+          '00000098006200240008003104ffff8000540079007000650033000000'
+          '000000000250000000000f00050022000800ffffffff82005300630072'
+          '00650065006e0000000000000000000250000000000f00540032000800'
+          'ffffffff82004d006f00740069006f006e002000540079007000650000'
+          '00000000000250000000000f00600032000a00ffffffff820053006300'
+          '7200650065006e002000530070006c0069007400000000000000070000'
+          '500000000010001900af001900ffffffff800054006500780074007500'
+          '7200650000000000070000500000000010003700af001800ffffffff80'
+          '0044006900730070006c006100790020004f0062006a00650063007400'
+          '73000000000000000250000000000f000f002b000900ffffffff820046'
+          '00690065006c0064002000470072006100700068006900630000000000'
+          '0000025000000000160069001a000800ffffffff820028003200500020'
+          '0056005300290000000000'),
          (0x0010afbe, 'c705d0846c0003000000', 'c705d0846c0001000000'),
          (0x0010afeb, 'c705d0846c0003000000', 'c705d0846c0001000000'),
          (0x0010b002, 'c705d0846c0003000000', 'c705d0846c0001000000'),
@@ -71,19 +134,13 @@ FEATURES = [
          (0x001c8bc4, 'c705d0846c0002000000', '90909090909090909090'),
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
-    ('timer', 'Raise multimedia timer resolution',
-     'Stops the game running at about 70% speed on Windows 2000 and\n'
-     'later. Not needed under Wine.', [
-         (0x001f423e, '00' * 62,
-          '68624e5f00ff1504d56503686c4e5f0050ff1508d5650385c074046a01ff'
-          'd0e9ce2affff77696e6d6d2e646c6c0074696d65426567696e506572696f'
-          '6400'),
-         (0x000000a8, '30791e00', '3e4e1f00')]),
     ('debugbox', 'Disable menu bar (Extras menu on F11)',
      'The menu bar was only ever a strip across the top, so it goes. F11\n'
-     'opens a dialog in its place holding the Debug options: Motion, No\n'
-     'shot, SE, CD, Kill, Scorekeeping and Quit Program. Every other\n'
-     'menu was always on a key as well.\n'
+     'opens a dialog in its place: No shot, SE, CD, Kill 1P, Kill 2P,\n'
+     'Scorekeeping and Quit Program. Motion has moved to F5.\n'
+     '\n'
+     'Every other menu was always on a key as well.\n'
+     '\n'
      'F1\tHelp\n'
      'F3\tPause\n'
      'F4\tHigh / low resolution\n'
@@ -125,39 +182,42 @@ FEATURES = [
           '5553455233322e444c4c004469616c6f67426f78496e64697265637450617261'
           '6d410000d82f6500479c00004ccc6b005b9c000030f463005c9c0000312f3100'
           '312f3200312f3300312f3400312f3500'),
-         (0x006036b0, '0000000010002600470061006d00650000000000439c26005200650073007400'
-          '6100720074002000470061006d006500090041006c0074002b00460032000000'
-          '0000449c2600500061007500730065002000470061006d006500090046003300'
-          '00000000469c44006900730063006f006e006e00650063007400200026004e00'
-          '6500740077006f0072006b0009004600390000000000679c260042006f006f00'
-          '6b004b0065006500700069006e00670020002e002e002e000000000000000000'
-          '8000419c450026007800690074002000470061006d006500090041006c007400'
-          '2b00460034000000100026004400650062007500670000001000440069007300'
-          '7000260046006c006f006f00720000000000499c26004600690065006c006400'
-          '000000004a9c260057006100740065007200000000004b9c260053006b007900'
-          '000000004c9c26004f00750074005300690064006500000080004d9c46006900'
-          '6c006c002600420047000000100026004d006f00740069006f006e0000000000'
-          '559c31002f002600310000000000569c31002f002600320000000000579c3100'
-          '2f002600330000000000589c31002f002600340000008000599c31002f002600'
-          '35000000100026004b006900',
-          'c000c880000000000a0000000000d40082000000000045007800740072006100'
-          '7300000008004d0053002000530061006e007300200053006500720069006600'
-          '00000000030001500000000010000e0038000c00479cffff80004e006f002000'
-          '730068006f00740000000000030001500000000050000e0024000c005b9cffff'
-          '80005300450000000000000003000150000000007c000e0024000c005c9cffff'
-          '800043004400000000000000000000500000000010002c0028000a00ffffffff'
-          '82004d006f00740069006f006e0000000000000003000150000000003c002a00'
-          '3c005a00e803ffff850000000000000000000150000000001000460032000e00'
-          '619cffff80004b0069006c006c00200031005000000000000000015000000000'
-          '4600460032000e00629cffff80004b0069006c006c0020003200500000000000'
-          '00000150000000007c00460048000e00679cffff8000530063006f0072006500'
-          '6b0065006500700069006e006700000000000000000001500000000010006e00'
-          '48000e00419cffff800051007500690074002000500072006f00670072006100'
-          '6d00000000000000000001500000000092006e0032000e000200ffff80004300'
-          '6c006f007300650000000000')]),
+         (0x006036b0, '0000000010002600470061006d00650000000000439c26005200650073'
+                      '0074006100720074002000470061006d006500090041006c0074002b00'
+                      '4600320000000000449c2600500061007500730065002000470061006d'
+                      '00650009004600330000000000469c44006900730063006f006e006e00'
+                      '650063007400200026004e006500740077006f0072006b000900460039'
+                      '0000000000679c260042006f006f006b004b0065006500700069006e00'
+                      '670020002e002e002e0000000000000000008000419c45002600780069'
+                      '0074002000470061006d006500090041006c0074002b00460034000000'
+                      '1000260044006500620075006700000010004400690073007000260046'
+                      '006c006f006f00720000000000499c26004600690065006c0064000000'
+                      '00004a9c260057006100740065007200000000004b9c260053006b0079'
+                      '00000000004c9c26004f00750074005300690064006500000080004d9c'
+                      '460069006c006c002600420047000000100026004d006f00740069006f'
+                      '006e0000000000559c31002f002600310000000000569c31002f002600'
+                      '320000000000579c31002f002600330000000000589c31002f00260034'
+                      '0000008000599c31002f00260035000000100026004b006900',
+          'c000c88000000000080000000000d40068000000000045007800740072'
+          '0061007300000008004d0053002000530061006e007300200053006500'
+          '72006900660000000000030001500000000010000e0038000c00479cff'
+          'ff80004e006f002000730068006f007400000000000300015000000000'
+          '50000e0024000c005b9cffff8000530045000000000000000300015000'
+          '0000007c000e0024000c005c9cffff8000430044000000000000000000'
+          '01500000000010002c0032000e00619cffff80004b0069006c006c0020'
+          '003100500000000000000001500000000046002c0032000e00629cffff'
+          '80004b0069006c006c002000320050000000000000000150000000007c'
+          '002c0048000e00679cffff8000530063006f00720065006b0065006500'
+          '700069006e00670000000000000000000150000000001000540048000e'
+          '00419cffff800051007500690074002000500072006f00670072006100'
+          '6d0000000000000000000150000000009200540032000e000200ffff80'
+          '0043006c006f0073006500000000000000000000000000000000000000'
+          '0000000000000000000000000000000000000000000000000000000000'
+          '00000000000000000000000000000000000000000000000000')
+]),
     ('continuefix', 'Fix crash on round loss',
-     'Stops the crash when you lose a round as Temjin, Viper II,\n'
-     'Apharmd or Raiden.', [
+     'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
+     'Raiden.', [
          (0x00077f5a, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e8df63f9ff83c40c',
           '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
          (0x00078b1c, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e81d58f9ff83c40c',
@@ -180,14 +240,20 @@ FEATURES = [
           '909090909090909090909090909090909090909090909090909090909090909090909090909090909090')]),
 
     ('padxinput', 'XInput gamepad support',
-     'Adds a Gamepad (XInput) device profile. All twelve actions bind\n'
-     'from the F7 screen, for both players: pad 1 drives 1P, pad 2 drives\n'
-     '2P, and the keyboard keeps working alongside it.\n'
+     'Adds a Gamepad (XInput) device profile. All twelve actions bind from\n'
+     'the F7 screen, for both players: pad 1 drives 1P, pad 2 drives 2P, the\n'
+     'keyboard still works alongside.\n'
+     '\n'
      'A\tAccept, and skips the intro\n'
      'Select\tCamera\n'
      'Start\tPause\n'
-     'Moves v_on.ini aside, since old binds do not fit the new device\n'
-     'list. The game writes a fresh one.', [
+     '\n'
+     'Jump and guard are lever gestures rather than buttons, so the lever\n'
+     'words are cleaned up after each tick; without that a held stick\n'
+     'contaminates them and neither comes out while moving.\n'
+     '\n'
+     'Moves v_on.ini aside: binds saved by the unpatched game do not fit the\n'
+     'new device list. The game writes a fresh one.', [
          # the routine lives in .rdata padding, so mark it executable
          (0x000001c4, '40000040', '40000060'),
          # F7 page: drop the letter, digit and named-key sections
@@ -233,7 +299,15 @@ FEATURES = [
          (0x00223f9b, '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
                       '41004200580059004c42005242004c54005254004c53205570004c5320446f776e004c53204c656674004c5320526967687400525320557000525320446f776e005253204c656674005253205269676874004b6579626f617264206f6e6c790047616d65706164202858496e7075742900'),
          (0x00207460, '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                      '6822836000e91a00000083c404e952aee3ff684a836000e91200000083c404e9d34cfbffe8d0000000e9dcffffffe8c6000000e9e4ffffff609ca140cb650383f8010f86a900000031f683fe020f839e0000006870cb650356ff1540cb650385c00f85840000000fb70574cb6503a9100000000f95c00fb6c08d9684cb65030fb60a39c80f841f000000880285c00f84150000006a006a726800010000a1585fae0150ff156cd565030fb70574cb6503a9001000000f95c00fb6c08d9688cb65030fb60a39c80f841f000000880285c00f84150000006a006a206800010000a1585fae0150ff156cd5650346e959ffffff9d61ff2590d565035589e583ec045356578b5d08c745fc00000000a140cb650385c00f840e00000083f8010f84a1000000e95400000031f683fe030f833a0000008b04b50783600050ff1504d5650385c00f850600000046e9dbffffff681383600050ff1508d5650385c00f840a000000a340cb6503e90f000000c70540cb650301000000e9480000006844cb6503ff33ffd085c00f8537000000c745fc010000000fb70548cb6503a9001000000f84060000008b5318c602800fb70548cb6503a9200000000f84060000008b5324c602808b4320ffd0837dfc000f84d000000031f683fe0c0f83c50000008b53040fb604722de00000000f82ad00000083f8100f83a40000008d3cc51b4d62000fb6070fb757028b4f0483f8000f842600000083f8010f843100000083f8020f843c0000000fb68248cb650339c80f8741000000e9640000000fbf8248cb650339c80f8c2d000000e9500000000fbf8248cb650339c80f8f19000000e93c0000000fb70548cb650385c80f8505000000e9280000008b53100fb60c32f7d18b53080fb70221c86689028b53140fb60c32f7d18b530c0fb70221c866890246e932ffffff5f5e5bc9c372836000808360008e83600058496e7075744765745374617465000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb6b00b10dad0161cb6503edce5b00940dad0178696e707574315f342e646c6c0078696e707574315f332e646c6c0078696e707574395f315f302e646c6c00')]),
+                      '6822836000e91a00000083c404e952aee3ff684a836000e91200000083c404e9d34cfbffe8d0000000e9dcffffffe8c6000000e9e4ffffff609ca140cb650383f8010f86a900000031f683fe020f839e0000006870cb650356ff1540cb650385c00f85840000000fb70574cb6503a9100000000f95c00fb6c08d9684cb65030fb60a39c80f841f000000880285c00f84150000006a006a726800010000a1585fae0150ff156cd565030fb70574cb6503a9001000000f95c00fb6c08d9688cb65030fb60a39c80f841f000000880285c00f84150000006a006a206800010000a1585fae0150ff156cd5650346e959ffffff9d61ff2590d565035589e583ec045356578b5d08c745fc00000000a140cb650385c00f840e00000083f8010f84a1000000e95400000031f683fe030f833a0000008b04b50783600050ff1504d5650385c00f850600000046e9dbffffff681383600050ff1508d5650385c00f840a000000a340cb6503e90f000000c70540cb650301000000e9480000006844cb6503ff33ffd085c00f8537000000c745fc010000000fb70548cb6503a9001000000f84060000008b5318c602800fb70548cb6503a9200000000f84060000008b5324c602808b4320ffd0837dfc000f84d000000031f683fe0c0f83c50000008b53040fb604722de00000000f82ad00000083f8100f83a40000008d3cc51b4d62000fb6070fb757028b4f0483f8000f842600000083f8010f843100000083f8020f843c0000000fb68248cb650339c80f8741000000e9640000000fbf8248cb650339c80f8c2d000000e9500000000fbf8248cb650339c80f8f19000000e93c0000000fb70548cb650385c80f8505000000e9280000008b53100fb60c32f7d18b53080fb70221c86689028b53140fb60c32f7d18b530c0fb70221c866890246e932ffffff5f5e5bc9c372836000808360008e83600058496e7075744765745374617465000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb6b00b10dad0161cb6503edce5b00940dad0178696e707574315f342e646c6c0078696e707574315f332e646c6c0078696e707574395f315f302e646c6c00'),
+         # the tick ORs every active input together, but the game's
+         # gestures are exclusive lever positions, so a held direction
+         # contaminates jump and guard. Strip it back off at the end,
+         # and only when a pad was actually read, so the keyboard path
+         # is left exactly as it was.
+         (0x00207702, '5f5e5bc9c3', 'e997000000'),
+         (0x0020779e, '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+                      '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f60240750bf601807506800ab08009705f5e5bc9c3')]),
 ]
 
 # Found by signature rather than offset, so it cannot live in FEATURES.
@@ -246,13 +320,15 @@ BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
 BY_KEY['dinput'] = (
     'Fix keyboard input after ALT+TAB',
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
-    'keyboard input for the rest of the session.', None)
+    'keyboard input for the rest of the session, until you restart it.', None)
 
-# Display order. Essential fixes what is broken on modern systems, extra is
-# taste; both start ticked.
-ESSENTIAL = ('nocpucheck', 'timer', 'motion', 'continuefix', 'dinput')
-EXTRA = ('debugbox', 'padxinput', 'nocd', 'sound_wait', 'samplerate',
-         'feiyen', 'noloading')
+# Display order only; see apply_order for the write order. Essential fixes
+# what is broken on modern systems, extra is taste. Both start ticked, extra
+# running from the biggest change down to the smallest.
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
+EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound',
+         'noloading')
+
 
 def _check_table():
     """Fail at import, not half way through somebody's executable.
@@ -260,6 +336,8 @@ def _check_table():
     A length mismatch would patch silently and wrongly."""
     if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
         raise AssertionError('patch list and display order disagree')
+    if 'nodisc' not in EXTRA:
+        raise AssertionError('nodisc must be in the extra list')
     owner = {}
     for key in BY_KEY:
         for off, old, new in BY_KEY[key][2] or ():
@@ -274,6 +352,13 @@ def _check_table():
 
 
 _check_table()
+
+
+def apply_order():
+    """Display order, except that nodisc has to be last: it appends a
+    section and chains the entry point, so it must see every other edit."""
+    keys = [k for k in ESSENTIAL + EXTRA if k != 'nodisc']
+    return keys + ['nodisc']
 
 
 def default_state():
@@ -293,6 +378,585 @@ def apply_dinput(buf):
     if len(hits) != 1:
         raise ValueError('expected one call site, found %d' % len(hits))
     buf[hits[0].start() + 1] = 0x0A
+
+
+# --- ripping -------------------------------------------------------------
+# bin/cue or a CD drive into the WAV files the CD audio patch plays. Standard
+# library only, so the packaged build carries it too.
+
+RAW = 2352                  # bytes per CD-DA sector
+RATE = 44100
+WAV_HDR = 44
+
+
+# --------------------------------------------------------------------- WAV
+
+def _wav_header(pcm_bytes):
+    return (b'RIFF' + struct.pack('<I', 36 + pcm_bytes) + b'WAVEfmt ' +
+            struct.pack('<IHHIIHH', 16, 1, 2, RATE, RATE * 4, 4, 16) +
+            b'data' + struct.pack('<I', pcm_bytes))
+
+
+class WavWriter(object):
+    """Writes a WAV whose length is not known until the end."""
+
+    def __init__(self, path):
+        self.path = path
+        self.f = open(path, 'wb')
+        self.f.write(b'\0' * WAV_HDR)
+        self.n = 0
+
+    def write(self, data):
+        self.f.write(data)
+        self.n += len(data)
+
+    def close(self):
+        self.f.seek(0)
+        self.f.write(_wav_header(self.n))
+        self.f.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+# --------------------------------------------------------------------- cue
+
+_MSF = re.compile(r'(\d+):(\d+):(\d+)')
+
+
+def _msf_to_sectors(text):
+    m, s, f = (int(x) for x in _MSF.match(text).groups())
+    return (m * 60 + s) * 75 + f
+
+
+def parse_cue(path):
+    """Return [(track_no, mode, binpath, start_sector, index0_sector)].
+
+    index0_sector is the pregap start of the *next* track where present, which
+    is where this track's audio should stop.
+    """
+    base = os.path.dirname(os.path.abspath(path))
+    tracks, curbin, cur = [], None, None
+
+    with open(path, 'r', errors='replace') as fh:
+        for line in fh:
+            line = line.strip()
+            up = line.upper()
+
+            if up.startswith('FILE'):
+                name = line.split('"')[1] if '"' in line else line.split()[1]
+                curbin = os.path.join(base, name)
+                if not os.path.exists(curbin):
+                    # Cue sheets are often wrong about case.
+                    for entry in os.listdir(base):
+                        if entry.lower() == os.path.basename(name).lower():
+                            curbin = os.path.join(base, entry)
+                            break
+
+            elif up.startswith('TRACK'):
+                parts = line.split()
+                cur = {'no': int(parts[1]), 'mode': parts[2].upper(),
+                       'bin': curbin, 'start': None, 'pregap': None}
+                tracks.append(cur)
+
+            elif up.startswith('INDEX') and cur is not None:
+                parts = line.split()
+                sec = _msf_to_sectors(parts[2])
+                if parts[1] == '00':
+                    cur['pregap'] = sec
+                elif parts[1] == '01' and cur['start'] is None:
+                    cur['start'] = sec
+
+    if not tracks:
+        raise ValueError('no TRACK entries in %s' % path)
+    for t in tracks:
+        if t['bin'] is None or not os.path.exists(t['bin']):
+            raise IOError('bin file not found for track %d' % t['no'])
+    return tracks
+
+
+def rip_cue(cue_path, outdir, progress=None):
+    """Extract every AUDIO track from a bin/cue pair."""
+    tracks = parse_cue(cue_path)
+    os.makedirs(outdir, exist_ok=True)
+    written = []
+
+    for i, t in enumerate(tracks):
+        if 'AUDIO' not in t['mode']:
+            continue
+
+        nxt = tracks[i + 1] if i + 1 < len(tracks) else None
+        size = os.path.getsize(t['bin'])
+
+        if nxt is None or nxt['bin'] != t['bin']:
+            end = size // RAW
+        else:
+            # Stop at the next track's pregap so trailing silence is dropped.
+            end = nxt['pregap'] if nxt['pregap'] is not None else nxt['start']
+
+        start = t['start']
+        if end <= start:
+            continue
+
+        out = os.path.join(outdir, 'track%02d.wav' % t['no'])
+        total = (end - start) * RAW
+
+        with open(t['bin'], 'rb') as src, WavWriter(out) as dst:
+            src.seek(start * RAW)
+            left = total
+            while left > 0:
+                chunk = src.read(min(left, RAW * 512))
+                if not chunk:
+                    break
+                dst.write(chunk)
+                left -= len(chunk)
+                if progress:
+                    progress(t['no'], total - left, total)
+
+        written.append(out)
+
+    if not written:
+        raise ValueError('no audio tracks in %s - data-only image?' % cue_path)
+    return written
+
+
+# ------------------------------------------------------------ Linux device
+
+CDROMREADTOCHDR = 0x5305
+CDROMREADTOCENTRY = 0x5306
+CDROMREADAUDIO = 0x530E
+CDROM_LBA = 0x01
+CDROM_DATA_TRACK = 0x04
+
+
+def _linux_toc(fd):
+    import fcntl
+    hdr = bytearray(2)
+    fcntl.ioctl(fd, CDROMREADTOCHDR, hdr)
+    first, last = hdr[0], hdr[1]
+
+    entries = []
+    for no in list(range(first, last + 1)) + [0xAA]:      # 0xAA = lead-out
+        buf = bytearray(struct.pack('<BBBxIB3x', no, 0, CDROM_LBA, 0, 0))
+        fcntl.ioctl(fd, CDROMREADTOCENTRY, buf)
+        trk, adrctrl, fmt, lba, _dm = struct.unpack('<BBBxIB3x', bytes(buf))
+        entries.append({'no': trk, 'lba': lba,
+                        'audio': not (adrctrl >> 4) & CDROM_DATA_TRACK})
+    return entries
+
+
+def _linux_read(fd, lba, frames, buf):
+    import fcntl
+    req = struct.pack('<IBxxxi4xQ', lba, CDROM_LBA, frames,
+                      ctypes.addressof(buf))
+    fcntl.ioctl(fd, CDROMREADAUDIO, req)
+    return bytes(buf)[:frames * RAW]
+
+
+def _rip_linux(device, outdir, progress=None, chunk=8):
+    fd = os.open(device, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        toc = _linux_toc(fd)
+        os.makedirs(outdir, exist_ok=True)
+        buf = ctypes.create_string_buffer(chunk * RAW)
+        written = []
+
+        for i, t in enumerate(toc):
+            if t['no'] == 0xAA or not t['audio']:
+                continue
+            start, end = t['lba'], toc[i + 1]['lba']
+            total = (end - start) * RAW
+            out = os.path.join(outdir, 'track%02d.wav' % t['no'])
+
+            with WavWriter(out) as dst:
+                lba = start
+                while lba < end:
+                    n = min(chunk, end - lba)
+                    dst.write(_linux_read(fd, lba, n, buf))
+                    lba += n
+                    if progress:
+                        progress(t['no'], (lba - start) * RAW, total)
+            written.append(out)
+        return written
+    finally:
+        os.close(fd)
+
+
+# ---------------------------------------------------------- Windows device
+
+IOCTL_CDROM_READ_TOC = 0x00024000
+IOCTL_CDROM_RAW_READ = 0x0002403E
+TRACK_MODE_CDDA = 2
+
+
+def _win_ioctl(h, code, inbuf, outlen):
+    out = ctypes.create_string_buffer(outlen)
+    ret = ctypes.c_ulong(0)
+    ok = ctypes.windll.kernel32.DeviceIoControl(
+        h, code, inbuf, len(inbuf) if inbuf else 0,
+        out, outlen, ctypes.byref(ret), None)
+    if not ok:
+        raise OSError('DeviceIoControl 0x%x failed: %d'
+                      % (code, ctypes.GetLastError()))
+    return out.raw[:ret.value]
+
+
+def _rip_windows(letter, outdir, progress=None, chunk=16):
+    GENERIC_READ = 0x80000000
+    FILE_SHARE_READ = 1
+    OPEN_EXISTING = 3
+
+    path = '\\\\.\\%s:' % letter.rstrip(':\\/')
+    h = ctypes.windll.kernel32.CreateFileW(
+        path, GENERIC_READ, FILE_SHARE_READ, None, OPEN_EXISTING, 0, None)
+    if h == -1:
+        raise OSError('cannot open %s: %d' % (path, ctypes.GetLastError()))
+
+    try:
+        toc = _win_ioctl(h, IOCTL_CDROM_READ_TOC, None, 4 + 100 * 8)
+        first, last = toc[2], toc[3]
+        entries = []
+        for i in range((len(toc) - 4) // 8):
+            no, ctrl = toc[4 + i * 8 + 2], toc[4 + i * 8 + 1] >> 4
+            m, s, f = toc[4 + i * 8 + 5:4 + i * 8 + 8]
+            lba = (m * 60 + s) * 75 + f - 150
+            entries.append({'no': no, 'lba': lba, 'audio': not (ctrl & 4)})
+            if no == 0xAA:
+                break
+
+        os.makedirs(outdir, exist_ok=True)
+        written = []
+        for i, t in enumerate(entries):
+            if t['no'] == 0xAA or not t['audio'] or t['no'] < first \
+                    or t['no'] > last:
+                continue
+            start, end = t['lba'], entries[i + 1]['lba']
+            total = (end - start) * RAW
+            out = os.path.join(outdir, 'track%02d.wav' % t['no'])
+
+            with WavWriter(out) as dst:
+                lba = start
+                while lba < end:
+                    n = min(chunk, end - lba)
+                    # DiskOffset counts in 2048-byte units even for CDDA.
+                    req = struct.pack('<qII', lba * 2048, n, TRACK_MODE_CDDA)
+                    dst.write(_win_ioctl(h, IOCTL_CDROM_RAW_READ, req, n * RAW))
+                    lba += n
+                    if progress:
+                        progress(t['no'], (lba - start) * RAW, total)
+            written.append(out)
+        return written
+    finally:
+        ctypes.windll.kernel32.CloseHandle(h)
+
+
+# ------------------------------------------------------------------ public
+
+def rip_device(device, outdir, progress=None):
+    """Rip audio tracks from a CD drive, real or cdemu-backed."""
+    if os.name == 'nt':
+        return _rip_windows(device, outdir, progress)
+    return _rip_linux(device, outdir, progress)
+
+
+def list_devices():
+    """Candidate optical devices, best-effort."""
+    if os.name == 'nt':
+        DRIVE_CDROM = 5
+        out = []
+        mask = ctypes.windll.kernel32.GetLogicalDrives()
+        for i in range(26):
+            if mask & (1 << i):
+                letter = chr(ord('A') + i)
+                if ctypes.windll.kernel32.GetDriveTypeW(letter + ':\\') \
+                        == DRIVE_CDROM:
+                    out.append(letter + ':')
+        return out
+    return [os.path.join('/dev', d) for d in sorted(os.listdir('/dev'))
+            if re.match(r'^sr\d+$', d)]
+
+
+MUSIC_SUBDIR = 'music'
+
+
+def outdir_for(gamedir):
+    """Where the tracks live, given the directory holding v_on.exe."""
+    return os.path.join(gamedir, MUSIC_SUBDIR)
+
+
+def rip(source, outdir, progress=None):
+    """Dispatch on what the source looks like."""
+    if source.lower().endswith('.cue'):
+        return rip_cue(source, outdir, progress)
+    return rip_device(source, outdir, progress)
+
+
+def music_status(gamedir):
+    """One line on what is in the music folder, for the GUI."""
+    if not gamedir:
+        return 'Select v_on.exe first - the tracks go beside it.'
+    out = outdir_for(gamedir)
+    if not os.path.isdir(out):
+        return 'No music folder yet. Without one the game uses a disc.'
+    found = [f for f in os.listdir(out)
+             if re.match(r'track\d+\.wav$', f, re.I)]
+    if not found:
+        return 'music folder is empty. Without tracks the game uses a disc.'
+    mb = sum(os.path.getsize(os.path.join(out, f)) for f in found) // (1 << 20)
+    return '%d tracks in music (%d MB).' % (len(found), mb)
+
+
+def rip_in_background(source, gamedir, progress, done):
+    """Rip on a worker thread. Both callbacks fire off the UI thread."""
+    def work():
+        try:
+            files = rip(source, outdir_for(gamedir), progress)
+        except Exception as exc:                    # any failure, one path
+            done(exc, None)
+        else:
+            done(None, files)
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    return thread
+
+
+# --- CD audio ------------------------------------------------------------
+# Assembled from asm/vocd.asm by asm/build.py; edit the assembly, not this.
+# The only absolute addresses in VOCD_CODE are the placeholders below, which
+# apply_cdaudio fills in once it has read the executable. VOCD_DATA is the
+# string table and the scratch space.
+
+# VOCD BLOB BEGIN
+VOCD_MAGICS = {
+    'MAGIC_ORIGENTRY': 0xE1E1E1E1,# VA of the entry point we chain to
+    'MAGIC_IATMCI': 0xE2E2E2E2, # VA of the mciSendCommandA IAT slot
+    'MAGIC_LOADLIB': 0xE3E3E3E3,# VA of the LoadLibraryA IAT slot
+    'MAGIC_GETPROC': 0xE4E4E4E4,# VA of the GetProcAddress IAT slot
+    'MAGIC_DATA': 0xE5E5E5E5,   # VA the data blob lands at
+    'MAGIC_HOOK': 0xE6E6E6E6,   # VA of the hook thunk
+}
+
+VOCD_CODE = bytes.fromhex(
+    'e913020000eb1aacaa84c075fa4fc331d2b90a000000f7f10430aa88d00430aac360'
+    'bbe5e5e5e5837b2c000f8581010000c7432c010000008d834005000050ff15e3e3e3'
+    'e389c68d83660500005056ff15e4e4e4e48943148d83790500005056ff15e4e4e4e4'
+    '8943188d83850500005056ff15e4e4e4e489431c8d83910500005056ff15e4e4e4e4'
+    '8943208d839d0500005056ff15e4e4e4e48943248d83ac0500005056ff15e4e4e4e4'
+    '8943288d834d05000050ff15e3e3e3e385c00f84f000000089c68d83570500005056'
+    'ff15e4e4e4e489431085c00f84d50000008d83d00100006808010000506a00ff5314'
+    '85c00f84bc0000008dbbd001000001c74f803f5c740a8d83d001000039c777f0c647'
+    '0100be02000000e89d0000006a0068800000006a036a006a0168000000808d83e002'
+    '000050ff531883f8ff744489c76a0057ff531c89c557ff532083ed2c763189e831d2'
+    'b930090000f7f131d2b994110000f7f189c589d031d2b94b000000f7f1c1e00809c5'
+    'c1e21009d5896cb34089334683fe647290833b0074268d4330506a046a0468e2e2e2'
+    'e2ff532485c07412a1e2e2e2e289430cc705e2e2e2e2e6e6e6e66168e1e1e1e1c356'
+    '8dbbe00200008db3d0010000e83cfeffff8db3be050000e831feffff8b0424e831fe'
+    'ffff8db3ca050000e81efeffff5ec36a006a006a008d040350ff5310c3837b040074'
+    '18b851060000e8e2ffffffc7430400000000c7430800000000c35589e5535657bbe5'
+    'e5e5e5833b000f84900000008b450c3d0308000075408b5510f7c200200000747bf7'
+    'c20010000075738b751485f6746c8b460885c074658d93b60500005250ff532885c0'
+    '7556e88effffffc74604cefa000031c0eb55817d08cefa0000753d3d140800000f84'
+    '520100003d060800000f84ad0000003d0808000074513d0908000074633d55080000'
+    '747d3d0408000074333d0b080000741a31c0eb0fff7514ff7510ff750cff7508ff53'
+    '0c5f5e5b5dc210008b751485f67407c746040100000031c0ebe7e810ffffff31c0eb'
+    'de837b0400740fb827060000e8eefeffffe8f7feffff31c0ebc5837b04007417837b'
+    '08007511b834060000e8cffeffffc743080100000031c0eba4837b08007411b84206'
+    '0000e8b4feffffc743080000000031c0eb898b5510f7c2040000000f84840000008b'
+    '751485f6747d8b46040fb6f083fe02727283fe64736d8b44b34085c07465e884feff'
+    'ffe83ffeffff8dbb000400008db3cf050000e87cfcffff8db3e0020000e871fcffff'
+    '8db3d6050000e866fcffff6a006a006a008d830004000050ff531085c075208b4514'
+    '8b40040fb6c0894304b8f5050000e820feffffb81a060000e816feffff31c0e9effe'
+    'ffff8b751485f6750731c0e9e1feffff8b460883f80375078b13e9e300000083f801'
+    '752d8b5510f7c2100000000f84cd0000008b4e0c83f9010f82c100000083f9640f83'
+    'b80000008b548b40e9b100000083f8047556ba0d020000837b08007544837b04000f'
+    '84970000006a006a408d8300040000508d835f06000050ff531085c0757e8d837306'
+    '0000508d830004000050ff5328ba0d02000085c07564ba0e020000eb5dba11020000'
+    'eb5683f808750e8b530485d2754aba01000000eb4383f805743583f807743083f806'
+    '7507ba0a000000eb2d3d014000007524ba400400008b4d10f7c1100000007416837e'
+    '0c017510ba41040000eb09ba01000000eb0231d289560431c0e9e5fdffff'
+)
+
+VOCD_DATA = bytes.fromhex(
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '0b331a00000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000006b65726e656c33322e646c6c0077696e'
+    '6d6d2e646c6c006d636953656e64537472696e6741004765744d6f64756c6546696c'
+    '654e616d65410043726561746546696c65410047657446696c6553697a6500436c6f'
+    '736548616e646c65005669727475616c50726f74656374006c737472636d70694100'
+    '6364617564696f006d757369635c747261636b002e776176006f70656e2022002220'
+    '747970652077617665617564696f20616c69617320766f636462676d007365742076'
+    '6f636462676d2074696d6520666f726d6174206d696c6c697365636f6e647300706c'
+    '617920766f636462676d0073746f7020766f636462676d00706175736520766f6364'
+    '62676d00726573756d6520766f636462676d00636c6f736520766f636462676d0073'
+    '746174757320766f636462676d206d6f646500706c6179696e6700'
+)
+# VOCD BLOB END
+
+
+class _PE:
+    """Just enough PE for one import lookup and one appended section."""
+
+    def __init__(self, buf):
+        self.d = buf
+        self.pe = struct.unpack_from('<I', self.d, 0x3C)[0]
+        self.opt = self.pe + 24
+        self.nsec, = struct.unpack_from('<H', self.d, self.pe + 6)
+        self.optsz, = struct.unpack_from('<H', self.d, self.pe + 20)
+        self.off_entry = self.opt + 16
+        self.entry_rva, = struct.unpack_from('<I', self.d, self.off_entry)
+        self.base, = struct.unpack_from('<I', self.d, self.opt + 28)
+        self.salign, = struct.unpack_from('<I', self.d, self.opt + 32)
+        self.falign, = struct.unpack_from('<I', self.d, self.opt + 36)
+        self.import_rva, = struct.unpack_from('<I', self.d, self.opt + 104)
+
+        self.sections = []
+        pos = self.opt + self.optsz
+        for _ in range(self.nsec):
+            name, vsize, vaddr, rsize, raddr = struct.unpack_from(
+                '<8sIIII', self.d, pos)
+            self.sections.append({'name': name.rstrip(b'\0'), 'vsize': vsize,
+                                  'vaddr': vaddr, 'rsize': rsize,
+                                  'raddr': raddr})
+            pos += 40
+
+    def off(self, rva):
+        for x in self.sections:
+            span = max(x['vsize'], x['rsize'])
+            if x['vaddr'] <= rva < x['vaddr'] + span:
+                return x['raddr'] + (rva - x['vaddr'])
+        raise ValueError('rva 0x%08x is outside every section' % rva)
+
+    def cstr(self, rva):
+        start = self.off(rva)
+        end = self.d.index(b'\0', start)
+        return bytes(self.d[start:end]).decode('ascii', 'replace')
+
+    def iat_slot(self, dll, func):
+        """VA of the import address table entry for dll!func."""
+        desc = self.import_rva
+        while True:
+            ilt, _t, _f, name, iat = struct.unpack_from('<IIIII', self.d,
+                                                        self.off(desc))
+            if name == 0:
+                break
+            if self.cstr(name).lower() == dll:
+                thunks, i = ilt or iat, 0
+                while True:
+                    entry, = struct.unpack_from('<I', self.d,
+                                                self.off(thunks) + i * 4)
+                    if entry == 0:
+                        break
+                    if not entry & 0x80000000 and self.cstr(entry + 2) == func:
+                        return self.base + iat + i * 4
+                    i += 1
+            desc += 20
+        raise ValueError('%s does not import %s' % (dll, func))
+
+    def add_section(self, name, payload, chars=0xE0000040):
+        """Append a section rather than borrow padding: .text has no room
+        left and the zero runs in .data are globals the game writes."""
+        def up(value, unit):
+            return (value + unit - 1) // unit * unit
+
+        hdr = self.opt + self.optsz + self.nsec * 40
+        first_raw = min(x['raddr'] for x in self.sections if x['raddr'])
+        if hdr + 40 > first_raw:
+            raise ValueError('no room in the header for another section')
+
+        last = max(self.sections, key=lambda x: x['vaddr'])
+        vaddr = up(last['vaddr'] + last['vsize'], self.salign)
+        raddr = up(len(self.d), self.falign)
+        self.d += b'\0' * (raddr - len(self.d))
+        rsize = up(len(payload), self.falign)
+        self.d += payload + b'\0' * (rsize - len(payload))
+
+        struct.pack_into('<8sIIII', self.d, hdr, name.encode('ascii')[:8],
+                         len(payload), vaddr, rsize, raddr)
+        struct.pack_into('<I', self.d, hdr + 36, chars)
+        struct.pack_into('<H', self.d, self.pe + 6, self.nsec + 1)
+        struct.pack_into('<I', self.d, self.opt + 56,
+                         up(vaddr + len(payload), self.salign))
+        self.nsec += 1
+        self.sections.append({'name': name.encode('ascii'),
+                              'vsize': len(payload), 'vaddr': vaddr,
+                              'rsize': rsize, 'raddr': raddr})
+        return vaddr
+
+
+def apply_cdaudio(buf):
+    """Install the file-based CD audio hook. Returns the grown buffer.
+
+    The blob goes in a new .vocd section and the entry point is repointed at
+    its init thunk, which chains to whatever it was before - so this runs
+    after every other patch."""
+    pe = _PE(buf)
+
+    gap = (-len(VOCD_CODE)) % 16
+    code_rva = pe.add_section('.vocd', VOCD_CODE + b'\0' * gap + VOCD_DATA)
+    values = {
+        'MAGIC_ORIGENTRY': pe.base + pe.entry_rva,
+        'MAGIC_IATMCI':    pe.iat_slot('winmm.dll', 'mciSendCommandA'),
+        'MAGIC_LOADLIB':   pe.iat_slot('kernel32.dll', 'LoadLibraryA'),
+        'MAGIC_GETPROC':   pe.iat_slot('kernel32.dll', 'GetProcAddress'),
+        'MAGIC_DATA':      pe.base + code_rva + len(VOCD_CODE) + gap,
+        'MAGIC_HOOK':      pe.base + code_rva,
+    }
+
+    code = bytes(VOCD_CODE)
+    for name, magic in VOCD_MAGICS.items():
+        if struct.pack('<I', magic) not in code:
+            raise ValueError('%s is missing from the blob' % name)
+        code = code.replace(struct.pack('<I', magic),
+                            struct.pack('<I', values[name]))
+    for magic in VOCD_MAGICS.values():
+        if struct.pack('<I', magic) in code:
+            raise ValueError('a placeholder was left unfilled')
+
+    start = pe.off(code_rva)
+    pe.d[start:start + len(code)] = code
+    struct.pack_into('<I', pe.d, pe.off_entry, code_rva + 5)
+    return pe.d
 
 
 class Patcher:
@@ -325,15 +989,19 @@ class Patcher:
             return ['Could not read the executable: %s' % exc]
 
         applied = []
-        for key in ESSENTIAL + EXTRA:
+        for key in apply_order():
             if not wanted.get(key):
                 continue
             label, _tip, sites = BY_KEY[key]
             try:
-                apply_dinput(buf) if sites is None else apply_feature(buf,
-                                                                      sites)
+                if sites is not None:
+                    apply_feature(buf, sites)
+                elif key == 'dinput':
+                    apply_dinput(buf)
+                if key == 'nodisc':          # bytes first, then the section
+                    buf = apply_cdaudio(buf)
             except ValueError as exc:
-                if sites is None:            # signature miss, not fatal
+                if key == 'dinput':          # signature miss, not fatal
                     log.append('Skipped %s: %s' % (label, exc))
                     continue
                 return ['%s: %s' % (label, exc), 'Nothing written.']
@@ -398,15 +1066,23 @@ class Patcher:
 
 
 def describe(text):
-    """Split a description into prose and any 'key<TAB>meaning' rows."""
-    prose, rows = [], []
+    """Split a description into prose and any 'key<TAB>meaning' rows.
+
+    A blank line starts a paragraph; the breaks stay in the prose so either
+    toolkit can drop it into one wrapped label."""
+    paragraphs, para, rows = [], [], []
     for line in text.split('\n'):
         if '\t' in line:
             key, _, meaning = line.partition('\t')
             rows.append((key.strip(), meaning.strip()))
         elif line.strip():
-            prose.append(line.strip())
-    return ' '.join(prose), rows
+            para.append(line.strip())
+        elif para:
+            paragraphs.append(' '.join(para))
+            para = []
+    if para:
+        paragraphs.append(' '.join(para))
+    return '\n\n'.join(paragraphs), rows
 
 
 # From the game's artwork. Both toolkits paint themselves with this rather
@@ -433,6 +1109,13 @@ NO_FILE = 'No file selected'
 ESSENTIAL_HINT = ('These fix things that are broken on modern systems. '
                   'Keep them enabled unless you have a reason not to.')
 EXTRA_HINT = 'Optional changes. Untick anything you would rather not have.'
+
+MUSIC_HINT = ('Rip the soundtrack once and Play CD music from files has '
+              'something to play. Separate from patching: the patch is happy '
+              'without it and falls back to the disc, and the tracks keep '
+              'working if you re-patch.')
+
+MUSIC_PLACEHOLDER = 'VIRTUAL-ON.cue, or a CD drive'
 DONE = 'Done. Restore the original to change your selection.'
 
 
@@ -600,6 +1283,8 @@ def run_gtk():
             content.append(self._section(
                 'EXTRA PATCHES',
                 self._patch_body(EXTRA, EXTRA_HINT), expanded=False))
+            content.append(self._section('CD MUSIC', self._music_body(),
+                                        expanded=False))
             content.append(self._section('LOG', self._log_body()))
 
             root.append(self._statusbar())
@@ -651,6 +1336,82 @@ def run_gtk():
             self.file_note.add_css_class('vp-hint')
             box.append(self.file_note)
             return box
+
+        def _music_body(self):
+            box = Gtk.Box(orientation=VERTICAL, spacing=8)
+            note = Gtk.Label(label=MUSIC_HINT, xalign=0, wrap=True)
+            note.add_css_class('vp-hint')
+            box.append(note)
+
+            row = Gtk.Box(orientation=HORIZONTAL, spacing=8)
+            self.rip_entry = Gtk.Entry(hexpand=True,
+                                       placeholder_text=MUSIC_PLACEHOLDER)
+            drives = list_devices()
+            if drives:
+                self.rip_entry.set_text(drives[0])
+            row.append(self.rip_entry)
+            browse = Gtk.Button(label='Cue\u2026')
+            browse.connect('clicked', self._pick_cue)
+            row.append(browse)
+            self.rip_btn = Gtk.Button(label='Rip tracks')
+            self.rip_btn.set_sensitive(False)
+            self.rip_btn.connect('clicked', self._rip)
+            row.append(self.rip_btn)
+            box.append(row)
+
+            self.music_note = Gtk.Label(label=music_status(None), xalign=0,
+                                        wrap=True)
+            self.music_note.add_css_class('vp-hint')
+            box.append(self.music_note)
+            return box
+
+        def _pick_cue(self, _btn):
+            dlg = Gtk.FileDialog(title='Select the cue sheet')
+            filt = Gtk.FileFilter()
+            filt.set_name('Cue sheets')
+            filt.add_pattern('*.cue')
+            filt.add_pattern('*.CUE')
+            store = Gio.ListStore.new(Gtk.FileFilter)
+            store.append(filt)
+            dlg.set_filters(store)
+
+            def chosen(dialog, result):
+                try:
+                    self.rip_entry.set_text(dialog.open_finish(result).get_path())
+                except GLib.Error:
+                    pass
+            dlg.open(self, None, chosen)
+
+        def _rip(self, _btn):
+            source = self.rip_entry.get_text().strip()
+            if not source or not self.core.exe_path:
+                return
+            gamedir = os.path.dirname(self.core.exe_path)
+            self.rip_btn.set_sensitive(False)
+            self._log('Ripping from %s' % source)
+            last = [-1]
+
+            def progress(track, done, total):
+                pct = done * 100 // max(total, 1)
+                if pct == last[0]:
+                    return
+                last[0] = pct
+                GLib.idle_add(self.music_note.set_text,
+                              'track %02d  %d%%' % (track, pct))
+
+            def finished(error, files):
+                GLib.idle_add(self._ripped, error, files)
+
+            rip_in_background(source, gamedir, progress, finished)
+
+        def _ripped(self, error, files):
+            if error is None:
+                self._log('Ripped %d tracks' % len(files))
+            else:
+                self._log('Ripping failed: %s' % error)
+            self.music_note.set_text(
+                music_status(os.path.dirname(self.core.exe_path)))
+            self.rip_btn.set_sensitive(True)
 
         def _patch_body(self, keys, hint):
             box = Gtk.Box(orientation=VERTICAL, spacing=4)
@@ -777,6 +1538,8 @@ def run_gtk():
                 check.set_sensitive(ok)
             self.apply_btn.set_sensitive(ok)
             self.restore_btn.set_sensitive(self.core.can_restore())
+            self.rip_btn.set_sensitive(True)
+            self.music_note.set_text(music_status(os.path.dirname(path)))
             if not ok:
                 self._log(note)
 
@@ -935,6 +1698,8 @@ def run_tk():
                           expanded=False)
             self._section(body, 'EXTRA PATCHES',
                           lambda p: self._patch_body(p, EXTRA, EXTRA_HINT),
+                          expanded=False)
+            self._section(body, 'CD MUSIC', self._music_body,
                           expanded=False)
             self._section(body, 'LOG', self._log_body)
             self._log(INTRO)
@@ -1117,6 +1882,71 @@ def run_tk():
                                        wraplength=380, justify='left')
             self.file_note.pack(anchor='w', pady=(8, 0))
 
+        def _music_body(self, parent):
+            ttk.Label(parent, text=MUSIC_HINT, style='Card.TLabel',
+                      foreground=self.dim, font=self.small,
+                      wraplength=380, justify='left').pack(anchor='w',
+                                                           pady=(0, 8))
+            row = ttk.Frame(parent, style='Card.TFrame')
+            row.pack(fill='x')
+            self.rip_var = tk.StringVar()
+            drives = list_devices()
+            if drives:
+                self.rip_var.set(drives[0])
+            ttk.Entry(row, textvariable=self.rip_var, style='Vo.TEntry',
+                      width=22).pack(side='left', fill='x', expand=True)
+            ttk.Button(row, text='Cue\u2026', style='Vo.TButton',
+                       command=self._pick_cue).pack(side='left', padx=(8, 0))
+            self.rip_btn = ttk.Button(row, text='Rip tracks',
+                                      style='Vo.TButton', state='disabled',
+                                      command=self._rip)
+            self.rip_btn.pack(side='left', padx=(8, 0))
+
+            self.music_note = ttk.Label(parent, text=music_status(None),
+                                        style='Card.TLabel',
+                                        foreground=self.dim, font=self.small,
+                                        wraplength=380, justify='left')
+            self.music_note.pack(anchor='w', pady=(8, 0))
+
+        def _pick_cue(self):
+            path = filedialog.askopenfilename(
+                title='Select the cue sheet',
+                filetypes=[('Cue sheets', '*.cue *.CUE'), ('All files', '*')])
+            if path:
+                self.rip_var.set(path)
+
+        def _rip(self):
+            source = self.rip_var.get().strip()
+            if not source or not self.core.exe_path:
+                return
+            gamedir = os.path.dirname(self.core.exe_path)
+            self.rip_btn.state(['disabled'])
+            self._log('Ripping from %s' % source)
+            last = [-1]
+
+            def progress(track, done, total):
+                pct = done * 100 // max(total, 1)
+                if pct == last[0]:
+                    return
+                last[0] = pct
+                self.root.after(
+                    0, lambda: self.music_note.config(
+                        text='track %02d  %d%%' % (track, pct)))
+
+            def finished(error, files):
+                self.root.after(0, lambda: self._ripped(error, files))
+
+            rip_in_background(source, gamedir, progress, finished)
+
+        def _ripped(self, error, files):
+            if error is None:
+                self._log('Ripped %d tracks' % len(files))
+            else:
+                self._log('Ripping failed: %s' % error)
+            self.music_note.config(
+                text=music_status(os.path.dirname(self.core.exe_path)))
+            self.rip_btn.state(['!disabled'])
+
         def _patch_body(self, parent, keys, hint):
             ttk.Label(parent, text=hint, style='Card.TLabel',
                       foreground=self.dim, font=self.small,
@@ -1204,6 +2034,8 @@ def run_tk():
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
                 ['!disabled'] if self.core.can_restore() else ['disabled'])
+            self.rip_btn.state(['!disabled'])
+            self.music_note.config(text=music_status(os.path.dirname(path)))
             if not ok:
                 self._log(note)
 
@@ -1256,8 +2088,41 @@ def probe_tk():
         return str(exc)
 
 
+def rip_cli(argv):
+    """--rip SOURCE GAMEDIR, for scripting or a machine with no display."""
+    if len(argv) == 0:
+        found = list_devices()
+        return ('Usage: vo-patch.py --rip SOURCE GAMEDIR\n'
+                '  SOURCE   a .cue sheet, or a CD drive\n'
+                '  GAMEDIR  the folder holding v_on.exe\n'
+                'Drives visible here: %s' % (', '.join(found) or 'none'))
+    if len(argv) != 2:
+        return 'Usage: vo-patch.py --rip SOURCE GAMEDIR'
+
+    source, gamedir = argv
+    seen = [None]
+
+    def progress(track, done, total):
+        if seen[0] != track:
+            seen[0] = track
+            sys.stderr.write('\n')
+        sys.stderr.write('\rtrack %02d  %5.1f%%  '
+                         % (track, 100.0 * done / max(total, 1)))
+
+    try:
+        files = rip(source, outdir_for(gamedir), progress)
+    except Exception as exc:
+        return '\nRipping failed: %s' % exc
+    sys.stderr.write('\n')
+    print('%d tracks written to %s' % (len(files), outdir_for(gamedir)))
+    return None
+
+
 def main():
     """GTK4 if it is there, Tk if not. VOPATCH_UI=gtk or =tk forces one."""
+    if '--rip' in sys.argv[1:]:
+        return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
+
     forced = os.environ.get('VOPATCH_UI', '').lower()
     gtk_why = 'skipped, VOPATCH_UI=tk' if forced == 'tk' else probe_gtk()
     if gtk_why is None:
