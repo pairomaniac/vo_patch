@@ -1,6 +1,9 @@
 # The script is released as an asset and run directly on Linux, so its
 # shebang must not pick up a CR from a Windows checkout.
+* text=auto
 *.py text eol=lf
 *.spec text eol=lf
 *.yml text eol=lf
 *.md text eol=lf
+*.asm text eol=lf
+*.inc text eol=lf
