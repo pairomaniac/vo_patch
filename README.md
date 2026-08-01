@@ -1,17 +1,16 @@
 # Virtual-On (PC, 1997) - v_on.exe patcher
 
-New patcher for *Cyber Troopers Virtual-On* on Windows: four of original
-VO_Patch's byte edits, fixes of my own, XInput gamepad support for both
-players, and no disc requirement - the soundtrack is read from files
-instead.
+Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
+the crashes, the frame rate and the keyboard, adds XInput gamepad support for
+both players, and drops the disc requirement by reading the soundtrack from
+files.
 
-VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights
-to the game belong to SEGA. The CC0 dedication in `LICENSE` covers this
-repository's own code and nothing else - not the game, and not the byte
-sequences quoted from it.
+Four of the byte edits come from the original VO_Patch 0.43 (2008) by
+[UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the
+game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
+the game and not the bytes quoted from it.
 
 <img width="480" height="624" alt="The patcher, with the patch lists and the CD music section" src="https://github.com/user-attachments/assets/116e05e0-2351-4268-b12d-d7c7d1dc0104" />
-
 
 ## Download
 
