@@ -1,8 +1,9 @@
 ; vocd.asm - file-based CD audio for Virtual-On, entirely inside v_on.exe.
 ;
-; Two blobs. The code blob goes in .text padding, the data blob in .data
-; padding. The patcher fills the MAGIC_ placeholders with real addresses and
-; points AddressOfEntryPoint at code_base+5.
+; Two blobs, code then data, both in a new .vocd section the patcher appends -
+; there is no padding left in .text and the zero runs in .data are globals the
+; game writes at runtime. apply_cdaudio fills the MAGIC_ placeholders with
+; real addresses and points AddressOfEntryPoint at code_base+5.
 ;
 ;   code_base+0   jmp hook       <- what the winmm IAT slot is redirected to
 ;   code_base+5   jmp startup    <- new entry point
@@ -25,7 +26,6 @@ bits 32
 %define MCI_OPEN        0x803
 %define MCI_CLOSE       0x804
 %define MCI_PLAY        0x806
-%define MCI_SEEK        0x807
 %define MCI_STOP        0x808
 %define MCI_PAUSE       0x809
 %define MCI_GETDEVCAPS  0x80B
@@ -39,7 +39,6 @@ bits 32
 %define MCI_OPEN_TYPE       0x2000
 
 %define ST_LENGTH       1
-%define ST_POSITION     2
 %define ST_NTRACKS      3
 %define ST_MODE         4
 %define ST_MEDIA        5
@@ -82,9 +81,6 @@ two_digits:
         add     al, '0'
         stosb
         ret
-
-; esi -> string constant offset in ecx, resolved against the data cave.
-; (kept inline at call sites instead; see uses of lea esi,[ebx+S_...])
 
 ; ------------------------------------------------------------------ init
 
