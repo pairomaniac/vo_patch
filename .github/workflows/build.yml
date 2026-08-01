@@ -1,15 +1,78 @@
-name: "Windows Build"
+name: "Build"
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  # vo-patch.py carries the assembled bytes rather than assembling on demand,
+  # so the assembly and the blobs in the script can drift apart and everything
+  # will still look fine: the repository is self-consistent and the shipped
+  # patcher installs last week's code. This job is the only thing that
+  # notices. It runs on every push, not just on a tag, because by tag time the
+  # bad blob is already what people download.
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install nasm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm
+          nasm -v
+
+      - run: pip install pyflakes
+
+      # Imports the module, so the patch table checks run: lengths, bounds,
+      # cross-patch collisions, and the one intra-patch overlap the XInput
+      # routine relies on.
+      - name: Patch tables
+        run: python3 vo-patch.py --selfcheck
+
+      # Reassembles asm/*.asm and compares against the committed blobs.
+      # Writes nothing - nasm works in a temporary directory.
+      - name: Assembly matches the committed blobs
+        run: python3 asm/build.py --check
+
+      # --check is meant to be read-only. If that ever stops being true this
+      # catches it, and it also catches a blob regenerated but not committed.
+      - name: Working tree is clean
+        run: git diff --exit-code
+
+      - name: Lint
+        run: python3 -m pyflakes vo-patch.py asm/build.py asm/layout.py tools/selftest.py
+
+      # The exe is named from the script, so a mismatched tag ships the wrong
+      # filename under the right release. Checked here so a bad tag fails in
+      # under a minute instead of after a PyInstaller run.
+      - name: Tag matches the script version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(grep -oP '(?<=^Version )\S+' vo-patch.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME but the script says $version"
+            exit 1
+          fi
+          echo "tag and script agree on $version"
+
+      # What this job cannot do is apply the patches to a real v_on.exe: the
+      # game is not in the repository. Run tools/selftest.py by hand before
+      # tagging - it is the only check that catches a wrong offset.
+
   windows:
+    needs: verify
     runs-on: windows-latest
 
     steps:
@@ -20,19 +83,6 @@ jobs:
           python-version: '3.12'
 
       - run: pip install pyinstaller==6.21.0
-
-      # The exe is named from the script, so a mismatched tag ships the
-      # wrong filename under the right release.
-      - name: Tag matches the script version
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          version=$(grep -oP '(?<=^Version )\S+' vo-patch.py)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME but the script says $version"
-            exit 1
-          fi
-          echo "tag and script agree on $version"
 
       # Everything about the build lives in vo-patch.spec, including the
       # version, which it reads out of the script.
