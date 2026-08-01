@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Virtual-On (PC, 1997) patcher. See README.md.
 
-    python3 vo-patch.py
+    python3 vo-patch.py                 patch a copy of v_on.exe
+    python3 vo-patch.py --rip SRC DIR   rip the soundtrack, no window needed
+    python3 vo-patch.py --selfcheck     validate the patch tables and exit
+    python3 vo-patch.py --version
 
-GTK4 where it is available, Tk otherwise. VOPATCH_UI=gtk or =tk forces one.
+GTK4 4.10 or newer where it is available, Tk otherwise. VOPATCH_UI=gtk or
+=tk forces one.
 
-Version 0.6.0
+Version 0.6.1
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -18,9 +22,31 @@ import struct
 import sys
 import threading
 
+VERSION = re.search(r'^Version (\S+)', __doc__, re.M).group(1)
+
 EXE_SIZE = 6650880
 
 ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
+
+# GENERATED - do not edit the hex by hand.
+#
+# Assembled from asm/levers.asm. To change it: edit that file and run
+#     python3 asm/build.py
+# which rewrites everything between the markers below. CI runs
+# `asm/build.py --check` on every push and fails if the two have drifted, so a
+# hand edit here will be caught but only after it has wasted your afternoon.
+#
+# The routine replaces the input tick's epilogue, so its site sits inside the
+# XInput routine rather than in untouched padding: the table entry below
+# expects the bytes the previous site wrote, not the original file's. Its
+# length is taken from LEVERS_CODE, so the routine may change size freely.
+
+# LEVERS BLOB BEGIN
+LEVERS_CODE = bytes.fromhex(
+    '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
+    '40750bf601807506800ab08009705f5e5bc9c3'
+)
+# LEVERS BLOB END
 
 # Each site: (offset, original, patched).
 
@@ -306,8 +332,7 @@ FEATURES = [
          # and only when a pad was actually read, so the keyboard path
          # is left exactly as it was.
          (0x00207702, '5f5e5bc9c3', 'e997000000'),
-         (0x0020779e, '000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-                      '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f60240750bf601807506800ab08009705f5e5bc9c3')]),
+         (0x0020779e, '00' * len(LEVERS_CODE), LEVERS_CODE.hex())]),
 ]
 
 # Found by signature rather than offset, so it cannot live in FEATURES.
@@ -330,35 +355,56 @@ EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound',
          'noloading')
 
 
-def _check_table():
-    """Fail at import, not half way through somebody's executable.
-
-    A length mismatch would patch silently and wrongly."""
-    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
-        raise AssertionError('patch list and display order disagree')
-    if 'nodisc' not in EXTRA:
-        raise AssertionError('nodisc must be in the extra list')
-    owner = {}
-    for key in BY_KEY:
-        for off, old, new in BY_KEY[key][2] or ():
-            if len(old) != len(new):
-                raise AssertionError('%s at 0x%08x: %d bytes replaced by %d'
-                                     % (key, off, len(old) // 2,
-                                        len(new) // 2))
-            for byte in range(off, off + len(old) // 2):
-                if owner.setdefault(byte, key) != key:
-                    raise AssertionError('%s and %s both patch 0x%08x'
-                                         % (owner[byte], key, byte))
-
-
-_check_table()
-
-
 def apply_order():
     """Display order, except that nodisc has to be last: it appends a
     section and chains the entry point, so it must see every other edit."""
     keys = [k for k in ESSENTIAL + EXTRA if k != 'nodisc']
     return keys + ['nodisc']
+
+
+def _check_table():
+    """Fail at import, not half way through somebody's executable.
+
+    Three things go wrong silently otherwise: a length mismatch patches the
+    wrong bytes, an offset past the end of the file patches nothing, and two
+    features writing the same byte make the result depend on the tick boxes.
+
+    Sites inside one feature *may* overlap - the XInput routine is written
+    whole and then has its epilogue rewritten - but only where the later site
+    expects exactly what the earlier one left there. Anything else means the
+    list has been reordered and the patch would fail against a real file."""
+    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
+        raise AssertionError('patch list and display order disagree')
+    if apply_order()[-1] != 'nodisc':
+        raise AssertionError('nodisc must be applied last')
+
+    owner = {}
+    for key in BY_KEY:
+        written = {}
+        for off, old, new in BY_KEY[key][2] or ():
+            if len(old) != len(new):
+                raise AssertionError('%s at 0x%08x: %d bytes replaced by %d'
+                                     % (key, off, len(old) // 2,
+                                        len(new) // 2))
+            old_b, new_b = bytes.fromhex(old), bytes.fromhex(new)
+            if off + len(old_b) > EXE_SIZE:
+                raise AssertionError('%s at 0x%08x runs %d bytes past the end'
+                                     % (key, off,
+                                        off + len(old_b) - EXE_SIZE))
+            for i, byte in enumerate(range(off, off + len(old_b))):
+                if owner.setdefault(byte, key) != key:
+                    raise AssertionError('%s and %s both patch 0x%08x'
+                                         % (owner[byte], key, byte))
+                if byte in written and written[byte] != old_b[i]:
+                    raise AssertionError(
+                        '%s at 0x%08x expects %02x where an earlier site in '
+                        'the same patch wrote %02x - has the site list been '
+                        'reordered?' % (key, byte, old_b[i], written[byte]))
+                written[byte] = new_b[i]
+    return sum(len(v[2] or ()) for v in BY_KEY.values()), len(owner)
+
+
+_check_table()
 
 
 def default_state():
@@ -548,9 +594,15 @@ def _linux_toc(fd):
     return entries
 
 
+# struct cdrom_read_audio: addr, addr_format, nframes, then a pointer. The
+# pointer's alignment is what differs between word sizes, so the padding has
+# to as well.
+_READ_AUDIO = '<IBxxxi4xQ' if struct.calcsize('P') == 8 else '<IBxxxiI'
+
+
 def _linux_read(fd, lba, frames, buf):
     import fcntl
-    req = struct.pack('<IBxxxi4xQ', lba, CDROM_LBA, frames,
+    req = struct.pack(_READ_AUDIO, lba, CDROM_LBA, frames,
                       ctypes.addressof(buf))
     fcntl.ioctl(fd, CDROMREADAUDIO, req)
     return bytes(buf)[:frames * RAW]
@@ -590,17 +642,36 @@ def _rip_linux(device, outdir, progress=None, chunk=8):
 IOCTL_CDROM_READ_TOC = 0x00024000
 IOCTL_CDROM_RAW_READ = 0x0002403E
 TRACK_MODE_CDDA = 2
+INVALID_HANDLE = ctypes.c_void_p(-1).value
 
 
-def _win_ioctl(h, code, inbuf, outlen):
+def _kernel32():
+    """kernel32 with prototypes. Without them ctypes assumes every argument
+    and return value is a 32-bit int, which truncates handles on 64-bit
+    Windows."""
+    k = ctypes.WinDLL('kernel32', use_last_error=True)
+    u32, ptr = ctypes.c_uint32, ctypes.c_void_p
+    k.CreateFileW.restype = ptr
+    k.CreateFileW.argtypes = [ctypes.c_wchar_p, u32, u32, ptr, u32, u32, ptr]
+    k.DeviceIoControl.restype = ctypes.c_int
+    k.DeviceIoControl.argtypes = [ptr, u32, ptr, u32, ptr, u32,
+                                  ctypes.POINTER(ctypes.c_ulong), ptr]
+    k.CloseHandle.restype = ctypes.c_int
+    k.CloseHandle.argtypes = [ptr]
+    k.GetDriveTypeW.restype = ctypes.c_uint
+    k.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
+    k.GetLogicalDrives.restype = ctypes.c_uint32
+    return k
+
+
+def _win_ioctl(k, h, code, inbuf, outlen):
     out = ctypes.create_string_buffer(outlen)
     ret = ctypes.c_ulong(0)
-    ok = ctypes.windll.kernel32.DeviceIoControl(
-        h, code, inbuf, len(inbuf) if inbuf else 0,
-        out, outlen, ctypes.byref(ret), None)
+    ok = k.DeviceIoControl(h, code, inbuf, len(inbuf) if inbuf else 0,
+                           out, outlen, ctypes.byref(ret), None)
     if not ok:
         raise OSError('DeviceIoControl 0x%x failed: %d'
-                      % (code, ctypes.GetLastError()))
+                      % (code, ctypes.get_last_error()))
     return out.raw[:ret.value]
 
 
@@ -609,18 +680,22 @@ def _rip_windows(letter, outdir, progress=None, chunk=16):
     FILE_SHARE_READ = 1
     OPEN_EXISTING = 3
 
+    k = _kernel32()
     path = '\\\\.\\%s:' % letter.rstrip(':\\/')
-    h = ctypes.windll.kernel32.CreateFileW(
-        path, GENERIC_READ, FILE_SHARE_READ, None, OPEN_EXISTING, 0, None)
-    if h == -1:
-        raise OSError('cannot open %s: %d' % (path, ctypes.GetLastError()))
+    h = k.CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, None,
+                      OPEN_EXISTING, 0, None)
+    if not h or h == INVALID_HANDLE:
+        raise OSError('cannot open %s: %d' % (path, ctypes.get_last_error()))
 
     try:
-        toc = _win_ioctl(h, IOCTL_CDROM_READ_TOC, None, 4 + 100 * 8)
+        toc = _win_ioctl(k, h, IOCTL_CDROM_READ_TOC, None, 4 + 100 * 8)
         first, last = toc[2], toc[3]
         entries = []
         for i in range((len(toc) - 4) // 8):
-            no, ctrl = toc[4 + i * 8 + 2], toc[4 + i * 8 + 1] >> 4
+            # TRACK_DATA declares Control before Adr, so on this side Control
+            # is the *low* nibble - the opposite of Linux's cdrom_tocentry.
+            # Reading the wrong one makes the data track look like audio.
+            no, ctrl = toc[4 + i * 8 + 2], toc[4 + i * 8 + 1] & 0x0F
             m, s, f = toc[4 + i * 8 + 5:4 + i * 8 + 8]
             lba = (m * 60 + s) * 75 + f - 150
             entries.append({'no': no, 'lba': lba, 'audio': not (ctrl & 4)})
@@ -643,14 +718,15 @@ def _rip_windows(letter, outdir, progress=None, chunk=16):
                     n = min(chunk, end - lba)
                     # DiskOffset counts in 2048-byte units even for CDDA.
                     req = struct.pack('<qII', lba * 2048, n, TRACK_MODE_CDDA)
-                    dst.write(_win_ioctl(h, IOCTL_CDROM_RAW_READ, req, n * RAW))
+                    dst.write(_win_ioctl(k, h, IOCTL_CDROM_RAW_READ, req,
+                                         n * RAW))
                     lba += n
                     if progress:
                         progress(t['no'], (lba - start) * RAW, total)
             written.append(out)
         return written
     finally:
-        ctypes.windll.kernel32.CloseHandle(h)
+        k.CloseHandle(h)
 
 
 # ------------------------------------------------------------------ public
@@ -666,13 +742,13 @@ def list_devices():
     """Candidate optical devices, best-effort."""
     if os.name == 'nt':
         DRIVE_CDROM = 5
+        k = _kernel32()
         out = []
-        mask = ctypes.windll.kernel32.GetLogicalDrives()
+        mask = k.GetLogicalDrives()
         for i in range(26):
             if mask & (1 << i):
                 letter = chr(ord('A') + i)
-                if ctypes.windll.kernel32.GetDriveTypeW(letter + ':\\') \
-                        == DRIVE_CDROM:
+                if k.GetDriveTypeW(letter + ':\\') == DRIVE_CDROM:
                     out.append(letter + ':')
         return out
     return [os.path.join('/dev', d) for d in sorted(os.listdir('/dev'))
@@ -704,7 +780,7 @@ def music_status(gamedir):
     found = [f for f in os.listdir(out)
              if re.match(r'track\d+\.wav$', f, re.I)]
     if not found:
-        return 'music folder is empty. Without tracks the game uses a disc.'
+        return 'Music folder is empty. Without tracks the game uses a disc.'
     mb = sum(os.path.getsize(os.path.join(out, f)) for f in found) // (1 << 20)
     return '%d tracks in music (%d MB).' % (len(found), mb)
 
@@ -725,7 +801,16 @@ def rip_in_background(source, gamedir, progress, done):
 
 
 # --- CD audio ------------------------------------------------------------
-# Assembled from asm/vocd.asm by asm/build.py; edit the assembly, not this.
+# GENERATED - do not edit the hex by hand.
+#
+# Assembled from asm/vocd.asm and asm/layout.py. To change it: edit those and
+# run
+#     python3 asm/build.py
+# which rewrites everything between the markers below, including VOCD_MAGICS.
+# CI runs `asm/build.py --check` on every push and fails if the two have
+# drifted. Editing the hex directly would pass that check only until the next
+# regeneration silently threw the edit away.
+#
 # The only absolute addresses in VOCD_CODE are the placeholders below, which
 # apply_cdaudio fills in once it has read the executable. VOCD_DATA is the
 # string table and the scratch space.
@@ -741,94 +826,100 @@ VOCD_MAGICS = {
 }
 
 VOCD_CODE = bytes.fromhex(
-    'e913020000eb1aacaa84c075fa4fc331d2b90a000000f7f10430aa88d00430aac360'
-    'bbe5e5e5e5837b2c000f8581010000c7432c010000008d834005000050ff15e3e3e3'
-    'e389c68d83660500005056ff15e4e4e4e48943148d83790500005056ff15e4e4e4e4'
-    '8943188d83850500005056ff15e4e4e4e489431c8d83910500005056ff15e4e4e4e4'
-    '8943208d839d0500005056ff15e4e4e4e48943248d83ac0500005056ff15e4e4e4e4'
-    '8943288d834d05000050ff15e3e3e3e385c00f84f000000089c68d83570500005056'
-    'ff15e4e4e4e489431085c00f84d50000008d83d00100006808010000506a00ff5314'
-    '85c00f84bc0000008dbbd001000001c74f803f5c740a8d83d001000039c777f0c647'
-    '0100be02000000e89d0000006a0068800000006a036a006a0168000000808d83e002'
-    '000050ff531883f8ff744489c76a0057ff531c89c557ff532083ed2c763189e831d2'
-    'b930090000f7f131d2b994110000f7f189c589d031d2b94b000000f7f1c1e00809c5'
-    'c1e21009d5896cb34089334683fe647290833b0074268d4330506a046a0468e2e2e2'
-    'e2ff532485c07412a1e2e2e2e289430cc705e2e2e2e2e6e6e6e66168e1e1e1e1c356'
-    '8dbbe00200008db3d0010000e83cfeffff8db3be050000e831feffff8b0424e831fe'
-    'ffff8db3ca050000e81efeffff5ec36a006a006a008d040350ff5310c3837b040074'
-    '18b851060000e8e2ffffffc7430400000000c7430800000000c35589e5535657bbe5'
-    'e5e5e5833b000f84900000008b450c3d0308000075408b5510f7c200200000747bf7'
-    'c20010000075738b751485f6746c8b460885c074658d93b60500005250ff532885c0'
-    '7556e88effffffc74604cefa000031c0eb55817d08cefa0000753d3d140800000f84'
-    '520100003d060800000f84ad0000003d0808000074513d0908000074633d55080000'
-    '747d3d0408000074333d0b080000741a31c0eb0fff7514ff7510ff750cff7508ff53'
-    '0c5f5e5b5dc210008b751485f67407c746040100000031c0ebe7e810ffffff31c0eb'
-    'de837b0400740fb827060000e8eefeffffe8f7feffff31c0ebc5837b04007417837b'
-    '08007511b834060000e8cffeffffc743080100000031c0eba4837b08007411b84206'
-    '0000e8b4feffffc743080000000031c0eb898b5510f7c2040000000f84840000008b'
-    '751485f6747d8b46040fb6f083fe02727283fe64736d8b44b34085c07465e884feff'
-    'ffe83ffeffff8dbb000400008db3cf050000e87cfcffff8db3e0020000e871fcffff'
-    '8db3d6050000e866fcffff6a006a006a008d830004000050ff531085c075208b4514'
-    '8b40040fb6c0894304b8f5050000e820feffffb81a060000e816feffff31c0e9effe'
-    'ffff8b751485f6750731c0e9e1feffff8b460883f80375078b13e9e300000083f801'
-    '752d8b5510f7c2100000000f84cd0000008b4e0c83f9010f82c100000083f9640f83'
-    'b80000008b548b40e9b100000083f8047556ba0d020000837b08007544837b04000f'
-    '84970000006a006a408d8300040000508d835f06000050ff531085c0757e8d837306'
-    '0000508d830004000050ff5328ba0d02000085c07564ba0e020000eb5dba11020000'
-    'eb5683f808750e8b530485d2754aba01000000eb4383f805743583f807743083f806'
-    '7507ba0a000000eb2d3d014000007524ba400400008b4d10f7c1100000007416837e'
-    '0c017510ba41040000eb09ba01000000eb0231d289560431c0e9e5fdffff'
+    'e913020000eb1aacaa84c075fa4fc331d2b90a000000f7f10430aa88d00430aa'
+    'c360bbe5e5e5e5837b2c000f8581010000c7432c010000008d834005000050ff'
+    '15e3e3e3e389c68d83660500005056ff15e4e4e4e48943148d83790500005056'
+    'ff15e4e4e4e48943188d83850500005056ff15e4e4e4e489431c8d8391050000'
+    '5056ff15e4e4e4e48943208d839d0500005056ff15e4e4e4e48943248d83ac05'
+    '00005056ff15e4e4e4e48943288d834d05000050ff15e3e3e3e385c00f84f000'
+    '000089c68d83570500005056ff15e4e4e4e489431085c00f84d50000008d83d0'
+    '0100006808010000506a00ff531485c00f84bc0000008dbbd001000001c74f80'
+    '3f5c740a8d83d001000039c777f0c6470100be02000000e89d0000006a006880'
+    '0000006a036a006a0168000000808d83e002000050ff531883f8ff744489c76a'
+    '0057ff531c89c557ff532083ed2c763189e831d2b930090000f7f131d2b99411'
+    '0000f7f189c589d031d2b94b000000f7f1c1e00809c5c1e21009d5896cb34089'
+    '334683fe647290833b0074268d4330506a046a0468e2e2e2e2ff532485c07412'
+    'a1e2e2e2e289430cc705e2e2e2e2e6e6e6e66168e1e1e1e1c3568dbbe0020000'
+    '8db3d0010000e83cfeffff8db3be050000e831feffff8b0424e831feffff8db3'
+    'ca050000e81efeffff5ec36a006a006a008d040350ff5310c3837b04007418b8'
+    '51060000e8e2ffffffc7430400000000c7430800000000c35589e5535657bbe5'
+    'e5e5e5833b000f84900000008b450c3d0308000075408b5510f7c20020000074'
+    '7bf7c20010000075738b751485f6746c8b460885c074658d93b60500005250ff'
+    '532885c07556e88effffffc74604cefa000031c0eb55817d08cefa0000753d3d'
+    '140800000f84520100003d060800000f84ad0000003d0808000074513d090800'
+    '0074633d55080000747d3d0408000074333d0b080000741a31c0eb0fff7514ff'
+    '7510ff750cff7508ff530c5f5e5b5dc210008b751485f67407c7460401000000'
+    '31c0ebe7e810ffffff31c0ebde837b0400740fb827060000e8eefeffffe8f7fe'
+    'ffff31c0ebc5837b04007417837b08007511b834060000e8cffeffffc7430801'
+    '00000031c0eba4837b08007411b842060000e8b4feffffc743080000000031c0'
+    'eb898b5510f7c2040000000f84840000008b751485f6747d8b46040fb6f083fe'
+    '02727283fe64736d8b44b34085c07465e884feffffe83ffeffff8dbb00040000'
+    '8db3cf050000e87cfcffff8db3e0020000e871fcffff8db3d6050000e866fcff'
+    'ff6a006a006a008d830004000050ff531085c075208b45148b40040fb6c08943'
+    '04b8f5050000e820feffffb81a060000e816feffff31c0e9effeffff8b751485'
+    'f6750731c0e9e1feffff8b460883f80375078b13e9e300000083f801752d8b55'
+    '10f7c2100000000f84cd0000008b4e0c83f9010f82c100000083f9640f83b800'
+    '00008b548b40e9b100000083f8047556ba0d020000837b08007544837b04000f'
+    '84970000006a006a408d8300040000508d835f06000050ff531085c0757e8d83'
+    '73060000508d830004000050ff5328ba0d02000085c07564ba0e020000eb5dba'
+    '11020000eb5683f808750e8b530485d2754aba01000000eb4383f805743583f8'
+    '07743083f8067507ba0a000000eb2d3d014000007524ba400400008b4d10f7c1'
+    '100000007416837e0c017510ba41040000eb09ba01000000eb0231d289560431'
+    'c0e9e5fdffff'
 )
 
 VOCD_DATA = bytes.fromhex(
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '0b331a00000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '00000000000000000000000000000000000000000000000000000000000000000000'
-    '0000000000000000000000000000000000006b65726e656c33322e646c6c0077696e'
-    '6d6d2e646c6c006d636953656e64537472696e6741004765744d6f64756c6546696c'
-    '654e616d65410043726561746546696c65410047657446696c6553697a6500436c6f'
-    '736548616e646c65005669727475616c50726f74656374006c737472636d70694100'
-    '6364617564696f006d757369635c747261636b002e776176006f70656e2022002220'
-    '747970652077617665617564696f20616c69617320766f636462676d007365742076'
-    '6f636462676d2074696d6520666f726d6174206d696c6c697365636f6e647300706c'
-    '617920766f636462676d0073746f7020766f636462676d00706175736520766f6364'
-    '62676d00726573756d6520766f636462676d00636c6f736520766f636462676d0073'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '000000000b331a00000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '6b65726e656c33322e646c6c0077696e6d6d2e646c6c006d636953656e645374'
+    '72696e6741004765744d6f64756c6546696c654e616d65410043726561746546'
+    '696c65410047657446696c6553697a6500436c6f736548616e646c6500566972'
+    '7475616c50726f74656374006c737472636d706941006364617564696f006d75'
+    '7369635c747261636b002e776176006f70656e20220022207479706520776176'
+    '65617564696f20616c69617320766f636462676d0073657420766f636462676d'
+    '2074696d6520666f726d6174206d696c6c697365636f6e647300706c61792076'
+    '6f636462676d0073746f7020766f636462676d00706175736520766f63646267'
+    '6d00726573756d6520766f636462676d00636c6f736520766f636462676d0073'
     '746174757320766f636462676d206d6f646500706c6179696e6700'
 )
 # VOCD BLOB END
@@ -943,12 +1034,19 @@ def apply_cdaudio(buf):
         'MAGIC_HOOK':      pe.base + code_rva,
     }
 
+    # Substitution is a plain replace over the whole blob, so check each
+    # placeholder still occurs exactly as often as it did in the source: an
+    # address written earlier could in principle spell a later placeholder.
     code = bytes(VOCD_CODE)
     for name, magic in VOCD_MAGICS.items():
-        if struct.pack('<I', magic) not in code:
+        pattern = struct.pack('<I', magic)
+        want = VOCD_CODE.count(pattern)
+        if not want:
             raise ValueError('%s is missing from the blob' % name)
-        code = code.replace(struct.pack('<I', magic),
-                            struct.pack('<I', values[name]))
+        if code.count(pattern) != want:
+            raise ValueError('%s: a filled-in address spells a placeholder'
+                             % name)
+        code = code.replace(pattern, struct.pack('<I', values[name]))
     for magic in VOCD_MAGICS.values():
         if struct.pack('<I', magic) in code:
             raise ValueError('a placeholder was left unfilled')
@@ -980,15 +1078,19 @@ class Patcher:
         return note, False
 
     def apply(self, wanted):
-        """Patch a clean original in place. Returns a list of log lines."""
+        """Patch a clean original in place.
+
+        Returns (ok, log lines). Nothing is written unless ok is True, so the
+        caller must not report success on the strength of having a log.
+        """
         log = []
         try:
             with open(self.exe_path, 'rb') as fh:
                 buf = bytearray(fh.read())
         except OSError as exc:
-            return ['Could not read the executable: %s' % exc]
+            return False, ['Could not read the executable: %s' % exc]
 
-        applied = []
+        applied, skipped = [], []
         for key in apply_order():
             if not wanted.get(key):
                 continue
@@ -1003,43 +1105,58 @@ class Patcher:
             except ValueError as exc:
                 if key == 'dinput':          # signature miss, not fatal
                     log.append('Skipped %s: %s' % (label, exc))
+                    skipped.append(label)
                     continue
-                return ['%s: %s' % (label, exc), 'Nothing written.']
+                return False, ['%s: %s' % (label, exc), 'Nothing written.']
             applied.append(label)
 
-        if applied:
-            self._backup(self.exe_path, log)
-            try:
-                with open(self.exe_path, 'wb') as fh:
-                    fh.write(buf)
-            except OSError as exc:
-                return log + ['Write failed: %s' % exc]
-            log += ['  %s' % name for name in applied]
-            log.append('Wrote %s' % self.exe_path)
-            if wanted.get('padxinput'):
-                self._retire_ini(log)
-        else:
-            log.append('No executable patches selected')
+        if not applied:
+            if skipped:
+                log.append('%s was the only patch selected and its call site '
+                           'was not found. Nothing written.' % skipped[0])
+            else:
+                log.append('No patches selected. Nothing written.')
+            return False, log
 
-        return log
+        self._backup(self.exe_path, log)
+        try:
+            with open(self.exe_path, 'wb') as fh:
+                fh.write(buf)
+        except OSError as exc:
+            return False, log + ['Write failed: %s' % exc]
+        log += ['  %s' % name for name in applied]
+        log.append('Wrote %s' % self.exe_path)
+        if wanted.get('padxinput'):
+            self._retire_ini(log)
+        return True, log
 
     def can_restore(self):
         return bool(self.exe_path) and os.path.exists(self.exe_path + '.bak')
 
     def restore(self):
-        """Copy the .bak back over the exe. Returns a log line."""
+        """Copy the .bak back over the exe. Returns a list of log lines."""
         bak = self.exe_path + '.bak'
         try:
             shutil.copy(bak, self.exe_path)
         except OSError as exc:
-            return 'Restore failed: %s' % exc
+            return ['Restore failed: %s' % exc]
+        log = ['Restored %s from the backup'
+               % os.path.basename(self.exe_path)]
+
+        # The patched game rebuilds v_on.ini on its first run, so by now
+        # there is almost always one in the way. It holds pad binds the
+        # restored game cannot read, so it is the one to move aside.
         ini = os.path.join(os.path.dirname(self.exe_path), 'v_on.ini')
-        if os.path.exists(ini + '.bak') and not os.path.exists(ini):
+        if os.path.exists(ini + '.bak'):
             try:
+                if os.path.exists(ini):
+                    os.replace(ini, ini + '.patched')
+                    log.append('Kept the patched settings as v_on.ini.patched')
                 shutil.move(ini + '.bak', ini)
-            except OSError:
-                pass
-        return 'Restored %s from the backup' % os.path.basename(self.exe_path)
+                log.append('Put the original v_on.ini back')
+            except OSError as exc:
+                log.append('Could not restore v_on.ini: %s' % exc)
+        return log
 
     def _retire_ini(self, log):
         """Binds written by the unpatched game crash the gamepad profile.
@@ -1110,13 +1227,14 @@ ESSENTIAL_HINT = ('These fix things that are broken on modern systems. '
                   'Keep them enabled unless you have a reason not to.')
 EXTRA_HINT = 'Optional changes. Untick anything you would rather not have.'
 
-MUSIC_HINT = ('Rip the soundtrack once and Play CD music from files has '
+MUSIC_HINT = ('Rip the soundtrack once and CD music from files has '
               'something to play. Separate from patching: the patch is happy '
-              'without it and falls back to the disc, and the tracks keep '
-              'working if you re-patch.')
+              'without it and falls back to the disc, and the tracks survive '
+              'a restore, so they are still there if you patch again.')
 
 MUSIC_PLACEHOLDER = 'VIRTUAL-ON.cue, or a CD drive'
 DONE = 'Done. Restore the original to change your selection.'
+FAILED = 'Nothing was written - see the log.'
 
 
 # ---------------------------------------------------------------- GTK4 front
@@ -1461,7 +1579,7 @@ def run_gtk():
             btn.set_tooltip_text('What this does')
             theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
             icon = 'help-about-symbolic'
-            if theme is None or theme.has_icon(icon):
+            if theme is not None and theme.has_icon(icon):
                 btn.set_icon_name(icon)
             else:
                 btn.set_label('\u24d8')
@@ -1530,6 +1648,11 @@ def run_gtk():
                 note, ok = self.core.load(path)
             except OSError as exc:
                 self._set_status('Could not read it: %s' % exc, False)
+                for check in self.boxes.values():
+                    check.set_active(False)
+                    check.set_sensitive(False)
+                self.apply_btn.set_sensitive(False)
+                self.rip_btn.set_sensitive(False)
                 return
             self._set_status(note, ok)
             state = default_state()
@@ -1538,6 +1661,8 @@ def run_gtk():
                 check.set_sensitive(ok)
             self.apply_btn.set_sensitive(ok)
             self.restore_btn.set_sensitive(self.core.can_restore())
+            # Ripping only needs a folder, so it stays available for a file
+            # that cannot be patched - already patched, most likely.
             self.rip_btn.set_sensitive(True)
             self.music_note.set_text(music_status(os.path.dirname(path)))
             if not ok:
@@ -1545,16 +1670,21 @@ def run_gtk():
 
         def _apply(self, _btn):
             wanted = {k: cb.get_active() for k, cb in self.boxes.items()}
-            for line in self.core.apply(wanted):
+            ok, lines = self.core.apply(wanted)
+            for line in lines:
                 self._log(line)
+            self.restore_btn.set_sensitive(self.core.can_restore())
+            if not ok:                      # leave everything as it was
+                self._set_status(FAILED, False)
+                return
             self.apply_btn.set_sensitive(False)
             for check in self.boxes.values():
                 check.set_sensitive(False)
-            self.restore_btn.set_sensitive(self.core.can_restore())
             self._set_status(DONE)
 
         def _restore(self, _btn):
-            self._log(self.core.restore())
+            for line in self.core.restore():
+                self._log(line)
             self._check_file(self.core.exe_path)
 
         def _log(self, text):
@@ -2025,6 +2155,11 @@ def run_tk():
                 note, ok = self.core.load(path)
             except OSError as exc:
                 self._set_status('Could not read it: %s' % exc, False)
+                for key, check in self.checks.items():
+                    self.vars[key].set(False)
+                    check.state(['disabled'])
+                self.apply_btn.state(['disabled'])
+                self.rip_btn.state(['disabled'])
                 return
             self._set_status(note, ok)
             state = default_state()
@@ -2034,6 +2169,8 @@ def run_tk():
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
                 ['!disabled'] if self.core.can_restore() else ['disabled'])
+            # Ripping only needs a folder, so it stays available for a file
+            # that cannot be patched - already patched, most likely.
             self.rip_btn.state(['!disabled'])
             self.music_note.config(text=music_status(os.path.dirname(path)))
             if not ok:
@@ -2041,17 +2178,22 @@ def run_tk():
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
-            for line in self.core.apply(wanted):
+            ok, lines = self.core.apply(wanted)
+            for line in lines:
                 self._log(line)
+            self.restore_btn.state(
+                ['!disabled'] if self.core.can_restore() else ['disabled'])
+            if not ok:                      # leave everything as it was
+                self._set_status(FAILED, False)
+                return
             self.apply_btn.state(['disabled'])
             for check in self.checks.values():
                 check.state(['disabled'])
-            self.restore_btn.state(
-                ['!disabled'] if self.core.can_restore() else ['disabled'])
             self._set_status(DONE)
 
         def _restore(self):
-            self._log(self.core.restore())
+            for line in self.core.restore():
+                self._log(line)
             self._check_file(self.core.exe_path)
 
         def _log(self, text):
@@ -2088,14 +2230,44 @@ def probe_tk():
         return str(exc)
 
 
+USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
+
+  vo-patch.py                     open the patcher
+  vo-patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
+                                  or a CD drive, DIR holds v_on.exe
+  vo-patch.py --rip               list the drives it can see
+  vo-patch.py --selfcheck         validate the patch tables and exit
+  vo-patch.py --version
+
+VOPATCH_UI=gtk or =tk picks a toolkit instead of preferring GTK4."""
+
+
+def selfcheck():
+    """Run the import-time table checks and say what they covered.
+
+    The tables are the whole patcher, and nothing else exercises them without
+    a copy of the game, so this is what to run after editing one."""
+    sites, byte_count = _check_table()
+    lines = ['vo-patch.py %s' % VERSION,
+             '%d patches, %d sites, %d bytes of the executable touched'
+             % (len(BY_KEY), sites, byte_count),
+             'expects %d bytes, MD5 %s' % (EXE_SIZE, ORIGINAL_MD5),
+             'CD audio blob: %d bytes of code, %d of data, %d placeholders'
+             % (len(VOCD_CODE), len(VOCD_DATA), len(VOCD_MAGICS)),
+             'lever routine: %d bytes' % len(LEVERS_CODE),
+             'write order: %s' % ' '.join(apply_order()),
+             'tables OK']
+    print('\n'.join(lines))
+    return None
+
+
 def rip_cli(argv):
     """--rip SOURCE GAMEDIR, for scripting or a machine with no display."""
     if len(argv) == 0:
         found = list_devices()
-        return ('Usage: vo-patch.py --rip SOURCE GAMEDIR\n'
-                '  SOURCE   a .cue sheet, or a CD drive\n'
-                '  GAMEDIR  the folder holding v_on.exe\n'
-                'Drives visible here: %s' % (', '.join(found) or 'none'))
+        print('Drives visible here: %s' % (', '.join(found) or 'none'))
+        print('Rip one with: vo-patch.py --rip SOURCE GAMEDIR')
+        return None
     if len(argv) != 2:
         return 'Usage: vo-patch.py --rip SOURCE GAMEDIR'
 
@@ -2120,7 +2292,16 @@ def rip_cli(argv):
 
 def main():
     """GTK4 if it is there, Tk if not. VOPATCH_UI=gtk or =tk forces one."""
-    if '--rip' in sys.argv[1:]:
+    args = sys.argv[1:]
+    if '--help' in args or '-h' in args:
+        print(USAGE % VERSION)
+        return None
+    if '--version' in args:
+        print(VERSION)
+        return None
+    if '--selfcheck' in args:
+        return selfcheck()
+    if '--rip' in args:
         return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
 
     forced = os.environ.get('VOPATCH_UI', '').lower()
