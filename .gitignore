@@ -7,3 +7,7 @@ __pycache__/
 
 # Backups the patcher makes beside the game.
 *.bak
+
+# Ignore generated assembler output
+asm/strings.inc
+asm/*.bin
