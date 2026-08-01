@@ -2,8 +2,8 @@
 
 New patcher for *Cyber Troopers Virtual-On* on Windows: four of original
 VO_Patch's byte edits, fixes of my own, XInput gamepad support for both
-players, and CD music played from files so the soundtrack works with no disc
-and nothing mounted.
+players, and no disc requirement - the soundtrack is read from files
+instead.
 
 VO_Patch 0.43 (2008) is by [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights
 to the game belong to SEGA. The CC0 dedication in `LICENSE` covers this
@@ -49,16 +49,14 @@ opening an F-key dialog kills the keyboard for the rest of the session.
 ### Extra
 
 - **XInput gamepad support** - adds a *Gamepad (XInput)* device profile and
-binds every action to a modern controller, for both players. The Windows 95
-joystick API the game uses leaves one trigger unreachable. See
-[Gamepad](#gamepad).
-- **CD music from files, no disc needed** - the soundtrack comes from
-`music\trackNN.wav` beside the game and the disc check goes with it, so the
-game runs and the music plays with nothing mounted. See [Music](#music).
-- **Disable menu bar (Extras menu on F11)** - drops the strip across the top
-and puts the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
-Scorekeeping and **Quit Program**. Motion is not among them, the F5 page
-having taken that over. Every other menu was always on a key:
+binds every action to a modern controller, for both players. One trigger is
+unreachable through the joystick API the game uses. See [Gamepad](#gamepad).
+- **No disc required** - removes the disc check and reads the soundtrack from
+`music\trackNN.wav` beside the game instead. See [Music](#music).
+- **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
+the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
+Scorekeeping and **Quit Program**. Motion is not among them; it has moved to
+F5. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -74,10 +72,9 @@ having taken that over. Every other menu was always on a key:
 - **Better defaults with no v_on.ini** - what the game falls back on when a
 key is missing, which on a first run is all of them: Sky on, all three Texture
 boxes on, Field Graphic Rich, Screen Large.
-- **Miscellaneous sound fixes** - three small ones together: sound effects
-fire without their built-in delay so rapid-fire weapons sound like the arcade,
-output goes from 22050 to 44100 Hz, and an enemy Fei-Yen gets back the
-hypermode sound a bug left silent.
+- **Miscellaneous sound fixes** - three small ones: the built-in delay before
+each sound effect is removed, output goes from 22050 to 44100 Hz, and an enemy
+Fei-Yen gets back the hypermode sound a bug left silent.
 - **Hide loading screen text** - removes "Now Loading . . .".
 
 ## Using the patcher
@@ -162,34 +159,32 @@ one. **Restore original** puts it back.
 
 ## Music
 
-The BGM is Redbook CD audio: the game drives it with 37 `mciSendCommandA`
-calls against the `cdaudio` device. Left alone it needs a disc, or a virtual
-drive presenting the audio tracks - a data-only ISO has nothing to play, so
-the game runs silent but otherwise fine.
+The BGM is Redbook CD audio, driven through 37 `mciSendCommandA` calls against
+the `cdaudio` device. Unpatched it needs a disc or a virtual drive with the
+audio tracks; a data-only ISO plays nothing.
 
-The patch removes that requirement: rip the soundtrack to WAV, drop it beside
-the game, and the music plays with no drive and no extra DLL.
+**No disc required** reads it from WAV files beside the game instead. No drive,
+no extra DLL.
 
 ### Ripping the tracks
 
-The **CD MUSIC** section of the patcher rips them, from a `bin`/`cue` pair or
-a CD drive. Pick `v_on.exe` first so it knows where they go, put a cue sheet
-or a drive in the box, press **Rip tracks**.
+Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it knows
+where the files go, put a cue sheet or a drive in the box, press **Rip
+tracks**.
 
-Via terminal:
+Or from a terminal:
 
 ```bash
 python3 vo-patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
 python3 vo-patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
-python3 vo-patch.py --rip                # list drives it can see
+python3 vo-patch.py --rip                # list drives
 ```
 
-The `bin`/`cue` route is the one to prefer: exact, no drive needed, sector
-offsets read straight from the sheet. A drive is read with `CDROMREADAUDIO` on
-Linux and `IOCTL_CDROM_RAW_READ` on Windows, and a cdemu device works the same
-as a physical one.
+`bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
+Drives are read with `CDROMREADAUDIO` on Linux and `IOCTL_CDROM_RAW_READ` on
+Windows; a cdemu device behaves like a physical one.
 
-The result is about 320 MB: 26 audio tracks, roughly 30 minutes, uncompressed.
+Output is about 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
 
 ```
 VIRTUAL-ON\
@@ -198,15 +193,14 @@ VIRTUAL-ON\
         track02.wav ... track27.wav
 ```
 
-Track 1 is the data track and has no file. Numbering has to match the disc,
+Track 1 is the data track and has no file. The numbering must match the disc,
 because the game asks for tracks by number.
 
 ### At runtime
 
-If `music\` is missing or empty the patch stands aside and the game talks to
-the drive as it always did. If the tracks are there they win, disc or no disc.
-Under Wine they play through `mciwave`, so no `dosdevices` entry, raw device
-link or cdemu instance is needed.
+With `music\` missing or empty, the game reads the drive as before. With
+tracks present, they are used, disc or no disc. Under Wine they play through
+`mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
 ## Resolution
 
@@ -243,7 +237,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Fix the lose-a-round crash** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Keep input after alt-tab** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x1bc13b`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, F7 page constants, four `.rdata` caves | routine, tables and lever cleanup in section padding, both players' profile dispatch repointed |
-| **CD music from files** | new `.vocd` section, entry point, winmm IAT slot | `mciSendCommandA` redirected to a routine that answers from WAV files |
+| **Music from files** | new `.vocd` section, entry point, winmm IAT slot | `mciSendCommandA` redirected to a routine that answers from WAV files |
 | **Menu bar off, F11 dialog** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
@@ -257,7 +251,7 @@ the tin. These are the rest, in the order of the table above.
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
 leaving `nAvgBytesPerSec` inconsistent; both are set here.
 
-**No disc, CD music.** A helper returns -1 when no disc is found and the
+**No disc, music from files.** A helper returns -1 when no disc is found and the
 caller loops on a message box; removing the branch into that loop falls
 through to the success path. The scan itself is untouched, so a mounted image
 is still found.

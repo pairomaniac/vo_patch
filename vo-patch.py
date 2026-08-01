@@ -52,10 +52,10 @@ LEVERS_CODE = bytes.fromhex(
 
 FEATURES = [
     ('sound', 'Miscellaneous sound fixes',
-     'Three small ones, bundled because nobody wants them separately.\n'
+     'Three small fixes, applied together.\n'
      '\n'
-     'Arcade timing\tDrops the delay before each sound effect, so rapid-fire weapons sound like the arcade.\n'
-     'Output frequency\t22050 to 44100 Hz. Subtle, the samples being 8-bit either way. May misbehave on some cards.\n'
+     'Sound effects\tThe built-in delay before each one is removed.\n'
+     'Output frequency\t22050 to 44100 Hz. The samples are 8-bit either way.\n'
      'Enemy Fei-Yen\tRestores the hypermode sound a bug left silent.', [
          (0x002bba60, '0f', '01'),
          (0x00189546, '2256', '44ac'),
@@ -64,13 +64,14 @@ FEATURES = [
          (0x00170dc9, '01', '02')]),
 
     ('noloading', 'Hide loading screen text',
-     'Hides "Now Loading . . .". Loads are instant on modern hardware.', [
+     'Hides "Now Loading . . ." on the loading screen.', [
          (0x002c7678, '4e', '00')]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
-     'What the game falls back on when a key is missing, which on a first\n'
-     'run is all of them. An existing v_on.ini wins, and F5 overrides both.\n'
+     'Changes what the game falls back on when a key is missing from\n'
+     'v_on.ini, which on a first run is all of them. An existing key wins,\n'
+     'and F5 overrides both.\n'
      '\n'
      'Sky\tOn, was Off.\n'
      'Texture\tAll three on, were all off.\n'
@@ -84,13 +85,13 @@ FEATURES = [
          (0x0010b1ba, '00000000', '01000000'),
          (0x0010b1c4, '00000000', '01000000')]),
 
-    ('nodisc', 'CD music from files, no disc needed',
-     'The soundtrack comes from music\\trackNN.wav beside the game, and the\n'
-     'disc check goes with it. Neither is much use without the other.\n'
+    ('nodisc', 'No disc required',
+     'Removes the disc check. The soundtrack then has to come from\n'
+     'somewhere, so the same patch adds playback from files.\n'
      '\n'
-     'Disc check\tSkips the "Please insert VIRTUAL ON CD" prompt. The drive is still scanned, so a mounted image is still found.\n'
-     'CD music\tRip the tracks in the CD MUSIC section below. With none there the game asks the drive as it always did.\n'
-     'Section\tThe one patch that adds a section to the executable rather than editing bytes in place, so the file grows by about 3 KB.', [
+     'Disc check\tThe "Please insert VIRTUAL ON CD" prompt is skipped. The drive is still scanned, so a mounted image still works.\n'
+     'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below. With no files there, the game reads the drive.\n'
+     'Section\tAdds a section to the executable instead of editing bytes in place. The file grows by about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -98,7 +99,7 @@ FEATURES = [
      'vendor checks with it.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
     ('framerate', 'Fix the frame rate (60 FPS)',
-     'Three fixes for one complaint: the game not running at full speed.\n'
+     'Three fixes, all for the game not running at full speed.\n'
      '\n'
      'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
      'Motion value\tMakes Motion= in v_on.ini work and stick. It is a divisor: 1 draws every frame, 2 draws half.\n'
@@ -161,11 +162,11 @@ FEATURES = [
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
     ('debugbox', 'Disable menu bar (Extras menu on F11)',
-     'The menu bar was only ever a strip across the top, so it goes. F11\n'
-     'opens a dialog in its place: No shot, SE, CD, Kill 1P, Kill 2P,\n'
-     'Scorekeeping and Quit Program. Motion has moved to F5.\n'
+     'Removes the menu bar. F11 opens a dialog with the Debug options in\n'
+     'its place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit\n'
+     'Program. Motion has moved to F5.\n'
      '\n'
-     'Every other menu was always on a key as well.\n'
+     'Every other menu was already on a key.\n'
      '\n'
      'F1\tHelp\n'
      'F3\tPause\n'
@@ -274,12 +275,11 @@ FEATURES = [
      'Select\tCamera\n'
      'Start\tPause\n'
      '\n'
-     'Jump and guard are lever gestures rather than buttons, so the lever\n'
-     'words are cleaned up after each tick; without that a held stick\n'
-     'contaminates them and neither comes out while moving.\n'
+     'Jump and guard are lever gestures rather than buttons. They work\n'
+     'while moving, which needs a fix-up after each input tick.\n'
      '\n'
-     'Moves v_on.ini aside: binds saved by the unpatched game do not fit the\n'
-     'new device list. The game writes a fresh one.', [
+     'Moves v_on.ini aside: binds saved by the unpatched game do not fit\n'
+     'the new device list. The game writes a fresh one.', [
          # the routine lives in .rdata padding, so mark it executable
          (0x000001c4, '40000040', '40000060'),
          # F7 page: drop the letter, digit and named-key sections
@@ -345,7 +345,7 @@ BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
 BY_KEY['dinput'] = (
     'Fix keyboard input after ALT+TAB',
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
-    'keyboard input for the rest of the session, until you restart it.', None)
+    'keyboard input until the game is restarted.', None)
 
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
@@ -770,17 +770,23 @@ def rip(source, outdir, progress=None):
     return rip_device(source, outdir, progress)
 
 
+# Shown until a file is picked. The GUI highlights this one line, because a
+# user who has not picked one yet reads the CD MUSIC section first and finds
+# the Rip button does nothing.
+MUSIC_NEEDS_EXE = 'Select v_on.exe first - the tracks go beside it.'
+
+
 def music_status(gamedir):
     """One line on what is in the music folder, for the GUI."""
     if not gamedir:
-        return 'Select v_on.exe first - the tracks go beside it.'
+        return MUSIC_NEEDS_EXE
     out = outdir_for(gamedir)
     if not os.path.isdir(out):
-        return 'No music folder yet. Without one the game uses a disc.'
+        return 'No music folder. The game will read the drive.'
     found = [f for f in os.listdir(out)
              if re.match(r'track\d+\.wav$', f, re.I)]
     if not found:
-        return 'Music folder is empty. Without tracks the game uses a disc.'
+        return 'Music folder is empty. The game will read the drive.'
     mb = sum(os.path.getsize(os.path.join(out, f)) for f in found) // (1 << 20)
     return '%d tracks in music (%d MB).' % (len(found), mb)
 
@@ -1223,14 +1229,14 @@ PALETTE = {
 TITLE = 'Virtual-On patcher'
 INTRO = 'Select an unmodified v_on.exe.'
 NO_FILE = 'No file selected'
-ESSENTIAL_HINT = ('These fix things that are broken on modern systems. '
-                  'Keep them enabled unless you have a reason not to.')
-EXTRA_HINT = 'Optional changes. Untick anything you would rather not have.'
+ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
+                  'on unless you have a reason not to.')
+EXTRA_HINT = 'Optional. Untick what you do not want.'
 
-MUSIC_HINT = ('Rip the soundtrack once and CD music from files has '
-              'something to play. Separate from patching: the patch is happy '
-              'without it and falls back to the disc, and the tracks survive '
-              'a restore, so they are still there if you patch again.')
+MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, which is '
+              'where No disc required reads it from. Source: a cue sheet or '
+              'a CD drive. About 320 MB, 26 tracks. Separate from patching, '
+              'and the files survive a restore.')
 
 MUSIC_PLACEHOLDER = 'VIRTUAL-ON.cue, or a CD drive'
 DONE = 'Done. Restore the original to change your selection.'
@@ -1267,6 +1273,7 @@ window { background-color: %(ink)s; color: %(text)s; }
 .vp-arrow { color: %(cyan)s; }
 .vp-dim { color: %(dim)s; }
 .vp-hint { color: %(dim)s; font-size: 0.87em; padding-bottom: 4px; }
+.vp-cue { color: %(cyan)s; font-size: 0.87em; padding-bottom: 4px; }
 .vp-key { color: %(amber)s; font-weight: bold; }
 .vp-info {
     color: %(mag)s;
@@ -1477,11 +1484,19 @@ def run_gtk():
             row.append(self.rip_btn)
             box.append(row)
 
-            self.music_note = Gtk.Label(label=music_status(None), xalign=0,
-                                        wrap=True)
-            self.music_note.add_css_class('vp-hint')
+            self.music_note = Gtk.Label(xalign=0, wrap=True)
             box.append(self.music_note)
+            self._music(music_status(None))
             return box
+
+        def _music(self, text):
+            """The prompt to pick a file is the one line people miss, so it
+            gets the accent colour; everything else is a quiet hint."""
+            for old in ('vp-hint', 'vp-cue'):
+                self.music_note.remove_css_class(old)
+            self.music_note.add_css_class(
+                'vp-cue' if text == MUSIC_NEEDS_EXE else 'vp-hint')
+            self.music_note.set_text(text)
 
         def _pick_cue(self, _btn):
             dlg = Gtk.FileDialog(title='Select the cue sheet')
@@ -1514,7 +1529,7 @@ def run_gtk():
                 if pct == last[0]:
                     return
                 last[0] = pct
-                GLib.idle_add(self.music_note.set_text,
+                GLib.idle_add(self._music,
                               'track %02d  %d%%' % (track, pct))
 
             def finished(error, files):
@@ -1527,8 +1542,7 @@ def run_gtk():
                 self._log('Ripped %d tracks' % len(files))
             else:
                 self._log('Ripping failed: %s' % error)
-            self.music_note.set_text(
-                music_status(os.path.dirname(self.core.exe_path)))
+            self._music(music_status(os.path.dirname(self.core.exe_path)))
             self.rip_btn.set_sensitive(True)
 
         def _patch_body(self, keys, hint):
@@ -1664,7 +1678,7 @@ def run_gtk():
             # Ripping only needs a folder, so it stays available for a file
             # that cannot be patched - already patched, most likely.
             self.rip_btn.set_sensitive(True)
-            self.music_note.set_text(music_status(os.path.dirname(path)))
+            self._music(music_status(os.path.dirname(path)))
             if not ok:
                 self._log(note)
 
@@ -2032,11 +2046,17 @@ def run_tk():
                                       command=self._rip)
             self.rip_btn.pack(side='left', padx=(8, 0))
 
-            self.music_note = ttk.Label(parent, text=music_status(None),
-                                        style='Card.TLabel',
-                                        foreground=self.dim, font=self.small,
+            self.music_note = ttk.Label(parent, style='Card.TLabel',
+                                        font=self.small,
                                         wraplength=380, justify='left')
             self.music_note.pack(anchor='w', pady=(8, 0))
+            self._music(music_status(None))
+
+        def _music(self, text):
+            """The prompt to pick a file is the one line people miss, so it
+            gets the accent colour; everything else is a quiet hint."""
+            colour = PALETTE['cyan'] if text == MUSIC_NEEDS_EXE else self.dim
+            self.music_note.config(text=text, foreground=colour)
 
         def _pick_cue(self):
             path = filedialog.askopenfilename(
@@ -2060,8 +2080,7 @@ def run_tk():
                     return
                 last[0] = pct
                 self.root.after(
-                    0, lambda: self.music_note.config(
-                        text='track %02d  %d%%' % (track, pct)))
+                    0, lambda: self._music('track %02d  %d%%' % (track, pct)))
 
             def finished(error, files):
                 self.root.after(0, lambda: self._ripped(error, files))
@@ -2073,8 +2092,7 @@ def run_tk():
                 self._log('Ripped %d tracks' % len(files))
             else:
                 self._log('Ripping failed: %s' % error)
-            self.music_note.config(
-                text=music_status(os.path.dirname(self.core.exe_path)))
+            self._music(music_status(os.path.dirname(self.core.exe_path)))
             self.rip_btn.state(['!disabled'])
 
         def _patch_body(self, parent, keys, hint):
@@ -2172,7 +2190,7 @@ def run_tk():
             # Ripping only needs a folder, so it stays available for a file
             # that cannot be patched - already patched, most likely.
             self.rip_btn.state(['!disabled'])
-            self.music_note.config(text=music_status(os.path.dirname(path)))
+            self._music(music_status(os.path.dirname(path)))
             if not ok:
                 self._log(note)
 
