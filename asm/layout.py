@@ -10,12 +10,17 @@ FIELDS = [
     ('D_CREATEF',  0x18), ('D_GETFSIZE', 0x1C), ('D_CLOSEH',   0x20),
     ('D_VPROTECT', 0x24), ('D_LSTRCMPI', 0x28), ('D_INIT',     0x2C),
     ('D_SCRATCH',  0x30),
-    ('D_TOC',      0x40),          # 100 dwords -> 0x040..0x1D0
+    ('D_TOC',      0x40),          # 100 dwords -> 0x040..0x1D0, exact fit
     ('D_GAMEDIR',  0x1D0),         # 264
     ('D_PATH',     0x2E0),         # 280
-    ('D_CMD',      0x400),         # 320
+    ('D_CMD',      0x400),         # 448
 ]
-STRBASE = 0x540
+# Worst case is 264 for the gamedir (what GetModuleFileNameA is called with)
+# plus music\trackNN.wav, wrapped in the open command: 318 bytes. At the old
+# 0x540 that left two bytes, and an overrun would have landed on the string
+# table rather than anywhere obvious. The section is page aligned, so the
+# extra 128 bytes cost nothing in the file.
+STRBASE = 0x5C0
 
 STRINGS = [
     ('S_KERNEL32',   'kernel32.dll'),

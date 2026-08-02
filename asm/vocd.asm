@@ -29,7 +29,6 @@ bits 32
 %define MCI_STOP        0x808
 %define MCI_PAUSE       0x809
 %define MCI_GETDEVCAPS  0x80B
-%define MCI_SET         0x80D
 %define MCI_STATUS      0x814
 %define MCI_RESUME      0x855
 
@@ -233,6 +232,8 @@ startup:
         mov     eax, [MAGIC_IATMCI]
         mov     [ebx + D_ORIGMCI], eax
         mov     dword [MAGIC_IATMCI], MAGIC_HOOK
+        ; The page is left writable. Restoring it would mean a second call
+        ; and nothing here or in the game reads back that protection.
 .done:
         popad
         push    MAGIC_ORIGENTRY
@@ -254,6 +255,9 @@ build_path:
         ret
 
 ; ------------------------------------------------------------ MCI helper
+;
+; D_PATH and D_CMD are single shared buffers with no locking. The game drives
+; music from one thread, so this is deliberate rather than overlooked.
 
 ; Sends the string constant whose data-cave offset is in eax.
 send_const:
@@ -278,6 +282,9 @@ unload:
 ; ------------------------------------------------------------------ hook
 
 hook:
+        cld                             ; scat uses lodsb/stosb. The ABI says
+                                        ; DF is clear here; one byte to not
+                                        ; have to trust that.
         push    ebp
         mov     ebp, esp
         push    ebx

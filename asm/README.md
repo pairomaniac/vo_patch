@@ -118,7 +118,12 @@ still free after them:
 
 The `.text` cave holds the timer stub and the three F11 dialog blobs and has
 24 bytes left, which is why CD audio got a section of its own rather than
-another cave. The XInput routine lives inside `.rdata` proper (`0x207460`,
+another cave.
+
+Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
+worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
+`layout.py` costs nothing in the file until the section passes 3 KB, because
+it is page aligned. The XInput routine lives inside `.rdata` proper (`0x207460`,
 830 bytes) rather than in padding, in a run of zeros that was already there.
 
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
