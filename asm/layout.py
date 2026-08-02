@@ -11,9 +11,9 @@ FIELDS = [
     ('D_VPROTECT', 0x24), ('D_LSTRCMPI', 0x28), ('D_INIT',     0x2C),
     ('D_SCRATCH',  0x30),
     ('D_TOC',      0x40),          # 100 dwords -> 0x040..0x1D0, exact fit
-    ('D_GAMEDIR',  0x1D0),         # 264
-    ('D_PATH',     0x2E0),         # 280
-    ('D_CMD',      0x400),         # 448
+    ('D_GAMEDIR',  0x1D0),         # 272, of which 264 is ever used
+    ('D_PATH',     0x2E0),         # 288, worst case 282
+    ('D_CMD',      0x400),         # 448, worst case 318
 ]
 # Worst case is 264 for the gamedir (what GetModuleFileNameA is called with)
 # plus music\trackNN.wav, wrapped in the open command: 318 bytes. At the old

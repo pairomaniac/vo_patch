@@ -71,8 +71,16 @@ jobs:
       # game is not in the repository. Run tools/selftest.py by hand before
       # tagging - it is the only check that catches a wrong offset.
 
+  # PyInstaller takes minutes and produces something nobody looks at unless
+  # it is being released, so it runs on tags and on demand. verify still runs
+  # on every push, which is what catches drift. If you want to be sure the
+  # packaging still works before tagging, trigger the workflow by hand from
+  # the Actions tab.
   windows:
     needs: verify
+    if: >-
+      startsWith(github.ref, 'refs/tags/')
+      || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
 
     steps:

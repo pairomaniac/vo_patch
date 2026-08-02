@@ -412,6 +412,14 @@ def default_state():
 
 
 def apply_feature(buf, sites):
+    """Write one patch's sites into buf, in list order.
+
+    Every site is checked against the bytes it expects before anything is
+    written, and the first mismatch aborts the whole patch - this is the
+    safety model, not a nicety. Order matters: a later site may overwrite an
+    earlier one in the same patch, and _check_table enforces that the later
+    one expects what the earlier one left.
+    """
     for off, old, new in sites:
         old, new = bytes.fromhex(old), bytes.fromhex(new)
         if buf[off:off + len(old)] != old:
@@ -423,6 +431,8 @@ def apply_dinput(buf):
     hits = list(DI_FIND.finditer(buf))
     if len(hits) != 1:
         raise ValueError('expected one call site, found %d' % len(hits))
+    # +1 is the operand of the push; 6 is FOREGROUND|NONEXCLUSIVE and
+    # 0x0A is BACKGROUND|NONEXCLUSIVE.
     buf[hits[0].start() + 1] = 0x0A
 
 
@@ -438,6 +448,13 @@ WAV_HDR = 44
 # --------------------------------------------------------------------- WAV
 
 def _wav_header(pcm_bytes):
+    """Canonical 44-byte header for CD-DA: PCM, stereo, 44100, 16-bit.
+
+    The CD audio patch divides by these to get track lengths, so they are not
+    free to change. 36 is everything after the RIFF size field; the fmt
+    numbers are chunk size 16, format 1 (PCM), 2 channels, sample rate, byte
+    rate, block align 4, bits 16.
+    """
     return (b'RIFF' + struct.pack('<I', 36 + pcm_bytes) + b'WAVEfmt ' +
             struct.pack('<IHHIIHH', 16, 1, 2, RATE, RATE * 4, 4, 16) +
             b'data' + struct.pack('<I', pcm_bytes))
@@ -720,6 +737,8 @@ def _rip_windows(letter, outdir, progress=None, chunk=16):
             # Reading the wrong one makes the data track look like audio.
             no, ctrl = toc[4 + i * 8 + 2], toc[4 + i * 8 + 1] & 0x0F
             m, s, f = toc[4 + i * 8 + 5:4 + i * 8 + 8]
+            # MSF counts from the start of the lead-in, LBA from the start
+            # of track 1, and the gap between them is 2 seconds.
             lba = (m * 60 + s) * 75 + f - 150
             entries.append({'no': no, 'lba': lba, 'audio': not (ctrl & 4)})
             if no == 0xAA:
@@ -965,7 +984,7 @@ class _PE:
 
     def __init__(self, buf):
         self.d = buf
-        self.pe = struct.unpack_from('<I', self.d, 0x3C)[0]
+        self.pe = struct.unpack_from('<I', self.d, 0x3C)[0]   # e_lfanew
         self.opt = self.pe + 24
         self.nsec, = struct.unpack_from('<H', self.d, self.pe + 6)
         self.optsz, = struct.unpack_from('<H', self.d, self.pe + 20)
@@ -987,6 +1006,14 @@ class _PE:
             pos += 40
 
     def off(self, rva):
+        """RVA to file offset.
+
+        The span is max(vsize, rsize), not vsize. Five of the patch sites sit
+        past their section's VirtualSize, in the raw padding before the next
+        section - the timer stub, three F11 dialog blobs and a string table.
+        Windows maps that padding, so the addresses are real, but anything
+        that trusts VirtualSize cannot see them.
+        """
         for x in self.sections:
             span = max(x['vsize'], x['rsize'])
             if x['vaddr'] <= rva < x['vaddr'] + span:
@@ -1013,6 +1040,9 @@ class _PE:
                                                 self.off(thunks) + i * 4)
                     if entry == 0:
                         break
+                    # Top bit set means imported by ordinal, so there is no
+                    # name to compare. Otherwise the entry points at a hint
+                    # word followed by the name.
                     if not entry & 0x80000000 and self.cstr(entry + 2) == func:
                         return self.base + iat + i * 4
                     i += 1
