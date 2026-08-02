@@ -79,8 +79,9 @@ def main(check=False):
 
     vocd = ['VOCD_MAGICS = {\n']
     for name, value, note in MAGICS:
-        vocd.append("    '%s': 0x%08X,%s# %s\n"
-                    % (name, value, ' ' * (13 - len(name)), note))
+        # Pad to a fixed column: the generated file is linted like any other.
+        vocd.append('%-38s # %s\n'
+                    % ("    '%s': 0x%08X," % (name, value), note))
     vocd.append('}\n\n')
     vocd.append(hexblob('VOCD_CODE', code))
     vocd.append('\n')

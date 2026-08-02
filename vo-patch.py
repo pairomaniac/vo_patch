@@ -461,11 +461,28 @@ class WavWriter(object):
         self.f.write(_wav_header(self.n))
         self.f.close()
 
+    def abort(self):
+        """Throw the partial file away.
+
+        Without this a rip that fails half way through leaves a short file
+        with a valid header. Nothing downstream can tell it from a good one:
+        the folder looks ripped, and the game reads its track length from the
+        file size, so the track would just end early.
+        """
+        self.f.close()
+        try:
+            os.remove(self.path)
+        except OSError:
+            pass
+
     def __enter__(self):
         return self
 
-    def __exit__(self, *exc):
-        self.close()
+    def __exit__(self, exc_type, *_rest):
+        if exc_type is None:
+            self.close()
+        else:
+            self.abort()
 
 
 # --------------------------------------------------------------------- cue
@@ -521,6 +538,9 @@ def parse_cue(path):
     for t in tracks:
         if t['bin'] is None or not os.path.exists(t['bin']):
             raise IOError('bin file not found for track %d' % t['no'])
+        if t['start'] is None:
+            raise ValueError('track %d has no INDEX 01 in %s'
+                             % (t['no'], path))
     return tracks
 
 
@@ -632,6 +652,9 @@ def _rip_linux(device, outdir, progress=None, chunk=8):
                     if progress:
                         progress(t['no'], (lba - start) * RAW, total)
             written.append(out)
+        if not written:
+            raise ValueError('no audio tracks on %s - data-only disc?'
+                             % device)
         return written
     finally:
         os.close(fd)
@@ -724,6 +747,8 @@ def _rip_windows(letter, outdir, progress=None, chunk=16):
                     if progress:
                         progress(t['no'], (lba - start) * RAW, total)
             written.append(out)
+        if not written:
+            raise ValueError('no audio tracks in %s - data-only disc?' % path)
         return written
     finally:
         k.CloseHandle(h)
@@ -823,12 +848,12 @@ def rip_in_background(source, gamedir, progress, done):
 
 # VOCD BLOB BEGIN
 VOCD_MAGICS = {
-    'MAGIC_ORIGENTRY': 0xE1E1E1E1,# VA of the entry point we chain to
-    'MAGIC_IATMCI': 0xE2E2E2E2, # VA of the mciSendCommandA IAT slot
-    'MAGIC_LOADLIB': 0xE3E3E3E3,# VA of the LoadLibraryA IAT slot
-    'MAGIC_GETPROC': 0xE4E4E4E4,# VA of the GetProcAddress IAT slot
-    'MAGIC_DATA': 0xE5E5E5E5,   # VA the data blob lands at
-    'MAGIC_HOOK': 0xE6E6E6E6,   # VA of the hook thunk
+    'MAGIC_ORIGENTRY': 0xE1E1E1E1,     # VA of the entry point we chain to
+    'MAGIC_IATMCI': 0xE2E2E2E2,        # VA of the mciSendCommandA IAT slot
+    'MAGIC_LOADLIB': 0xE3E3E3E3,       # VA of the LoadLibraryA IAT slot
+    'MAGIC_GETPROC': 0xE4E4E4E4,       # VA of the GetProcAddress IAT slot
+    'MAGIC_DATA': 0xE5E5E5E5,          # VA the data blob lands at
+    'MAGIC_HOOK': 0xE6E6E6E6,          # VA of the hook thunk
 }
 
 VOCD_CODE = bytes.fromhex(
