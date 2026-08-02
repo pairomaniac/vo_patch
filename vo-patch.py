@@ -64,7 +64,8 @@ FEATURES = [
          (0x00170dc9, '01', '02')]),
 
     ('noloading', 'Hide loading screen text',
-     'Hides "Now Loading . . ." on the loading screen.', [
+     'Hides "Now Loading . . .". Cosmetic: the loading it announced is\n'
+     'already over by the time you read it.', [
          (0x002c7678, '4e', '00')]),
 
 
@@ -95,8 +96,9 @@ FEATURES = [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
-     'ProcessorCheck=Off without needing an ini. Takes the MMX, Pentium and\n'
-     'vendor checks with it.', [
+     'The game will not start on a modern CPU without this. Same as\n'
+     'ProcessorCheck=Off in v_on.ini, but with no ini needed, and it takes\n'
+     'the MMX, Pentium and vendor checks with it.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
     ('framerate', 'Fix the frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
@@ -275,11 +277,12 @@ FEATURES = [
      'Select\tCamera\n'
      'Start\tPause\n'
      '\n'
-     'Jump and guard are lever gestures rather than buttons. They work\n'
-     'while moving, which needs a fix-up after each input tick.\n'
+     'Jump and guard are lever gestures rather than buttons, and they work\n'
+     'while moving.\n'
      '\n'
-     'Moves v_on.ini aside: binds saved by the unpatched game do not fit\n'
-     'the new device list. The game writes a fresh one.', [
+     'Your v_on.ini is renamed to v_on.ini.bak and the game writes a fresh\n'
+     'one, because binds saved by the unpatched game do not fit the new\n'
+     'device list. Restore original puts it back.', [
          # the routine lives in .rdata padding, so mark it executable
          (0x000001c4, '40000040', '40000060'),
          # F7 page: drop the letter, digit and named-key sections
@@ -1285,7 +1288,10 @@ PALETTE = {
     'bad': '#ff6b6b',
 }
 
-TITLE = 'Virtual-On patcher'
+# The version is in the title because it is the only place a Windows
+# user who double-clicked the exe can see it, and it is the first
+# thing worth knowing about a bug report.
+TITLE = 'Virtual-On patcher %s' % VERSION
 INTRO = 'Select an unmodified v_on.exe.'
 NO_FILE = 'No file selected'
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
@@ -1294,8 +1300,9 @@ EXTRA_HINT = 'Optional. Untick what you do not want.'
 
 MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, which is '
               'where No disc required reads it from. Source: a cue sheet or '
-              'a CD drive. About 320 MB, 26 tracks. Separate from patching, '
-              'and the files survive a restore.')
+              'a CD drive. About 320 MB, 26 tracks. You can rip before or '
+              'after patching, and restoring the original leaves the tracks '
+              'alone.')
 
 MUSIC_PLACEHOLDER = 'VIRTUAL-ON.cue, or a CD drive'
 DONE = 'Done. Restore the original to change your selection.'
