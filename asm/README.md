@@ -4,14 +4,14 @@ Source for the machine code the patches install. `vo-patch.py` carries the
 assembled bytes, so nobody running the patcher or building the exe needs nasm.
 Only someone editing the assembly does.
 
-| File | |
+| File | What it holds |
 | --- | --- |
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
-| `build.py` | assembles all four into `../vo-patch.py` |
+| `build.py` | assembles all four sources into `../vo-patch.py` |
 
 ## How the assembly gets into the patcher
 
@@ -107,10 +107,12 @@ Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
-**`levers.asm`** goes to one site inside the XInput patch table, at
-`0x0020779e`. The table entry reads its length from `LEVERS_CODE`, so the
-routine can change size without the run of `00` beside it needing a manual
-edit - but it has to stay inside the `.rdata` cave (see below).
+**`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`** each go to one
+site inside the XInput patch table, at `0x0020779e`, `0x00223dc4` and
+`0x0023dd38`. Every entry reads its length from the blob, so a routine can
+change size without the run of `00` beside it needing a manual edit - but it
+has to stay inside its cave, and the last two carry an `org`, so growing them
+past the cave is a source edit and not just a rebuild.
 
 ## Space left in the executable
 
@@ -125,7 +127,8 @@ still free after them:
 
 The `.text` cave holds the timer stub and the three F11 dialog blobs and has
 24 bytes left, which is why CD audio got a section of its own rather than
-another cave.
+another cave. The `.rdata` one holds the F11 dialog template and the keyboard
+page fixes.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
@@ -248,3 +251,36 @@ routine written by the site before it: `0x207702` expects the `5f5e5bc9c3`
 that `0x207460` wrote there, not anything from the original file. The site
 list is applied in order and `_check_table` enforces that relationship, so
 sorting that list by offset will fail at import rather than at write time.
+
+## twinstick.asm, what it does
+
+There is no logic in it. The XInput tick already walks twelve bind slots,
+tests each against a condition, and clears the bits its mask names in the two
+lever words. Feed that engine a different set of binds and masks and it
+becomes the arcade scheme: one thumbstick direction per slot instead of one
+named action, so the sticks land straight in the levers and the game works
+out walking, turning, jump and crouch from the pair.
+
+So the file is two entry stubs, a bind list, two mask tables and a parameter
+block per player - 164 bytes, 116 of them tables. It carries an `org` because
+the stubs jump to fixed addresses and the blocks point at its own tables.
+
+## kbpage.asm, what it does
+
+Two unrelated repairs to the keyboard bind page, sharing a cave.
+
+The first is the duplicate-key test. The page refuses a key for 2P if 1P
+already holds it, which is right when both are on the keyboard and needlessly
+strict when 1P is on a pad and its keys are dormant. The stub runs the test
+only when 1P is actually on the keyboard profile. It governs what may be
+entered and nothing more: if 1P later switches back, both sides can hold the
+same key and one press drives both mechs. Catching that means validating on
+the device switch as well, which is a separate job.
+
+The second is the **Default** button, which passed a hardcoded player 0. On
+the 2P side it reset 1P's binds and left 2P's alone. The gamepad and joystick
+pages both pass `ds:0xbf6bac`; this one is the odd one out.
+
+The two slots are a fixed 32 bytes apart, padded with `nop`, because the
+second one's site names its address. Let the first grow and the second moves,
+and nothing downstream would notice.

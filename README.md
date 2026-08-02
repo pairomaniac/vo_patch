@@ -139,7 +139,7 @@ validates the patch tables without needing a copy of the game;
 profiles are hidden and three remain, for both players - pad 1 drives 1P,
 pad 2 drives 2P.
 
-| Profile | |
+| Profile | What it is |
 | --- | --- |
 | **Keyboard (Real)** | the game's own two-lever keyboard scheme, bindable |
 | **Gamepad (XInput)** | twelve named actions, bound from the F7 screen |
@@ -171,7 +171,7 @@ Each thumbstick *is* a lever, so the game derives everything from the pair,
 the way the cabinet did. Nothing is bindable and the F7 bind list does not
 apply.
 
-| Button | Does |
+| Input | Does |
 | --- | --- |
 | Both sticks the same way | walk, strafe |
 | Left down + right up, or the reverse | turn |
@@ -236,21 +236,21 @@ tracks present, they are used, disc or no disc. Under Wine they play through
 
 ## Resolution
 
-The game asks for 640x480 exclusive fullscreen and the display stretches it.
-The 4:3 framebuffer is baked into the rasteriser, so this is a scaling problem
-rather than something to patch.
+The game asks for 640x480 exclusive fullscreen and the display stretches it to
+whatever shape the panel is. The 4:3 framebuffer is baked into the rasteriser,
+so this is a scaling problem rather than something to patch.
 
-**Linux.** gamescope, integer-scaled and pillarboxed:
+Use [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw). Drop it beside
+`v_on.exe` and it takes over DirectDraw, which is all this game renders
+through. It keeps the aspect ratio, upscales cleanly, and gives you windowed
+and borderless modes. It works on Wine too, so the same answer covers Linux.
 
-```bash
-gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
-```
+Leave its FPS limiter off. The game paces itself once **Fix the frame rate**
+is applied, and two limiters fight.
 
-`-S fit` fills more of the screen without whole-number scaling.
-
-**Windows.** GPU control panel, *Adjust desktop size and position* → aspect
-ratio, with scaling performed on the GPU. Some monitors override this in their
-own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
+Its Alt+Tab fix and this patcher's are different problems: cnc-ddraw stops the
+picture breaking, **Fix keyboard input after ALT+TAB** stops the keyboard
+going dead. Use both.
 
 ## Patches
 
