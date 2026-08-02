@@ -20,7 +20,7 @@ hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed. `build.py` is what copies one into the other.
 
-There are four hex strings, each fenced off by a pair of comment markers that
+There are four blob regions, each fenced off by a pair of comment markers that
 `build.py` searches for. **The markers are load-bearing; do not remove them.**
 
 ```
@@ -38,9 +38,10 @@ There are four hex strings, each fenced off by a pair of comment markers that
 ```
 
 `twinstick.asm` and `kbpage.asm` carry an `org`, because their stubs jump to
-fixed addresses and the twin-stick parameter blocks point at its own tables. `build.py` checks each `org` against the offset of the site that
-writes it, since nothing downstream would notice the mismatch: the bytes
-would be written and every address inside them would be wrong.
+fixed addresses and the twin-stick parameter blocks point at tables in the
+same blob. `build.py` checks each `org` against the offset of the site that
+writes it, since nothing downstream would notice a mismatch: the bytes would
+be written and every address inside them would be wrong.
 
 `build.py` runs nasm on each `.asm` file, formats the output as
 `bytes.fromhex(...)`, and replaces everything between each pair of markers.
@@ -69,7 +70,7 @@ edit anyway.
 
 The `verify` job in `.github/workflows/build.yml` runs on every push to main
 and every pull request, and the Windows build will not start until it passes.
-It installs nasm and runs the same two commands you would:
+It installs nasm and runs the same checks you would:
 
 | Step | Catches |
 | --- | --- |
@@ -116,8 +117,7 @@ past the cave is a source edit and not just a rebuild.
 
 ## Space left in the executable
 
-There is no room to spare. Sites written into section padding, and what is
-still free after them:
+Sites written into section padding, and what is still free after them:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
@@ -135,9 +135,9 @@ worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
 `layout.py` costs nothing in the file until the section passes 3 KB, because
 it is page aligned.
 
-The gamepad patch does not use padding at all. It lives in six runs of zeros
-inside `.rdata` proper, which is why the section's characteristics get the
-execute bit:
+Five of the gamepad patch's six caves are runs of zeros inside `.rdata`
+proper rather than padding, which is why that section's characteristics get
+the execute bit:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
@@ -151,29 +151,29 @@ execute bit:
 The last of those is the `.rdata` padding the F11 dialog already uses, so it
 appears in both tables.
 
-Both of the tight ones are tight. If either grows, the next free runs of this
+Two of those are nearly full. If either grows, the next free runs of that
 size are `0x1f74e0` and `0x223198`, 174 bytes each.
 
-**A run of zeros is not free space at all until you have checked that nothing
-points into it.** `0x6083e0` sits in the middle of the run the XInput routine
-lives in and is a base address the geometry code indexes off; the run reads as
-zeros because that is what the game expects to find there. The routine stops
-at `0x6083d1` and is fine. Fifty-three bytes dropped after it were not, and
-the symptom was corrupted loading screens, nothing to do with input. So the
-usable tail of that cave is fifteen bytes, not sixty-five.
+A run of zeros is not free space until two things are true of it.
 
-Check a candidate cave by searching the whole file for a dword equal to any
-address inside the span. That search has false positives on long spans - any
-four bytes of data can happen to equal an address - so read the instruction at
-each hit rather than trusting the count.
+**Nothing points into it.** `0x6083e0` sits in the middle of the run the
+XInput routine lives in: a base address the geometry code indexes off, reading
+as zeros because that is what the game expects to find there. The routine
+stops at `0x6083d1` and is fine; fifty-three bytes dropped after it corrupted
+the loading screens, which took a release to find. The usable tail of that
+cave is fifteen bytes, not sixty-five.
 
-**And a run of zeros is not free until you round its start up to a multiple
-of four, either.** Addresses in this image are all below `0x01000000`, so every
-pointer has a zero top byte, and a scan for the longest run of `00` will
-happily start you one byte inside the last pointer of a table. Writing there
-turns `0x00623bb0` into `0x11623bb0` and the game dies when it dereferences
-it. That cost a release. `build.py` now refuses any `org` whose site is not
-four-aligned, and the same rule applies to any cave picked by hand.
+To check, search the file for a dword equal to any address inside the span.
+That search has false positives on long spans - four bytes of data can happen
+to equal an address - so read the instruction at each hit rather than counting
+them.
+
+**Its start is a multiple of four.** Addresses in this image are all below
+`0x01000000`, so every pointer has a zero top byte, and a scan for the longest
+run of `00` will happily start you one byte inside the last pointer of a
+table. Writing there turns `0x00623bb0` into `0x11623bb0`, and the game dies
+when it dereferences it. `build.py` refuses any `org` whose site is not
+four-aligned; the same rule applies to a cave picked by hand.
 
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
@@ -208,9 +208,9 @@ why this patch has to be applied after all the others.
 
 **The hook** sees every `mciSendCommandA` the game makes. It watches for an
 open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
-then on, calls carrying that ID belong to it and everything else - sound
-effects, anything else using MCI - is forwarded to the real winmm untouched.
-One device is impersonated; nothing else is disturbed.
+then on, calls carrying that ID belong to it, and every other call, sound
+effects included, is forwarded to the real winmm untouched. One device is
+impersonated; nothing else is disturbed.
 
 Play requests are turned into MCI *string* commands against `waveaudio`:
 
@@ -263,7 +263,7 @@ out walking, turning, jump and crouch from the pair.
 
 So the file is two entry stubs, a bind list, two mask tables and a parameter
 block per player - 164 bytes, 116 of them tables. It carries an `org` because
-the stubs jump to fixed addresses and the blocks point at its own tables.
+the stubs jump to fixed addresses and the blocks point at its tables.
 
 ## kbpage.asm, what it does
 
