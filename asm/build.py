@@ -71,10 +71,31 @@ def replace(text, name, body):
     return new
 
 
+def check_org(src, wanted):
+    """These two are assembled at a fixed org, so the source and the site
+    that writes it have to name the same address. Nothing downstream would
+    notice: the code would be written, and every jump in it would land a
+    few hundred bytes off."""
+    for name, site in wanted.items():
+        with open(os.path.join(HERE, name), encoding='utf-8') as fh:
+            org = int(re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read()).group(1), 16)
+        if site % 4:
+            raise SystemExit('%s is written at 0x%08x, which is not a multiple '
+                             'of four. A run of zeros that starts off a dword '
+                             'boundary starts inside the last field before it, '
+                             'and the first byte written lands in that field.'
+                             % (name, site))
+        if org != site + 0x400c00:
+            raise SystemExit('%s is assembled at 0x%08x but its site puts it '
+                             'at 0x%08x' % (name, org, site + 0x400c00))
+
+
 def main(check=False):
     with tempfile.TemporaryDirectory() as tmp:
         code = assemble('vocd.asm', tmp, includes=True)
         levers = assemble('levers.asm', tmp)
+        twin = assemble('twinstick.asm', tmp)
+        kbpage = assemble('kbpage.asm', tmp)
     _inc, data = layout.build()
 
     vocd = ['VOCD_MAGICS = {\n']
@@ -91,9 +112,12 @@ def main(check=False):
         src = fh.read()
     new = replace(src, 'VOCD', ''.join(vocd))
     new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
+    new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
+    new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
+    check_org(src, {'twinstick.asm': 0x00223dc4})
 
-    sizes = ('vocd %d + %d bytes, levers %d bytes'
-             % (len(code), len(data), len(levers)))
+    sizes = ('vocd %d + %d bytes, levers %d, twinstick %d, kbpage %d'
+             % (len(code), len(data), len(levers), len(twin), len(kbpage)))
     if check:
         if new != src:
             raise SystemExit('the assembly does not match the blobs in '

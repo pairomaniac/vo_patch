@@ -47,9 +47,10 @@ opening an F-key dialog kills the keyboard for the rest of the session.
 
 ### Extra
 
-- **XInput gamepad support** - adds a *Gamepad (XInput)* device profile and
-binds every action to a modern controller, for both players. One trigger is
-unreachable through the joystick API the game uses. See [Gamepad](#gamepad).
+- **XInput gamepad support** - twelve bindable actions on a modern
+controller, plus the arcade twin-stick scheme, for both players. Disables
+*Keyboard only(Simple)* for the time being: the gamepad needs its bind page.
+See [Gamepad](#gamepad).
 - **No disc required** - removes the disc check and reads the soundtrack from
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
@@ -134,13 +135,22 @@ validates the patch tables without needing a copy of the game;
 <img width="382" height="267" alt="xinput1" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
 <img width="382" height="267" alt="xinput2" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
-**XInput gamepad support** adds a *Gamepad (XInput)* profile to F7 alongside
-*Keyboard only*, and hides the legacy joystick profiles. All twelve
-actions are bound from the F7 screen, for both players, and the keyboard
-keeps working alongside the pad.
+**XInput gamepad support** rebuilds the F7 device list. The legacy joystick
+profiles are hidden and three remain, for both players - pad 1 drives 1P,
+pad 2 drives 2P.
 
-Pad 1 drives 1P and pad 2 drives 2P. Sticks, triggers, bumpers and face
-buttons are all in the bind list; the sticks are read as eight directions.
+| Profile | |
+| --- | --- |
+| **Keyboard (Real)** | the game's own two-lever keyboard scheme, bindable |
+| **Gamepad (XInput)** | twelve named actions, bound from the F7 screen |
+| **Twin-stick (XInput)** | the arcade levers, nothing to bind |
+
+*Keyboard only(Simple)* is gone for the time being. It is the only F7 page
+that binds all twelve actions, so the gamepad profile has to take it. *Real*
+is the other keyboard profile and it keeps its own page.
+
+These three buttons work on every profile, and on the intro and the pause
+screen, where the input tick does not run:
 
 | Button | Does |
 | --- | --- |
@@ -148,9 +158,45 @@ buttons are all in the bind list; the sticks are read as eight directions.
 | **Select** | Camera |
 | **Start** | Pause |
 
-Defaults on both sides: left stick moves, right stick turns, LT and RB fire
-left and right, RT fires both, LB dashes, A jumps, X guards. **Default** on
-the F7 page puts them back.
+### Gamepad (XInput)
+
+Sticks, triggers, bumpers and face buttons are all in the bind list; the
+sticks are read as eight directions. Defaults on both sides: left stick
+moves, right stick turns, LT and RB fire left and right, RT fires both, LB
+dashes, A jumps, X guards. **Default** on the F7 page puts them back.
+
+### Twin-stick (XInput)
+
+Each thumbstick *is* a lever, so the game derives everything from the pair,
+the way the cabinet did. Nothing is bindable and the F7 bind list does not
+apply.
+
+| | |
+| --- | --- |
+| Both sticks the same way | walk, strafe |
+| Left down + right up, or the reverse | turn |
+| Sticks apart | jump, and auto-face the opponent |
+| Sticks together | crouch, which is the guard |
+| **LT**, **RT** | left and right weapon; both at once is the centre weapon |
+| **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
+
+Triggers and bumpers rather than face buttons because both thumbs are on the
+sticks for the whole round, which is also why this profile has no jump button.
+
+### Keyboard (Real)
+
+Two lever halves rather than named actions: five keys a side plus dash, which
+is the twin-stick scheme on a keyboard. Jump and crouch are lever gestures,
+as they are on the pad. Shipped defaults are `2`/`W`/`Q`/`E`/`Z` on the left,
+`R`/`F`/`D`/`G`/`C` on the right, `X` to dash; player 2 gets the arrows and
+the keypad.
+
+Bindable, on its own F7 page, and independent of the gamepad: the two used to
+share one set of twelve bind slots, so binding either wrecked the other, and
+this profile now has a set of its own. Both survive a restart.
+
+Two keys cannot be shared between players. If 2P wants keys 1P already has,
+rebind 1P first - if 1P is on a pad those binds do nothing anyway.
 
 Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
 the unpatched game do not fit the new device list; the game writes a fresh
@@ -235,7 +281,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix the lose-a-round crash** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Keep input after alt-tab** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x1bc13b`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, F7 page constants, four `.rdata` caves | routine, tables and lever cleanup in section padding, both players' profile dispatch repointed |
+| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
 | **Music from files** | new `.vocd` section, entry point, winmm IAT slot | `mciSendCommandA` redirected to a routine that answers from WAV files |
 | **Menu bar off, F11 dialog** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
@@ -338,13 +384,41 @@ unreachable, axis order inconsistent between Windows and Wine. So it is not
 read through it at all. A routine in `.rdata` padding calls `XInputGetState`
 and folds the result into the game's own action tables.
 
-It hangs off the *Keyboard only(Simple)* profile, the only F7 page that binds
-all twelve actions, with its input list swapped for pad inputs. Bindings are
-one byte per action, so pad entries occupy `0xE0`-`0xEF` in the scancode
-space, which the game does not otherwise use. Player 2 is a full mirror, so
-both sides are the same routine with a different parameter block. Start and A
-are also posted as key messages from the message pump, because the input tick
-does not run on the intro or while paused.
+The device number keys three tables, not one, and all three had to move
+together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
+picks the F7 page, and `0x495e0f` decides whether the picker will let you
+leave. The picker skips device slots whose name pointer is null, so hiding
+the legacy profiles is zeroing the rest.
+
+The gamepad profile takes *Keyboard only(Simple)*'s slot, the only F7 page
+that binds all twelve actions, with its input list swapped for pad inputs.
+Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
+scancode space, which the game does not otherwise use. Player 2 is a full
+mirror, so both sides are the same routine with a different parameter block.
+Start and A are also posted as key messages from the message pump, because
+the input tick does not run on the intro or while paused.
+
+*Keyboard (Real)* is the game's other keyboard profile, untouched except for
+where it keeps its binds. It shared one twenty-four byte block with Simple,
+which the gamepad now owns, so it moves to the block belonging to the hidden
+*Joystick + Keyboard* profile: eleven sites, each changing a `+0x08` to a
+`+0x20` or an address by the same amount. Its page, defaults and live table
+were always its own. The block sits inside the structure written to
+`v_on.ini`, so it persists without any new storage.
+
+Two things fall out of that. The startup defaults run every profile's set in
+turn and *Joystick + Keyboard* writes that block after *Real* does, so its
+call is dropped - it is unreachable anyway. And **Default** on the keyboard
+page passed a hardcoded player 0, resetting 1P's binds from the 2P side; the
+other two pages pass the current player, so this one is corrected to match.
+
+*Twin-stick* adds no logic at all. The tick is a bind -> condition -> lever
+mask engine, and the arcade scheme is just a different set of binds and
+masks: each of the twelve slots drives one lever direction or button instead
+of a named action, so the thumbsticks land straight in the two lever words.
+It is 164 bytes, of which 116 are tables. It binds nothing, so it takes the
+page-table entry that opens no dialog, which also disposes of the
+`0x3651554 == 1` check that made **Next** refuse without a joystick attached.
 
 Jump and guard are lever gestures rather than buttons - both levers spread
 outward, both squeezed inward - so they share the words movement writes to,

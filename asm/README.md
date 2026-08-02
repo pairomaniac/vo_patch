@@ -8,8 +8,10 @@ Only someone editing the assembly does.
 | --- | --- |
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
+| `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
+| `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
-| `build.py` | assembles both into `../vo-patch.py` |
+| `build.py` | assembles all four into `../vo-patch.py` |
 
 ## How the assembly gets into the patcher
 
@@ -18,7 +20,7 @@ hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed. `build.py` is what copies one into the other.
 
-There are two hex strings, each fenced off by a pair of comment markers that
+There are four hex strings, each fenced off by a pair of comment markers that
 `build.py` searches for. **The markers are load-bearing; do not remove them.**
 
 ```
@@ -27,9 +29,20 @@ There are two hex strings, each fenced off by a pair of comment markers that
 
 # LEVERS BLOB BEGIN      <- LEVERS_CODE
 # LEVERS BLOB END
+
+# TWIN BLOB BEGIN        <- TWIN_CODE
+# TWIN BLOB END
+
+# KBPAGE BLOB BEGIN      <- KBPAGE_CODE
+# KBPAGE BLOB END
 ```
 
-`build.py` runs nasm on both `.asm` files, formats the output as
+`twinstick.asm` and `kbpage.asm` carry an `org`, because their stubs jump to
+fixed addresses and the twin-stick parameter blocks point at its own tables. `build.py` checks each `org` against the offset of the site that
+writes it, since nothing downstream would notice the mismatch: the bytes
+would be written and every address inside them would be wrong.
+
+`build.py` runs nasm on each `.asm` file, formats the output as
 `bytes.fromhex(...)`, and replaces everything between each pair of markers.
 Nothing outside the markers is touched, so the patch tables around them are
 safe. Neither mode writes anything into `asm/`; nasm works in a temporary
@@ -107,7 +120,7 @@ still free after them:
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
 | `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 426 | **24** |
-| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 80 | 200 |
+| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 133 | 147 |
 | `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 4 | 420 |
 
 The `.text` cave holds the timer stub and the three F11 dialog blobs and has
@@ -117,8 +130,47 @@ another cave.
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
 `layout.py` costs nothing in the file until the section passes 3 KB, because
-it is page aligned. The XInput routine lives inside `.rdata` proper (`0x207460`,
-830 bytes) rather than in padding, in a run of zeros that was already there.
+it is page aligned.
+
+The gamepad patch does not use padding at all. It lives in six runs of zeros
+inside `.rdata` proper, which is why the section's characteristics get the
+execute bit:
+
+| Cave | File range | Size | Used | Free |
+| --- | --- | --- | --- | --- |
+| routine and lever cleanup | `0x207460`-`0x2077e0` | 928 | 881 | **15** |
+| input names and profile names | `0x223f9b`-`0x224058` | 189 | 135 | 54 |
+| bind list table | `0x223c43`-`0x223d00` | 189 | 125 | 64 |
+| condition table | `0x22411b`-`0x2241cb` | 176 | 126 | 50 |
+| twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
+| keyboard page fixes | `0x23dd38`-`0x23de00` | 200 | 53 | 147 |
+
+The last of those is the `.rdata` padding the F11 dialog already uses, so it
+appears in both tables.
+
+Both of the tight ones are tight. If either grows, the next free runs of this
+size are `0x1f74e0` and `0x223198`, 174 bytes each.
+
+**A run of zeros is not free space at all until you have checked that nothing
+points into it.** `0x6083e0` sits in the middle of the run the XInput routine
+lives in and is a base address the geometry code indexes off; the run reads as
+zeros because that is what the game expects to find there. The routine stops
+at `0x6083d1` and is fine. Fifty-three bytes dropped after it were not, and
+the symptom was corrupted loading screens, nothing to do with input. So the
+usable tail of that cave is fifteen bytes, not sixty-five.
+
+Check a candidate cave by searching the whole file for a dword equal to any
+address inside the span. That search has false positives on long spans - any
+four bytes of data can happen to equal an address - so read the instruction at
+each hit rather than trusting the count.
+
+**And a run of zeros is not free until you round its start up to a multiple
+of four, either.** Addresses in this image are all below `0x01000000`, so every
+pointer has a zero top byte, and a scan for the longest run of `00` will
+happily start you one byte inside the last pointer of a table. Writing there
+turns `0x00623bb0` into `0x11623bb0` and the game dies when it dereferences
+it. That cost a release. `build.py` now refuses any `org` whose site is not
+four-aligned, and the same rule applies to any cave picked by hand.
 
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
