@@ -171,7 +171,7 @@ Each thumbstick *is* a lever, so the game derives everything from the pair,
 the way the cabinet did. Nothing is bindable and the F7 bind list does not
 apply.
 
-| | |
+| Button | Does |
 | --- | --- |
 | Both sticks the same way | walk, strafe |
 | Left down + right up, or the reverse | turn |
@@ -180,20 +180,7 @@ apply.
 | **LT**, **RT** | left and right weapon; both at once is the centre weapon |
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
 
-Triggers and bumpers rather than face buttons because both thumbs are on the
-sticks for the whole round, which is also why this profile has no jump button.
-
 ### Keyboard (Real)
-
-Two lever halves rather than named actions: five keys a side plus dash, which
-is the twin-stick scheme on a keyboard. Jump and crouch are lever gestures,
-as they are on the pad. Shipped defaults are `2`/`W`/`Q`/`E`/`Z` on the left,
-`R`/`F`/`D`/`G`/`C` on the right, `X` to dash; player 2 gets the arrows and
-the keypad.
-
-Bindable, on its own F7 page, and independent of the gamepad: the two used to
-share one set of twelve bind slots, so binding either wrecked the other, and
-this profile now has a set of its own. Both survive a restart.
 
 Two keys cannot be shared between players. If 2P wants keys 1P already has,
 rebind 1P first - if 1P is on a pad those binds do nothing anyway.

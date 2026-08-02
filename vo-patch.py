@@ -291,8 +291,7 @@ FEATURES = [
           '909090909090909090909090909090909090909090909090909090909090909090909090909090909090')]),
 
     ('padxinput', 'XInput gamepad support',
-     'Three profiles on the F7 screen, for both players: pad 1 drives 1P,\n'
-     'pad 2 drives 2P.\n'
+     'Three profiles on the F7 screen, for both players.\n'
      '\n'
      'Keyboard (Real)\tthe game\'s two-lever keyboard scheme\n'
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
@@ -305,10 +304,8 @@ FEATURES = [
      'Select\tCamera\n'
      'Start\tPause\n'
      '\n'
-     'Twin-stick puts a thumbstick on each lever, the triggers on the\n'
-     'triggers and LB/RB on the turbo buttons. Both sticks the same way\n'
-     'walks, opposite ways turns, apart jumps, together crouches. On the\n'
-     'bound profiles jump and guard are gestures too, and work while moving.\n'
+     'Twin-stick mimicks the original arcade layout with two joysticks,\n'
+     'triggers and buttons.\n'
      '\n'
      'Your v_on.ini is renamed to v_on.ini.bak and the game writes a fresh\n'
      'one, because binds saved by the unpatched game do not fit the new\n'
