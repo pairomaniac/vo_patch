@@ -236,21 +236,21 @@ tracks present, they are used, disc or no disc. Under Wine they play through
 
 ## Resolution
 
-The game asks for 640x480 exclusive fullscreen and the display stretches it to
-whatever shape the panel is. The 4:3 framebuffer is baked into the rasteriser,
-so this is a scaling problem rather than something to patch.
+The game asks for 640x480 exclusive fullscreen and the display stretches it.
+The 4:3 framebuffer is baked into the rasteriser, so this is a scaling problem
+rather than something to patch.
 
-Use [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw). Drop it beside
-`v_on.exe` and it takes over DirectDraw, which is all this game renders
-through. It keeps the aspect ratio, upscales cleanly, and gives you windowed
-and borderless modes. It works on Wine too, so the same answer covers Linux.
+**Linux.** gamescope, integer-scaled and pillarboxed:
 
-Leave its FPS limiter off. The game paces itself once **Fix the frame rate**
-is applied, and two limiters fight.
+```bash
+gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
+```
 
-Its Alt+Tab fix and this patcher's are different problems: cnc-ddraw stops the
-picture breaking, **Fix keyboard input after ALT+TAB** stops the keyboard
-going dead. Use both.
+`-S fit` fills more of the screen without whole-number scaling.
+
+**Windows.** GPU control panel, *Adjust desktop size and position* → aspect
+ratio, with scaling performed on the GPU. Some monitors override this in their
+own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 
 ## Patches
 
