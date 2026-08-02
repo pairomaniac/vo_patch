@@ -94,12 +94,6 @@ Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
-Setup resolves what it needs through the game's own `LoadLibraryA` and
-`GetProcAddress` imports, walks `music\trackNN.wav` building the table of
-contents from file sizes, then `VirtualProtect`s the `mciSendCommandA` IAT
-slot and redirects it. With no tracks it changes nothing and every call
-reaches the real winmm, which is the fallback to a disc.
-
 **`levers.asm`** goes to one site inside the XInput patch table, at
 `0x0020779e`. The table entry reads its length from `LEVERS_CODE`, so the
 routine can change size without the run of `00` beside it needing a manual
@@ -129,6 +123,61 @@ it is page aligned. The XInput routine lives inside `.rdata` proper (`0x207460`,
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
 silently drop them.
+
+## vocd.asm, what it does
+
+The game's music is Redbook CD audio - real audio tracks on the disc, not
+files. It asks Windows to play them over MCI, the old Media Control Interface,
+with calls like *play device `cdaudio` from track 5*. No disc means nothing to
+play, and a data-only ISO has no audio tracks either, so the game runs silent.
+
+This impersonates the CD drive and plays WAV files instead. Two entry points.
+
+**Setup** runs at the entry point, before the game's own start-up. It resolves
+what it needs through the game's `LoadLibraryA` and `GetProcAddress` imports -
+adding to the import table would have meant rebuilding it - then finds the
+game folder from `GetModuleFileNameA`, and walks `music\track02.wav` up to
+`track99.wav`.
+
+It never opens a track. Redbook audio is exactly 44100 Hz 16-bit stereo, so a
+CD frame is exactly 2352 bytes, so after the 44-byte WAV header **the file
+size is the track length**. The whole table of contents comes from
+`GetFileSize`. Nothing is parsed and nothing can be misread.
+
+Then it makes the `mciSendCommandA` import slot writable, saves what was in
+it, and points it at the hook. If no tracks were found it stops before that
+step, every call reaches the real winmm, and the game reads a disc as it
+always did - the fallback is the absence of a patch rather than a code path.
+Last thing it does is jump to whatever the entry point used to be, which is
+why this patch has to be applied after all the others.
+
+**The hook** sees every `mciSendCommandA` the game makes. It watches for an
+open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
+then on, calls carrying that ID belong to it and everything else - sound
+effects, anything else using MCI - is forwarded to the real winmm untouched.
+One device is impersonated; nothing else is disturbed.
+
+Play requests are turned into MCI *string* commands against `waveaudio`:
+
+```
+open "<gamedir>\music\track05.wav" type waveaudio alias vocdbgm
+set vocdbgm time format milliseconds
+play vocdbgm
+```
+
+So it does not implement playback at all - no buffers, no mixing, no streaming
+thread. It rewrites a CD command as a WAV command and lets the same MCI
+subsystem do the work. That is also why it needs nothing from Wine beyond
+`mciwave`: Wine can play a WAV, it just cannot invent a CD drive.
+
+Status queries are answered from the table: track count, track lengths, media
+present, time format, and track 1 reported as data so the game does not try to
+play it. Only *is it still playing* cannot be answered from state, so that one
+sends `status vocdbgm mode` and compares the answer against `playing`. The
+game's own polling drives everything; nothing here runs on its own.
+
+Unrecognised messages return success without doing anything. Failing them
+would make the game give up on music entirely.
 
 ## levers.asm, what it does
 

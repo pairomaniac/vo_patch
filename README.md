@@ -244,7 +244,9 @@ Bold entries are not part of original VO_Patch.
 ## Notes
 
 Not every row needs one - the four inherited byte edits do what they say on
-the tin. These are the rest, in the order of the table above.
+the tin. These are the rest, in the order of the table above. Two of them
+install machine code rather than editing bytes; the assembly and a longer
+account of both are in [asm/](asm/).
 
 **Sample rate.** This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
@@ -256,9 +258,10 @@ through to the success path. The scan itself is untouched, so a mounted image
 is still found.
 
 The music logic is small: open `cdaudio`, set TMSF, read the track count and
-every length once, then only whole tracks, stops and the occasional pause. No
-notifications, no position polling, so a finished track just goes quiet -
-which is what the disc did too. Little enough to answer without one. A routine
+every length once, then whole-track plays, stops, the occasional pause, and a
+mode query to see whether a track is still running. No notifications and no
+position polling, so a finished track just goes quiet - which is what the disc
+did too. Little enough to answer without one. A routine
 in a new `.vocd` section takes over the `mciSendCommandA` import, builds the
 table of contents from the WAV file sizes and turns each play request into
 `mciSendStringA` against `waveaudio`. Lengths come from the file size rather
