@@ -153,7 +153,7 @@ left and right, RT fires both, LB dashes, A jumps, X guards. **Default** on
 the F7 page puts them back.
 
 Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
-the unpatched game do not survive the new device list; the game writes a fresh
+the unpatched game do not fit the new device list; the game writes a fresh
 one. **Restore original** puts it back.
 
 ## Music
