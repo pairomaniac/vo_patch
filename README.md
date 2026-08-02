@@ -261,11 +261,8 @@ The music logic is small: open `cdaudio`, set TMSF, read the track count and
 every length once, then whole-track plays, stops, the occasional pause, and a
 mode query to see whether a track is still running. No notifications and no
 position polling, so a finished track just goes quiet - which is what the disc
-did too. Little enough to answer without one. A routine
-in a new `.vocd` section takes over the `mciSendCommandA` import, builds the
-table of contents from the WAV file sizes and turns each play request into
-`mciSendStringA` against `waveaudio`. Lengths come from the file size rather
-than the header, the ripper always writing 44100 Hz 16-bit stereo.
+did too. Little enough to answer without one, which a routine in a new
+`.vocd` section does.
 
 This is the one patch that cannot be a byte edit in place: the padding at the
 end of `.text` has 24 bytes left after the timer stub and the F11 dialog, and
@@ -350,13 +347,9 @@ are also posted as key messages from the message pump, because the input tick
 does not run on the intro or while paused.
 
 Jump and guard are lever gestures rather than buttons - both levers spread
-outward, both squeezed inward - and each lever word is a bitmask where a clear
-bit means pushed: `0x80` left, `0x40` right, `0x20` up, `0x10` down. Forward
-is up on both, turning is opposed vertical. The tick ORs every active input
-into those words, so holding a direction left `up` set alongside the jump bits
-and the result read as two diagonals rather than a spread. A short routine
-after each tick strips that back off, and only when a pad was read, so the
-keyboard path is untouched.
+outward, both squeezed inward - so they share the words movement writes to,
+and neither came out while moving. A second routine after each tick sorts that
+out, and only when a pad was read, so the keyboard path is untouched.
 
 **F11 dialog.** No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same
