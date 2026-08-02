@@ -123,7 +123,7 @@ still free after them:
 | --- | --- | --- | --- | --- |
 | `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 426 | **24** |
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 133 | 147 |
-| `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 4 | 420 |
+| `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 0 | 424 |
 
 The `.text` cave holds the timer stub and the three F11 dialog blobs and has
 24 bytes left, which is why CD audio got a section of its own rather than
@@ -141,10 +141,10 @@ execute bit:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
-| routine and lever cleanup | `0x207460`-`0x2077e0` | 928 | 881 | **15** |
+| routine and lever cleanup | `0x207460`-`0x2077e0` | 896 | 881 | **15** |
 | input names and profile names | `0x223f9b`-`0x224058` | 189 | 135 | 54 |
-| bind list table | `0x223c43`-`0x223d00` | 189 | 125 | 64 |
-| condition table | `0x22411b`-`0x2241cb` | 176 | 126 | 50 |
+| bind list table | `0x223c43`-`0x223d00` | 189 | 128 | 61 |
+| condition table | `0x22411b`-`0x2241cb` | 176 | 128 | 48 |
 | twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
 | keyboard page fixes | `0x23dd38`-`0x23de00` | 200 | 53 | 147 |
 
