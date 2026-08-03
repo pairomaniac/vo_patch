@@ -1586,6 +1586,7 @@ def run_tk():
             self.root = root
             self.core = Patcher()
             self.vars, self.checks = {}, {}
+            self._corner_cache = {}
             root.title(TITLE)
             root.minsize(430, 0)
             root.maxsize(1100, root.winfo_screenheight() - 60)
@@ -1612,6 +1613,15 @@ def run_tk():
             self._section(body, 'LOG', self._log_body)
             self._log(INTRO)
 
+            # Width is settled here rather than on the canvas's first
+            # <Configure>, which arrives while the sections are still being
+            # built: that measured whatever existed at the time and opened
+            # the window narrower than its content.
+            root.update_idletasks()
+            wide = self.inner.winfo_reqwidth()
+            self.canvas.configure(width=wide)
+            root.minsize(wide, 0)
+
         def _body(self, parent):
             """Size to the content, scrolling only if it outgrows the
             screen."""
@@ -1631,7 +1641,6 @@ def run_tk():
             self.window = self.canvas.create_window((0, 0), window=self.inner,
                                                     anchor='nw')
             self.cap = max(300, parent.winfo_screenheight() - 200)
-            self.sized = False
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
             for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
@@ -1643,9 +1652,6 @@ def run_tk():
             wide = self.canvas.winfo_width()
             if wide > 1:
                 self.canvas.itemconfigure(self.window, width=wide)
-            if not self.sized:                      # settle the width once
-                self.canvas.configure(width=self.inner.winfo_reqwidth())
-                self.sized = True
             self.canvas.configure(
                 scrollregion=(0, 0, self.inner.winfo_reqwidth(), need),
                 height=min(need, self.cap))
@@ -1755,6 +1761,30 @@ def run_tk():
             self.bold.configure(weight='bold')
             self.dim = p['dim']
 
+        def _corners(self, parent, colour, spots, pad):
+            """Fake a radius with four small images pinned to the corners.
+            Fixed size, so Tk blits them; a stretched nine-patch would be
+            recomposited on every expose instead, which is ten times dearer.
+
+            place() measures from a ttk frame's content area, so the padding
+            has to be subtracted or the corners sit inside the card."""
+            left, top, right, bottom = pad
+            for spot in spots:
+                key = (colour, spot)
+                if key not in self._corner_cache:
+                    self._corner_cache[key] = _rounded(
+                        18, 18, PALETTE['ink'], colour, PALETTE['line'],
+                        radius=9, line=1.0, corners=spot,
+                        grow=('s' if 'n' in spot else 'n')
+                             + ('e' if 'w' in spot else 'w'))
+                tk.Label(parent, image=self._corner_cache[key], borderwidth=0,
+                         highlightthickness=0).place(
+                    relx=0 if 'w' in spot else 1,
+                    rely=0 if 'n' in spot else 1,
+                    x=-left if 'w' in spot else right,
+                    y=-top if 'n' in spot else bottom,
+                    anchor=spot)
+
         def _draw_indicator(self, style, p):
             """Swap clam's indicator for drawn images. Keep the references:
             Tk does not own them, and a collected image leaves a blank box."""
@@ -1796,11 +1826,14 @@ def run_tk():
                              font=self.head_font)
             name.pack(side='left')
 
+            self._corners(head, PALETTE['head'], ('nw', 'ne'), (10, 7, 10, 7))
             inner = ttk.Frame(card, style='Body.TFrame',
                               padding=(14, 10, 12, 12))
             if expanded:
                 inner.pack(fill='x')
             build(inner)
+            self._corners(inner, PALETTE['card'], ('sw', 'se'),
+                          (14, 10, 12, 12))
 
             state = {'open': expanded}
 
