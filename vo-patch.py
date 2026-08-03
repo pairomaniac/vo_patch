@@ -1587,6 +1587,7 @@ def run_tk():
             self.core = Patcher()
             self.vars, self.checks = {}, {}
             self._corner_cache = {}
+            self._bodies = []
             root.title(TITLE)
             root.minsize(430, 0)
             root.maxsize(1100, root.winfo_screenheight() - 60)
@@ -1617,10 +1618,25 @@ def run_tk():
             # <Configure>, which arrives while the sections are still being
             # built: that measured whatever existed at the time and opened
             # the window narrower than its content.
+            # Height allows for every section open, capped, so the window
+            # opens at a usable size and expanding one scrolls instead of
+            # moving the window. Measuring the collapsed content instead
+            # opens it barely taller than the headers.
+            for body, shown in self._bodies:
+                if not shown:
+                    body.pack(fill='x')
             root.update_idletasks()
-            wide = self.inner.winfo_reqwidth()
-            self.canvas.configure(width=wide)
-            root.minsize(wide, 0)
+            full = self.inner.winfo_reqheight()
+            for body, shown in self._bodies:
+                if not shown:
+                    body.pack_forget()
+            root.update_idletasks()
+            alphabet = 'abcdefghijklmnopqrstuvwxyz'
+            em = self.small.measure(alphabet) / 26.0
+            wide = max(self.inner.winfo_reqwidth(), int(em * 74))
+            self.canvas.configure(width=wide, height=min(full, self.cap))
+            root.minsize(wide, 320)
+            self._fit()
 
         def _body(self, parent):
             """Size to the content, scrolling only if it outgrows the
@@ -1634,13 +1650,18 @@ def run_tk():
                                       style='Vo.Vertical.TScrollbar',
                                       command=self.canvas.yview)
             self.canvas.pack(side='left', fill='both', expand=True)
+            self.vbar.pack(side='right', fill='y')
             self.canvas.configure(yscrollcommand=self.vbar.set)
 
             self.inner = ttk.Frame(self.canvas, padding=12,
                                    style='Ink.TFrame')
             self.window = self.canvas.create_window((0, 0), window=self.inner,
                                                     anchor='nw')
-            self.cap = max(300, parent.winfo_screenheight() - 200)
+            # About forty lines of text: a window, rather than most of the
+            # screen. Beyond that the content scrolls instead of the window
+            # growing, which is also what stops it resizing under the cursor.
+            row = self.small.metrics('linespace')
+            self.cap = min(max(300, parent.winfo_screenheight() - 200), row * 40)
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
             for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
@@ -1652,16 +1673,17 @@ def run_tk():
             wide = self.canvas.winfo_width()
             if wide > 1:
                 self.canvas.itemconfigure(self.window, width=wide)
+            # Only the scroll extent. Height is settled at startup and left
+            # alone: driving it from here resized the window on every expand
+            # and collapse, which is what flickered.
             self.canvas.configure(
-                scrollregion=(0, 0, self.inner.winfo_reqwidth(), need),
-                height=min(need, self.cap))
-            # against the height the canvas actually got, not the height it
-            # asked for: a window manager or a dragged edge can leave it
-            # shorter than the cap, and then the bar is the only way down.
-            if need > max(self.canvas.winfo_height(), 1) + 1:
-                self.vbar.pack(side='right', fill='y')
-            else:
-                self.vbar.pack_forget()
+                scrollregion=(0, 0, self.inner.winfo_reqwidth(), need))
+            # The bar stays packed whether it is needed or not. Showing and
+            # hiding it moved the window by its own width at the moment the
+            # content outgrew the cap, which is the last of the resizing
+            # that made expanding a section flicker. Tk fills the trough
+            # when there is nothing to scroll.
+            if need <= max(self.canvas.winfo_height(), 1) + 1:
                 self.canvas.yview_moveto(0)
 
         def _wheel(self, event):
@@ -1829,6 +1851,7 @@ def run_tk():
             self._corners(head, PALETTE['head'], ('nw', 'ne'), (10, 7, 10, 7))
             inner = ttk.Frame(card, style='Body.TFrame',
                               padding=(14, 10, 12, 12))
+            self._bodies.append((inner, expanded))
             if expanded:
                 inner.pack(fill='x')
             build(inner)
