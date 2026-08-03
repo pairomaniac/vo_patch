@@ -33,7 +33,6 @@ MAGICS = [
     ('MAGIC_LOADLIB',   0xE3E3E3E3, 'VA of the LoadLibraryA IAT slot'),
     ('MAGIC_GETPROC',   0xE4E4E4E4, 'VA of the GetProcAddress IAT slot'),
     ('MAGIC_DATA',      0xE5E5E5E5, 'VA the data blob lands at'),
-    ('MAGIC_HOOK',      0xE6E6E6E6, 'VA of the hook thunk'),
 ]
 
 

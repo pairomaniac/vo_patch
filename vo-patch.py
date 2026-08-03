@@ -6,7 +6,7 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.7.2
+Version 0.7.3
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -18,6 +18,7 @@ import re
 import shutil
 import struct
 import sys
+import webbrowser
 import threading
 
 VERSION = re.search(r'^Version (\S+)', __doc__, re.M).group(1)
@@ -112,7 +113,8 @@ FEATURES = [
      '\n'
      'Disc check\tThe "Please insert VIRTUAL ON CD" prompt is skipped. The drive is still scanned, so a mounted image still works.\n'
      'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below. With no files there, the game reads the drive.\n'
-     'Section\tAdds a section to the executable instead of editing bytes in place. The file grows by about 3 KB.', [
+     'Section\tThe music routine goes in a section of its own rather than into spare bytes, so the file grows by about 3 KB.\n'
+     'Calls\tThe game\'s 37 calls to the CD audio function are pointed at that routine directly, so a DirectDraw wrapper loaded alongside cannot take them over.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -949,50 +951,47 @@ VOCD_MAGICS = {
     'MAGIC_LOADLIB': 0xE3E3E3E3,       # VA of the LoadLibraryA IAT slot
     'MAGIC_GETPROC': 0xE4E4E4E4,       # VA of the GetProcAddress IAT slot
     'MAGIC_DATA': 0xE5E5E5E5,          # VA the data blob lands at
-    'MAGIC_HOOK': 0xE6E6E6E6,          # VA of the hook thunk
 }
 
 VOCD_CODE = bytes.fromhex(
-    'e913020000eb1aacaa84c075fa4fc331d2b90a000000f7f10430aa88d00430aa'
-    'c360bbe5e5e5e5837b2c000f8581010000c7432c010000008d83c005000050ff'
+    'e9d7010000eb1aacaa84c075fa4fc331d2b90a000000f7f10430aa88d00430aa'
+    'c360bbe5e5e5e5837b2c000f8545010000c7432c010000008d83c005000050ff'
     '15e3e3e3e389c68d83e60500005056ff15e4e4e4e48943148d83f90500005056'
     'ff15e4e4e4e48943188d83050600005056ff15e4e4e4e489431c8d8311060000'
-    '5056ff15e4e4e4e48943208d831d0600005056ff15e4e4e4e48943248d832c06'
-    '00005056ff15e4e4e4e48943288d83cd05000050ff15e3e3e3e385c00f84f000'
-    '000089c68d83d70500005056ff15e4e4e4e489431085c00f84d50000008d83d0'
-    '0100006808010000506a00ff531485c00f84bc0000008dbbd001000001c74f80'
-    '3f5c740a8d83d001000039c777f0c6470100be02000000e89d0000006a006880'
-    '0000006a036a006a0168000000808d83e002000050ff531883f8ff744489c76a'
-    '0057ff531c89c557ff532083ed2c763189e831d2b930090000f7f131d2b99411'
-    '0000f7f189c589d031d2b94b000000f7f1c1e00809c5c1e21009d5896cb34089'
-    '334683fe647290833b0074268d4330506a046a0468e2e2e2e2ff532485c07412'
-    'a1e2e2e2e289430cc705e2e2e2e2e6e6e6e66168e1e1e1e1c3568dbbe0020000'
-    '8db3d0010000e83cfeffff8db33e060000e831feffff8b0424e831feffff8db3'
-    '4a060000e81efeffff5ec36a006a006a008d040350ff5310c3837b04007418b8'
-    'd1060000e8e2ffffffc7430400000000c7430800000000c3fc5589e5535657bb'
-    'e5e5e5e5833b000f84900000008b450c3d0308000075408b5510f7c200200000'
-    '747bf7c20010000075738b751485f6746c8b460885c074658d93360600005250'
-    'ff532885c07556e88dffffffc74604cefa000031c0eb55817d08cefa0000753d'
-    '3d140800000f84520100003d060800000f84ad0000003d0808000074513d0908'
-    '000074633d55080000747d3d0408000074333d0b080000741a31c0eb0fff7514'
-    'ff7510ff750cff7508ff530c5f5e5b5dc210008b751485f67407c74604010000'
-    '0031c0ebe7e80fffffff31c0ebde837b0400740fb8a7060000e8edfeffffe8f6'
-    'feffff31c0ebc5837b04007417837b08007511b8b4060000e8cefeffffc74308'
-    '0100000031c0eba4837b08007411b8c2060000e8b3feffffc743080000000031'
-    'c0eb898b5510f7c2040000000f84840000008b751485f6747d8b46040fb6f083'
-    'fe02727283fe64736d8b44b34085c07465e883feffffe83efeffff8dbb000400'
-    '008db34f060000e87bfcffff8db3e0020000e870fcffff8db356060000e865fc'
-    'ffff6a006a006a008d830004000050ff531085c075208b45148b40040fb6c089'
-    '4304b875060000e81ffeffffb89a060000e815feffff31c0e9effeffff8b7514'
-    '85f6750731c0e9e1feffff8b460883f80375078b13e9e300000083f801752d8b'
-    '5510f7c2100000000f84cd0000008b4e0c83f9010f82c100000083f9640f83b8'
-    '0000008b548b40e9b100000083f8047556ba0d020000837b08007544837b0400'
-    '0f84970000006a006a408d8300040000508d83df06000050ff531085c0757e8d'
-    '83f3060000508d830004000050ff5328ba0d02000085c07564ba0e020000eb5d'
-    'ba11020000eb5683f808750e8b530485d2754aba01000000eb4383f805743583'
-    'f807743083f8067507ba0a000000eb2d3d014000007524ba400400008b4d10f7'
-    'c1100000007416837e0c017510ba41040000eb09ba01000000eb0231d2895604'
-    '31c0e9e5fdffff'
+    '5056ff15e4e4e4e48943208d831d0600005056ff15e4e4e4e48943288d83cd05'
+    '000050ff15e3e3e3e385c00f84c500000089c68d83d70500005056ff15e4e4e4'
+    'e489431085c00f84aa0000008d83d00100006808010000506a00ff531485c00f'
+    '84910000008dbbd001000001c74f803f5c740a8d83d001000039c777f0c64701'
+    '00be02000000e8720000006a0068800000006a036a006a0168000000808d83e0'
+    '02000050ff531883f8ff744489c76a0057ff531c89c557ff532083ed2c763189'
+    'e831d2b930090000f7f131d2b994110000f7f189c589d031d2b94b000000f7f1'
+    'c1e00809c5c1e21009d5896cb34089334683fe6472906168e1e1e1e1c3568dbb'
+    'e00200008db3d0010000e878feffff8db32f060000e86dfeffff8b0424e86dfe'
+    'ffff8db33b060000e85afeffff5ec36a006a006a008d040350ff5310c3837b04'
+    '007418b8c2060000e8e2ffffffc7430400000000c7430800000000c3fc5589e5'
+    '535657bbe5e5e5e5833b000f84940000008b450c3d0308000075408b5510f7c2'
+    '00200000747ff7c20010000075778b751485f674708b460885c074698d932706'
+    '00005250ff532885c0755ae88dffffffc74604cefa000031c0eb5c817d08cefa'
+    '000075413d140800000f84590100003d060800000f84b40000003d0808000074'
+    '583d09080000746a3d550800000f84800000003d0408000074363d0b08000074'
+    '1d31c0eb12ff7514ff7510ff750cff7508ff15e2e2e2e25f5e5b5dc210008b75'
+    '1485f67407c746040100000031c0ebe7e808ffffff31c0ebde837b0400740fb8'
+    '98060000e8e6feffffe8effeffff31c0ebc5837b04007417837b08007511b8a5'
+    '060000e8c7feffffc743080100000031c0eba4837b08007411b8b3060000e8ac'
+    'feffffc743080000000031c0eb898b5510f7c2040000000f84840000008b7514'
+    '85f6747d8b46040fb6f083fe02727283fe64736d8b44b34085c07465e87cfeff'
+    'ffe837feffff8dbb000400008db340060000e8b0fcffff8db3e0020000e8a5fc'
+    'ffff8db347060000e89afcffff6a006a006a008d830004000050ff531085c075'
+    '208b45148b40040fb6c0894304b866060000e818feffffb88b060000e80efeff'
+    'ff31c0e9effeffff8b751485f6750731c0e9e1feffff8b460883f80375078b13'
+    'e9e300000083f801752d8b5510f7c2100000000f84cd0000008b4e0c83f9010f'
+    '82c100000083f9640f83b80000008b548b40e9b100000083f8047556ba0d0200'
+    '00837b08007544837b04000f84970000006a006a408d8300040000508d83d006'
+    '000050ff531085c0757e8d83e4060000508d830004000050ff5328ba0d020000'
+    '85c07564ba0e020000eb5dba11020000eb5683f808750e8b530485d2754aba01'
+    '000000eb4383f805743583f807743083f8067507ba0a000000eb2d3d01400000'
+    '7524ba400400008b4d10f7c1100000007416837e0c017510ba41040000eb09ba'
+    '01000000eb0231d289560431c0e9e5fdffff'
 )
 
 VOCD_DATA = bytes.fromhex(
@@ -1044,14 +1043,14 @@ VOCD_DATA = bytes.fromhex(
     '0000000000000000000000000000000000000000000000000000000000000000'
     '6b65726e656c33322e646c6c0077696e6d6d2e646c6c006d636953656e645374'
     '72696e6741004765744d6f64756c6546696c654e616d65410043726561746546'
-    '696c65410047657446696c6553697a6500436c6f736548616e646c6500566972'
-    '7475616c50726f74656374006c737472636d706941006364617564696f006d75'
-    '7369635c747261636b002e776176006f70656e20220022207479706520776176'
-    '65617564696f20616c69617320766f636462676d0073657420766f636462676d'
-    '2074696d6520666f726d6174206d696c6c697365636f6e647300706c61792076'
-    '6f636462676d0073746f7020766f636462676d00706175736520766f63646267'
-    '6d00726573756d6520766f636462676d00636c6f736520766f636462676d0073'
-    '746174757320766f636462676d206d6f646500706c6179696e6700'
+    '696c65410047657446696c6553697a6500436c6f736548616e646c65006c7374'
+    '72636d706941006364617564696f006d757369635c747261636b002e77617600'
+    '6f70656e2022002220747970652077617665617564696f20616c69617320766f'
+    '636462676d0073657420766f636462676d2074696d6520666f726d6174206d69'
+    '6c6c697365636f6e647300706c617920766f636462676d0073746f7020766f63'
+    '6462676d00706175736520766f636462676d00726573756d6520766f63646267'
+    '6d00636c6f736520766f636462676d0073746174757320766f636462676d206d'
+    '6f646500706c6179696e6700'
 )
 # VOCD BLOB END
 
@@ -1167,13 +1166,13 @@ def apply_cdaudio(buf):
 
     gap = (-len(VOCD_CODE)) % 16
     code_rva = pe.add_section('.vocd', VOCD_CODE + b'\0' * gap + VOCD_DATA)
+    hook_va = pe.base + code_rva
     values = {
         'MAGIC_ORIGENTRY': pe.base + pe.entry_rva,
         'MAGIC_IATMCI':    pe.iat_slot('winmm.dll', 'mciSendCommandA'),
         'MAGIC_LOADLIB':   pe.iat_slot('kernel32.dll', 'LoadLibraryA'),
         'MAGIC_GETPROC':   pe.iat_slot('kernel32.dll', 'GetProcAddress'),
         'MAGIC_DATA':      pe.base + code_rva + len(VOCD_CODE) + gap,
-        'MAGIC_HOOK':      pe.base + code_rva,
     }
 
     # Substitution is a plain replace over the whole blob, so check each
@@ -1196,7 +1195,54 @@ def apply_cdaudio(buf):
     start = pe.off(code_rva)
     pe.d[start:start + len(code)] = code
     struct.pack_into('<I', pe.d, pe.off_entry, code_rva + 5)
+    _repoint_mci_calls(pe, values['MAGIC_IATMCI'], hook_va)
     return pe.d
+
+
+# Every call the game makes to mciSendCommandA, all of them the six-byte
+# indirect form. Nothing else in .text names the slot.
+MCI_CALL_SITES = 37
+
+
+def _repoint_mci_calls(pe, slot_va, hook_va):
+    """Point the game's mciSendCommandA calls straight at the hook.
+
+    Owning the IAT slot is not enough. Anything else that hooks the same
+    import by name overwrites it, and cnc-ddraw does exactly that on every
+    module load at hook=3 and hook=4, which silently drops the hook out of
+    the chain - the game keeps running, the music just stops. Rewriting the
+    call sites cannot be undone by a later IAT write, and the hook still
+    forwards through the slot, so a wrapper that owns it stays in the chain.
+
+        FF 15 <slot>   call dword [__imp__mciSendCommandA]
+        E8 <rel32> 90  call hook ; nop
+
+    Both are six bytes, so nothing moves.
+    """
+    text = next((s for s in pe.sections if s['name'] == b'.text'), None)
+    if text is None:
+        raise ValueError('no .text section')
+    lo = text['raddr']
+    hi = lo + min(text['rsize'], len(pe.d) - lo)
+
+    pattern = b'\xff\x15' + struct.pack('<I', slot_va)
+    sites, at = [], pe.d.find(pattern, lo, hi)
+    while at != -1:
+        sites.append(at)
+        at = pe.d.find(pattern, at + 1, hi)
+
+    # A wrong count means the file is not the executable these offsets were
+    # measured against, or an earlier patch has landed on a call site. Either
+    # way, rewriting part of them would leave the game half hooked.
+    if len(sites) != MCI_CALL_SITES:
+        raise ValueError('expected %d mciSendCommandA call sites, found %d'
+                         % (MCI_CALL_SITES, len(sites)))
+
+    for off in sites:
+        site_va = pe.base + text['vaddr'] + (off - text['raddr'])
+        pe.d[off] = 0xE8
+        struct.pack_into('<i', pe.d, off + 1, hook_va - (site_va + 5))
+        pe.d[off + 5] = 0x90
 
 
 class Patcher:
@@ -1376,6 +1422,13 @@ NO_FILE = 'No file selected'
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
+
+# Not a patch and not bundled: a separate download that does the things a
+# byte edit cannot, so it sits under the list rather than in it.
+EXTRA_LINK = ('cnc-ddraw', 'https://github.com/FunkyFr3sh/cnc-ddraw',
+              'Separate download. A DirectDraw wrapper that adds windowed '
+              'and borderless modes and scales 640x480 without stretching '
+              'it. Unzip beside v_on.exe. Works with every patch here.')
 
 MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
               'No disc required patch reads it. Source: a cue sheet or a CD '
@@ -1653,7 +1706,8 @@ def run_tk():
                           lambda p: self._patch_body(p, ESSENTIAL,
                                                      ESSENTIAL_HINT))
             self._section(body, 'EXTRA PATCHES',
-                          lambda p: self._patch_body(p, EXTRA, EXTRA_HINT),
+                          lambda p: self._patch_body(p, EXTRA, EXTRA_HINT,
+                                                     EXTRA_LINK),
                           expanded=False)
             self._section(body, 'CD MUSIC', self._music_body,
                           expanded=False)
@@ -2060,7 +2114,20 @@ def run_tk():
                 thread.join(1.5)
             self.root.destroy()
 
-        def _patch_body(self, parent, keys, hint):
+        def _link_row(self, parent, label, url, note):
+            """A suggestion under a patch list, not a patch: nothing is
+            ticked, applied or written. Kept visually quieter than a row
+            for that reason."""
+            row = ttk.Frame(parent, style='Card.TFrame')
+            row.pack(fill='x', pady=(8, 1))
+            link = tk.Label(row, text=label, font=self.small, cursor='hand2',
+                            background=PALETTE['card'],
+                            foreground=PALETTE['cyan'])
+            link.pack(side='left')
+            link.bind('<Button-1>', lambda _e: webbrowser.open(url))
+            _hint(parent, note, self.dim, self.small, pady=(0, 2))
+
+        def _patch_body(self, parent, keys, hint, link=None):
             _hint(parent, hint, self.dim, self.small, pady=(0, 8))
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
@@ -2074,6 +2141,8 @@ def run_tk():
                 Info(row, label, tip, self).btn.pack(side='right',
                                                      padx=(6, 2))
                 self.vars[key], self.checks[key] = var, check
+            if link:
+                self._link_row(parent, *link)
 
         def _log_body(self, parent):
             wrap = self.log_wrap = tk.Frame(parent, background=PALETTE['line'],

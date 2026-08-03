@@ -5,8 +5,14 @@
 ; game writes at runtime. apply_cdaudio fills the MAGIC_ placeholders with
 ; real addresses and points AddressOfEntryPoint at code_base+5.
 ;
-;   code_base+0   jmp hook       <- what the winmm IAT slot is redirected to
+;   code_base+0   jmp hook       <- what the 37 call sites are pointed at
 ;   code_base+5   jmp startup    <- new entry point
+;
+; The hook is reached by rewriting the game's own calls, not by owning the
+; winmm IAT slot. Anything else that hooks mciSendCommandA by import name -
+; cnc-ddraw does, and reinstalls it whenever a module loads - would otherwise
+; overwrite the slot and drop this out of the chain. The slot is still read,
+; at call time rather than at startup, so whoever does own it stays below us.
 ;
 ; Tracks are <gamedir>\music\trackNN.wav, 44100/16/stereo, as written by the
 ; ripper. Length comes from the file size, so no WAV parsing.
@@ -19,7 +25,6 @@ bits 32
 %define MAGIC_LOADLIB   0xE3E3E3E3      ; VA of the LoadLibraryA IAT slot
 %define MAGIC_GETPROC   0xE4E4E4E4      ; VA of the GetProcAddress IAT slot
 %define MAGIC_DATA      0xE5E5E5E5      ; VA of the data blob
-%define MAGIC_HOOK      0xE6E6E6E6      ; VA of code_base+0
 
 %define VOCD_ID         0xFACE
 
@@ -120,12 +125,6 @@ startup:
         call    [MAGIC_GETPROC]
         mov     [ebx + D_CLOSEH], eax
 
-        lea     eax, [ebx + S_VPROTECT]
-        push    eax
-        push    esi
-        call    [MAGIC_GETPROC]
-        mov     [ebx + D_VPROTECT], eax
-
         lea     eax, [ebx + S_LSTRCMPI]
         push    eax
         push    esi
@@ -217,23 +216,8 @@ startup:
         cmp     esi, 100
         jb      .track
 
-        cmp     dword [ebx + D_NTRACKS], 0
-        je      .done
-
-        ; redirect the winmm IAT slot at MAGIC_IATMCI to our hook
-        lea     eax, [ebx + D_SCRATCH]
-        push    eax
-        push    4                       ; PAGE_READWRITE
-        push    4
-        push    MAGIC_IATMCI
-        call    [ebx + D_VPROTECT]
-        test    eax, eax
-        jz      .done
-        mov     eax, [MAGIC_IATMCI]
-        mov     [ebx + D_ORIGMCI], eax
-        mov     dword [MAGIC_IATMCI], MAGIC_HOOK
-        ; The page is left writable. Restoring it would mean a second call
-        ; and nothing here or in the game reads back that protection.
+        ; Nothing to install: the call sites already point here. With
+        ; D_NTRACKS still zero the hook forwards everything.
 .done:
         popad
         push    MAGIC_ORIGENTRY
@@ -347,7 +331,8 @@ forward:
         push    dword [ebp + 16]
         push    dword [ebp + 12]
         push    dword [ebp + 8]
-        call    [ebx + D_ORIGMCI]
+        call    [MAGIC_IATMCI]          ; read now, so a wrapper that owns the
+                                        ; slot keeps working underneath us
 done:
         pop     edi
         pop     esi

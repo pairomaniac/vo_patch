@@ -100,14 +100,24 @@ patches, and compares the fully patched MD5 against `EXPECTED_ALL` in
 
 **`vocd.asm`** becomes a blob of its own in a new `.vocd` section that
 `apply_cdaudio` appends to the executable. The code starts with two thunks:
-`+0` is the hook the winmm import is redirected to, `+5` is the setup the
-entry point is repointed at. The data blob is the string table plus the space
-the code works in - track table, path and command buffers.
+`+0` is the hook, which the game's 37 `mciSendCommandA` call sites are
+rewritten to call, and `+5` is the setup the entry point is repointed at. The
+data blob is the string table plus the space the code works in - track table,
+path and command buffers.
+
+The hook does not own the winmm import slot. It reads it, at call time, to
+forward anything it does not answer itself. Owning it does not work: another
+DLL that hooks the same import by name overwrites the slot and the hook stops
+being called, which is what cnc-ddraw does at `hook=3` and `hook=4`. Rewriting
+the call sites cannot be undone that way, and forwarding through the live slot
+leaves whoever does own it in the chain below.
 
 Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
-`apply_cdaudio` fills in once it has read the executable: IAT slots, the
+`apply_cdaudio` fills in once it has read the executable: import slots, the
 previous entry point, and where the blobs landed. Everything else is self
-relative, so the section can go anywhere.
+relative, so the section can go anywhere. The hook's own address is not among
+them - the patcher needs it as a number for the call-site arithmetic, not as
+something to substitute into the blob.
 
 **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`** each go to one
 site inside the XInput patch table, at `0x0020779e`, `0x00223dc4` and

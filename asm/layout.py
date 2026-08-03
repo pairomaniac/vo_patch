@@ -5,11 +5,14 @@ import struct
 
 # Data cave layout, offsets from the data cave base.
 FIELDS = [
+    # 0x0C, 0x24 and 0x30 are free: they held D_ORIGMCI, D_VPROTECT and
+    # D_SCRATCH, which went with the IAT redirect. The remaining offsets are
+    # left where they were rather than closed up, the section being page
+    # aligned either way.
     ('D_NTRACKS',  0x00), ('D_TRACK',    0x04), ('D_PAUSED',   0x08),
-    ('D_ORIGMCI',  0x0C), ('D_MCISTR',   0x10), ('D_GETMODFN', 0x14),
+                          ('D_MCISTR',   0x10), ('D_GETMODFN', 0x14),
     ('D_CREATEF',  0x18), ('D_GETFSIZE', 0x1C), ('D_CLOSEH',   0x20),
-    ('D_VPROTECT', 0x24), ('D_LSTRCMPI', 0x28), ('D_INIT',     0x2C),
-    ('D_SCRATCH',  0x30),
+                          ('D_LSTRCMPI', 0x28), ('D_INIT',     0x2C),
     ('D_TOC',      0x40),          # 100 dwords -> 0x040..0x1D0, exact fit
     ('D_GAMEDIR',  0x1D0),         # 272, of which 264 is ever used
     ('D_PATH',     0x2E0),         # 288, worst case 282
@@ -30,7 +33,6 @@ STRINGS = [
     ('S_CREATEF',    'CreateFileA'),
     ('S_GETFSIZE',   'GetFileSize'),
     ('S_CLOSEH',     'CloseHandle'),
-    ('S_VPROTECT',   'VirtualProtect'),
     ('S_LSTRCMPI',   'lstrcmpiA'),
     ('S_CDAUDIO',    'cdaudio'),
     ('S_MUSICTRACK', 'music\\track'),
