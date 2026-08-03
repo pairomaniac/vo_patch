@@ -1,4 +1,4 @@
-# Virtual-On (PC, 1997) — v_on.exe patcher
+# Virtual-On (PC, 1997) - v_on.exe patcher
 
 Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
@@ -11,17 +11,6 @@ game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
 the game and not the bytes quoted from it.
 
 <img width="472" height="621" alt="The patcher window" src="https://github.com/user-attachments/assets/86891fe7-599e-4334-b032-0fabbdf4caa6" />
-
-## Contents
-
-[Download](#download) · [What the patches do](#what-the-patches-do) ·
-[Using the patcher](#using-the-patcher) ·
-[Running from source](#running-from-source) · [Gamepad](#gamepad) ·
-[Music](#music) · [Resolution](#resolution)
-
-Reference, if you are here to read the disassembly rather than play the game:
-[Patches](#patches), the offset table, and [Notes](#notes), an account of how
-each one works.
 
 ## Download
 
@@ -38,34 +27,34 @@ under this repository's Actions.
 
 **Essential** fix things that are broken on modern systems; **Extra** are up
 to taste. Everything starts ticked, so untick what you do not want before
-patching — **Extra** starts collapsed, so open it first if you want to look.
+patching - **Extra** starts collapsed, so open it first if you want to look.
 How each one works is under [Notes](#notes).
 
 ### Essential
 
-- **Skip processor check** — lets the game start on a modern CPU, without you
+- **Skip processor check** - lets the game start on a modern CPU, without you
 having to set `ProcessorCheck=Off` in `v_on.ini` first.
-- **Fix frame rate (60 FPS)** — three fixes for the same complaint:
+- **Fix frame rate (60 FPS)** - three fixes for the same complaint:
     - the multimedia timer resolution, without which the game runs at about
       70% speed on Windows 2000 and later (not needed on Wine),
     - `Motion=` in `v_on.ini`, which was read correctly and then overwritten,
       so it never stuck,
     - the *Motion Type* radios on F5, which only ever offered 1/3 and 1/2
       speed and now read **30 FPS** and **60 FPS**.
-- **Fix crash on round loss** — stops the crash when you lose as Temjin,
+- **Fix crash on round loss** - stops the crash when you lose as Temjin,
 Viper II, Apharmd or Raiden.
-- **Fix keyboard input after ALT+TAB** — without it, alt-tabbing away or
+- **Fix keyboard input after ALT+TAB** - without it, alt-tabbing away or
 opening an F-key dialog kills the keyboard for the rest of the session.
 
 ### Extra
 
-- **XInput gamepad support** — twelve bindable actions on a modern
+- **XInput gamepad support** - twelve bindable actions on a modern
 controller, plus the arcade twin-stick scheme, for both players. Disables
 *Keyboard only(Simple)* for the time being: the gamepad needs its bind page.
 See [Gamepad](#gamepad).
-- **No disc required** — removes the disc check and reads the soundtrack from
+- **No disc required** - removes the disc check and reads the soundtrack from
 `music\trackNN.wav` beside the game instead. See [Music](#music).
-- **Move the menu bar to F11** — removes the menu bar and puts the Debug
+- **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts the Debug
 options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
 Scorekeeping and **Quit Program**. Motion is not among them; it has moved to
 F5. Every other menu was already on a key:
@@ -81,13 +70,13 @@ F5. Every other menu was already on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Use better defaults when v_on.ini is missing** — what the game falls back
+- **Better defaults with no v_on.ini** - what the game falls back
 on when a key is absent, which on a first run is all of them: Sky on, all three
 Texture boxes on, Field Graphic Rich, Screen Large.
-- **Fix sound** — three small ones: the built-in delay before each sound effect
+- **Sound fixes** - three small ones: the built-in delay before each sound effect
 is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen gets back
 the hypermode sound a bug left silent.
-- **Hide loading screen text** — removes "Now Loading . . .".
+- **Hide loading screen text** - removes "Now Loading . . .".
 
 ## Using the patcher
 
@@ -95,7 +84,7 @@ Select `v_on.exe` and press **Apply patches**. Expand **ESSENTIAL PATCHES** or
 **EXTRA PATCHES** and click the ⓘ beside a patch to read what it does, and
 untick anything you do not want.
 
-Only the unmodified disc file is accepted — 6,650,880 bytes, MD5
+Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
 `a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
 before anything is written, and **Restore original** puts it back so you can
 change your selection. Nothing is written unless every selected patch applied,
@@ -108,7 +97,7 @@ original** puts that back too, keeping whatever the patched game wrote as
 
 ## Running from source
 
-Windows, with Python from python.org — Tk ships with it, nothing else needed:
+Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
 ```
 py vo-patch.py
@@ -128,7 +117,7 @@ To build the Windows binary yourself, `pip install pyinstaller` and run
 that is the only place it is written down.
 
 To change the machine code the patches install, see [asm/](asm/). The assembly
-lives there and `asm/build.py` copies the assembled bytes into `vo-patch.py` —
+lives there and `asm/build.py` copies the assembled bytes into `vo-patch.py` -
 the hex in the script is generated and should never be edited by hand. CI
 checks the two still agree on every push. `python3 vo-patch.py --selfcheck`
 validates the patch tables without needing a copy of the game;
@@ -140,7 +129,7 @@ validates the patch tables without needing a copy of the game;
 <img width="382" height="267" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
-profiles are hidden and three remain, for both players — pad 1 drives 1P,
+profiles are hidden and three remain, for both players - pad 1 drives 1P,
 pad 2 drives 2P.
 
 | Profile | What it is |
@@ -158,7 +147,7 @@ screen, where the input tick does not run:
 
 | Button | Does |
 | --- | --- |
-| **A** | Accept — skips the intro, confirms menus |
+| **A** | Accept - skips the intro, confirms menus |
 | **Select** | Camera |
 | **Start** | Pause |
 
@@ -182,12 +171,12 @@ apply.
 | Sticks apart | jump, and auto-face the opponent |
 | Sticks together | crouch, which is the guard |
 | **LT**, **RT** | left and right weapon; both at once is the centre weapon |
-| **LB**, **RB** | the turbo buttons — dash in the direction you are moving |
+| **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
 
 ### Keyboard (Real)
 
 Two keys cannot be shared between players. If 2P wants keys 1P already has,
-rebind 1P first — if 1P is on a pad those binds do nothing anyway.
+rebind 1P first - if 1P is on a pad those binds do nothing anyway.
 
 Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
 the unpatched game do not fit the new device list; the game writes a fresh
@@ -205,8 +194,8 @@ no extra DLL.
 ### Ripping the tracks
 
 Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it knows
-where the files go, put a cue sheet or a drive in **Source** — **Browse…**
-finds a cue sheet, a drive is filled in for you if there is one — then press
+where the files go, put a cue sheet or a drive in **Source** - **Browse…**
+finds a cue sheet, a drive is filled in for you if there is one - then press
 **Rip tracks**. Closing the window mid-rip cancels it and discards the part
 track.
 
@@ -218,7 +207,7 @@ python3 vo-patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
 python3 vo-patch.py --rip                # list drives
 ```
 
-`bin`/`cue` is exact and needs no drive — sector offsets come from the sheet.
+`bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
 Drives are read with `CDROMREADAUDIO` on Linux and `IOCTL_CDROM_RAW_READ` on
 Windows; a cdemu device behaves like a physical one.
 
@@ -238,7 +227,7 @@ because the game asks for tracks by number.
 
 With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
-`mciwave` — no `dosdevices` entry, raw device link or cdemu instance needed.
+`mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
 ## Resolution
 
@@ -276,7 +265,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
 | **Music from files** | new `.vocd` section, entry point, winmm IAT slot | `mciSendCommandA` redirected to a routine that answers from WAV files |
-| **Move the menu bar to F11** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
+| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
 
@@ -286,7 +275,7 @@ Everything below is how the patches work rather than how to use them. If you
 came here to play the game you are done; this is for anyone reading the
 disassembly.
 
-Not every row needs one — the four inherited byte edits do what they say on
+Not every row needs one - the four inherited byte edits do what they say on
 the tin. These are the rest, in the order of the table above. Two of them
 install machine code rather than editing bytes; the assembly and a longer
 account of both are in [asm/](asm/).
@@ -303,7 +292,7 @@ is still found.
 The music logic is small: open `cdaudio`, set TMSF, read the track count and
 every length once, then whole-track plays, stops, the occasional pause, and a
 mode query to see whether a track is still running. No notifications and no
-position polling, so a finished track just goes quiet — which is what the disc
+position polling, so a finished track just goes quiet - which is what the disc
 did too. Little enough to answer without one, which a routine in a new
 `.vocd` section does.
 
@@ -325,7 +314,7 @@ three.
 Each frame is gated on `timeGetTime`, and the game advances only once a budget
 has elapsed: 33 ms at `Motion=2`, 16.7 ms at `Motion=1`. It never calls
 `timeBeginPeriod`, so the clock ticks every 15.6 ms and a 33 ms budget waits
-for the third tick at 46.8 ms — about 70% speed. A stub in `.text` padding
+for the third tick at 46.8 ms - about 70% speed. A stub in `.text` padding
 calls `timeBeginPeriod(1)` and jumps to the real entry point. VO_Patch shipped
 `vo_speed.exe` for the same job. No-op under Wine.
 
@@ -334,7 +323,7 @@ start-up and three on resolution and view changes. Removing all four lets it
 stand. Its fallbacks wrote 3, so a missing or mistyped value put the flicker
 back; they write 1 now.
 
-The F5 *Motion Type* radios edit a staging copy — opening the page copies
+The F5 *Motion Type* radios edit a staging copy - opening the page copies
 `Motion` from `0x6c84d0` to `0xbe4308`, the radios write that, OK copies it
 back. *Fast* wrote 3 and *Smooth* 2, a third of full speed and a half, so 60
 fps was unreachable from the interface. They write 2 and 1, and the test
@@ -347,7 +336,7 @@ updated and the *Fast* radio widened to fit.
 
 **Ini defaults.** One routine reads `v_on.ini`; every key is the same block,
 look the string up and write a hardcoded value if it is absent. Several of
-those are the least attractive option going — Sky off, every texture off,
+those are the least attractive option going - Sky off, every texture off,
 Field Graphic Normal. A four-byte edit each.
 
 Field Graphic is the exception. Rich clears `0x6817f0`, sets `0x6817c8` and
@@ -405,7 +394,7 @@ were always its own. The block sits inside the structure written to
 
 Two things fall out of that. The startup defaults run every profile's set in
 turn and *Joystick + Keyboard* writes that block after *Real* does, so its
-call is dropped — it is unreachable anyway. And **Default** on the keyboard
+call is dropped - it is unreachable anyway. And **Default** on the keyboard
 page passed a hardcoded player 0, resetting 1P's binds from the 2P side; the
 other two pages pass the current player, so this one is corrected to match.
 
@@ -417,13 +406,13 @@ It is 164 bytes, of which 116 are tables. It binds nothing, so it takes the
 page-table entry that opens no dialog, which also disposes of the
 `0x3651554 == 1` check that made **Next** refuse without a joystick attached.
 
-Jump and guard are lever gestures rather than buttons — both levers spread
-outward, both squeezed inward — so they share the words movement writes to,
+Jump and guard are lever gestures rather than buttons - both levers spread
+outward, both squeezed inward - so they share the words movement writes to,
 and neither came out while moving. A second routine after each tick sorts that
 out, and only when a pad was read, so the keyboard path is untouched.
 
 **F11 dialog.** No dialog resource ever existed, so one is built at runtime
-from a template written into unused space — over the old menu, which this same
+from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
 straight to the main window and **Quit Program** is just the *Exit Game*
 command; the check boxes read the game's own flags. F11 because F9 disconnects
@@ -437,5 +426,5 @@ against a missing control being a no-op.
 
 Written with AI assistance. Every offset and byte sequence is checked against
 the original executable before it is written, and the patcher refuses anything
-that is not the unmodified disc file — but this is a hobby project poking at a
+that is not the unmodified disc file - but this is a hobby project poking at a
 nearly 30-year-old binary so expect bugs.

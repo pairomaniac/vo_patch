@@ -71,7 +71,7 @@ KBPAGE_CODE = bytes.fromhex(
 # Each site: (offset, original, patched).
 
 FEATURES = [
-    ('sound', 'Fix sound',
+    ('sound', 'Sound fixes',
      'Three small fixes, applied together.\n'
      '\n'
      'Sound effects\tThe built-in delay before each one is removed.\n'
@@ -89,7 +89,7 @@ FEATURES = [
          (0x002c7678, '4e', '00')]),
 
 
-    ('defaults', 'Use better defaults when v_on.ini is missing',
+    ('defaults', 'Better defaults with no v_on.ini',
      'Changes what the game falls back on when a key is missing from\n'
      'v_on.ini, which on a first run is all of them. An existing key wins,\n'
      'and F5 overrides both.\n'
@@ -183,7 +183,7 @@ FEATURES = [
          (0x001c8bc4, 'c705d0846c0002000000', '90909090909090909090'),
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
-    ('debugbox', 'Move the menu bar to F11',
+    ('debugbox', 'Disable menu bar (Extras menu on F11)',
      'Removes the menu bar. F11 opens a dialog with the Debug options in\n'
      'its place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit\n'
      'Program. Motion has moved to F5.\n'
@@ -887,7 +887,7 @@ def rip(source, outdir, progress=None):
 # Shown until a file is picked. The GUI highlights this one line, because a
 # user who has not picked one yet reads the CD MUSIC section first and finds
 # the Rip button does nothing.
-MUSIC_NEEDS_EXE = 'Select v_on.exe first \u2014 the tracks go beside it.'
+MUSIC_NEEDS_EXE = 'Select v_on.exe first - the tracks go beside it.'
 
 
 def music_status(gamedir):
@@ -1217,12 +1217,12 @@ class Patcher:
             data = fh.read()
         self.exe_path = path
         if hashlib.md5(data).hexdigest() == ORIGINAL_MD5:
-            return 'READY \u2014 unmodified disc original.', True
-        note = 'CANNOT PATCH \u2014 this is not the original v_on.exe.'
+            return 'READY - unmodified disc original', True
+        note = 'CANNOT PATCH - this is not the original v_on.exe.'
         if len(data) != EXE_SIZE:
             note += '  Expected %d bytes, got %d.' % (EXE_SIZE, len(data))
         elif os.path.exists(path + '.bak'):
-            note += '  Already patched \u2014 restore the backup first.'
+            note += '  Already patched - restore the backup first.'
         return note, False
 
     def apply(self, wanted):
@@ -1315,9 +1315,9 @@ class Patcher:
             return
         try:
             shutil.move(ini, ini + '.bak')
-            log.append('Moved v_on.ini aside \u2014 the game will rebuild it')
+            log.append('Moved v_on.ini aside - the game will rebuild it')
         except OSError as exc:
-            log.append('Could not move v_on.ini: %s \u2014 delete it by hand' % exc)
+            log.append('Could not move v_on.ini: %s - delete it by hand' % exc)
 
     @staticmethod
     def _backup(path, log):
@@ -1375,7 +1375,7 @@ INTRO = 'Select an unmodified v_on.exe.'
 NO_FILE = 'No file selected'
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
-EXTRA_HINT = 'Up to taste, not fixes.'
+EXTRA_HINT = 'Optional. Untick what you do not want.'
 
 MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
               'No disc required patch reads it. Source: a cue sheet or a CD '
@@ -1392,7 +1392,7 @@ MUSIC_TIP = ('Rip before or after patching, it makes no difference, and '
              'is the data track.')
 
 DONE = 'Done. Restore the original to change your selection.'
-FAILED = 'Nothing was written \u2014 see the log.'
+FAILED = 'Nothing was written - see the log.'
 
 
 def win_dpi():
@@ -1586,22 +1586,30 @@ def run_tk():
         img.put(' '.join(rows))
         return img
 
-    def _hint(parent, text, colour, font):
+    def _hint(parent, text, colour, font, pady=0):
         """The quiet explanatory line under a section heading; four of the
         five cards have one and they only differ in their text.
 
-        The caller packs it. Doing it here as well meant every hint was
-        packed twice, once with the wrong padding."""
-        label = ttk.Label(parent, text=text, style='Card.TLabel',
+        The width is taken from a holder frame rather than the card body.
+        A ttk frame's winfo_width() counts its own padding, so wrapping to
+        that made every hint 26px wider than the space it had and clipped
+        the last word against the card edge. An empty frame filled to the
+        content area measures it exactly.
+
+        Packs itself, because the holder is nobody else's business."""
+        holder = ttk.Frame(parent, style='Card.TFrame')
+        holder.pack(fill='x', pady=pady)
+        label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
         def fit(_event=None):
-            width = parent.winfo_width()
+            width = holder.winfo_width()
             if width > 1:
                 label.configure(wraplength=max(140, width - 2))
-        parent.bind('<Configure>', fit, add='+')
+        holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', fit, add='+')       # a collapsed card gets no
         #                                         Configure until it reopens
+        label.pack(anchor='w')
         return label
 
     def _gap(image, extra, colour):
@@ -1665,16 +1673,17 @@ def run_tk():
                     body.pack(fill='x')
             root.update_idletasks()
             full = self.inner.winfo_reqheight()
+            # Width has to come from here too, for the same reason: a
+            # collapsed section still has to fit when it is opened, and the
+            # canvas forces its content to the window width rather than
+            # scrolling sideways, so anything wider is simply cut off. The
+            # CD music row is the widest thing in the window and it starts
+            # collapsed, which is exactly the case that got clipped.
+            wide = self.inner.winfo_reqwidth()
             for body, shown in self._bodies:
                 if not shown:
                     body.pack_forget()
             root.update_idletasks()
-            # The content's own width, and nothing more. This used to be
-            # widened to fit the size-mismatch note on one line, which cost
-            # 320px of window for a string the status bar truncates at 52
-            # characters before it is ever drawn. The copy in the card wraps
-            # to two lines at this width, which is what that was aiming for.
-            wide = self.inner.winfo_reqwidth()
             self.canvas.configure(width=wide, height=min(full, self.cap))
             # the minimum has to leave room for the scrollbar as well
             root.minsize(wide + self.vbar.winfo_reqwidth(), 320)
@@ -1737,14 +1746,11 @@ def run_tk():
             # would otherwise scroll the window behind it.
             if event.widget.winfo_toplevel() is not self.root:
                 return
-            # The log scrolls itself, and so does its scrollbar - matching
-            # the Text alone left the bar scrolling the window instead.
+            # The log scrolls itself, and so does its scrollbar. Tk widget
+            # names are paths, so one prefix covers the pair.
             log = getattr(self, 'log_wrap', None)
-            widget = event.widget
-            while log is not None and widget is not None:
-                if widget is log:
-                    return
-                widget = widget.master
+            if log is not None and str(event.widget).startswith(str(log)):
+                return
             if self.inner.winfo_reqheight() <= self.canvas.winfo_height():
                 return
             step = -1 if getattr(event, 'num', 0) == 4 or \
@@ -1936,12 +1942,11 @@ def run_tk():
                           side='left', fill='x', expand=True)
             ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
                        command=self._pick).pack(side='left', padx=(8, 0))
-            self.file_note = _hint(parent, NO_FILE, self.dim, self.small)
-            self.file_note.pack(anchor='w', pady=(8, 0))
+            self.file_note = _hint(parent, NO_FILE, self.dim, self.small,
+                                   pady=(8, 0))
 
         def _music_body(self, parent):
-            _hint(parent, MUSIC_HINT, self.dim, self.small).pack(
-                anchor='w', pady=(0, 8))
+            _hint(parent, MUSIC_HINT, self.dim, self.small, pady=(0, 8))
             row = ttk.Frame(parent, style='Card.TFrame')
             row.pack(fill='x')
             # The bubble is packed first so pack reserves its width before
@@ -1955,8 +1960,11 @@ def run_tk():
             drives = list_devices()
             if drives:
                 self.rip_var.set(drives[0])
+            # A modest request: it expands into whatever the row has spare,
+            # and this row is the widest thing in the window, so asking for
+            # more here just makes the whole window wider.
             ttk.Entry(row, textvariable=self.rip_var, style='Vo.TEntry',
-                      width=22).pack(side='left', fill='x', expand=True)
+                      width=12).pack(side='left', fill='x', expand=True)
             ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
                        command=self._pick_cue).pack(side='left', padx=(8, 0))
             self.rip_btn = ttk.Button(row, text='Rip tracks',
@@ -1964,8 +1972,8 @@ def run_tk():
                                       command=self._rip)
             self.rip_btn.pack(side='left', padx=(8, 0))
 
-            self.music_note = _hint(parent, '', self.dim, self.small)
-            self.music_note.pack(anchor='w', pady=(8, 0))
+            self.music_note = _hint(parent, '', self.dim, self.small,
+                                    pady=(8, 0))
             self._music(music_status(None))
 
         def _music(self, text):
@@ -2049,12 +2057,11 @@ def run_tk():
             thread = getattr(self, '_rip_thread', None)
             if thread is not None and thread.is_alive():
                 self._cancel_rip = True
-                thread.join(5.0)
+                thread.join(1.5)
             self.root.destroy()
 
         def _patch_body(self, parent, keys, hint):
-            _hint(parent, hint, self.dim, self.small).pack(
-                anchor='w', pady=(0, 8))
+            _hint(parent, hint, self.dim, self.small, pady=(0, 8))
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
                 row = ttk.Frame(parent, style='Card.TFrame')
