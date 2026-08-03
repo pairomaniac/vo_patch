@@ -62,14 +62,15 @@ git diff                         # 3. vo-patch.py's hex strings changed
 Step 2 also runs `vo-patch.py --selfcheck`, which validates the patch tables,
 so a run that prints `tables OK` has verified both halves.
 
-You never edit the hex in `vo-patch.py` yourself. Both blob regions carry a
-GENERATED banner saying so, and the next `build.py` run would overwrite the
+You never edit the hex in `vo-patch.py` yourself. The generated regions carry
+a GENERATED banner saying so, and the next `build.py` run would overwrite the
 edit anyway.
 
 ## What CI checks
 
-The `verify` job in `.github/workflows/build.yml` runs on every push to main
-and every pull request, and the Windows build will not start until it passes.
+The `verify` job in `.github/workflows/build.yml` runs on every push to main,
+every `v*` tag and every pull request, and the Windows build will not start
+until it passes.
 It installs nasm and runs the same checks you would:
 
 | Step | Catches |
@@ -92,8 +93,8 @@ python3 tools/selftest.py /path/to/v_on.exe
 
 That is the only check that catches a wrong offset. It verifies every
 `original` column against the real file, applies 350-odd combinations of
-patches, and compares the fully patched MD5 against the one recorded in the
-script.
+patches, and compares the fully patched MD5 against `EXPECTED_ALL` in
+`tools/selftest.py`.
 
 ## Where each blob lands
 
@@ -156,12 +157,15 @@ size are `0x1f74e0` and `0x223198`, 174 bytes each.
 
 A run of zeros is not free space until two things are true of it.
 
-**Nothing points into it.** `0x6083e0` sits in the middle of the run the
-XInput routine lives in: a base address the geometry code indexes off, reading
-as zeros because that is what the game expects to find there. The routine
-stops at `0x6083d1` and is fine; fifty-three bytes dropped after it corrupted
-the loading screens, which took a release to find. The usable tail of that
-cave is fifteen bytes, not sixty-five.
+**Nothing points into it.** The tables above are file offsets; the addresses
+in this paragraph are virtual, which is file offset plus `0x400c00`.
+`0x6083e0` - the end of the XInput routine's cave, `0x2077e0` above - sits in
+the middle of the run of zeros that cave was cut from: a base address the
+geometry code indexes off, reading as zeros because that is what the game
+expects to find there. The routine stops just short of it, at `0x6083d1`, and
+is fine; fifty-three bytes dropped after it corrupted the loading screens,
+which took a release to find. The usable tail of that run is fifteen bytes,
+not sixty-five.
 
 To check, search the file for a dword equal to any address inside the span.
 That search has false positives on long spans - four bytes of data can happen

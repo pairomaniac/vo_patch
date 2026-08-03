@@ -72,8 +72,8 @@ def replace(text, name, body):
 
 
 def check_org(src, wanted):
-    """These two are assembled at a fixed org, so the source and the site
-    that writes it have to name the same address. Nothing downstream would
+    """Sources assembled at a fixed org, where the source and the site that
+    writes it have to name the same address. Nothing downstream would
     notice: the code would be written, and every jump in it would land a
     few hundred bytes off."""
     for name, site in wanted.items():
@@ -114,7 +114,8 @@ def main(check=False):
     new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
     new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
     new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
-    check_org(src, {'twinstick.asm': 0x00223dc4})
+    check_org(src, {'twinstick.asm': 0x00223dc4,
+                    'kbpage.asm': 0x0023dd38})
 
     sizes = ('vocd %d + %d bytes, levers %d, twinstick %d, kbpage %d'
              % (len(code), len(data), len(levers), len(twin), len(kbpage)))

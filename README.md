@@ -54,8 +54,8 @@ controller, plus the arcade twin-stick scheme, for both players. Disables
 See [Gamepad](#gamepad).
 - **No disc required** - removes the disc check and reads the soundtrack from
 `music\trackNN.wav` beside the game instead. See [Music](#music).
-- **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts the Debug
-options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
+- **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
+the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
 Scorekeeping and **Quit Program**. Motion is not among them; it has moved to
 F5. Every other menu was already on a key:
 
@@ -70,12 +70,12 @@ F5. Every other menu was already on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Better defaults with no v_on.ini** - what the game falls back
-on when a key is absent, which on a first run is all of them: Sky on, all three
-Texture boxes on, Field Graphic Rich, Screen Large.
-- **Sound fixes** - three small ones: the built-in delay before each sound effect
-is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen gets back
-the hypermode sound a bug left silent.
+- **Better defaults with no v_on.ini** - what the game falls back on when a
+key is missing, which on a first run is all of them: Sky on, all three Texture
+boxes on, Field Graphic Rich, Screen Large.
+- **Sound fixes** - three small ones: the built-in delay before each sound
+effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
+gets back the hypermode sound a bug left silent.
 - **Hide loading screen text** - removes "Now Loading . . .".
 
 ## Using the patcher
