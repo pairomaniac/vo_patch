@@ -71,16 +71,16 @@ jobs:
       # game is not in the repository. Run tools/selftest.py by hand before
       # tagging - it is the only check that catches a wrong offset.
 
-  # PyInstaller takes minutes and produces something nobody looks at unless
-  # it is being released, so it runs on tags and on demand. verify still runs
-  # on every push, which is what catches drift. If you want to be sure the
-  # packaging still works before tagging, trigger the workflow by hand from
-  # the Actions tab.
+  # Builds on every push to main, on a tag, and on demand from the Actions
+  # tab. Pull requests are left out: the push that follows the merge builds
+  # the same tree, and PyInstaller takes minutes.
+  #
+  # A push build is an artifact and nothing else - only a tag reaches the
+  # release page. Artifacts keep for 90 days, so the last few commits are
+  # always downloadable without tagging anything.
   windows:
     needs: verify
-    if: >-
-      startsWith(github.ref, 'refs/tags/')
-      || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
 
     steps:
@@ -133,9 +133,20 @@ jobs:
           fi
           ls -l dist/
 
+      # Tagged builds carry the tag, everything else the short SHA, so a
+      # folder of downloads says which commit each one came from.
+      - name: Name the artifact
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "artifact=vo-patch-$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "artifact=vo-patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
-          name: vo-patch-windows
+          name: ${{ env.artifact }}
           path: |
             dist/*.exe
             dist/*.py

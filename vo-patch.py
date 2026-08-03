@@ -1506,10 +1506,14 @@ def run_tk():
 
     def _rounded(width_px, height_px, back, fill, edge, tick=None,
                  radius=4.0, line=1.4, corners='nw ne sw se', grow=''):
-        """A rounded rectangle: cards, headers, entries and checkboxes are
-        all this function. It draws by coverage rather than by pixels, each
-        point blending by its distance to the shape's edge, because Tk has
-        no drawing API past put() and its -subsample does not average.
+        """A rounded rectangle, which is how the checkboxes are drawn. It
+        works by coverage rather than by pixels, each point blending by its
+        distance to the shape's edge, because Tk has no drawing API past
+        put() and its -subsample does not average.
+
+        Only fixed-size widgets get this. A ttk image element with a border
+        re-composites its nine-patch on every expose, in software, which
+        made resizing the window ten times slower when the cards used one.
 
         clam has no border radius and its checkbox is a flat square with two
         settable colours, so anything rounded has to be an image."""
@@ -1683,7 +1687,6 @@ def run_tk():
             style.configure('Ink.TFrame', background=p['ink'])
             style.configure('Card.TFrame', background=p['card'])
             style.configure('Body.TFrame', background=p['card'])
-            style.configure('Field.TFrame', background=p['ink'])
             style.configure('Card.TLabel', background=p['card'],
                             foreground=p['text'])
             style.configure('Head.TFrame', background=p['head'])
@@ -1741,7 +1744,6 @@ def run_tk():
                       background=[('active', p['line'])])
 
             self._draw_indicator(style, p)
-            self._round_cards(style, p)
 
             default = tkfont.nametofont('TkDefaultFont')
             small = max(7, abs(default.cget('size')) - 1)
@@ -1752,39 +1754,6 @@ def run_tk():
             self.bold = default.copy()
             self.bold.configure(weight='bold')
             self.dim = p['dim']
-
-        def _round_cards(self, style, p):
-            """Round the cards. A ttk image element with a border is a
-            nine-patch: the corners are kept and the middle is stretched, so
-            one 26px image covers a card of any size.
-
-            The header band sits at the top of the card, so it takes the
-            top two corners and the body the bottom two. Card.TFrame stays
-            flat: the rows inside a card use it too."""
-            try:
-                self._cards = (
-                    _rounded(26, 26, p['ink'], p['card'], p['line'],
-                             radius=9, line=1.0, corners='sw se', grow='n'),
-                    _rounded(26, 26, p['ink'], p['head'], p['line'],
-                             radius=9, line=1.0, corners='nw ne', grow='s'),
-                    _rounded(18, 18, p['card'], p['ink'], p['line'],
-                             radius=6, line=1.0))
-                for name, image, style_name, border in (
-                        ('Vo.body', self._cards[0], 'Body.TFrame', 9),
-                        ('Vo.head', self._cards[1], 'Head.TFrame', 9),
-                        ('Vo.field', self._cards[2], 'Field.TFrame', 6)):
-                    style.element_create(name, 'image', image,
-                                         border=border, sticky='nswe')
-                    style.layout(style_name, [(name, {'sticky': 'nswe'})])
-                # an entry keeps its own padding and text area inside the
-                # drawn field, or the cursor sits on the rounded edge
-                style.layout('Vo.TEntry', [
-                    ('Vo.field', {'sticky': 'nswe', 'children': [
-                        ('Entry.padding', {'sticky': 'nswe', 'children': [
-                            ('Entry.textarea', {'sticky': 'nswe'})]})]})])
-                style.configure('Vo.TEntry', padding=(7, 5))
-            except tk.TclError:
-                pass            # square cards are better than none
 
         def _draw_indicator(self, style, p):
             """Swap clam's indicator for drawn images. Keep the references:
@@ -1815,7 +1784,7 @@ def run_tk():
                 pass            # keep clam's square rather than no box at all
 
         def _section(self, parent, title, build, expanded=True):
-            card = ttk.Frame(parent, style='Ink.TFrame')
+            card = ttk.Frame(parent, style='Card.TFrame')
             card.pack(fill='x', pady=(0, 10))
 
             head = ttk.Frame(card, style='Head.TFrame', padding=(10, 7))
@@ -1941,12 +1910,12 @@ def run_tk():
                 self.vars[key], self.checks[key] = var, check
 
         def _log_body(self, parent):
-            wrap = ttk.Frame(parent, style='Field.TFrame', padding=5)
-            wrap.pack(fill='both', expand=True)
+            wrap = tk.Frame(parent, background=PALETTE['line'],
+                            borderwidth=0, highlightthickness=0)
+            wrap.pack(fill='both', expand=True, padx=1, pady=1)
             self.log_box = tk.Text(wrap, height=5, width=34, wrap='word',
                                    state='disabled', relief='flat',
-                                   highlightthickness=0, borderwidth=0,
-                                   padx=4, pady=2,
+                                   highlightthickness=0, padx=6, pady=4,
                                    font=self.small,
                                    background=PALETTE['ink'],
                                    foreground=PALETTE['dim'],
