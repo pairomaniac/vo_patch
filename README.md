@@ -103,14 +103,10 @@ py vo-patch.py
 
 On Linux, Tk usually needs installing:
 
-| Distro | |
-| --- | --- |
-| Debian, Ubuntu, Mint | `python3-tk` |
-| Fedora, RHEL | `python3-tkinter` |
-| Arch, EndeavourOS | `tk` |
-
 ```bash
-sudo apt install python3-tk                  # Debian, Ubuntu, Mint
+sudo apt install python3-tk        # Debian, Ubuntu, Mint
+sudo dnf install python3-tkinter   # Fedora, RHEL
+sudo pacman -S tk                  # Arch, EndeavourOS
 python3 vo-patch.py
 ```
 
