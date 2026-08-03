@@ -6,13 +6,14 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.7.1
+Version 0.7.2
 https://github.com/pairomaniac/vo_patch
 """
 
 import ctypes
 import hashlib
 import os
+import queue
 import re
 import shutil
 import struct
@@ -70,7 +71,7 @@ KBPAGE_CODE = bytes.fromhex(
 # Each site: (offset, original, patched).
 
 FEATURES = [
-    ('sound', 'Miscellaneous sound fixes',
+    ('sound', 'Fix sound',
      'Three small fixes, applied together.\n'
      '\n'
      'Sound effects\tThe built-in delay before each one is removed.\n'
@@ -88,7 +89,7 @@ FEATURES = [
          (0x002c7678, '4e', '00')]),
 
 
-    ('defaults', 'Better defaults with no v_on.ini',
+    ('defaults', 'Use better defaults when v_on.ini is missing',
      'Changes what the game falls back on when a key is missing from\n'
      'v_on.ini, which on a first run is all of them. An existing key wins,\n'
      'and F5 overrides both.\n'
@@ -119,7 +120,7 @@ FEATURES = [
      'ProcessorCheck=Off in v_on.ini, but with no ini needed, and it takes\n'
      'the MMX, Pentium and vendor checks with it.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
-    ('framerate', 'Fix the frame rate (60 FPS)',
+    ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
      'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
@@ -182,7 +183,7 @@ FEATURES = [
          (0x001c8bc4, 'c705d0846c0002000000', '90909090909090909090'),
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
-    ('debugbox', 'Disable menu bar (Extras menu on F11)',
+    ('debugbox', 'Move the menu bar to F11',
      'Removes the menu bar. F11 opens a dialog with the Debug options in\n'
      'its place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit\n'
      'Program. Motion has moved to F5.\n'
@@ -886,7 +887,7 @@ def rip(source, outdir, progress=None):
 # Shown until a file is picked. The GUI highlights this one line, because a
 # user who has not picked one yet reads the CD MUSIC section first and finds
 # the Rip button does nothing.
-MUSIC_NEEDS_EXE = 'Select v_on.exe first - the tracks go beside it.'
+MUSIC_NEEDS_EXE = 'Select v_on.exe first \u2014 the tracks go beside it.'
 
 
 def music_status(gamedir):
@@ -902,6 +903,13 @@ def music_status(gamedir):
         return 'Music folder is empty. The game will read the drive.'
     mb = sum(os.path.getsize(os.path.join(out, f)) for f in found) // (1 << 20)
     return '%d tracks in music (%d MB).' % (len(found), mb)
+
+
+class RipCancelled(Exception):
+    """Raised out of the progress callback to stop a rip in its tracks.
+
+    It travels the same path as a real failure, so the WavWriter context
+    manager discards the partial track on the way out."""
 
 
 def rip_in_background(source, gamedir, progress, done):
@@ -1198,17 +1206,23 @@ class Patcher:
         self.exe_path = None
 
     def load(self, path):
-        """Return (description, accepted). Raises OSError."""
+        """Return (description, accepted). Raises OSError.
+
+        The old path is dropped first. Keeping it meant a failed read left
+        can_restore() answering for the file before this one, so Restore
+        original stayed lit and rewrote an executable the window was no
+        longer showing."""
+        self.exe_path = None
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
         if hashlib.md5(data).hexdigest() == ORIGINAL_MD5:
-            return 'READY \u2014 unmodified disc original', True
+            return 'READY \u2014 unmodified disc original.', True
         note = 'CANNOT PATCH \u2014 this is not the original v_on.exe.'
         if len(data) != EXE_SIZE:
             note += '  Expected %d bytes, got %d.' % (EXE_SIZE, len(data))
         elif os.path.exists(path + '.bak'):
-            note += '  Already patched - restore the backup first.'
+            note += '  Already patched \u2014 restore the backup first.'
         return note, False
 
     def apply(self, wanted):
@@ -1301,9 +1315,9 @@ class Patcher:
             return
         try:
             shutil.move(ini, ini + '.bak')
-            log.append('Moved v_on.ini aside - the game will rebuild it')
+            log.append('Moved v_on.ini aside \u2014 the game will rebuild it')
         except OSError as exc:
-            log.append('Could not move v_on.ini: %s - delete it by hand' % exc)
+            log.append('Could not move v_on.ini: %s \u2014 delete it by hand' % exc)
 
     @staticmethod
     def _backup(path, log):
@@ -1361,16 +1375,24 @@ INTRO = 'Select an unmodified v_on.exe.'
 NO_FILE = 'No file selected'
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
-EXTRA_HINT = 'Optional. Untick what you do not want.'
+EXTRA_HINT = 'Up to taste, not fixes.'
 
-MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, which is '
-              'where No disc required reads it from. Source: a cue sheet or '
-              'a CD drive. About 320 MB, 26 tracks. You can rip before or '
-              'after patching, and restoring the original leaves the tracks '
-              'alone.')
+MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
+              'No disc required patch reads it. Source: a cue sheet or a CD '
+              'drive. About 320 MB.')
+
+MUSIC_TIP = ('Rip before or after patching, it makes no difference, and '
+             'Restore original leaves the tracks alone.\n'
+             '\n'
+             'Cue sheet\tExact, and needs no drive. Sector offsets come from '
+             'the sheet.\n'
+             'CD drive\tRead raw. A cdemu device behaves like a physical '
+             'one.\n'
+             'Result\t26 files, music\\track02.wav to track27.wav. Track 1 '
+             'is the data track.')
 
 DONE = 'Done. Restore the original to change your selection.'
-FAILED = 'Nothing was written - see the log.'
+FAILED = 'Nothing was written \u2014 see the log.'
 
 
 def win_dpi():
@@ -1476,11 +1498,20 @@ def run_tk():
                                wrap=max(140, wrap - keys - gap)).grid(
                         row=line, column=1, sticky='w', pady=1)
             win.update_idletasks()
-            wide = win.winfo_reqwidth()
+            wide, high = win.winfo_reqwidth(), win.winfo_reqheight()
             x = self.btn.winfo_rootx() + self.btn.winfo_width() - wide
             x = max(4, min(x, self.btn.winfo_screenwidth() - wide - 4))
-            win.wm_geometry('+%d+%d' % (
-                x, self.btn.winfo_rooty() + self.btn.winfo_height() + 3))
+            # Below the button by preference. The tall ones are 350px and
+            # more, so from a checkbox low on the screen that ran off the
+            # bottom: flip above instead, and only clamp if neither fits.
+            below = self.btn.winfo_rooty() + self.btn.winfo_height() + 3
+            screen = self.btn.winfo_screenheight()
+            if below + high > screen - 4:
+                above = self.btn.winfo_rooty() - high - 3
+                y = above if above >= 4 else max(4, screen - high - 4)
+            else:
+                y = below
+            win.wm_geometry('+%d+%d' % (x, y))
             showing.append(self)
 
         @staticmethod
@@ -1557,7 +1588,10 @@ def run_tk():
 
     def _hint(parent, text, colour, font):
         """The quiet explanatory line under a section heading; four of the
-        five cards have one and they only differ in their text."""
+        five cards have one and they only differ in their text.
+
+        The caller packs it. Doing it here as well meant every hint was
+        packed twice, once with the wrong padding."""
         label = ttk.Label(parent, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
@@ -1568,7 +1602,6 @@ def run_tk():
         parent.bind('<Configure>', fit, add='+')
         label.bind('<Map>', fit, add='+')       # a collapsed card gets no
         #                                         Configure until it reopens
-        label.pack(anchor='w')
         return label
 
     def _gap(image, extra, colour):
@@ -1588,11 +1621,14 @@ def run_tk():
             self.vars, self.checks = {}, {}
             self._corner_cache = {}
             self._bodies = []
+            self._rip_thread, self._rip_dir = None, None
+            self._cancel_rip = False
             root.title(TITLE)
             root.minsize(430, 0)
             root.maxsize(1100, root.winfo_screenheight() - 60)
             root.bind_all('<Button-1>', close_info, add='+')
             root.bind_all('<Escape>', close_info, add='+')
+            root.protocol('WM_DELETE_WINDOW', self._close)
 
             self._styles()
 
@@ -1602,10 +1638,12 @@ def run_tk():
             body = self._body(outer)
 
             self._section(body, 'GAME EXECUTABLE', self._file_body)
+            # Open, because it is the point of the window: with everything
+            # collapsed the first screen is a file box and an empty log, and
+            # nobody unticks what they cannot see.
             self._section(body, 'ESSENTIAL PATCHES',
                           lambda p: self._patch_body(p, ESSENTIAL,
-                                                     ESSENTIAL_HINT),
-                          expanded=False)
+                                                     ESSENTIAL_HINT))
             self._section(body, 'EXTRA PATCHES',
                           lambda p: self._patch_body(p, EXTRA, EXTRA_HINT),
                           expanded=False)
@@ -1631,14 +1669,12 @@ def run_tk():
                 if not shown:
                     body.pack_forget()
             root.update_idletasks()
-            # Wide enough for the longest thing the window ever says. That
-            # line is the size mismatch, and at a narrower default it wrapped
-            # to three, which is exactly when someone is reading it.
-            worst = ('CANNOT PATCH \u2014 this is not the original v_on.exe.'
-                     '  Expected %d bytes, got %d.' % (EXE_SIZE, EXE_SIZE))
-            padding = 12 * 2 + 14 + 12            # canvas, then the card body
-            wide = max(self.inner.winfo_reqwidth(),
-                       self.bold.measure(worst) + padding)
+            # The content's own width, and nothing more. This used to be
+            # widened to fit the size-mismatch note on one line, which cost
+            # 320px of window for a string the status bar truncates at 52
+            # characters before it is ever drawn. The copy in the card wraps
+            # to two lines at this width, which is what that was aiming for.
+            wide = self.inner.winfo_reqwidth()
             self.canvas.configure(width=wide, height=min(full, self.cap))
             # the minimum has to leave room for the scrollbar as well
             root.minsize(wide + self.vbar.winfo_reqwidth(), 320)
@@ -1697,9 +1733,18 @@ def run_tk():
                 self.canvas.yview_moveto(0)
 
         def _wheel(self, event):
-            log = getattr(self, 'log_box', None)
-            if log is not None and str(event.widget) == str(log):
-                return                              # let the log scroll itself
+            # bind_all reaches every toplevel, so an open description bubble
+            # would otherwise scroll the window behind it.
+            if event.widget.winfo_toplevel() is not self.root:
+                return
+            # The log scrolls itself, and so does its scrollbar - matching
+            # the Text alone left the bar scrolling the window instead.
+            log = getattr(self, 'log_wrap', None)
+            widget = event.widget
+            while log is not None and widget is not None:
+                if widget is log:
+                    return
+                widget = widget.master
             if self.inner.winfo_reqheight() <= self.canvas.winfo_height():
                 return
             step = -1 if getattr(event, 'num', 0) == 4 or \
@@ -1899,13 +1944,20 @@ def run_tk():
                 anchor='w', pady=(0, 8))
             row = ttk.Frame(parent, style='Card.TFrame')
             row.pack(fill='x')
+            # The bubble is packed first so pack reserves its width before
+            # the entry claims what is left, the same reason the scrollbar
+            # goes before the canvas.
+            Info(row, 'CD MUSIC', MUSIC_TIP, self).btn.pack(side='right',
+                                                            padx=(6, 0))
+            ttk.Label(row, text='Source', style='Card.TLabel',
+                      font=self.small).pack(side='left', padx=(0, 8))
             self.rip_var = tk.StringVar()
             drives = list_devices()
             if drives:
                 self.rip_var.set(drives[0])
             ttk.Entry(row, textvariable=self.rip_var, style='Vo.TEntry',
                       width=22).pack(side='left', fill='x', expand=True)
-            ttk.Button(row, text='Cue\u2026', style='Vo.TButton',
+            ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
                        command=self._pick_cue).pack(side='left', padx=(8, 0))
             self.rip_btn = ttk.Button(row, text='Rip tracks',
                                       style='Vo.TButton', state='disabled',
@@ -1931,33 +1983,74 @@ def run_tk():
 
         def _rip(self):
             source = self.rip_var.get().strip()
-            if not source or not self.core.exe_path:
+            if not source:
+                self._log('No source. Give a cue sheet or a drive.')
                 return
-            gamedir = os.path.dirname(self.core.exe_path)
+            if not self.core.exe_path:
+                self._log(MUSIC_NEEDS_EXE)
+                return
+            # Captured now: the exe can be changed from under a running rip,
+            # and the finished message has to name where the files went.
+            self._rip_dir = os.path.dirname(self.core.exe_path)
             self.rip_btn.state(['disabled'])
             self._log('Ripping from %s' % source)
+            self._cancel_rip = False
+            self._ripq = queue.Queue()
             last = [-1]
 
             def progress(track, done, total):
+                # Runs on the worker. Raising here unwinds through
+                # WavWriter's context manager, which throws the partial
+                # track away rather than leaving a short but valid file.
+                if self._cancel_rip:
+                    raise RipCancelled('cancelled')
                 pct = done * 100 // max(total, 1)
-                if pct == last[0]:
-                    return
-                last[0] = pct
-                self.root.after(
-                    0, lambda: self._music('track %02d  %d%%' % (track, pct)))
+                if pct != last[0]:
+                    last[0] = pct
+                    self._ripq.put(('progress', track, pct))
 
             def finished(error, files):
-                self.root.after(0, lambda: self._ripped(error, files))
+                self._ripq.put(('done', error, files))
 
-            rip_in_background(source, gamedir, progress, finished)
+            self._rip_thread = rip_in_background(source, self._rip_dir,
+                                                 progress, finished)
+            self._poll_rip()
+
+        def _poll_rip(self):
+            """Drain the worker's queue on the UI thread.
+
+            Tk is not safe to call from another thread, and after() from one
+            hits a destroyed interpreter if the window is closed mid-rip."""
+            try:
+                while True:
+                    message = self._ripq.get_nowait()
+                    if message[0] == 'progress':
+                        self._music('Track %02d  %d%%' % message[1:])
+                    else:
+                        self._ripped(message[1], message[2])
+                        return
+            except queue.Empty:
+                pass
+            self.root.after(100, self._poll_rip)
 
         def _ripped(self, error, files):
-            if error is None:
-                self._log('Ripped %d tracks' % len(files))
-            else:
+            if isinstance(error, RipCancelled):
+                self._log('Ripping cancelled')
+            elif error is not None:
                 self._log('Ripping failed: %s' % error)
-            self._music(music_status(os.path.dirname(self.core.exe_path)))
+            else:
+                self._log('Ripped %d tracks to %s'
+                          % (len(files), outdir_for(self._rip_dir)))
+            self._music(music_status(self._rip_dir))
             self.rip_btn.state(['!disabled'])
+
+        def _close(self):
+            """Stop a running rip before the interpreter goes away."""
+            thread = getattr(self, '_rip_thread', None)
+            if thread is not None and thread.is_alive():
+                self._cancel_rip = True
+                thread.join(5.0)
+            self.root.destroy()
 
         def _patch_body(self, parent, keys, hint):
             _hint(parent, hint, self.dim, self.small).pack(
@@ -1976,8 +2069,9 @@ def run_tk():
                 self.vars[key], self.checks[key] = var, check
 
         def _log_body(self, parent):
-            wrap = tk.Frame(parent, background=PALETTE['line'],
-                            borderwidth=0, highlightthickness=0)
+            wrap = self.log_wrap = tk.Frame(parent, background=PALETTE['line'],
+                                            borderwidth=0,
+                                            highlightthickness=0)
             wrap.pack(fill='both', expand=True, padx=1, pady=1)
             self.log_box = tk.Text(wrap, height=5, width=34, wrap='word',
                                    state='disabled', relief='flat',
@@ -2039,6 +2133,7 @@ def run_tk():
                     self.vars[key].set(False)
                     check.state(['disabled'])
                 self.apply_btn.state(['disabled'])
+                self.restore_btn.state(['disabled'])
                 self.rip_btn.state(['disabled'])
                 return
             self._set_status(note, ok)
@@ -2083,7 +2178,14 @@ def run_tk():
             self.log_box.config(state='disabled')
 
     dpi = win_dpi()
-    _root = tk.Tk()
+    try:
+        _root = tk.Tk()
+    except tk.TclError as exc:
+        # Tk imports fine on a headless box and then fails here. Only the
+        # window needs a display; --rip does not.
+        return ('Cannot open a window: %s\n'
+                'Set DISPLAY or WAYLAND_DISPLAY, or rip from the terminal '
+                'with --rip.' % exc)
     if dpi:
         # Tk sizes fonts in points against 72 dpi unless told otherwise.
         _root.tk.call('tk', 'scaling', dpi / 72.0)
@@ -2093,11 +2195,12 @@ def run_tk():
 
 
 def probe_tk():
+    """The module only. Whether it can reach a display is run_tk's problem."""
     try:
-        import tkinter
-        return None if tkinter else 'tkinter did not load'
+        __import__('tkinter')
     except ImportError as exc:
         return str(exc)
+    return None
 
 
 USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
