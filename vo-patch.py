@@ -1631,9 +1631,14 @@ def run_tk():
                 if not shown:
                     body.pack_forget()
             root.update_idletasks()
-            alphabet = 'abcdefghijklmnopqrstuvwxyz'
-            em = self.small.measure(alphabet) / 26.0
-            wide = max(self.inner.winfo_reqwidth(), int(em * 74))
+            # Wide enough for the longest thing the window ever says. That
+            # line is the size mismatch, and at a narrower default it wrapped
+            # to three, which is exactly when someone is reading it.
+            worst = ('CANNOT PATCH \u2014 this is not the original v_on.exe.'
+                     '  Expected %d bytes, got %d.' % (EXE_SIZE, EXE_SIZE))
+            padding = 12 * 2 + 14 + 12            # canvas, then the card body
+            wide = max(self.inner.winfo_reqwidth(),
+                       self.bold.measure(worst) + padding)
             self.canvas.configure(width=wide, height=min(full, self.cap))
             # the minimum has to leave room for the scrollbar as well
             root.minsize(wide + self.vbar.winfo_reqwidth(), 320)
@@ -1661,11 +1666,12 @@ def run_tk():
                                    style='Ink.TFrame')
             self.window = self.canvas.create_window((0, 0), window=self.inner,
                                                     anchor='nw')
-            # About forty lines of text: a window, rather than most of the
-            # screen. Beyond that the content scrolls instead of the window
-            # growing, which is also what stops it resizing under the cursor.
+            # Roughly fifty lines of text: a window with room to read in,
+            # rather than most of the screen. Past that the content scrolls
+            # instead of the window growing, which is what stops it resizing
+            # under the cursor.
             row = self.small.metrics('linespace')
-            self.cap = min(max(300, parent.winfo_screenheight() - 200), row * 40)
+            self.cap = min(max(300, parent.winfo_screenheight() - 160), row * 48)
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
             for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
