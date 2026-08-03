@@ -1635,7 +1635,8 @@ def run_tk():
             em = self.small.measure(alphabet) / 26.0
             wide = max(self.inner.winfo_reqwidth(), int(em * 74))
             self.canvas.configure(width=wide, height=min(full, self.cap))
-            root.minsize(wide, 320)
+            # the minimum has to leave room for the scrollbar as well
+            root.minsize(wide + self.vbar.winfo_reqwidth(), 320)
             self._fit()
 
         def _body(self, parent):
@@ -1649,8 +1650,11 @@ def run_tk():
             self.vbar = ttk.Scrollbar(holder, orient='vertical',
                                       style='Vo.Vertical.TScrollbar',
                                       command=self.canvas.yview)
-            self.canvas.pack(side='left', fill='both', expand=True)
+            # The bar is packed first so pack reserves its width. The other
+            # way round the canvas expands into the whole row and the bar is
+            # squeezed off the edge at the minimum window width.
             self.vbar.pack(side='right', fill='y')
+            self.canvas.pack(side='left', fill='both', expand=True)
             self.canvas.configure(yscrollcommand=self.vbar.set)
 
             self.inner = ttk.Frame(self.canvas, padding=12,
