@@ -1199,20 +1199,18 @@ def apply_cdaudio(buf):
     return pe.d
 
 
-# Every call the game makes to mciSendCommandA, all of them the six-byte
-# indirect form. Nothing else in .text names the slot.
+# Every call the game makes to mciSendCommandA, all six-byte indirect.
 MCI_CALL_SITES = 37
 
 
 def _repoint_mci_calls(pe, slot_va, hook_va):
     """Point the game's mciSendCommandA calls straight at the hook.
 
-    Owning the IAT slot is not enough. Anything else that hooks the same
-    import by name overwrites it, and cnc-ddraw does exactly that on every
-    module load at hook=3 and hook=4, which silently drops the hook out of
-    the chain - the game keeps running, the music just stops. Rewriting the
-    call sites cannot be undone by a later IAT write, and the hook still
-    forwards through the slot, so a wrapper that owns it stays in the chain.
+    Owning the import slot is not enough: any DLL that hooks the same import
+    by name overwrites it, and the hook drops out of the chain with nothing to
+    show for it - the game keeps running, the music stops. Rewritten call
+    sites cannot be undone that way, and the hook still forwards through the
+    slot, so a wrapper that does own it stays in the chain underneath.
 
         FF 15 <slot>   call dword [__imp__mciSendCommandA]
         E8 <rel32> 90  call hook ; nop
@@ -1231,9 +1229,9 @@ def _repoint_mci_calls(pe, slot_va, hook_va):
         sites.append(at)
         at = pe.d.find(pattern, at + 1, hi)
 
-    # A wrong count means the file is not the executable these offsets were
-    # measured against, or an earlier patch has landed on a call site. Either
-    # way, rewriting part of them would leave the game half hooked.
+    # Wrong count: not the executable these were measured against, or an
+    # earlier patch landed on a call site. Rewriting part of them would leave
+    # the game half hooked.
     if len(sites) != MCI_CALL_SITES:
         raise ValueError('expected %d mciSendCommandA call sites, found %d'
                          % (MCI_CALL_SITES, len(sites)))

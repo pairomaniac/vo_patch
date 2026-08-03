@@ -231,21 +231,17 @@ tracks present, they are used, disc or no disc. Under Wine they play through
 
 ## cnc-ddraw
 
-Optional, separate, and the one thing worth adding beside the patcher.
+Optional and separate, but the one thing worth adding beside the patcher.
 
 The game asks for 640x480 exclusive fullscreen and leaves the rest to the
-display, which on a modern panel means a stretched picture and, often, a bad
-time on ALT+TAB. The 4:3 framebuffer is baked into the rasteriser, so this is
-a scaling problem rather than something a byte edit can fix.
+display, which on a modern panel means a stretched picture. The 4:3
+framebuffer is baked into the rasteriser, so no byte edit fixes it.
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
-the game renders through and gives you windowed and borderless modes, correct
-aspect ratio, and integer or filtered upscaling.
+the game renders through and adds windowed and borderless modes, correct
+aspect ratio and upscaling. Unzip it beside `v_on.exe`; nothing needs
+configuring, and every patch here works with it.
 
-Unzip it beside `v_on.exe`. Nothing needs configuring, and every patch here
-works with it - including all four of its `hook=` modes.
-
-On Linux it works under Wine and Proton. gamescope does the scaling part
-instead if you would rather not add a DLL:
+It runs under Wine and Proton too. gamescope does the scaling part instead:
 
 ```bash
 gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
@@ -309,26 +305,18 @@ executable gets a section of its own and grows by about 3 KB, and the entry
 point is repointed at the setup thunk, which chains to whatever it was before
 - hence this patch running after all the others.
 
-**Getting called.** The obvious way in is the import table: overwrite the one
-entry the loader fills with the address of `mciSendCommandA`, and every call
-the game makes arrives at the routine instead. That is what this patch did
-until 0.7.3, and it is fragile, because that entry is one slot of memory any
-loaded DLL can write.
+**Getting called.** The obvious way in is the import table: overwrite the
+entry the loader fills with the address of `mciSendCommandA` and every call
+lands on the routine instead. That is what this patch did until 0.7.3, and it
+is one slot of memory any loaded DLL can overwrite - a wrapper that hooks the
+same function by name silently takes the routine out of the chain, leaving a
+game that runs with no music.
 
-cnc-ddraw hooks the same function, matching by name and reinstalling itself
-whenever a module loads. At `hook=1` it happens to get there first and the two
-sit on top of each other harmlessly; at `hook=3` and `hook=4` it overwrites
-this patch's entry and the music goes quiet with nothing to show for it - the
-game runs, the routine simply stops being called.
-
-So the calls are redirected rather than the slot. `apply_cdaudio` finds the 37
-places the game calls the function, each the six-byte indirect form, and
-rewrites them as a direct call to the routine plus a `nop`. Same six bytes, so
-nothing moves. Nothing written later can undo it, and the routine still passes
-anything it does not handle through the import slot as it finds it at the
-time, so a wrapper that does own the slot stays in the chain underneath. A
-count that is not exactly 37 aborts the patch rather than leaving the game
-half redirected.
+So `apply_cdaudio` rewrites the calls instead. The 37 sites are all the
+six-byte indirect form, and become a direct call plus a `nop` - same six
+bytes, nothing moves, nothing written later can undo it. The routine still
+forwards through the import slot as it finds it, so a wrapper that does own it
+keeps working underneath. A count that is not exactly 37 aborts the patch.
 
 **Processor check.** `ProcessorCheck=Off` does not switch the check off, it
 stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and

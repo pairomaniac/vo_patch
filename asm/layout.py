@@ -5,10 +5,9 @@ import struct
 
 # Data cave layout, offsets from the data cave base.
 FIELDS = [
-    # 0x0C, 0x24 and 0x30 are free: they held D_ORIGMCI, D_VPROTECT and
-    # D_SCRATCH, which went with the IAT redirect. The remaining offsets are
-    # left where they were rather than closed up, the section being page
-    # aligned either way.
+    # 0x0C, 0x24 and 0x30 held D_ORIGMCI, D_VPROTECT and D_SCRATCH, which went
+    # with the IAT redirect. Left as gaps rather than closed up: the section is
+    # page aligned, so tidying them would save nothing.
     ('D_NTRACKS',  0x00), ('D_TRACK',    0x04), ('D_PAUSED',   0x08),
                           ('D_MCISTR',   0x10), ('D_GETMODFN', 0x14),
     ('D_CREATEF',  0x18), ('D_GETFSIZE', 0x1C), ('D_CLOSEH',   0x20),

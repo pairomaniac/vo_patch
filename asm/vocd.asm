@@ -8,11 +8,10 @@
 ;   code_base+0   jmp hook       <- what the 37 call sites are pointed at
 ;   code_base+5   jmp startup    <- new entry point
 ;
-; The hook is reached by rewriting the game's own calls, not by owning the
-; winmm IAT slot. Anything else that hooks mciSendCommandA by import name -
-; cnc-ddraw does, and reinstalls it whenever a module loads - would otherwise
-; overwrite the slot and drop this out of the chain. The slot is still read,
-; at call time rather than at startup, so whoever does own it stays below us.
+; The hook is reached by rewriting the game's calls, not by owning the winmm
+; IAT slot: any DLL hooking the same import by name overwrites that slot and
+; drops this out of the chain. The slot is still read, at call time, so
+; whoever does own it stays below us.
 ;
 ; Tracks are <gamedir>\music\trackNN.wav, 44100/16/stereo, as written by the
 ; ripper. Length comes from the file size, so no WAV parsing.
@@ -216,8 +215,8 @@ startup:
         cmp     esi, 100
         jb      .track
 
-        ; Nothing to install: the call sites already point here. With
-        ; D_NTRACKS still zero the hook forwards everything.
+        ; Nothing to install: the call sites already point here, and a zero
+        ; D_NTRACKS tells the hook to forward everything.
 .done:
         popad
         push    MAGIC_ORIGENTRY
@@ -331,8 +330,8 @@ forward:
         push    dword [ebp + 16]
         push    dword [ebp + 12]
         push    dword [ebp + 8]
-        call    [MAGIC_IATMCI]          ; read now, so a wrapper that owns the
-                                        ; slot keeps working underneath us
+        call    [MAGIC_IATMCI]          ; read now, not at startup: a wrapper
+                                        ; that owns the slot stays in the chain
 done:
         pop     edi
         pop     esi

@@ -105,12 +105,10 @@ rewritten to call, and `+5` is the setup the entry point is repointed at. The
 data blob is the string table plus the space the code works in - track table,
 path and command buffers.
 
-The hook does not own the winmm import slot. It reads it, at call time, to
-forward anything it does not answer itself. Owning it does not work: another
-DLL that hooks the same import by name overwrites the slot and the hook stops
-being called, which is what cnc-ddraw does at `hook=3` and `hook=4`. Rewriting
-the call sites cannot be undone that way, and forwarding through the live slot
-leaves whoever does own it in the chain below.
+The hook reads the winmm import slot to forward what it does not answer, but
+does not own it. Owning it is not reliable - any DLL hooking the same import
+overwrites it - whereas rewritten call sites cannot be undone, and forwarding
+through the slot as it stands leaves whoever does own it in the chain below.
 
 Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 `apply_cdaudio` fills in once it has read the executable: import slots, the
@@ -213,12 +211,11 @@ CD frame is exactly 2352 bytes, so after the 44-byte WAV header **the file
 size is the track length**. The whole table of contents comes from
 `GetFileSize`. Nothing is parsed and nothing can be misread.
 
-Then it makes the `mciSendCommandA` import slot writable, saves what was in
-it, and points it at the hook. If no tracks were found it stops before that
-step, every call reaches the real winmm, and the game reads a disc as it
-always did - the fallback is the absence of a patch rather than a code path.
-Last thing it does is jump to whatever the entry point used to be, which is
-why this patch has to be applied after all the others.
+It installs nothing: the call sites already point at the hook. Finding no
+tracks just leaves the track count at zero, which the hook reads as "forward
+everything", and the game reads a disc as it always did. Last thing it does is
+jump to whatever the entry point used to be, which is why this patch has to be
+applied after all the others.
 
 **The hook** sees every `mciSendCommandA` the game makes. It watches for an
 open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
