@@ -229,23 +229,29 @@ With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
 `mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
-## Resolution
+## cnc-ddraw
 
-The game asks for 640x480 exclusive fullscreen and the display stretches it.
-The 4:3 framebuffer is baked into the rasteriser, so this is a scaling problem
-rather than something to patch.
+Optional, separate, and the one thing worth adding beside the patcher.
 
-**Linux.** gamescope, integer-scaled and pillarboxed:
+The game asks for 640x480 exclusive fullscreen and leaves the rest to the
+display, which on a modern panel means a stretched picture and, often, a bad
+time on ALT+TAB. The 4:3 framebuffer is baked into the rasteriser, so this is
+a scaling problem rather than something a byte edit can fix.
+[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
+the game renders through and gives you windowed and borderless modes, correct
+aspect ratio, and integer or filtered upscaling.
+
+Unzip it beside `v_on.exe`. Nothing needs configuring, and every patch here
+works with it - including all four of its `hook=` modes.
+
+On Linux it works under Wine and Proton. gamescope does the scaling part
+instead if you would rather not add a DLL:
 
 ```bash
 gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 ```
 
 `-S fit` fills more of the screen without whole-number scaling.
-
-**Windows.** GPU control panel, *Adjust desktop size and position* → aspect
-ratio, with scaling performed on the GPU. Some monitors override this in their
-own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 
 ## Patches
 
@@ -264,7 +270,7 @@ own menu. dgVoodoo2 can force the aspect ratio if the driver will not.
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
-| **Music from files** | new `.vocd` section, entry point, winmm IAT slot | `mciSendCommandA` redirected to a routine that answers from WAV files |
+| **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
@@ -302,6 +308,27 @@ the zero runs in `.data` are globals the game writes at runtime. The
 executable gets a section of its own and grows by about 3 KB, and the entry
 point is repointed at the setup thunk, which chains to whatever it was before
 - hence this patch running after all the others.
+
+**Getting called.** The obvious way in is the import table: overwrite the one
+entry the loader fills with the address of `mciSendCommandA`, and every call
+the game makes arrives at the routine instead. That is what this patch did
+until 0.7.3, and it is fragile, because that entry is one slot of memory any
+loaded DLL can write.
+
+cnc-ddraw hooks the same function, matching by name and reinstalling itself
+whenever a module loads. At `hook=1` it happens to get there first and the two
+sit on top of each other harmlessly; at `hook=3` and `hook=4` it overwrites
+this patch's entry and the music goes quiet with nothing to show for it - the
+game runs, the routine simply stops being called.
+
+So the calls are redirected rather than the slot. `apply_cdaudio` finds the 37
+places the game calls the function, each the six-byte indirect form, and
+rewrites them as a direct call to the routine plus a `nop`. Same six bytes, so
+nothing moves. Nothing written later can undo it, and the routine still passes
+anything it does not handle through the import slot as it finds it at the
+time, so a wrapper that does own the slot stays in the chain underneath. A
+count that is not exactly 37 aborts the patch rather than leaving the game
+half redirected.
 
 **Processor check.** `ProcessorCheck=Off` does not switch the check off, it
 stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and
