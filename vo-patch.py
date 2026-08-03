@@ -1445,10 +1445,24 @@ def run_tk():
             frame.pack()
             body = tk.Frame(frame, background=PALETTE['card'])
             body.pack(padx=11, pady=10)     # one margin, the same on all sides
+            # One text width for the whole bubble, measured in the font
+            # rather than fixed in pixels so it holds at any scaling. The
+            # prose used to wrap narrower than the table, and the meanings
+            # did not wrap at all, so a long one ran off the screen.
+            alphabet = 'abcdefghijklmnopqrstuvwxyz'
+            em = self.app.small.measure(alphabet) / 26.0
+            gap = 12
+            keys = max([self.app.bold.measure(key) for key, _ in rows] or [0])
+            widest = max([self.app.small.measure(m) for _, m in rows] or [0])
+            # Let the table widen the bubble if it only wants a little more:
+            # a fixed split leaves one row wrapping on its own among short
+            # ones, which reads worse than a slightly wider box. Meanings
+            # that are whole sentences run past the cap and wrap anyway.
+            wrap = min(int(em * 62), max(int(em * 58), keys + gap + widest))
             self._line(body, self.title, self.app.bold,
                        colour=PALETTE['cyan']).pack(anchor='w')
             if prose:
-                self._line(body, prose, self.app.small, wrap=320).pack(
+                self._line(body, prose, self.app.small, wrap=wrap).pack(
                     anchor='w', pady=(4, 0))
             if rows:
                 table = tk.Frame(body, background=PALETTE['card'])
@@ -1456,10 +1470,11 @@ def run_tk():
                 for line, (key, meaning) in enumerate(rows):
                     self._line(table, key, self.app.bold,
                                colour=PALETTE['amber']).grid(
-                                   row=line, column=0, sticky='w',
-                                   padx=(0, 12))
-                    self._line(table, meaning, self.app.small).grid(
-                        row=line, column=1, sticky='w')
+                                   row=line, column=0, sticky='nw',
+                                   padx=(0, gap), pady=1)
+                    self._line(table, meaning, self.app.small,
+                               wrap=max(140, wrap - keys - gap)).grid(
+                        row=line, column=1, sticky='w', pady=1)
             win.update_idletasks()
             wide = win.winfo_reqwidth()
             x = self.btn.winfo_rootx() + self.btn.winfo_width() - wide
