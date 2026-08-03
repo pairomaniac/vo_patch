@@ -231,17 +231,18 @@ tracks present, they are used, disc or no disc. Under Wine they play through
 
 ## cnc-ddraw
 
-Optional and separate, but the one thing worth adding beside the patcher.
-
 The game asks for 640x480 exclusive fullscreen and leaves the rest to the
-display, which on a modern panel means a stretched picture. The 4:3
-framebuffer is baked into the rasteriser, so no byte edit fixes it.
-[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
-the game renders through and adds windowed and borderless modes, correct
-aspect ratio and upscaling. Unzip it beside `v_on.exe`; nothing needs
-configuring, and every patch here works with it.
+display, which on a modern panel usually means a stretched picture. The 4:3
+framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
+something between the game and the graphics driver.
 
-It runs under Wine and Proton too. gamescope does the scaling part instead:
+[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) is a separate download
+that replaces the DirectDraw the game renders through. It adds windowed and
+borderless modes, correct aspect ratio and upscaling. Unzip it beside
+`v_on.exe`; nothing needs configuring, and every patch here works with it.
+
+On Linux it runs under Wine and Proton. gamescope handles the scaling without
+a DLL, if you would rather:
 
 ```bash
 gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
@@ -278,9 +279,9 @@ came here to play the game you are done; this is for anyone reading the
 disassembly.
 
 Not every row needs one - the four inherited byte edits do what they say on
-the tin. These are the rest, in the order of the table above. Two of them
-install machine code rather than editing bytes; the assembly and a longer
-account of both are in [asm/](asm/).
+the tin. These are the rest, in the order of the table above. The CD audio and
+gamepad patches install assembled machine code rather than editing bytes; the
+sources and a longer account of both are in [asm/](asm/).
 
 **Sample rate.** This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,

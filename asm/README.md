@@ -105,17 +105,15 @@ rewritten to call, and `+5` is the setup the entry point is repointed at. The
 data blob is the string table plus the space the code works in - track table,
 path and command buffers.
 
-The hook reads the winmm import slot to forward what it does not answer, but
-does not own it. Owning it is not reliable - any DLL hooking the same import
-overwrites it - whereas rewritten call sites cannot be undone, and forwarding
-through the slot as it stands leaves whoever does own it in the chain below.
+The hook reads the winmm import slot to forward what it does not answer,
+but does not own it: any DLL hooking the same import overwrites the slot,
+whereas rewritten call sites cannot be undone. Forwarding through the slot as
+it stands leaves whoever does own it in the chain below.
 
 Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 `apply_cdaudio` fills in once it has read the executable: import slots, the
 previous entry point, and where the blobs landed. Everything else is self
-relative, so the section can go anywhere. The hook's own address is not among
-them - the patcher needs it as a number for the call-site arithmetic, not as
-something to substitute into the blob.
+relative, so the section can go anywhere.
 
 **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`** each go to one
 site inside the XInput patch table, at `0x0020779e`, `0x00223dc4` and
@@ -220,7 +218,7 @@ applied after all the others.
 **The hook** sees every `mciSendCommandA` the game makes. It watches for an
 open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
 then on, calls carrying that ID belong to it, and every other call, sound
-effects included, is forwarded to the real winmm untouched. One device is
+effects included, goes on through the import slot untouched. One device is
 impersonated; nothing else is disturbed.
 
 Play requests are turned into MCI *string* commands against `waveaudio`:
