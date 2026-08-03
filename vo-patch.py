@@ -6,10 +6,7 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-GTK4 4.10 or newer where it is available, Tk otherwise. VOPATCH_UI=gtk or
-=tk forces one.
-
-Version 0.7.0
+Version 0.7.1
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -1351,7 +1348,6 @@ PALETTE = {
     'cyan': '#3fd8f0',      # headings, ticks, Apply
     'cyan_hi': '#7ce7f7',   # Apply, hovered
     'cyan_lo': '#2ec3db',   # Apply, pressed
-    'mag': '#ff5aa8',       # the info buttons
     'amber': '#ffa62b',     # the key column of a description
     'ok': '#42e08a',
     'bad': '#ff6b6b',
@@ -1373,504 +1369,38 @@ MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, which is '
               'after patching, and restoring the original leaves the tracks '
               'alone.')
 
-MUSIC_PLACEHOLDER = 'VIRTUAL-ON.cue, or a CD drive'
 DONE = 'Done. Restore the original to change your selection.'
 FAILED = 'Nothing was written - see the log.'
 
 
-# ---------------------------------------------------------------- GTK4 front
+def win_dpi():
+    """Ask Windows not to scale our window, and report the real DPI.
 
-
-GTK_CSS = ("""
-window { background-color: %(ink)s; color: %(text)s; }
-
-.vp-card {
-    background-color: %(card)s;
-    border: 1px solid %(line)s;
-    border-radius: 10px;
-}
-.vp-headbtn {
-    background-color: %(head)s;
-    border: none;
-    box-shadow: none;
-    outline: none;
-    min-height: 0;
-    padding: 9px 12px;
-    border-radius: 9px;
-}
-.vp-headbtn:hover { background-color: %(line)s; }
-.vp-head {
-    color: %(cyan)s;
-    font-size: 0.80em;
-    font-weight: 800;
-    letter-spacing: 0.10em;
-}
-.vp-arrow { color: %(cyan)s; }
-.vp-dim { color: %(dim)s; }
-.vp-hint { color: %(dim)s; font-size: 0.87em; padding-bottom: 4px; }
-.vp-cue { color: %(cyan)s; font-size: 0.87em; padding-bottom: 4px; }
-.vp-key { color: %(amber)s; font-weight: bold; }
-.vp-info {
-    color: %(mag)s;
-    background: none;
-    border: none;
-    box-shadow: none;
-    padding: 0 4px;
-    min-height: 0;
-    min-width: 0;
-}
-.vp-info:hover { color: %(text)s; }
-.vp-statusbar {
-    background-color: %(head)s;
-    border-top: 1px solid %(line)s;
-    padding: 8px 12px;
-}
-.vp-log { font-size: 0.88em; color: %(dim)s; }
-.vp-ok  { color: %(ok)s; font-weight: bold; }
-.vp-bad { color: %(bad)s; font-weight: bold; }
-
-entry {
-    background-color: %(ink)s;
-    color: %(text)s;
-    border: 1px solid %(line)s;
-    border-radius: 6px;
-    caret-color: %(cyan)s;
-}
-entry:disabled { color: %(dim)s; background-color: %(ink)s; }
-
-button {
-    background-image: none;
-    background-color: %(head)s;
-    color: %(text)s;
-    border: 1px solid %(line)s;
-    border-radius: 6px;
-}
-button:hover { background-color: %(line)s; }
-button:disabled, button:disabled label {
-    background-color: %(card)s;
-    color: %(dim)s;
-}
-button.suggested-action, button.suggested-action label {
-    color: %(ink)s;
-    font-weight: bold;
-}
-button.suggested-action {
-    background-color: %(cyan)s;
-    border-color: %(cyan)s;
-}
-button.suggested-action:hover {
-    background-color: %(cyan_hi)s;
-    border-color: %(cyan_hi)s;
-}
-button.suggested-action:active {
-    background-color: %(cyan_lo)s;
-    border-color: %(cyan_lo)s;
-}
-button.suggested-action:disabled, button.suggested-action:disabled label {
-    background-color: %(card)s;
-    color: %(dim)s;
-    border-color: %(line)s;
-}
-
-checkbutton, checkbutton label { color: %(text)s; }
-checkbutton:disabled, checkbutton:disabled label { color: %(dim)s; }
-checkbutton check {
-    background-image: none;
-    background-color: %(ink)s;
-    border: 1px solid %(line)s;
-    border-radius: 4px;
-    color: %(ink)s;
-}
-checkbutton check:checked {
-    background-color: %(cyan)s;
-    border-color: %(cyan)s;
-    color: %(ink)s;
-}
-
-textview, textview text { background-color: %(ink)s; color: %(dim)s; }
-scrolledwindow { border: 1px solid %(line)s; border-radius: 6px; }
-scrollbar { background-color: %(card)s; border: none; }
-scrollbar slider { background-color: %(line)s; border-radius: 6px; }
-scrollbar slider:hover { background-color: %(dim)s; }
-
-popover > contents {
-    background-color: %(card)s;
-    color: %(text)s;
-    border: 1px solid %(cyan)s;
-    border-radius: 8px;
-}
-popover > arrow { background-color: %(card)s; border: 1px solid %(cyan)s; }
-tooltip { background-color: %(card)s; color: %(text)s; }
-""" % PALETTE).encode()
-
-
-def run_gtk():
-    import gi
-    gi.require_version('Gtk', '4.0')
-    from gi.repository import Gtk, Gdk, Gio, GLib, Pango
-
-    VERTICAL = Gtk.Orientation.VERTICAL
-    HORIZONTAL = Gtk.Orientation.HORIZONTAL
-
-    def margins(widget, value):
-        for side in ('top', 'bottom', 'start', 'end'):
-            getattr(widget, 'set_margin_' + side)(value)
-
-    class Window(Gtk.ApplicationWindow):
-
-        def __init__(self, app):
-            super().__init__(application=app, title=TITLE)
-            self.set_default_size(470, -1)      # height follows the content
-            self.core = Patcher()
-            self.boxes = {}
-
-            root = Gtk.Box(orientation=VERTICAL)
-            self.set_child(root)
-
-            content = Gtk.Box(orientation=VERTICAL, spacing=10)
-            margins(content, 12)
-            scroll = Gtk.ScrolledWindow(vexpand=True)
-            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-            scroll.set_propagate_natural_height(True)
-            scroll.set_max_content_height(760)
-            scroll.set_child(content)
-            root.append(scroll)
-
-            content.append(self._section('GAME EXECUTABLE', self._file_body()))
-            content.append(self._section(
-                'ESSENTIAL PATCHES',
-                self._patch_body(ESSENTIAL, ESSENTIAL_HINT), expanded=False))
-            content.append(self._section(
-                'EXTRA PATCHES',
-                self._patch_body(EXTRA, EXTRA_HINT), expanded=False))
-            content.append(self._section('CD MUSIC', self._music_body(),
-                                        expanded=False))
-            content.append(self._section('LOG', self._log_body()))
-
-            root.append(self._statusbar())
-            self._log(INTRO)
-
-        # -- building blocks
-
-        def _section(self, title, child, expanded=True):
-            card = Gtk.Box(orientation=VERTICAL)
-            card.add_css_class('vp-card')
-
-            arrow = Gtk.Label(label='\u25be' if expanded else '\u25b8')
-            arrow.add_css_class('vp-arrow')
-            name = Gtk.Label(label=title, xalign=0, hexpand=True)
-            name.add_css_class('vp-head')
-            head_box = Gtk.Box(orientation=HORIZONTAL, spacing=8)
-            head_box.append(arrow)
-            head_box.append(name)
-            head = Gtk.Button(child=head_box)
-            head.add_css_class('vp-headbtn')
-
-            margins(child, 12)
-            child.set_margin_start(14)
-            revealer = Gtk.Revealer(reveal_child=expanded)
-            revealer.set_child(child)
-
-            def toggled(_button):
-                shown = not revealer.get_reveal_child()
-                revealer.set_reveal_child(shown)
-                arrow.set_label('\u25be' if shown else '\u25b8')
-            head.connect('clicked', toggled)
-
-            card.append(head)
-            card.append(revealer)
-            return card
-
-        def _file_body(self):
-            box = Gtk.Box(orientation=VERTICAL, spacing=8)
-            row = Gtk.Box(orientation=HORIZONTAL, spacing=8)
-            self.entry = Gtk.Entry(hexpand=True, editable=False,
-                                   placeholder_text='not selected')
-            row.append(self.entry)
-            browse = Gtk.Button(label='Browse\u2026')
-            browse.connect('clicked', self._pick)
-            row.append(browse)
-            box.append(row)
-
-            self.file_note = Gtk.Label(label=NO_FILE, xalign=0, wrap=True)
-            self.file_note.add_css_class('vp-hint')
-            box.append(self.file_note)
-            return box
-
-        def _music_body(self):
-            box = Gtk.Box(orientation=VERTICAL, spacing=8)
-            note = Gtk.Label(label=MUSIC_HINT, xalign=0, wrap=True)
-            note.add_css_class('vp-hint')
-            box.append(note)
-
-            row = Gtk.Box(orientation=HORIZONTAL, spacing=8)
-            self.rip_entry = Gtk.Entry(hexpand=True,
-                                       placeholder_text=MUSIC_PLACEHOLDER)
-            drives = list_devices()
-            if drives:
-                self.rip_entry.set_text(drives[0])
-            row.append(self.rip_entry)
-            browse = Gtk.Button(label='Cue\u2026')
-            browse.connect('clicked', self._pick_cue)
-            row.append(browse)
-            self.rip_btn = Gtk.Button(label='Rip tracks')
-            self.rip_btn.set_sensitive(False)
-            self.rip_btn.connect('clicked', self._rip)
-            row.append(self.rip_btn)
-            box.append(row)
-
-            self.music_note = Gtk.Label(xalign=0, wrap=True)
-            box.append(self.music_note)
-            self._music(music_status(None))
-            return box
-
-        def _music(self, text):
-            """The prompt to pick a file is the one line people miss, so it
-            gets the accent colour; everything else is a quiet hint."""
-            for old in ('vp-hint', 'vp-cue'):
-                self.music_note.remove_css_class(old)
-            self.music_note.add_css_class(
-                'vp-cue' if text == MUSIC_NEEDS_EXE else 'vp-hint')
-            self.music_note.set_text(text)
-
-        def _pick_cue(self, _btn):
-            dlg = Gtk.FileDialog(title='Select the cue sheet')
-            filt = Gtk.FileFilter()
-            filt.set_name('Cue sheets')
-            filt.add_pattern('*.cue')
-            filt.add_pattern('*.CUE')
-            store = Gio.ListStore.new(Gtk.FileFilter)
-            store.append(filt)
-            dlg.set_filters(store)
-
-            def chosen(dialog, result):
-                try:
-                    self.rip_entry.set_text(dialog.open_finish(result).get_path())
-                except GLib.Error:
-                    pass
-            dlg.open(self, None, chosen)
-
-        def _rip(self, _btn):
-            source = self.rip_entry.get_text().strip()
-            if not source or not self.core.exe_path:
-                return
-            gamedir = os.path.dirname(self.core.exe_path)
-            self.rip_btn.set_sensitive(False)
-            self._log('Ripping from %s' % source)
-            last = [-1]
-
-            def progress(track, done, total):
-                pct = done * 100 // max(total, 1)
-                if pct == last[0]:
-                    return
-                last[0] = pct
-                GLib.idle_add(self._music,
-                              'track %02d  %d%%' % (track, pct))
-
-            def finished(error, files):
-                GLib.idle_add(self._ripped, error, files)
-
-            rip_in_background(source, gamedir, progress, finished)
-
-        def _ripped(self, error, files):
-            if error is None:
-                self._log('Ripped %d tracks' % len(files))
-            else:
-                self._log('Ripping failed: %s' % error)
-            self._music(music_status(os.path.dirname(self.core.exe_path)))
-            self.rip_btn.set_sensitive(True)
-
-        def _patch_body(self, keys, hint):
-            box = Gtk.Box(orientation=VERTICAL, spacing=4)
-            note = Gtk.Label(label=hint, xalign=0, wrap=True)
-            note.add_css_class('vp-hint')
-            box.append(note)
-            for key in keys:
-                box.append(self._check(key))
-            return box
-
-        def _check(self, key):
-            label, tip, _sites = BY_KEY[key]
-            row = Gtk.Box(orientation=HORIZONTAL, spacing=4)
-            check = Gtk.CheckButton(label=label, hexpand=True)
-            check.set_active(default_state()[key])
-            check.set_sensitive(False)
-            row.append(check)
-            row.append(self._info(label, tip))
-            self.boxes[key] = check
-            return row
-
-        def _info(self, title, text):
-            prose, rows = describe(text)
-            box = Gtk.Box(orientation=VERTICAL, spacing=8)
-            margins(box, 12)
-            head = Gtk.Label(xalign=0)
-            head.set_markup('<b>%s</b>' % GLib.markup_escape_text(title))
-            box.append(head)
-            if prose:
-                body = Gtk.Label(label=prose, xalign=0, wrap=True)
-                body.set_max_width_chars(46)
-                box.append(body)
-            if rows:
-                grid = Gtk.Grid(column_spacing=14, row_spacing=2)
-                for line, (key, meaning) in enumerate(rows):
-                    bold = Gtk.Label(label=key, xalign=0)
-                    bold.add_css_class('vp-key')
-                    grid.attach(bold, 0, line, 1, 1)
-                    grid.attach(Gtk.Label(label=meaning, xalign=0),
-                                1, line, 1, 1)
-                box.append(grid)
-
-            btn = Gtk.MenuButton(popover=Gtk.Popover(child=box))
-            btn.add_css_class('flat')
-            btn.add_css_class('vp-info')
-            btn.set_valign(Gtk.Align.CENTER)
-            btn.set_tooltip_text('What this does')
-            theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
-            icon = 'help-about-symbolic'
-            if theme is not None and theme.has_icon(icon):
-                btn.set_icon_name(icon)
-            else:
-                btn.set_label('\u24d8')
-            return btn
-
-        def _log_body(self):
-            self.log_view = Gtk.TextView(editable=False, monospace=True,
-                                         cursor_visible=False)
-            self.log_view.add_css_class('vp-log')
-            scroll = Gtk.ScrolledWindow()
-            scroll.set_child(self.log_view)
-            scroll.set_size_request(-1, 88)
-            return scroll
-
-        def _statusbar(self):
-            bar = Gtk.Box(orientation=HORIZONTAL, spacing=8)
-            bar.add_css_class('vp-statusbar')
-            self.status = Gtk.Label(label=NO_FILE, xalign=0, hexpand=True)
-            self.status.set_ellipsize(Pango.EllipsizeMode.END)
-            self.status.add_css_class('vp-dim')
-            bar.append(self.status)
-
-            self.restore_btn = Gtk.Button(label='Restore original')
-            self.restore_btn.set_sensitive(False)
-            self.restore_btn.connect('clicked', self._restore)
-            bar.append(self.restore_btn)
-
-            self.apply_btn = Gtk.Button(label='Apply patches')
-            self.apply_btn.add_css_class('suggested-action')
-            self.apply_btn.set_sensitive(False)
-            self.apply_btn.connect('clicked', self._apply)
-            bar.append(self.apply_btn)
-            return bar
-
-        # -- behaviour
-
-        def _set_status(self, text, ok=None):
-            css = 'vp-dim' if ok is None else 'vp-ok' if ok else 'vp-bad'
-            for label in (self.status, self.file_note):
-                for old in ('vp-dim', 'vp-ok', 'vp-bad'):
-                    label.remove_css_class(old)
-                label.add_css_class(css)
-                label.set_text(text)
-
-        def _pick(self, _btn):
-            dlg = Gtk.FileDialog(title='Select v_on.exe')
-            filt = Gtk.FileFilter()
-            filt.set_name('Executables')
-            filt.add_pattern('*.exe')
-            filt.add_pattern('*.EXE')
-            store = Gio.ListStore.new(Gtk.FileFilter)
-            store.append(filt)
-            dlg.set_filters(store)
-            dlg.open(self, None, self._picked)
-
-        def _picked(self, dialog, result):
-            try:
-                path = dialog.open_finish(result).get_path()
-            except GLib.Error:
-                return
-            self.entry.set_text(path)
-            self._check_file(path)
-
-        def _check_file(self, path):
-            try:
-                note, ok = self.core.load(path)
-            except OSError as exc:
-                self._set_status('Could not read it: %s' % exc, False)
-                for check in self.boxes.values():
-                    check.set_active(False)
-                    check.set_sensitive(False)
-                self.apply_btn.set_sensitive(False)
-                self.rip_btn.set_sensitive(False)
-                return
-            self._set_status(note, ok)
-            state = default_state()
-            for key, check in self.boxes.items():
-                check.set_active(state[key] if ok else False)
-                check.set_sensitive(ok)
-            self.apply_btn.set_sensitive(ok)
-            self.restore_btn.set_sensitive(self.core.can_restore())
-            # Ripping only needs a folder, so it stays available for a file
-            # that cannot be patched - already patched, most likely.
-            self.rip_btn.set_sensitive(True)
-            self._music(music_status(os.path.dirname(path)))
-            if not ok:
-                self._log(note)
-
-        def _apply(self, _btn):
-            wanted = {k: cb.get_active() for k, cb in self.boxes.items()}
-            ok, lines = self.core.apply(wanted)
-            for line in lines:
-                self._log(line)
-            self.restore_btn.set_sensitive(self.core.can_restore())
-            if not ok:                      # leave everything as it was
-                self._set_status(FAILED, False)
-                return
-            self.apply_btn.set_sensitive(False)
-            for check in self.boxes.values():
-                check.set_sensitive(False)
-            self._set_status(DONE)
-
-        def _restore(self, _btn):
-            for line in self.core.restore():
-                self._log(line)
-            self._check_file(self.core.exe_path)
-
-        def _log(self, text):
-            buf = self.log_view.get_buffer()
-            buf.insert(buf.get_end_iter(), text + '\n')
-            mark = buf.create_mark(None, buf.get_end_iter(), False)
-            self.log_view.scroll_mark_onscreen(mark)
-            buf.delete_mark(mark)
-
-    def stylesheet():
-        """Cosmetic only, so a failure here must not stop the window."""
-        display = Gdk.Display.get_default()
-        if display is None:
-            return
-        provider = Gtk.CssProvider()
+    A process that has not declared awareness gets its window rendered at 96
+    DPI and bitmap-stretched to whatever the display is set to, which softens
+    every border and glyph. This has to happen before the first window
+    exists. Returns the DPI so Tk can be told, or None off Windows and on
+    releases without the call.
+    """
+    if sys.platform != 'win32':
+        return None
+    for dll, call, arg in (('shcore', 'SetProcessDpiAwareness', 2),
+                           ('user32', 'SetProcessDPIAware', None)):
         try:
-            provider.load_from_data(GTK_CSS)
-        except TypeError:                       # older PyGObject signature
-            provider.load_from_data(GTK_CSS, len(GTK_CSS))
-        add = getattr(Gtk, 'style_context_add_provider_for_display', None) \
-            or Gtk.StyleContext.add_provider_for_display
-        add(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-
-    def start(app):
-        try:
-            stylesheet()
-        except Exception as exc:                # noqa: BLE001
-            print('stylesheet skipped: %s' % exc, file=sys.stderr)
-        Window(app).present()
-
-    app = Gtk.Application(application_id='org.local.vopatch',
-                          flags=Gio.ApplicationFlags.FLAGS_NONE)
-    app.connect('activate', start)
-    return app.run(None)
-
-
-# ------------------------------------------------------------------ Tk front
+            fn = getattr(getattr(ctypes.windll, dll), call)
+            fn() if arg is None else fn(arg)
+            break
+        except (AttributeError, OSError):
+            continue
+    else:
+        return None
+    try:
+        dc = ctypes.windll.user32.GetDC(0)
+        dpi = ctypes.windll.gdi32.GetDeviceCaps(dc, 88)      # LOGPIXELSX
+        ctypes.windll.user32.ReleaseDC(0, dc)
+        return dpi or None
+    except (AttributeError, OSError):
+        return None
 
 
 def run_tk():
@@ -1890,13 +1420,13 @@ def run_tk():
         def __init__(self, parent, title, text, app):
             self.app, self.title, self.text, self.win = app, title, text, None
             self.btn = ttk.Label(parent, text='\u24d8', style='Card.TLabel',
-                                 foreground=PALETTE['mag'],
+                                 foreground=PALETTE['dim'],
                                  cursor='question_arrow')
             self.btn.bind('<Button-1>', self.toggle)
             self.btn.bind('<Enter>', lambda _e: self.btn.config(
                 foreground=PALETTE['text']))
             self.btn.bind('<Leave>', lambda _e: self.btn.config(
-                foreground=PALETTE['mag']))
+                foreground=PALETTE['dim']))
 
         def toggle(self, _event=None):
             was_open = self.win is not None
@@ -1913,15 +1443,16 @@ def run_tk():
                              highlightbackground=PALETTE['cyan'],
                              highlightthickness=1)
             frame.pack()
-            self._line(frame, self.title, self.app.bold,
-                       colour=PALETTE['cyan']).pack(anchor='w', padx=9,
-                                                    pady=(7, 0))
+            body = tk.Frame(frame, background=PALETTE['card'])
+            body.pack(padx=11, pady=10)     # one margin, the same on all sides
+            self._line(body, self.title, self.app.bold,
+                       colour=PALETTE['cyan']).pack(anchor='w')
             if prose:
-                self._line(frame, prose, self.app.small, wrap=320).pack(
-                    anchor='w', padx=9, pady=(3, 0))
+                self._line(body, prose, self.app.small, wrap=320).pack(
+                    anchor='w', pady=(4, 0))
             if rows:
-                table = tk.Frame(frame, background=PALETTE['card'])
-                table.pack(anchor='w', padx=9, pady=(7, 0))
+                table = tk.Frame(body, background=PALETTE['card'])
+                table.pack(anchor='w', pady=(8, 0))
                 for line, (key, meaning) in enumerate(rows):
                     self._line(table, key, self.app.bold,
                                colour=PALETTE['amber']).grid(
@@ -1929,7 +1460,6 @@ def run_tk():
                                    padx=(0, 12))
                     self._line(table, meaning, self.app.small).grid(
                         row=line, column=1, sticky='w')
-            tk.Frame(frame, background=PALETTE['card'], height=8).pack()
             win.update_idletasks()
             wide = win.winfo_reqwidth()
             x = self.btn.winfo_rootx() + self.btn.winfo_width() - wide
@@ -1950,6 +1480,86 @@ def run_tk():
                 self.win = None
             if self in showing:
                 showing.remove(self)
+
+    def _blend(a, b, t):
+        a, b = int(a[1:], 16), int(b[1:], 16)
+        return '#%02x%02x%02x' % tuple(
+            round(((a >> shift) & 255) * (1 - t) + ((b >> shift) & 255) * t)
+            for shift in (16, 8, 0))
+
+    TICK = (((4.0, 8.0), (6.6, 10.8)), ((6.6, 10.8), (11.6, 4.8)))
+
+    def _rounded(width_px, height_px, back, fill, edge, tick=None,
+                 radius=4.0, line=1.4, corners='nw ne sw se', grow=''):
+        """A rounded rectangle: cards, headers, entries and checkboxes are
+        all this function. It draws by coverage rather than by pixels, each
+        point blending by its distance to the shape's edge, because Tk has
+        no drawing API past put() and its -subsample does not average.
+
+        clam has no border radius and its checkbox is a flat square with two
+        settable colours, so anything rounded has to be an image."""
+        def cover(distance):
+            return min(1.0, max(0.0, 0.5 - distance))
+
+        img = tk.PhotoImage(width=width_px, height=height_px)
+        cx, cy = (width_px - 1) / 2.0, (height_px - 1) / 2.0
+        hw, hh = width_px / 2.0 - 0.5, height_px / 2.0 - 0.5
+        rows = []
+        for y in range(height_px):
+            row = []
+            for x in range(width_px):
+                vert = 'n' if y < cy else 's'
+                horz = 'w' if x < cx else 'e'
+                r = radius if vert + horz in corners else 0.0
+                # a side named in grow runs off the image, so no edge is
+                # drawn there: it is a seam against another card half, not
+                # against the window behind.
+                dx = abs(x - cx) - (hw + (2.0 if horz in grow else 0.0) - r)
+                dy = abs(y - cy) - (hh + (2.0 if vert in grow else 0.0) - r)
+                # distance to the edge: the corner arc where both axes are
+                # past it, the nearer side otherwise. Taking only the first
+                # term leaves every square corner at zero, which paints that
+                # whole quadrant a half blend instead of the fill.
+                edge_d = ((max(dx, 0.0) ** 2 + max(dy, 0.0) ** 2) ** 0.5
+                          + min(max(dx, dy), 0.0) - r)
+                px = _blend(back, edge, cover(edge_d))
+                px = _blend(px, fill, cover(edge_d + line))
+                for (x0, y0), (x1, y1) in (TICK if tick else ()):
+                    vx, vy = x1 - x0, y1 - y0
+                    along = max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy)
+                                         / (vx * vx + vy * vy)))
+                    ex, ey = x - x0 - vx * along, y - y0 - vy * along
+                    px = _blend(px, tick,
+                                cover((ex * ex + ey * ey) ** 0.5 - 1.1))
+                row.append(px)
+            rows.append('{%s}' % ' '.join(row))
+        img.put(' '.join(rows))
+        return img
+
+    def _hint(parent, text, colour, font):
+        """The quiet explanatory line under a section heading; four of the
+        five cards have one and they only differ in their text."""
+        label = ttk.Label(parent, text=text, style='Card.TLabel',
+                          foreground=colour, font=font, justify='left')
+
+        def fit(_event=None):
+            width = parent.winfo_width()
+            if width > 1:
+                label.configure(wraplength=max(140, width - 2))
+        parent.bind('<Configure>', fit, add='+')
+        label.bind('<Map>', fit, add='+')       # a collapsed card gets no
+        #                                         Configure until it reopens
+        label.pack(anchor='w')
+        return label
+
+    def _gap(image, extra, colour):
+        """Widen an image with blank space on its right. A layout cannot
+        carry padding on an element, so the gap between a checkbox and its
+        label has to be part of the picture."""
+        wide = tk.PhotoImage(width=image.width() + extra, height=image.height())
+        wide.put(colour, to=(0, 0, wide.width(), wide.height()))
+        wide.tk.call(wide, 'copy', image, '-to', 0, 0)
+        return wide
 
     class App:
 
@@ -2020,7 +1630,10 @@ def run_tk():
             self.canvas.configure(
                 scrollregion=(0, 0, self.inner.winfo_reqwidth(), need),
                 height=min(need, self.cap))
-            if need > self.cap:
+            # against the height the canvas actually got, not the height it
+            # asked for: a window manager or a dragged edge can leave it
+            # shorter than the cap, and then the bar is the only way down.
+            if need > max(self.canvas.winfo_height(), 1) + 1:
                 self.vbar.pack(side='right', fill='y')
             else:
                 self.vbar.pack_forget()
@@ -2030,7 +1643,7 @@ def run_tk():
             log = getattr(self, 'log_box', None)
             if log is not None and str(event.widget) == str(log):
                 return                              # let the log scroll itself
-            if self.inner.winfo_reqheight() <= self.cap:
+            if self.inner.winfo_reqheight() <= self.canvas.winfo_height():
                 return
             step = -1 if getattr(event, 'num', 0) == 4 or \
                 getattr(event, 'delta', 0) > 0 else 1
@@ -2054,6 +1667,8 @@ def run_tk():
                          lightcolor=p['line'], troughcolor=p['card'])
             style.configure('Ink.TFrame', background=p['ink'])
             style.configure('Card.TFrame', background=p['card'])
+            style.configure('Body.TFrame', background=p['card'])
+            style.configure('Field.TFrame', background=p['ink'])
             style.configure('Card.TLabel', background=p['card'],
                             foreground=p['text'])
             style.configure('Head.TFrame', background=p['head'])
@@ -2071,9 +1686,14 @@ def run_tk():
                 'Card.TCheckbutton',
                 background=[('active', p['card'])],
                 foreground=[('disabled', p['dim'])],
-                indicatorbackground=[('selected', p['cyan']),
+                # ttk takes the first spec that matches, so the disabled
+                # pairs go first or a disabled tick paints itself bright.
+                indicatorbackground=[('disabled', 'selected', p['line']),
+                                     ('disabled', p['ink']),
+                                     ('selected', p['cyan']),
                                      ('!selected', p['ink'])],
-                indicatorforeground=[('selected', p['ink'])])
+                indicatorforeground=[('disabled', 'selected', p['dim']),
+                                     ('selected', p['ink'])])
 
             style.configure('Vo.TButton', background=p['head'],
                             foreground=p['text'], focuscolor=p['head'],
@@ -2105,6 +1725,9 @@ def run_tk():
             style.map('Vo.Vertical.TScrollbar',
                       background=[('active', p['line'])])
 
+            self._draw_indicator(style, p)
+            self._round_cards(style, p)
+
             default = tkfont.nametofont('TkDefaultFont')
             small = max(7, abs(default.cget('size')) - 1)
             self.head_font = default.copy()
@@ -2115,8 +1738,69 @@ def run_tk():
             self.bold.configure(weight='bold')
             self.dim = p['dim']
 
+        def _round_cards(self, style, p):
+            """Round the cards. A ttk image element with a border is a
+            nine-patch: the corners are kept and the middle is stretched, so
+            one 26px image covers a card of any size.
+
+            The header band sits at the top of the card, so it takes the
+            top two corners and the body the bottom two. Card.TFrame stays
+            flat: the rows inside a card use it too."""
+            try:
+                self._cards = (
+                    _rounded(26, 26, p['ink'], p['card'], p['line'],
+                             radius=9, line=1.0, corners='sw se', grow='n'),
+                    _rounded(26, 26, p['ink'], p['head'], p['line'],
+                             radius=9, line=1.0, corners='nw ne', grow='s'),
+                    _rounded(18, 18, p['card'], p['ink'], p['line'],
+                             radius=6, line=1.0))
+                for name, image, style_name, border in (
+                        ('Vo.body', self._cards[0], 'Body.TFrame', 9),
+                        ('Vo.head', self._cards[1], 'Head.TFrame', 9),
+                        ('Vo.field', self._cards[2], 'Field.TFrame', 6)):
+                    style.element_create(name, 'image', image,
+                                         border=border, sticky='nswe')
+                    style.layout(style_name, [(name, {'sticky': 'nswe'})])
+                # an entry keeps its own padding and text area inside the
+                # drawn field, or the cursor sits on the rounded edge
+                style.layout('Vo.TEntry', [
+                    ('Vo.field', {'sticky': 'nswe', 'children': [
+                        ('Entry.padding', {'sticky': 'nswe', 'children': [
+                            ('Entry.textarea', {'sticky': 'nswe'})]})]})])
+                style.configure('Vo.TEntry', padding=(7, 5))
+            except tk.TclError:
+                pass            # square cards are better than none
+
+        def _draw_indicator(self, style, p):
+            """Swap clam's indicator for drawn images. Keep the references:
+            Tk does not own them, and a collected image leaves a blank box."""
+            try:
+                self._boxes = tuple(
+                    _gap(box, 8, p['card']) for box in (
+                        _rounded(16, 16, p['card'], p['ink'], p['line']),
+                        _rounded(16, 16, p['card'], p['cyan'], p['cyan'],
+                                 tick=p['ink']),
+                        _rounded(16, 16, p['card'], p['ink'], p['card']),
+                        _rounded(16, 16, p['card'], p['line'], p['line'],
+                                 tick=p['dim'])))
+                off, on, off_off, on_off = self._boxes
+                style.element_create(
+                    'Vo.indicator', 'image', off,
+                    ('disabled', 'selected', on_off),
+                    ('disabled', off_off),
+                    ('selected', on), sticky='')
+                style.layout('Card.TCheckbutton', [
+                    ('Checkbutton.padding', {'sticky': 'nswe', 'children': [
+                        ('Vo.indicator', {'side': 'left', 'sticky': ''}),
+                        ('Checkbutton.focus', {
+                            'side': 'left', 'sticky': 'w', 'children': [
+                                ('Checkbutton.label', {'sticky': 'nswe'})]})]})])
+                style.configure('Card.TCheckbutton', padding=(0, 3, 0, 3))
+            except tk.TclError:
+                pass            # keep clam's square rather than no box at all
+
         def _section(self, parent, title, build, expanded=True):
-            card = ttk.Frame(parent, style='Card.TFrame')
+            card = ttk.Frame(parent, style='Ink.TFrame')
             card.pack(fill='x', pady=(0, 10))
 
             head = ttk.Frame(card, style='Head.TFrame', padding=(10, 7))
@@ -2128,7 +1812,7 @@ def run_tk():
                              font=self.head_font)
             name.pack(side='left')
 
-            inner = ttk.Frame(card, style='Card.TFrame',
+            inner = ttk.Frame(card, style='Body.TFrame',
                               padding=(14, 10, 12, 12))
             if expanded:
                 inner.pack(fill='x')
@@ -2143,6 +1827,7 @@ def run_tk():
                     inner.pack(fill='x')
                 else:
                     inner.pack_forget()
+
             for widget in (head, arrow, name):
                 widget.bind('<Button-1>', toggle)
             return inner
@@ -2156,16 +1841,12 @@ def run_tk():
                           side='left', fill='x', expand=True)
             ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
                        command=self._pick).pack(side='left', padx=(8, 0))
-            self.file_note = ttk.Label(parent, text=NO_FILE, style='Card.TLabel',
-                                       foreground=self.dim, font=self.small,
-                                       wraplength=380, justify='left')
+            self.file_note = _hint(parent, NO_FILE, self.dim, self.small)
             self.file_note.pack(anchor='w', pady=(8, 0))
 
         def _music_body(self, parent):
-            ttk.Label(parent, text=MUSIC_HINT, style='Card.TLabel',
-                      foreground=self.dim, font=self.small,
-                      wraplength=380, justify='left').pack(anchor='w',
-                                                           pady=(0, 8))
+            _hint(parent, MUSIC_HINT, self.dim, self.small).pack(
+                anchor='w', pady=(0, 8))
             row = ttk.Frame(parent, style='Card.TFrame')
             row.pack(fill='x')
             self.rip_var = tk.StringVar()
@@ -2181,9 +1862,7 @@ def run_tk():
                                       command=self._rip)
             self.rip_btn.pack(side='left', padx=(8, 0))
 
-            self.music_note = ttk.Label(parent, style='Card.TLabel',
-                                        font=self.small,
-                                        wraplength=380, justify='left')
+            self.music_note = _hint(parent, '', self.dim, self.small)
             self.music_note.pack(anchor='w', pady=(8, 0))
             self._music(music_status(None))
 
@@ -2231,10 +1910,8 @@ def run_tk():
             self.rip_btn.state(['!disabled'])
 
         def _patch_body(self, parent, keys, hint):
-            ttk.Label(parent, text=hint, style='Card.TLabel',
-                      foreground=self.dim, font=self.small,
-                      wraplength=380, justify='left').pack(anchor='w',
-                                                           pady=(0, 8))
+            _hint(parent, hint, self.dim, self.small).pack(
+                anchor='w', pady=(0, 8))
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
                 row = ttk.Frame(parent, style='Card.TFrame')
@@ -2249,12 +1926,12 @@ def run_tk():
                 self.vars[key], self.checks[key] = var, check
 
         def _log_body(self, parent):
-            wrap = tk.Frame(parent, background=PALETTE['line'],
-                            borderwidth=0, highlightthickness=0)
-            wrap.pack(fill='both', expand=True, padx=1, pady=1)
+            wrap = ttk.Frame(parent, style='Field.TFrame', padding=5)
+            wrap.pack(fill='both', expand=True)
             self.log_box = tk.Text(wrap, height=5, width=34, wrap='word',
                                    state='disabled', relief='flat',
-                                   highlightthickness=0, padx=6, pady=4,
+                                   highlightthickness=0, borderwidth=0,
+                                   padx=4, pady=2,
                                    font=self.small,
                                    background=PALETTE['ink'],
                                    foreground=PALETTE['dim'],
@@ -2355,24 +2032,14 @@ def run_tk():
             self.log_box.see('end')
             self.log_box.config(state='disabled')
 
+    dpi = win_dpi()
     _root = tk.Tk()
+    if dpi:
+        # Tk sizes fonts in points against 72 dpi unless told otherwise.
+        _root.tk.call('tk', 'scaling', dpi / 72.0)
     App(_root)
     _root.mainloop()
     return 0
-
-
-def probe_gtk():
-    """None if GTK4 is usable, otherwise why not.
-
-    A missing typelib raises ValueError from require_version, not
-    ImportError."""
-    try:
-        import gi
-        gi.require_version('Gtk', '4.0')
-        from gi.repository import Gtk
-        return None if Gtk else 'gi.repository.Gtk did not load'
-    except (ImportError, ValueError) as exc:
-        return str(exc)
 
 
 def probe_tk():
@@ -2391,8 +2058,7 @@ USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
   vo-patch.py --rip               list the drives it can see
   vo-patch.py --selfcheck         validate the patch tables and exit
   vo-patch.py --version
-
-VOPATCH_UI=gtk or =tk picks a toolkit instead of preferring GTK4."""
+"""
 
 
 def selfcheck():
@@ -2444,7 +2110,7 @@ def rip_cli(argv):
 
 
 def main():
-    """GTK4 if it is there, Tk if not. VOPATCH_UI=gtk or =tk forces one."""
+    """Open the window, or explain how to get a toolkit."""
     args = sys.argv[1:]
     if '--help' in args or '-h' in args:
         print(USAGE % VERSION)
@@ -2457,21 +2123,12 @@ def main():
     if '--rip' in args:
         return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
 
-    forced = os.environ.get('VOPATCH_UI', '').lower()
-    gtk_why = 'skipped, VOPATCH_UI=tk' if forced == 'tk' else probe_gtk()
-    if gtk_why is None:
-        return run_gtk()
-    tk_why = 'skipped, VOPATCH_UI=gtk' if forced == 'gtk' else probe_tk()
-    if tk_why is None:
-        if forced != 'tk':
-            print('GTK4 unavailable (%s), using Tk' % gtk_why, file=sys.stderr)
+    why = probe_tk()
+    if why is None:
         return run_tk()
-    return ('No usable toolkit.\n'
-            '  GTK4: %s\n'
-            '  Tk:   %s\n'
-            'Install either one. Tk is the smaller of the two: python3-tk on '
-            'Debian, Ubuntu and Mint, python3-tkinter on Fedora, tk on Arch.'
-            % (gtk_why, tk_why))
+    return ('Tk is not available: %s\n'
+            'Install it: python3-tk on Debian, Ubuntu and Mint, '
+            'python3-tkinter on Fedora, tk on Arch.' % why)
 
 
 if __name__ == '__main__':

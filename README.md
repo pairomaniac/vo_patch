@@ -101,23 +101,18 @@ Windows, with Python from python.org - Tk ships with it, nothing else needed:
 py vo-patch.py
 ```
 
-On Linux it uses GTK4 if it can and Tk if it cannot. GTK4 has to be 4.10 or
-newer; anything older falls back to Tk, which looks slightly plainer and works
-the same.
+On Linux, Tk usually needs installing:
 
-| Distro | GTK4 | Tk |
-| --- | --- | --- |
-| Debian, Ubuntu, Mint | `python3-gi gir1.2-gtk-4.0` | `python3-tk` |
-| Fedora, RHEL | `python3-gobject gtk4` | `python3-tkinter` |
-| Arch, EndeavourOS | `python-gobject gtk4` | `tk` |
+| Distro | |
+| --- | --- |
+| Debian, Ubuntu, Mint | `python3-tk` |
+| Fedora, RHEL | `python3-tkinter` |
+| Arch, EndeavourOS | `tk` |
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-4.0   # Debian, Ubuntu, Mint
-sudo dnf install python3-gobject gtk4        # Fedora
+sudo apt install python3-tk                  # Debian, Ubuntu, Mint
 python3 vo-patch.py
 ```
-
-`VOPATCH_UI=gtk` or `VOPATCH_UI=tk` forces one rather than letting it pick.
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
 `pyinstaller vo-patch.spec`. The spec takes the version out of the script, so

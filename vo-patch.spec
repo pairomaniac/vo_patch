@@ -39,11 +39,9 @@ _version_file.write_text("""VSVersionInfo(
 )
 """ % {'parts': _parts, 'version': VERSION}, encoding='utf-8')
 
-# gi is imported inside probe_gtk, and the analysis picks up imports in
-# function bodies, so it has to be named here or it gets collected wherever
-# PyGObject happens to be installed. The rest are stdlib packages this script
-# never touches which come in transitively; together they are about 9 MB.
-EXCLUDES = ['gi', 'unittest', 'pydoc', 'email', 'http', 'xml', 'lib2to3']
+# Stdlib packages this script never touches which come in transitively;
+# together they are about 9 MB.
+EXCLUDES = ['unittest', 'pydoc', 'email', 'http', 'xml', 'lib2to3']
 
 a = Analysis(
     [SOURCE],
