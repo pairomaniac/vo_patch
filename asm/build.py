@@ -92,6 +92,7 @@ def check_org(src, wanted):
 def main(check=False):
     with tempfile.TemporaryDirectory() as tmp:
         code = assemble('vocd.asm', tmp, includes=True)
+        padx = assemble('padxinput.asm', tmp)
         levers = assemble('levers.asm', tmp)
         twin = assemble('twinstick.asm', tmp)
         kbpage = assemble('kbpage.asm', tmp)
@@ -110,14 +111,17 @@ def main(check=False):
     with open(TARGET, encoding='utf-8') as fh:
         src = fh.read()
     new = replace(src, 'VOCD', ''.join(vocd))
+    new = replace(new, 'PADX', hexblob('PADX_CODE', padx))
     new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
     new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
     new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
-    check_org(src, {'twinstick.asm': 0x00223dc4,
+    check_org(src, {'padxinput.asm': 0x00207460,
+                    'twinstick.asm': 0x00223dc4,
                     'kbpage.asm': 0x0023dd38})
 
-    sizes = ('vocd %d + %d bytes, levers %d, twinstick %d, kbpage %d'
-             % (len(code), len(data), len(levers), len(twin), len(kbpage)))
+    sizes = ('vocd %d + %d bytes, padxinput %d, levers %d, twinstick %d, '
+             'kbpage %d' % (len(code), len(data), len(padx), len(levers),
+                            len(twin), len(kbpage)))
     if check:
         if new != src:
             raise SystemExit('the assembly does not match the blobs in '

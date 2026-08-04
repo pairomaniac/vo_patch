@@ -7,11 +7,12 @@ Only someone editing the assembly does.
 | File | What it holds |
 | --- | --- |
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
+| `padxinput.asm` | gamepad: the entry stubs, the message-pump stub and the input tick |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
-| `build.py` | assembles all four sources into `../vo-patch.py` |
+| `build.py` | assembles all five sources into `../vo-patch.py` |
 
 ## How the assembly gets into the patcher
 
@@ -27,6 +28,9 @@ There are four blob regions, each fenced off by a pair of comment markers that
 # VOCD BLOB BEGIN        <- VOCD_MAGICS, VOCD_CODE, VOCD_DATA
 # VOCD BLOB END
 
+# PADX BLOB BEGIN        <- PADX_CODE
+# PADX BLOB END
+
 # LEVERS BLOB BEGIN      <- LEVERS_CODE
 # LEVERS BLOB END
 
@@ -37,9 +41,9 @@ There are four blob regions, each fenced off by a pair of comment markers that
 # KBPAGE BLOB END
 ```
 
-`twinstick.asm` and `kbpage.asm` carry an `org`, because their stubs jump to
-fixed addresses and the twin-stick parameter blocks point at tables in the
-same blob. `build.py` checks each `org` against the offset of the site that
+`padxinput.asm`, `twinstick.asm` and `kbpage.asm` carry an `org`, because
+their stubs jump to fixed addresses and their parameter blocks point at tables
+in the same blob. `build.py` checks each `org` against the offset of the site that
 writes it, since nothing downstream would notice a mismatch: the bytes would
 be written and every address inside them would be wrong.
 
@@ -115,9 +119,9 @@ Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
-**`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`** each go to one
-site inside the XInput patch table, at `0x0020779e`, `0x00223dc4` and
-`0x0023dd38`. Every entry reads its length from the blob, so a routine can
+**`padxinput.asm`**, **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`**
+each go to one site inside the XInput patch table, at `0x00207460`,
+`0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length from the blob, so a routine can
 change size without the run of `00` beside it needing a manual edit - but it
 has to stay inside its cave, and the last two carry an `org`, so growing them
 past the cave is a source edit and not just a rebuild.
@@ -242,6 +246,68 @@ game's own polling drives everything; nothing here runs on its own.
 
 Unrecognised messages return success without doing anything. Failing them
 would make the game give up on music entirely.
+
+## padxinput.asm, what it does
+
+The gamepad patch's own code: two profile entry stubs, the message-pump stub,
+the per-player input tick, and a parameter block per player. Everything else
+in the patch is tables.
+
+The **tick** runs through the F7 profile dispatch, once per player per frame.
+It resolves `XInputGetState`, polls the pad, writes Space and the camera key
+into that player's key buffer if A or Back is held - before calling the game's
+keyboard handler, because that is the code which reads them - and then walks
+twelve bind slots, testing each against the condition table and clearing the
+lever bits its mask names.
+
+Not every slot is live in every game state. The stock keyboard handler at
+`0x443074` runs all twelve only when `[0x1ae3594]` is 4 and `[0x1ae3690]` is
+8 to 12; everywhere else it skips turn and stops after slot 7, so jump, dash
+and guard do nothing. The tick applies the same test. Without it a button
+bound to jump walks the cursor in a menu, because the menus are read out of
+the lever words and the jump masks are lever bits like any other.
+
+After those twelve it applies the D-pad to the first four slots' masks
+directly. The menus and the mech list are read out of the lever words rather
+than out of keys, which is why the sticks navigate them and why this does too.
+It cannot be a bind: the engine is one input per slot and the left stick
+already holds those four.
+
+The **pump stub** replaces one `call PeekMessageA` in the main loop. The tick
+does not run while the game is paused, so Start is posted as F3 from here,
+and A as Space alongside it.
+
+Only keys the window procedure handles itself are worth posting. Everything
+else the game reads through DirectInput, where a posted message never
+arrives - F3 works because it is the same handler the F5, F7 and F11 dialogs
+hang off, which makes it the exception rather than the pattern.
+
+### The intro movie
+
+Nothing from the pad reaches the game while the intro movie plays, and this
+is where that stands rather than a thing the patch solves.
+
+The loop has two branches. The test at `0x5c5e95` reads `[0x6bc598] & 1` and
+picks a blocking `GetMessageA` loop, which `0x5b14ba` selects while an FMV
+plays, over the polling `PeekMessageA` one this stub is in. Moving the hook
+to their common head at `0x5c5e81` was tried and changed nothing: that branch
+only turns over when a message arrives, the executable imports no timer, and
+a pad press generates no message. Writing Space into the key array from the
+stub was tried too, for the same reason and with the same result.
+
+What is left is forcing the test at `0x5c5e95` to always take the polling
+branch. The no-message path there does frame work whose validity during a
+movie is unknown, so that wants testing rather than assuming.
+
+Both pollers read the same resolved import but keep separate `XINPUT_STATE`
+buffers and separate edge state, so neither can eat the other's press.
+
+Four addresses in the file are named from outside it - the two entry stubs by
+the profile dispatch, the pump stub by the `PeekMessageA` call site, the tick
+by `twinstick.asm` - and the epilogue is replaced by `levers.asm`, whose site
+expects those five bytes where they are. The blob is also padded to a fixed
+830 bytes, because `levers.asm` is written immediately after it. `times` pins
+all of it, so nasm fails rather than quietly shifting anything.
 
 ## levers.asm, what it does
 

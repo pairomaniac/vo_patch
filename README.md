@@ -142,14 +142,19 @@ pad 2 drives 2P.
 that binds all twelve actions, so the gamepad profile has to take it. *Real*
 is the other keyboard profile and it keeps its own page.
 
-These three buttons work on every profile, and on the intro and the pause
-screen, where the input tick does not run:
+These work on every profile, and on the intro and the pause screen, where the
+input tick does not run:
 
 | Button | Does |
 | --- | --- |
 | **A** | Accept - skips the intro, confirms menus |
 | **Select** | Camera |
 | **Start** | Pause |
+| **D-pad** | Moves, so it also drives menus |
+
+The D-pad is not in the bind list. It is wired to the same four directions as
+the movement binds, which is what the menus and the mech list read, so it
+navigates them and it walks in a round.
 
 ### Gamepad (XInput)
 
@@ -398,7 +403,9 @@ Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
 mirror, so both sides are the same routine with a different parameter block.
 Start and A are also posted as key messages from the message pump, because
-the input tick does not run on the intro or while paused.
+the input tick does not run while the game is paused. The intro movie runs
+under a different message loop and the pad does not reach it; skipping it
+still needs the keyboard.
 
 *Keyboard (Real)* is the game's other keyboard profile, untouched except for
 where it keeps its binds. It shared one twenty-four byte block with Simple,
