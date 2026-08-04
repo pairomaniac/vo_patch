@@ -238,6 +238,17 @@ FEATURES = [
          (0x001c4d42, '0f850c000000', '909090909090'),
          (0x001c4d4b, '65000000', '00000000'),
          (0x001c4d7e, '57685c00', '7c4e5f00'),
+         # The next three are a hand-written dialog procedure, 363 bytes
+         # split across three caves at 0x5f4e7c, 0x5f4ed8 and 0x5f4fcf,
+         # jumping between them by absolute address. There is no source
+         # for it: the hex is the only copy, and the layout is part of
+         # the code, so a byte cannot be nudged in place here.
+         #
+         # TODO: move it to asm/debugbox.asm, the way asm/padxinput.asm
+         # was done - reconstruct from the disassembly, pin the three
+         # addresses with `times`, and check the output is byte-identical
+         # before changing anything. Worth doing when this needs an edit,
+         # not before.
          (0x001f427c, '0000000000000000000000000000000000000000000000000000000000000000'
           '0000000000000000000000000000000000000000000000000000000000000000'
           '000000000000000000000000000000000000000000000000000000',
@@ -262,6 +273,7 @@ FEATURES = [
           '01ff156cd56503b801000000eb0233c05f5e5b5dc21000'),
          (0x001f43cf, '00000000000000000000000000000000000000000000000000',
           '81f9419c0000750f89cb6a00ff7508ff1538d5650389d9ebc3'),
+         # Strings, then the dialog template resource. Data, not code.
          (0x0023dce8, '0000000000000000000000000000000000000000000000000000000000000000'
           '0000000000000000000000000000000000000000000000000000000000000000'
           '00000000000000000000000000000000',
