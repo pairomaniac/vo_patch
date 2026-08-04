@@ -282,8 +282,6 @@ else the game reads through DirectInput, where a posted message never
 arrives - F3 works because it is the same handler the F5, F7 and F11 dialogs
 hang off, which makes it the exception rather than the pattern.
 
-<<<<<<< HEAD
-=======
 Both pollers read the same resolved import but keep separate `XINPUT_STATE`
 buffers and separate edge state, so neither can eat the other's press.
 
@@ -294,7 +292,6 @@ five bytes where they are. The blob is also padded to a fixed 830 bytes,
 because `levers.asm` is written immediately after it. `times` pins all of it,
 so nasm fails rather than quietly shifting anything.
 
->>>>>>> 39d4c4d (Further README updates for 0.7.4.)
 ## levers.asm, what it does
 
 The game's jump and guard are lever gestures, not buttons: both levers spread
