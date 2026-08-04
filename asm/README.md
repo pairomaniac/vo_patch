@@ -282,33 +282,6 @@ else the game reads through DirectInput, where a posted message never
 arrives - F3 works because it is the same handler the F5, F7 and F11 dialogs
 hang off, which makes it the exception rather than the pattern.
 
-### The intro movie
-
-Nothing from the pad reaches the game while the intro movie plays, and this
-is where that stands rather than a thing the patch solves.
-
-The loop has two branches. The test at `0x5c5e95` reads `[0x6bc598] & 1` and
-picks a blocking `GetMessageA` loop, which `0x5b14ba` selects while an FMV
-plays, over the polling `PeekMessageA` one this stub is in. Moving the hook
-to their common head at `0x5c5e81` was tried and changed nothing: that branch
-only turns over when a message arrives, the executable imports no timer, and
-a pad press generates no message. Writing Space into the key array from the
-stub was tried too, for the same reason and with the same result.
-
-What is left is forcing the test at `0x5c5e95` to always take the polling
-branch. The no-message path there does frame work whose validity during a
-movie is unknown, so that wants testing rather than assuming.
-
-Both pollers read the same resolved import but keep separate `XINPUT_STATE`
-buffers and separate edge state, so neither can eat the other's press.
-
-Four addresses in the file are named from outside it - the two entry stubs by
-the profile dispatch, the pump stub by the `PeekMessageA` call site, the tick
-by `twinstick.asm` - and the epilogue is replaced by `levers.asm`, whose site
-expects those five bytes where they are. The blob is also padded to a fixed
-830 bytes, because `levers.asm` is written immediately after it. `times` pins
-all of it, so nasm fails rather than quietly shifting anything.
-
 ## levers.asm, what it does
 
 The game's jump and guard are lever gestures, not buttons: both levers spread
