@@ -36,9 +36,9 @@ ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 # `asm/build.py --check` on every push and fails if the two have drifted, so a
 # hand edit here will be caught but only after it has wasted your afternoon.
 #
-# padxinput.asm is assembled at a fixed org and padded to a fixed length. Four
+# padxinput.asm is assembled at a fixed org and padded to a fixed length: five
 # addresses inside it are named from outside, and levers.asm is written at the
-# site immediately after it, so neither may move. The source pins all five.
+# site immediately after it. The source pins all of that.
 
 # PADX BLOB BEGIN
 PADX_CODE = bytes.fromhex(
@@ -335,10 +335,13 @@ FEATURES = [
      'Disables Keyboard (Simple) for the time being: it is the only page\n'
      'that binds all twelve actions, so the gamepad has to take it.\n'
      '\n'
-     'A\tAccept, and skips the intro\n'
+     'A\tAccept\n'
      'Select\tCamera\n'
      'Start\tPause\n'
      'D-pad\tMove, and menu navigation\n'
+     '\n'
+     'The intro movie is skipped from the keyboard: it runs under a\n'
+     'message loop the pad does not reach.\n'
      '\n'
      'Twin-stick makes each thumbstick a lever: both the same way walks,\n'
      'opposite ways turns, apart jumps, together crouches. The triggers\n'

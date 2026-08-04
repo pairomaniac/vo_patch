@@ -4,7 +4,7 @@ BASE        equ 0x00608060      ; the org again, for the pins below
 ; The XInput routine: two profile entry stubs, the message-pump stub, the
 ; per-player input tick and its parameter blocks.
 ;
-; Four addresses in here are named by something outside this file and cannot
+; Five addresses in here are named by something outside this file and cannot
 ; move. `times` pins each one, so nasm fails rather than shifting them:
 ;
 ;   0x608060, 0x608072  the profile dispatch sites point at the entry stubs
@@ -37,9 +37,9 @@ GETPROC     equ 0x0365d508      ; GetProcAddress
 POSTMSG     equ 0x0365d56c      ; PostMessageA
 PEEKMSG     equ 0x0365d590      ; PeekMessageA, the call this stub replaced
 
-MODE        equ 0x01ae3594      ; game state, and its sub-state: the pair
-SUBMODE     equ 0x01ae3690      ; the keyboard handler gates the bind
-                                ; slots on
+MODE        equ 0x01ae3594      ; game state and sub-state. The pair the
+SUBMODE     equ 0x01ae3690      ; stock keyboard handler gates its bind
+                                ; slots on; see the tick.
 
 WM_KEYDOWN  equ 0x0100
 WM_KEYUP    equ 0x0101

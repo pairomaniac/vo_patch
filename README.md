@@ -142,12 +142,12 @@ pad 2 drives 2P.
 that binds all twelve actions, so the gamepad profile has to take it. *Real*
 is the other keyboard profile and it keeps its own page.
 
-These work on every profile, and on the intro and the pause screen, where the
-input tick does not run:
+These work on every profile, and Start works on the pause screen too, where
+the input tick does not run:
 
 | Button | Does |
 | --- | --- |
-| **A** | Accept - skips the intro, confirms menus |
+| **A** | Accept - confirms menus |
 | **Select** | Camera |
 | **Start** | Pause |
 | **D-pad** | Moves, so it also drives menus |
@@ -155,6 +155,9 @@ input tick does not run:
 The D-pad is not in the bind list. It is wired to the same four directions as
 the movement binds, which is what the menus and the mech list read, so it
 navigates them and it walks in a round.
+
+The intro movie is the exception: it runs under a different message loop that
+the pad does not reach, so it still takes a keyboard press to skip.
 
 ### Gamepad (XInput)
 
