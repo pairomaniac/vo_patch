@@ -18,8 +18,7 @@ the game and not the bytes quoted from it.
 [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
 
 It is unsigned, so SmartScreen calls it an unknown publisher on the first run.
-If you would rather see how it was built than take that on trust, the log is
-under this repository's Actions.
+The build log is under this repository's Actions.
 
 **Linux:** check [Running from source](#running-from-source).
 
@@ -117,10 +116,9 @@ To build the Windows binary yourself, `pip install pyinstaller` and run
 that is the only place it is written down.
 
 To change the machine code the patches install, see [asm/](asm/). The assembly
-lives there, along with the descriptions the gamepad tables and both dialogs
-are packed from, and `asm/build.py` builds all of it into `vo-patch.py` - the
-long hex strings in the script are generated and should never be edited by
-hand. CI
+lives there, with the descriptions the gamepad tables and both dialogs are
+packed from, and `asm/build.py` builds all of it into `vo-patch.py`. The long
+hex strings in the script are generated and should never be edited by hand. CI
 checks the two still agree on every push. `python3 vo-patch.py --selfcheck`
 validates the patch tables without needing a copy of the game;
 `python3 tools/selftest.py path/to/v_on.exe` applies them to a real one.
@@ -284,14 +282,12 @@ Bold entries are not part of original VO_Patch.
 
 ## Notes
 
-Everything below is how the patches work rather than how to use them. If you
-came here to play the game you are done; this is for anyone reading the
-disassembly.
+Everything below is how the patches work rather than how to use them.
 
-Not every row needs one - the four inherited byte edits do what they say on
-the tin. These are the rest, in the order of the table above. The CD audio and
-gamepad patches install assembled machine code rather than editing bytes; the
-sources and a longer account of both are in [asm/](asm/).
+Not every row needs a note; the four inherited byte edits are self-explanatory.
+These are the rest, in the order of the table above. The CD audio and gamepad
+patches install assembled machine code rather than editing bytes; the sources
+and a longer account of both are in [asm/](asm/).
 
 **Sample rate.** This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
@@ -305,9 +301,9 @@ is still found.
 The music logic is small: open `cdaudio`, set TMSF, read the track count and
 every length once, then whole-track plays, stops, the occasional pause, and a
 mode query to see whether a track is still running. No notifications and no
-position polling, so a finished track just goes quiet - which is what the disc
-did too. Little enough to answer without one, which a routine in a new
-`.vocd` section does.
+position polling, so a finished track goes quiet, as it did with the disc.
+That is little enough to answer from WAV files instead, which a routine in a
+new `.vocd` section does.
 
 This is the one patch that cannot be a byte edit in place: the padding at the
 end of `.text` has 24 bytes left after the timer stub and the F11 dialog, and
@@ -362,8 +358,8 @@ updated and the *Fast* radio widened to fit.
 
 **Ini defaults.** One routine reads `v_on.ini`; every key is the same block,
 look the string up and write a hardcoded value if it is absent. Several of
-those are the least attractive option going - Sky off, every texture off,
-Field Graphic Normal. A four-byte edit each.
+those default to the worse setting - Sky off, every texture off, Field
+Graphic Normal. A four-byte edit each.
 
 Field Graphic is the exception. Rich clears `0x6817f0`, sets `0x6817c8` and
 calls the routine that loads the richer field, while the missing-key path only
@@ -420,11 +416,11 @@ which the gamepad now owns, so it moves to the block belonging to the hidden
 were always its own. The block sits inside the structure written to
 `v_on.ini`, so it persists without any new storage.
 
-Two things fall out of that. The startup defaults run every profile's set in
-turn and *Joystick + Keyboard* writes that block after *Real* does, so its
-call is dropped - it is unreachable anyway. And **Default** on the keyboard
-page passed a hardcoded player 0, resetting 1P's binds from the 2P side; the
-other two pages pass the current player, so this one is corrected to match.
+Two consequences. The startup defaults run every profile's set in turn and
+*Joystick + Keyboard* writes that block after *Real* does, so its call is
+dropped - it is unreachable anyway. And **Default** on the keyboard page
+passed a hardcoded player 0, resetting 1P's binds from the 2P side; the other
+two pages pass the current player, so this one is corrected to match.
 
 *Twin-stick* adds no logic at all. The tick is a bind -> condition -> lever
 mask engine, and the arcade scheme is just a different set of binds and

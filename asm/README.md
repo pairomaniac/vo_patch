@@ -26,8 +26,8 @@ hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed. `build.py` is what copies one into the other.
 
-There are nine blob regions, each fenced off by a pair of comment markers that
-`build.py` searches for. **The markers are load-bearing; do not remove them.**
+There are nine blob regions, each fenced off by a pair of comment markers.
+`build.py` searches for them and fails if a pair is missing.
 
 ```
 # VOCD BLOB BEGIN        <- VOCD_MAGICS, VOCD_CODE, VOCD_DATA
@@ -58,23 +58,23 @@ There are nine blob regions, each fenced off by a pair of comment markers that
 # DIALOGS BLOB END
 ```
 
-`padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and
-`timer.asm` carry an `org`, because their stubs jump to fixed addresses and their parameter blocks point at tables
-in the same blob. `build.py` checks each `org` against the offset of the site that
-writes it, since nothing downstream would notice a mismatch: the bytes would
-be written and every address inside them would be wrong.
+`padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`
+carry an `org`, because their stubs jump to fixed addresses and their
+parameter blocks point at tables in the same blob. `build.py` checks each
+`org` against the offset of the site that writes it, since nothing downstream
+would notice a mismatch: the bytes would be written and every address inside
+them would be wrong.
 
 `build.py` runs nasm on each `.asm` file, calls `build()` on each `.py` one,
 formats the output as `bytes.fromhex(...)`, and replaces everything between
-each pair of markers.
+each pair of markers. Nothing outside the markers is touched, so the patch
+tables around them are safe. Neither mode writes anything into `asm/`; nasm
+works in a temporary directory that is deleted afterwards.
 
 The three `.py` modules also emit an `.inc` file each, which the assembly
-includes. An address that both sides need - the condition table, the Extras
+includes. An address both sides need - the condition table, the Extras
 strings, a control id - is written once, by the module that packs the bytes
-it points at, so the two cannot drift apart.
-Nothing outside the markers is touched, so the patch tables around them are
-safe. Neither mode writes anything into `asm/`; nasm works in a temporary
-directory that is deleted afterwards.
+it points at.
 
 ## The loop
 
@@ -103,9 +103,9 @@ It installs nasm and runs the same checks you would:
 | Step | Catches |
 | --- | --- |
 | `vo-patch.py --selfcheck` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered |
-| `asm/build.py --check` | assembly edited without the blobs being regenerated |
+| `asm/build.py --check` | a source edited without the blobs being regenerated |
 | `git diff --exit-code` | blobs regenerated but not committed |
-| `pyflakes` | the usual |
+| `pyflakes` | unused names, undefined names, bad imports |
 
 The middle two are the ones that matter here. Without them the repository
 stays self-consistent while the shipped patcher installs last week's code -
@@ -167,9 +167,9 @@ Sites written into section padding, and what is still free after them:
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 133 | 147 |
 | `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 0 | 424 |
 
-The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left, which is why CD audio got a section of its own rather than
-another cave. The `.rdata` one holds the F11 dialog template and the keyboard
-page fixes.
+The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left,
+which is why CD audio got a section of its own rather than another cave. The
+`.rdata` one holds the F11 dialog template and the keyboard page fixes.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
@@ -202,10 +202,9 @@ in this paragraph are virtual, which is file offset plus `0x400c00`.
 `0x6083e0` - the end of the XInput routine's cave, `0x2077e0` above - sits in
 the middle of the run of zeros that cave was cut from: a base address the
 geometry code indexes off, reading as zeros because that is what the game
-expects to find there. The routine stops just short of it, at `0x6083d1`, and
-is fine; fifty-three bytes dropped after it corrupted the loading screens,
-which took a release to find. The usable tail of that run is fifteen bytes,
-not sixty-five.
+expects to find there. The routine stops just short of it, at `0x6083d1`. Writing over it corrupts
+the loading screens, so the usable tail of that run is fifteen bytes, not
+sixty-five.
 
 To check, search the file for a dword equal to any address inside the span.
 That search has false positives on long spans - four bytes of data can happen
@@ -214,8 +213,7 @@ them.
 
 **Its start is a multiple of four.** Addresses in this image are all below
 `0x01000000`, so every pointer has a zero top byte, and a scan for the longest
-run of `00` will happily start you one byte inside the last pointer of a
-table. Writing there turns `0x00623bb0` into `0x11623bb0`, and the game dies
+run of `00` starts one byte inside the last pointer of a table. Writing there turns `0x00623bb0` into `0x11623bb0`, and the game dies
 when it dereferences it. `build.py` refuses any `org` whose site is not
 four-aligned; the same rule applies to a cave picked by hand.
 
@@ -238,10 +236,10 @@ adding to the import table would have meant rebuilding it - then finds the
 game folder from `GetModuleFileNameA`, and walks `music\track02.wav` up to
 `track99.wav`.
 
-It never opens a track. Redbook audio is exactly 44100 Hz 16-bit stereo, so a
-CD frame is exactly 2352 bytes, so after the 44-byte WAV header **the file
-size is the track length**. The whole table of contents comes from
-`GetFileSize`. Nothing is parsed and nothing can be misread.
+It never opens a track. Redbook audio is 44100 Hz 16-bit stereo and a CD frame
+is 2352 bytes, so after the 44-byte WAV header the file size is the track
+length. The whole table of contents comes from `GetFileSize`, with no WAV
+parsing.
 
 It installs nothing: the call sites already point at the hook. Finding no
 tracks just leaves the track count at zero, which the hook reads as "forward
@@ -252,8 +250,7 @@ applied after all the others.
 **The hook** sees every `mciSendCommandA` the game makes. It watches for an
 open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
 then on, calls carrying that ID belong to it, and every other call, sound
-effects included, goes on through the import slot untouched. One device is
-impersonated; nothing else is disturbed.
+effects included, goes on through the import slot untouched.
 
 Play requests are turned into MCI *string* commands against `waveaudio`:
 
@@ -265,8 +262,8 @@ play vocdbgm
 
 So it does not implement playback at all - no buffers, no mixing, no streaming
 thread. It rewrites a CD command as a WAV command and lets the same MCI
-subsystem do the work. That is also why it needs nothing from Wine beyond
-`mciwave`: Wine can play a WAV, it just cannot invent a CD drive.
+subsystem do the work, which is also why it needs nothing from Wine beyond
+`mciwave`.
 
 Status queries are answered from the table: track count, track lengths, media
 present, time format, and track 1 reported as data so the game does not try to
@@ -316,9 +313,8 @@ dialog procedure is alignment padding the patch has never written. `build.py`
 splits the blob there and refuses to do it if the source puts anything but a
 zero in that byte.
 
-The strings and the two tables it reads are data in the `.rdata` cave, and the
-dialog template is data in the `.rsrc` one; both stay as hex in the patch
-table, since neither is code and nasm has nothing to add to them.
+The strings, the two tables it reads and the dialog template are data, packed
+by `dialogs.py`.
 
 ## padtables.py, what it does
 
@@ -331,13 +327,12 @@ Sixteen pad inputs, described once:
 ```
 
 From that list it packs the condition table the tick reads, the bind list the
-F7 page offers, and the strings both of them point at - the pointers being
-computed rather than counted. The three profile names sit in the same string
-blob, so the device list is built from it too.
+F7 page offers, and the strings both point at, computing the pointers between
+them. The three profile names sit in the same string blob, so the device list
+is built from it too.
 
 An input's id is `0xe0` plus its position in the list, which is also its index
-into the condition table, so the order of that list is a saved-file format.
-Reordering it moves everyone's binds.
+into the condition table. Reordering the list moves everyone's saved binds.
 
 ## dialogs.py, what it does
 
@@ -345,15 +340,14 @@ Both dialogs, from a control list each.
 
 The Extras box is built outright, and the ids in it are the game's own command
 ids, so the dialog procedure can post a click to the main window with no
-lookup table. The same list carries the flag each check box reflects, which is
-the table `debugbox.asm` walks on `WM_INITDIALOG` - one description, both
-halves, and `dialogs.inc` gives the assembly the addresses.
+lookup table. The same list carries the flag each check box reflects, which
+becomes the table `debugbox.asm` walks on `WM_INITDIALOG`. `dialogs.inc` gives
+the assembly the addresses of both.
 
 The F5 frame rate labels are the other case: an edit to a resource the game
-already has. Sega named the two radios for what the setting did to the
-animation, *Fast* and *Smooth*; they read **30 FPS** and **60 FPS** now. The
-first is wider than *Fast*, so everything after it in the resource shifts by
-four bytes, which is what the size field at `0x6035ac` gains.
+already has. Sega's *Fast* and *Smooth* read **30 FPS** and **60 FPS** now.
+The first is wider than *Fast*, so everything after it in the resource shifts
+by four bytes, which is what the size field at `0x6035ac` gains.
 
 ## padxinput.asm, what it does
 
@@ -387,8 +381,8 @@ and A as Space alongside it.
 
 Only keys the window procedure handles itself are worth posting. Everything
 else the game reads through DirectInput, where a posted message never
-arrives - F3 works because it is the same handler the F5, F7 and F11 dialogs
-hang off, which makes it the exception rather than the pattern.
+arrives. F3 works because it is the same handler the F5, F7 and F11 dialogs
+hang off.
 
 Both pollers read the same resolved import but keep separate `XINPUT_STATE`
 buffers and separate edge state, so neither can eat the other's press.

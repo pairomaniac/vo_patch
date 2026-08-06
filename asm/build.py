@@ -102,9 +102,8 @@ def check_org(src, wanted, padding=()):
             org = int(re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read()).group(1), 16)
         if site % 4 and name not in padding:
             raise SystemExit('%s is written at 0x%08x, which is not a multiple '
-                             'of four. A run of zeros that starts off a dword '
-                             'boundary starts inside the last field before it, '
-                             'and the first byte written lands in that field.'
+                             'of four. A run of zeros starting off a dword '
+                             'boundary starts inside the last field before it.'
                              % (name, site))
         if org != site + 0x400c00:
             raise SystemExit('%s is assembled at 0x%08x but its site puts it '

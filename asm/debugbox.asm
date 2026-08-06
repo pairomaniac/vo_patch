@@ -43,15 +43,14 @@ CB_GETCURSEL equ 0x147
 CB_SETCURSEL equ 0x14e
 
 ; The frame rate combo and the five commands behind it. Motion moved to the
-; F5 page and the combo went with it, so no control carries IDC_RATE any
-; more and neither branch below can be reached. Left in place because taking
-; them out moves every byte after them.
+; F5 page and the combo went with it, so no control carries IDC_RATE and
+; neither branch below is reachable.
 IDC_RATE    equ 0x3e8
 CMD_RATE1   equ 0x9c55          ; the game's own command ids, 1/1 to 1/5
 
 ; nasm assembles `mov r32, r32` and `xor r32, r32` as 89 and 31; the code
-; this replaces used the 8b and 33 encodings of the same instructions. The
-; `db` lines below keep the blob byte for byte what it was.
+; this replaces used the 8b and 33 encodings. The `db` lines below keep the
+; blob byte-identical to the hex it was reconstructed from.
 
 ; ---------------------------------------------------------------- 0x5f4e7c
 ; Window procedure hook. Everything except F11 goes on to the original.

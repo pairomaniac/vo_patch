@@ -3,12 +3,11 @@
 
     build_extras()  the F11 template, and the strings and tables
                     debugbox.asm reads. Both are written into padding.
-    build_f5()      the frame rate radio buttons on the F5 page, which is a
+    build_f5()      the frame rate radio buttons on the F5 page. That is a
                     resource the game already has, so this rewrites part of
-                    one rather than building it. Both sides are generated:
-                    the `original` column of that site is what this emits
-                    from the stock labels, which is the check that the
-                    packing here matches the resource compiler's.
+                    one rather than building it, and emits both columns of
+                    the site: the `original` one from the stock labels, which
+                    checks this packing against the resource compiler's.
 
 A control's id is the game's own command id wherever there is one, so a
 click can be posted to the main window as the menu item it replaces, and no

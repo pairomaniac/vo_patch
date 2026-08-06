@@ -4,8 +4,8 @@ org 0x005f4e3e          ; the .text cave, immediately before debugbox.asm
 ; 1 ms scheduler tick and then goes where the entry point used to go.
 ;
 ; The game's frame pacing sleeps in millisecond units against a 15.6 ms
-; default tick, so without this the wait rounds up and the rate it settles
-; on is not the one that was asked for.
+; default tick, so without this the wait rounds up and the game runs at about
+; 70 per cent speed.
 ;
 ; AddressOfEntryPoint at 0xa8 names this address, and nodisc chains it in
 ; turn, which is why that patch is applied last.
@@ -23,7 +23,7 @@ start:
     push    eax
     call    [GETPROC]
     test    eax, eax
-    je      .done               ; no winmm, no timer: not worth failing over
+    je      .done               ; no winmm: nothing to raise, carry on
     push    1                   ; timeBeginPeriod(1)
     call    eax
 .done:

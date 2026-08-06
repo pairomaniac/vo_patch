@@ -11,7 +11,7 @@
 ; The hook is reached by rewriting the game's calls, not by owning the winmm
 ; IAT slot: any DLL hooking the same import by name overwrites that slot and
 ; drops this out of the chain. The slot is still read, at call time, so
-; whoever does own it stays below us.
+; whoever does own it stays in the chain below.
 ;
 ; Tracks are <gamedir>\music\trackNN.wav, 44100/16/stereo, as written by the
 ; ripper. Length comes from the file size, so no WAV parsing.
@@ -240,7 +240,7 @@ build_path:
 ; ------------------------------------------------------------ MCI helper
 ;
 ; D_PATH and D_CMD are single shared buffers with no locking. The game drives
-; music from one thread, so this is deliberate rather than overlooked.
+; music from one thread.
 
 ; Sends the string constant whose data-cave offset is in eax.
 send_const:
