@@ -1,18 +1,23 @@
 # asm
 
-Source for the machine code the patches install. `vo-patch.py` carries the
-assembled bytes, so nobody running the patcher or building the exe needs nasm.
-Only someone editing the assembly does.
+Source for the machine code the patches install, and for the tables and
+dialog templates that go with it. `vo-patch.py` carries the finished bytes, so
+nobody running the patcher or building the exe needs nasm. Only someone
+editing this directory does.
 
 | File | What it holds |
 | --- | --- |
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
+| `timer.asm` | frame rate: the entry point stub that asks for a 1 ms tick |
+| `debugbox.asm` | F11 Extras: the window procedure hook and the dialog procedure |
 | `padxinput.asm` | gamepad: the entry stubs, the message-pump stub and the input tick |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
-| `build.py` | assembles all five sources into `../vo-patch.py` |
+| `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
+| `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
+| `build.py` | builds every blob in `../vo-patch.py`, from the seven `.asm` files and the three `.py` ones |
 
 ## How the assembly gets into the patcher
 
@@ -21,7 +26,7 @@ hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed. `build.py` is what copies one into the other.
 
-There are four blob regions, each fenced off by a pair of comment markers that
+There are nine blob regions, each fenced off by a pair of comment markers that
 `build.py` searches for. **The markers are load-bearing; do not remove them.**
 
 ```
@@ -39,16 +44,34 @@ There are four blob regions, each fenced off by a pair of comment markers that
 
 # KBPAGE BLOB BEGIN      <- KBPAGE_CODE
 # KBPAGE BLOB END
+
+# DEBUGBOX BLOB BEGIN    <- DEBUGBOX_HOOK, DEBUGBOX_PROC
+# DEBUGBOX BLOB END
+
+# TIMER BLOB BEGIN       <- TIMER_CODE
+# TIMER BLOB END
+
+# PADTABLES BLOB BEGIN   <- PAD_COND, PAD_BINDS, PAD_NAMES, PAD_DEVLIST
+# PADTABLES BLOB END
+
+# DIALOGS BLOB BEGIN     <- EXTRAS_TPL, EXTRAS_DATA, F5_STOCK, F5_FPS
+# DIALOGS BLOB END
 ```
 
-`padxinput.asm`, `twinstick.asm` and `kbpage.asm` carry an `org`, because
-their stubs jump to fixed addresses and their parameter blocks point at tables
+`padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and
+`timer.asm` carry an `org`, because their stubs jump to fixed addresses and their parameter blocks point at tables
 in the same blob. `build.py` checks each `org` against the offset of the site that
 writes it, since nothing downstream would notice a mismatch: the bytes would
 be written and every address inside them would be wrong.
 
-`build.py` runs nasm on each `.asm` file, formats the output as
-`bytes.fromhex(...)`, and replaces everything between each pair of markers.
+`build.py` runs nasm on each `.asm` file, calls `build()` on each `.py` one,
+formats the output as `bytes.fromhex(...)`, and replaces everything between
+each pair of markers.
+
+The three `.py` modules also emit an `.inc` file each, which the assembly
+includes. An address that both sides need - the condition table, the Extras
+strings, a control id - is written once, by the module that packs the bytes
+it points at, so the two cannot drift apart.
 Nothing outside the markers is touched, so the patch tables around them are
 safe. Neither mode writes anything into `asm/`; nasm works in a temporary
 directory that is deleted afterwards.
@@ -58,8 +81,8 @@ directory that is deleted afterwards.
 ```
 sudo dnf install nasm            # or: sudo apt install nasm
 
-vim asm/vocd.asm                 # 1. edit the assembly
-python3 asm/build.py             # 2. regenerate the blobs in vo-patch.py
+vim asm/vocd.asm                 # 1. edit an .asm file, or a .py one
+python3 asm/build.py             # 2. rebuild the blobs in vo-patch.py
 git diff                         # 3. vo-patch.py's hex strings changed
 ```
 
@@ -119,6 +142,14 @@ Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
+**`padtables.py`** fills three of the gamepad patch's caves - the condition
+table, the bind list and the strings both point at - and the device list in
+`.data`. **`dialogs.py`** fills the `.rdata` cave the Extras box reads, the
+`.rsrc` run the dead menu resource left behind, and the tail of the F5
+resource that the frame rate labels live in. That last one is the only site
+whose `original` column is generated too: the stock labels packed by the same
+code, which is the check that this packing matches the resource compiler's.
+
 **`padxinput.asm`**, **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`**
 each go to one site inside the XInput patch table, at `0x00207460`,
 `0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length from the blob, so a routine can
@@ -136,8 +167,7 @@ Sites written into section padding, and what is still free after them:
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 133 | 147 |
 | `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 0 | 424 |
 
-The `.text` cave holds the timer stub and the three F11 dialog blobs and has
-24 bytes left, which is why CD audio got a section of its own rather than
+The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left, which is why CD audio got a section of its own rather than
 another cave. The `.rdata` one holds the F11 dialog template and the keyboard
 page fixes.
 
@@ -246,6 +276,84 @@ game's own polling drives everything; nothing here runs on its own.
 
 Unrecognised messages return success without doing anything. Failing them
 would make the game give up on music entirely.
+
+## timer.asm, what it does
+
+The entry point the frame rate patch redirects to. It calls
+`timeBeginPeriod(1)` and jumps to the entry point that was there before.
+Windows 2000 and later default to a 15.6 ms scheduler tick, and the game's
+frame pacing sleeps in milliseconds against it, so the wait rounds up and the
+game runs at about 70 per cent speed. Wine already ticks at 1 ms.
+
+`winmm.dll` is resolved through `LoadLibraryA` rather than imported, and a
+failure is ignored: on a system that does not need the call there is nothing
+to fail over.
+
+`nodisc` chains this same entry point in turn, which is why it is applied
+after every other patch.
+
+## debugbox.asm, what it does
+
+The Debug options only ever existed as menu items, so once the menu bar goes
+there is nothing to open them with. This builds a dialog instead.
+
+**The hook** replaces the window procedure pointer at `0x1c4d7e`. It watches
+for F11 and passes everything else to the handler that was there before. On
+F11 it fetches `DialogBoxIndirectParamA` through `LoadLibraryA` and
+`GetProcAddress` - the import table has no room and rebuilding it for one
+export is not worth it - and opens the template that the same patch writes
+into the `.rsrc` cave.
+
+**The dialog procedure** ticks each check box from the game's own flag on
+`WM_INITDIALOG`, fills the frame rate list, and forwards clicks. Every
+control's id is the game's own command id, so a click is posted straight to
+the main window as `WM_COMMAND` and needs no lookup table. Quit Program is the
+one special case: the dialog is closed first, because the game tears the
+window down under it.
+
+It assembles as one run but lands as two sites, since the byte in front of the
+dialog procedure is alignment padding the patch has never written. `build.py`
+splits the blob there and refuses to do it if the source puts anything but a
+zero in that byte.
+
+The strings and the two tables it reads are data in the `.rdata` cave, and the
+dialog template is data in the `.rsrc` one; both stay as hex in the patch
+table, since neither is code and nasm has nothing to add to them.
+
+## padtables.py, what it does
+
+Sixteen pad inputs, described once:
+
+```python
+('LT',       TRIGGER, LTRIGGER, PULL),
+('LS Up',    ABOVE,   LY,  DEADZONE),
+('LS Down',  BELOW,   LY, -DEADZONE),
+```
+
+From that list it packs the condition table the tick reads, the bind list the
+F7 page offers, and the strings both of them point at - the pointers being
+computed rather than counted. The three profile names sit in the same string
+blob, so the device list is built from it too.
+
+An input's id is `0xe0` plus its position in the list, which is also its index
+into the condition table, so the order of that list is a saved-file format.
+Reordering it moves everyone's binds.
+
+## dialogs.py, what it does
+
+Both dialogs, from a control list each.
+
+The Extras box is built outright, and the ids in it are the game's own command
+ids, so the dialog procedure can post a click to the main window with no
+lookup table. The same list carries the flag each check box reflects, which is
+the table `debugbox.asm` walks on `WM_INITDIALOG` - one description, both
+halves, and `dialogs.inc` gives the assembly the addresses.
+
+The F5 frame rate labels are the other case: an edit to a resource the game
+already has. Sega named the two radios for what the setting did to the
+animation, *Fast* and *Smooth*; they read **30 FPS** and **60 FPS** now. The
+first is wider than *Fast*, so everything after it in the resource shifts by
+four bytes, which is what the size field at `0x6035ac` gains.
 
 ## padxinput.asm, what it does
 

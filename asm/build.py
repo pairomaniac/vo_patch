@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Assemble the sources into ../vo-patch.py, or check that they still match.
+"""Build the blobs in ../vo-patch.py, or check that they still match.
+
+Machine code comes from the .asm files through nasm; the tables and dialog
+templates come from the .py modules beside them, which pack them from a
+readable description.
 
     sudo dnf install nasm      # or: sudo apt install nasm
     python3 asm/build.py            # assemble and write
@@ -25,7 +29,13 @@ ROOT = os.path.dirname(HERE)
 TARGET = os.path.join(ROOT, 'vo-patch.py')
 
 sys.path.insert(0, HERE)
+import dialogs                                            # noqa: E402
 import layout                                             # noqa: E402
+import padtables                                          # noqa: E402
+
+# debugbox.asm is one run assembled at 0x5f4e7c; the dialog procedure inside
+# it is pinned at 0x5f4ed8, one byte further on than the hook ends.
+DEBUGBOX_SPLIT = 0x5f4ed8 - 0x5f4e7c - 1
 
 MAGICS = [
     ('MAGIC_ORIGENTRY', 0xE1E1E1E1, 'VA of the entry point we chain to'),
@@ -45,14 +55,22 @@ def hexblob(name, raw):
     return ''.join(out)
 
 
-def assemble(source, tmp, includes=False):
-    """nasm -f bin, with strings.inc generated into tmp when asked."""
-    args = ['nasm', '-f', 'bin']
-    if includes:
-        inc, _data = layout.build()
-        with open(os.path.join(tmp, 'strings.inc'), 'w') as fh:
-            fh.write(inc)
-        args += ['-I', tmp + os.sep]
+def includes(tmp):
+    """Write the .inc files the sources include, into nasm's include path.
+
+    Each is emitted by the module that owns the addresses in it, so an
+    address cannot be named one thing by the assembly and another by the
+    blob it points into."""
+    for name, text in (('strings.inc', layout.build()[0]),
+                       ('padtables.inc', padtables.build()[0]),
+                       ('dialogs.inc', dialogs.build_extras()[0])):
+        with open(os.path.join(tmp, name), 'w') as fh:
+            fh.write(text)
+
+
+def assemble(source, tmp):
+    """nasm -f bin, against the .inc files written by includes()."""
+    args = ['nasm', '-f', 'bin', '-I', tmp + os.sep]
     out = os.path.join(tmp, os.path.basename(source) + '.bin')
     args += ['-o', out, os.path.join(HERE, source)]
     subprocess.check_call(args)
@@ -70,15 +88,19 @@ def replace(text, name, body):
     return new
 
 
-def check_org(src, wanted):
+def check_org(src, wanted, padding=()):
     """Sources assembled at a fixed org, where the source and the site that
     writes it have to name the same address. Nothing downstream would
     notice: the code would be written, and every jump in it would land a
-    few hundred bytes off."""
+    few hundred bytes off.
+
+    `padding` names the sources whose cave is section padding rather than a
+    run of zeros cut out of live data, where the four-alignment rule below
+    has nothing to protect."""
     for name, site in wanted.items():
         with open(os.path.join(HERE, name), encoding='utf-8') as fh:
             org = int(re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read()).group(1), 16)
-        if site % 4:
+        if site % 4 and name not in padding:
             raise SystemExit('%s is written at 0x%08x, which is not a multiple '
                              'of four. A run of zeros that starts off a dword '
                              'boundary starts inside the last field before it, '
@@ -91,12 +113,25 @@ def check_org(src, wanted):
 
 def main(check=False):
     with tempfile.TemporaryDirectory() as tmp:
-        code = assemble('vocd.asm', tmp, includes=True)
+        includes(tmp)
+        code = assemble('vocd.asm', tmp)
+        timer = assemble('timer.asm', tmp)
+        dbgbox = assemble('debugbox.asm', tmp)
         padx = assemble('padxinput.asm', tmp)
         levers = assemble('levers.asm', tmp)
         twin = assemble('twinstick.asm', tmp)
         kbpage = assemble('kbpage.asm', tmp)
     _inc, data = layout.build()
+    _inc, cond, pbinds, pnames, devlist = padtables.build()
+    _inc, extras_tpl, extras_data = dialogs.build_extras()
+
+    # One run in the source, two sites in the patcher. The byte between them
+    # is padding in front of the dialog procedure that nothing writes.
+    if dbgbox[DEBUGBOX_SPLIT]:
+        raise SystemExit('debugbox.asm puts %#04x at 0x1f42d7, which the '
+                         'patch does not write' % dbgbox[DEBUGBOX_SPLIT])
+    dbghook = dbgbox[:DEBUGBOX_SPLIT]
+    dbgproc = dbgbox[DEBUGBOX_SPLIT + 1:]
 
     vocd = ['VOCD_MAGICS = {\n']
     for name, value, note in MAGICS:
@@ -115,18 +150,40 @@ def main(check=False):
     new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
     new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
     new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
-    check_org(src, {'padxinput.asm': 0x00207460,
+    new = replace(new, 'TIMER', hexblob('TIMER_CODE', timer))
+    new = replace(new, 'PADTABLES',
+                  hexblob('PAD_COND', cond) + '\n'
+                  + hexblob('PAD_BINDS', pbinds) + '\n'
+                  + hexblob('PAD_NAMES', pnames) + '\n'
+                  + hexblob('PAD_DEVLIST', devlist))
+    new = replace(new, 'DIALOGS',
+                  hexblob('EXTRAS_TPL', extras_tpl) + '\n'
+                  + hexblob('EXTRAS_DATA', extras_data) + '\n'
+                  + hexblob('F5_STOCK', dialogs.build_f5(dialogs.F5_STOCK))
+                  + '\n'
+                  + hexblob('F5_FPS', dialogs.build_f5(dialogs.F5_NEW)))
+    new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
+                  + hexblob('DEBUGBOX_PROC', dbgproc))
+    check_org(src, {'timer.asm': 0x001f423e,
+                    'debugbox.asm': 0x001f427c,
+                    'padxinput.asm': 0x00207460,
                     'twinstick.asm': 0x00223dc4,
-                    'kbpage.asm': 0x0023dd38})
+                    'kbpage.asm': 0x0023dd38},
+              # The .text cave is padding past VirtualSize, so there is no
+              # field in front of it for an unaligned start to land in.
+              padding=('timer.asm', 'debugbox.asm'))
 
-    sizes = ('vocd %d + %d bytes, padxinput %d, levers %d, twinstick %d, '
-             'kbpage %d' % (len(code), len(data), len(padx), len(levers),
-                            len(twin), len(kbpage)))
+    sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
+             'levers %d, twinstick %d, kbpage %d, tables %d, dialogs %d'
+             % (len(code), len(data), len(timer), len(dbgbox), len(padx),
+                len(levers), len(twin), len(kbpage),
+                len(cond) + len(pbinds) + len(pnames) + len(devlist),
+                len(extras_tpl) + len(extras_data) + 2 * dialogs.F5_LEN))
     if check:
         if new != src:
-            raise SystemExit('the assembly does not match the blobs in '
+            raise SystemExit('asm/ does not match the blobs in '
                              'vo-patch.py.\nRun: python3 asm/build.py')
-        print('assembly matches vo-patch.py (%s)' % sizes)
+        print('asm/ matches vo-patch.py (%s)' % sizes)
     else:
         with open(TARGET, 'w', encoding='utf-8') as fh:
             fh.write(new)

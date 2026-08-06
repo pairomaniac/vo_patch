@@ -117,8 +117,10 @@ To build the Windows binary yourself, `pip install pyinstaller` and run
 that is the only place it is written down.
 
 To change the machine code the patches install, see [asm/](asm/). The assembly
-lives there and `asm/build.py` copies the assembled bytes into `vo-patch.py` -
-the hex in the script is generated and should never be edited by hand. CI
+lives there, along with the descriptions the gamepad tables and both dialogs
+are packed from, and `asm/build.py` builds all of it into `vo-patch.py` - the
+long hex strings in the script are generated and should never be edited by
+hand. CI
 checks the two still agree on every push. `python3 vo-patch.py --selfcheck`
 validates the patch tables without needing a copy of the game;
 `python3 tools/selftest.py path/to/v_on.exe` applies them to a real one.
@@ -276,7 +278,7 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
-| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x1f43cf`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
+| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
 Bold entries are not part of original VO_Patch.
 
@@ -445,8 +447,8 @@ command; the check boxes read the game's own flags. F11 because F9 disconnects
 a network game and F10 is a Windows system key.
 
 Motion is not among them any more, the F5 page having taken it over. The
-handler that filled the box stays and does nothing, `SendDlgItemMessage`
-against a missing control being a no-op.
+handler that filled the box stays and does nothing: with no control carrying
+its ID, `GetDlgItem` hands back nothing to talk to.
 
 ---
 

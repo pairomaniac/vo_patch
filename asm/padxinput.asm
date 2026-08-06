@@ -27,7 +27,8 @@ PBTN        equ 0x0365cb74      ; pollers cannot tread on each other
 PREV        equ 0x0365cb84      ; last polled buttons, one word per pad,
                                 ; stride 4
 
-COND        equ 0x00624d1b      ; condition table, 16 entries of 8 bytes
+%include "padtables.inc"    ; COND, the condition table asm/padtables.py
+                            ; builds and the bind bytes index into
 EXIT1P      equ 0x00442ec4      ; where the 1P profile switch resumes
 EXIT2P      equ 0x005bcd57      ; and the 2P one
 

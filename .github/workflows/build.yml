@@ -41,9 +41,10 @@ jobs:
       - name: Patch tables
         run: python3 vo-patch.py --selfcheck
 
-      # Reassembles asm/*.asm and compares against the committed blobs.
-      # Writes nothing - nasm works in a temporary directory.
-      - name: Assembly matches the committed blobs
+      # Reassembles asm/*.asm, repacks the tables and dialogs from asm/*.py,
+      # and compares the lot against the committed blobs. Writes nothing -
+      # nasm works in a temporary directory.
+      - name: Sources match the committed blobs
         run: python3 asm/build.py --check
 
       # --check is meant to be read-only. If that ever stops being true this
@@ -52,7 +53,7 @@ jobs:
         run: git diff --exit-code
 
       - name: Lint
-        run: python3 -m pyflakes vo-patch.py asm/build.py asm/layout.py tools/selftest.py
+        run: python3 -m pyflakes vo-patch.py asm/*.py tools/selftest.py
 
       # The exe is named from the script, so a mismatched tag ships the wrong
       # filename under the right release. Checked here so a bad tag fails in
