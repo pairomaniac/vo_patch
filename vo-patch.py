@@ -42,12 +42,12 @@ ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 # PADX BLOB BEGIN
 PADX_CODE = bytes.fromhex(
     '6822836000e8ef00000083c404e952aee3ff684a836000e8dd00000083c404e9'
-    'd34cfbff0000000000000000000000000000000000000000609ca140cb650383'
-    'f801767431f683fe02736d6870cb650356ff1540cb650385c0755a0fb71d74cb'
-    '65038d14b584cb65030fb72a66891a31ff83ff02733f8d0cbd208160000fb701'
-    '89da21c221e839c27428b80001000085d2750b807903007419b8010100006a00'
-    '0fb651025250ff35585fae01ff156cd5650347ebbc46eb8e9d61ff2590d56503'
-    '1000720000102000000000000000000000000000000000000000000000000000'
+    'd34cfbff0000000000000000000000000000000000000000e807000000ff2590'
+    'd5650300609ce80502000083f801767431f683fe02736d6870cb650356ff1540'
+    'cb650385c0755a0fb71d74cb65038d14b584cb65030fb72a66891a31ff83ff02'
+    '733f8d0cbd278160000fb70189da21c221e839c27428b80001000085d2750b80'
+    '7903007419b8010100006a000fb651025250ff35585fae01ff156cd5650347eb'
+    'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
     '000000000000000000000000000000000000000000000000005589e583ec0453'
     '56578b5d08c745fc00000000e83f01000083f801743c6844cb6503ff33ffd085'
     'c0752fc745fc010000000fb70548cb6503a90010000074068b5318c602800fb7'
@@ -95,6 +95,20 @@ TWIN_CODE = bytes.fromhex(
     '940dad01'
 )
 # TWIN BLOB END
+
+# introwait.asm is assembled at a fixed org too, and pads to the end of the
+# run it sits in: the dword after it is an address the game pushes.
+
+# INTROWAIT BLOB BEGIN
+INTROWAIT_CODE = bytes.fromhex(
+    'e80743feff6a006a006a006a00ff742414ff1590d5650385c07509e80a000000'
+    '85c075dcff258cd56503a180cb650385c0740f83f801743a6a08ffd0b8010000'
+    '00c3680d3e6200ff1504d5650385c07417681a3e620050ff1508d5650385c074'
+    '07a380cb6503ebd0c70580cb65030100000031c0c36b65726e656c33322e646c'
+    '6c00536c65657000000000000000000000000000000000000000000000000000'
+    '0000000000000000'
+)
+# INTROWAIT BLOB END
 
 # The gamepad tables and both dialogs are data, packed by asm/padtables.py and
 # asm/dialogs.py from one description each. The pointers between them are
@@ -387,8 +401,8 @@ FEATURES = [
      'Start\tPause\n'
      'D-pad\tMove, and menu navigation\n'
      '\n'
-     'The intro movie is skipped from the keyboard: it runs under a\n'
-     'message loop the pad does not reach.\n'
+     'A skips the intro movie, which runs under a message loop of its\n'
+     'own. Start does not: the game ignores it while the movie plays.\n'
      '\n'
      'Twin-stick makes each thumbstick a lever: both the same way walks,\n'
      'opposite ways turns, apart jumps, together crouches. The triggers\n'
@@ -475,6 +489,11 @@ FEATURES = [
          # that opens no dialog and reports success.
          (0x00095bdc, '28674900', 'a9674900'),
          (0x00223dc4, '00' * len(TWIN_CODE), TWIN_CODE.hex()),
+         # the intro movie blocks the message loop in GetMessageA, where the
+         # pump stub does not run. Poll from the call itself instead, so a
+         # pad press reaches the window procedure and Space skips the movie.
+         (0x00223198, '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
+         (0x001c52ac, 'ff158cd56503', 'e8e7de050090'),
          # what each pad input is and what it is called
          (0x0022411b, '00' * len(PAD_COND), PAD_COND.hex()),
          (0x00223c43, '00' * len(PAD_BINDS), PAD_BINDS.hex()),

@@ -175,6 +175,7 @@ def main(check=False):
         padx = assemble('padxinput.asm', tmp)
         levers = assemble('levers.asm', tmp)
         twin = assemble('twinstick.asm', tmp)
+        introwait = assemble('introwait.asm', tmp)
         kbpage = assemble('kbpage.asm', tmp)
     _inc, data = layout.build()
     _inc, cond, pbinds, pnames, devlist = padtables.build()
@@ -204,6 +205,7 @@ def main(check=False):
     new = replace(new, 'PADX', hexblob('PADX_CODE', padx))
     new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
     new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
+    new = replace(new, 'INTROWAIT', hexblob('INTROWAIT_CODE', introwait))
     new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
     new = replace(new, 'TIMER', hexblob('TIMER_CODE', timer))
     new = replace(new, 'PADTABLES',
@@ -220,12 +222,14 @@ def main(check=False):
     new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
                   + hexblob('DEBUGBOX_PROC', dbgproc))
     at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'LEVERS_CODE',
-                     'TWIN_CODE', 'KBPAGE_CODE', 'PAD_COND', 'PAD_BINDS',
-                     'PAD_NAMES', 'EXTRAS_TPL', 'EXTRAS_DATA'))
+                     'TWIN_CODE', 'INTROWAIT_CODE', 'KBPAGE_CODE',
+                     'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'EXTRAS_TPL',
+                     'EXTRAS_DATA'))
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
                    'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),
                    'padxinput.asm': ('PADX_CODE', VA_DELTA),
                    'twinstick.asm': ('TWIN_CODE', VA_DELTA),
+                   'introwait.asm': ('INTROWAIT_CODE', VA_DELTA),
                    'kbpage.asm': ('KBPAGE_CODE', VA_DELTA)},
               # The .text cave is padding past VirtualSize, so there is no
               # field in front of it for an unaligned start to land in.
@@ -240,9 +244,9 @@ def main(check=False):
     })
 
     sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
-             'levers %d, twinstick %d, kbpage %d, tables %d, dialogs %d'
+             'levers %d, twinstick %d, introwait %d, kbpage %d, tables %d, dialogs %d'
              % (len(code), len(data), len(timer), len(dbgbox), len(padx),
-                len(levers), len(twin), len(kbpage),
+                len(levers), len(twin), len(introwait), len(kbpage),
                 len(cond) + len(pbinds) + len(pnames) + len(devlist),
                 len(extras_tpl) + len(extras_data) + 2 * dialogs.F5_LEN))
     if check:

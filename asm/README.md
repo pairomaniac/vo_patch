@@ -13,6 +13,7 @@ editing this directory does.
 | `padxinput.asm` | gamepad: the entry stubs, the message-pump stub and the input tick |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
+| `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
@@ -26,7 +27,7 @@ hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed. `build.py` is what copies one into the other.
 
-There are nine blob regions, each fenced off by a pair of comment markers.
+There are ten blob regions, each fenced off by a pair of comment markers.
 `build.py` searches for them and fails if a pair is missing.
 
 ```
@@ -41,6 +42,9 @@ There are nine blob regions, each fenced off by a pair of comment markers.
 
 # TWIN BLOB BEGIN        <- TWIN_CODE
 # TWIN BLOB END
+
+# INTROWAIT BLOB BEGIN   <- INTROWAIT_CODE
+# INTROWAIT BLOB END
 
 # KBPAGE BLOB BEGIN      <- KBPAGE_CODE
 # KBPAGE BLOB END
@@ -58,7 +62,8 @@ There are nine blob regions, each fenced off by a pair of comment markers.
 # DIALOGS BLOB END
 ```
 
-`padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`
+`padxinput.asm`, `twinstick.asm`, `introwait.asm`, `kbpage.asm`, `debugbox.asm`
+and `timer.asm`
 carry an `org`, because their stubs jump to fixed addresses and their
 parameter blocks point at tables in the same blob. The `.py` modules hardcode
 addresses for the same reason - `COND` and `TEMPLATE` are read by the
@@ -192,6 +197,7 @@ the execute bit:
 | bind list table | `0x223c43`-`0x223d00` | 189 | 128 | 61 |
 | condition table | `0x22411b`-`0x2241cb` | 176 | 128 | 48 |
 | twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
+| intro-movie message wait | `0x223198`-`0x223240` | 168 | 135 | 33 |
 | keyboard page fixes | `0x23dd38`-`0x23de00` | 200 | 53 | 147 |
 
 The last of those is the `.rdata` padding the F11 dialog already uses, so it

@@ -156,8 +156,9 @@ The D-pad is not in the bind list. It is wired to the same four directions as
 the movement binds, which is what the menus and the mech list read, so it
 navigates them and it walks in a round.
 
-The intro movie is the exception: it runs under a different message loop that
-the pad does not reach, so it still takes a keyboard press to skip.
+The intro movie runs under a message loop of its own, which blocks rather than
+polls. **A** reaches it and skips the movie, the same as Space. **Start** does
+not: the game ignores F3 for as long as the movie is playing.
 
 ### Gamepad (XInput)
 
@@ -274,7 +275,7 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x0971bd`, `0x207702`, `0x20779e`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
+| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x223198`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
@@ -404,9 +405,15 @@ Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
 mirror, so both sides are the same routine with a different parameter block.
 Start and A are also posted as key messages from the message pump, because
-the input tick does not run while the game is paused. The intro movie runs
-under a different message loop and the pad does not reach it; skipping it
-still needs the keyboard.
+the input tick does not run while the game is paused.
+
+The intro movie is a third case. It plays asynchronously and leaves the game
+blocked in `GetMessageA`, where the pump stub never runs and no pad press
+wakes anything. So that call is replaced too, by a stub that polls, waits in
+short sleeps, and makes the real call once something is queued - the game
+gets exactly what `GetMessageA` would have returned. Space, Enter and Escape
+all skip the movie, so A does; F3 is ignored while it plays, so Start does
+not.
 
 *Keyboard (Real)* is the game's other keyboard profile, untouched except for
 where it keeps its binds. It shared one twenty-four byte block with Simple,
