@@ -174,12 +174,14 @@ Sites written into section padding, and what is still free after them:
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
 | `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 426 | **24** |
-| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 133 | 147 |
+| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 272 | **8** |
 | `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 0 | 424 |
 
 The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left,
 which is why CD audio got a section of its own rather than another cave. The
-`.rdata` one holds the F11 dialog template and the keyboard page fixes.
+`.rdata` one holds the F11 dialog template, the keyboard page fixes and the
+intro-movie message wait, and is now nearly full too. Anything else of any
+size wants its own section, the way `vocd.asm` has one.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
@@ -197,14 +199,24 @@ the execute bit:
 | bind list table | `0x223c43`-`0x223d00` | 189 | 128 | 61 |
 | condition table | `0x22411b`-`0x2241cb` | 176 | 128 | 48 |
 | twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
-| intro-movie message wait | `0x223198`-`0x223240` | 168 | 135 | 33 |
-| keyboard page fixes | `0x23dd38`-`0x23de00` | 200 | 53 | 147 |
+| keyboard page fixes | `0x23dd38`-`0x23dd6d` | 53 | 53 | 0 |
+| intro-movie message wait | `0x23dd70`-`0x23de00` | 144 | 136 | 8 |
 
 The last of those is the `.rdata` padding the F11 dialog already uses, so it
 appears in both tables.
 
-Two of those are nearly full. If either grows, the next free runs of that
-size are `0x1f74e0` and `0x223198`, 174 bytes each.
+Two of those are nearly full, and there is no comfortable room left. The
+`.rdata` padding is now down to eight bytes as well.
+
+`0x1f74e0` and `0x223198` look like free 174-byte runs and are **not**. Both
+are live data. `0x623d08` is a table of twenty-byte entries the code at
+`0x5be302` indexes into, and each run ends inside a `qword` the FPU loads -
+`0x5f8188` and `0x623e40` are both `480.0`, which is `00 00 00 00 00 00 7e
+40`. Six leading zero bytes, so a scan for the longest run of `00` reads six
+bytes into a float constant and reports a run that is longer than the space
+actually is. Writing there crashed the game in the Jaguarandi fight, where
+the table is walked and an entry came back as `0xd58c25ff` - four bytes of
+the code that had been written over it.
 
 A run of zeros is not free space until two things are true of it.
 
@@ -221,6 +233,11 @@ To check, search the file for a dword equal to any address inside the span.
 That search has false positives on long spans - four bytes of data can happen
 to equal an address - so read the instruction at each hit rather than counting
 them.
+
+**It does not end inside one either.** A zero run that abuts a small
+constant - a float, a short string, a counter - scans as longer than it is.
+Check what the bytes immediately after the run belong to, not just what
+points into it.
 
 **Its start is a multiple of four.** Addresses in this image are all below
 `0x01000000`, so every pointer has a zero top byte, and a scan for the longest

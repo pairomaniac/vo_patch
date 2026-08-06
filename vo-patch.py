@@ -96,17 +96,17 @@ TWIN_CODE = bytes.fromhex(
 )
 # TWIN BLOB END
 
-# introwait.asm is assembled at a fixed org too, and pads to the end of the
-# run it sits in: the dword after it is an address the game pushes.
+# introwait.asm is assembled at a fixed org too. It goes in the .rdata raw
+# padding after kbpage.asm, not in a zero run inside .rdata: those are live
+# tables and float constants, where a zero is a value.
 
 # INTROWAIT BLOB BEGIN
 INTROWAIT_CODE = bytes.fromhex(
-    'e80743feff6a006a006a006a00ff742414ff1590d5650385c07509e80a000000'
+    'e82f97fcff6a006a006a006a00ff742414ff1590d5650385c07509e80a000000'
     '85c075dcff258cd56503a180cb650385c0740f83f801743a6a08ffd0b8010000'
-    '00c3680d3e6200ff1504d5650385c07417681a3e620050ff1508d5650385c074'
+    '00c368e5e96300ff1504d5650385c0741768f2e9630050ff1508d5650385c074'
     '07a380cb6503ebd0c70580cb65030100000031c0c36b65726e656c33322e646c'
-    '6c00536c65657000000000000000000000000000000000000000000000000000'
-    '0000000000000000'
+    '6c00536c65657000'
 )
 # INTROWAIT BLOB END
 
@@ -492,8 +492,8 @@ FEATURES = [
          # the intro movie blocks the message loop in GetMessageA, where the
          # pump stub does not run. Poll from the call itself instead, so a
          # pad press reaches the window procedure and Space skips the movie.
-         (0x00223198, '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
-         (0x001c52ac, 'ff158cd56503', 'e8e7de050090'),
+         (0x0023dd70, '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
+         (0x001c52ac, 'ff158cd56503', 'e8bf8a070090'),
          # what each pad input is and what it is called
          (0x0022411b, '00' * len(PAD_COND), PAD_COND.hex()),
          (0x00223c43, '00' * len(PAD_BINDS), PAD_BINDS.hex()),
