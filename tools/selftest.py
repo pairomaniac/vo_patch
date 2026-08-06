@@ -37,17 +37,15 @@ def load_patcher():
 
 
 def apply(vp, original, keys):
-    buf = bytearray(original)
-    for key in vp.apply_order():
-        if key not in keys:
-            continue
-        sites = vp.BY_KEY[key][2]
-        if sites is not None:
-            vp.apply_feature(buf, sites)
-        else:
-            vp.apply_dinput(buf)
-        if key == 'nodisc':
-            buf = vp.apply_cdaudio(buf)
+    """The patcher's own apply loop, so this tests what it ships.
+
+    A skip is a failure here: the patcher tolerates dinput's signature going
+    missing because a live install is better than none, but if a combination
+    of patches can destroy that signature, that is what this run is for."""
+    buf, _applied, skipped = vp.apply_selected(bytearray(original),
+                                               dict.fromkeys(keys, True))
+    if skipped:
+        raise AssertionError('skipped %s: %s' % (skipped[0][0], skipped[0][1]))
     return buf
 
 
@@ -118,5 +116,5 @@ def main(path):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        sys.exit(__doc__.strip().splitlines()[2].strip())
+        sys.exit('Usage: python3 tools/selftest.py /path/to/v_on.exe')
     sys.exit(main(sys.argv[1]))

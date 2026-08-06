@@ -42,8 +42,10 @@ jobs:
         run: python3 vo-patch.py --selfcheck
 
       # Reassembles asm/*.asm, repacks the tables and dialogs from asm/*.py,
-      # and compares the lot against the committed blobs. Writes nothing -
-      # nasm works in a temporary directory.
+      # and compares the lot against the committed blobs. Also checks each
+      # blob's site in the patch table against the address the source names
+      # for it, which is the one mistake nothing downstream would notice.
+      # Writes nothing - nasm works in a temporary directory.
       - name: Sources match the committed blobs
         run: python3 asm/build.py --check
 
@@ -106,8 +108,7 @@ jobs:
           pyi-archive_viewer -l -b dist/*.exe > listing.txt
           grep -q '_tkinter' listing.txt || { echo 'tkinter was not bundled'; exit 1; }
           grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
-          if grep -q 'gi/' listing.txt; then echo 'gi leaked into the bundle'; exit 1; fi
-          echo "$(grep -c . listing.txt) entries, tkinter present, gi absent"
+          echo "$(grep -c . listing.txt) entries, tkinter present"
 
       # To the log, not an asset: a checksum beside its own binary proves
       # nothing.

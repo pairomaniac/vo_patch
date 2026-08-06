@@ -60,10 +60,15 @@ There are nine blob regions, each fenced off by a pair of comment markers.
 
 `padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`
 carry an `org`, because their stubs jump to fixed addresses and their
-parameter blocks point at tables in the same blob. `build.py` checks each
-`org` against the offset of the site that writes it, since nothing downstream
-would notice a mismatch: the bytes would be written and every address inside
-them would be wrong.
+parameter blocks point at tables in the same blob. The `.py` modules hardcode
+addresses for the same reason - `COND`, `NAMES`, `TEMPLATE` and the rest are
+read by the assembly and pointed at from inside the blobs.
+
+Either way the source names a place as a virtual address and the patch table
+names it as a file offset, and `build.py` checks the two agree. Nothing
+downstream would notice a mismatch: the bytes would be written, and every
+address into them would be a few bytes out. The offsets come from the patch
+table itself rather than a second copy here.
 
 `build.py` runs nasm on each `.asm` file, calls `build()` on each `.py` one,
 formats the output as `bytes.fromhex(...)`, and replaces everything between
@@ -103,7 +108,7 @@ It installs nasm and runs the same checks you would:
 | Step | Catches |
 | --- | --- |
 | `vo-patch.py --selfcheck` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered |
-| `asm/build.py --check` | a source edited without the blobs being regenerated |
+| `asm/build.py --check` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing |
 | `git diff --exit-code` | blobs regenerated but not committed |
 | `pyflakes` | unused names, undefined names, bad imports |
 

@@ -18,6 +18,7 @@ Everything nasm needs is built in a temporary directory, so neither mode
 leaves anything behind in the tree.
 """
 
+import importlib.util
 import os
 import re
 import subprocess
@@ -36,6 +37,11 @@ import padtables                                          # noqa: E402
 # debugbox.asm is one run assembled at 0x5f4e7c; the dialog procedure inside
 # it is pinned at 0x5f4ed8, one byte further on than the hook ends.
 DEBUGBOX_SPLIT = 0x5f4ed8 - 0x5f4e7c - 1
+
+# Virtual address minus file offset. Every section this project writes into
+# shares one delta except .rsrc, which sits further along in the file.
+VA_DELTA = 0x400c00
+VA_DELTA_RSRC = 0x305c400
 
 MAGICS = [
     ('MAGIC_ORIGENTRY', 0xE1E1E1E1, 'VA of the entry point we chain to'),
@@ -88,7 +94,29 @@ def replace(text, name, body):
     return new
 
 
-def check_org(src, wanted, padding=()):
+def blob_sites(names):
+    """Blob name -> the offset in vo-patch.py's table that writes it.
+
+    Read out of the patch table rather than repeated here, so each site is
+    written down once. A blob is matched by its own hex, which is what the
+    `new` column of its site holds."""
+    spec = importlib.util.spec_from_file_location('vopatch', TARGET)
+    vp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vp)                 # runs _check_table
+
+    at = {}
+    for name in names:
+        want = getattr(vp, name).hex()
+        hits = [off for _k, _l, _t, sites in vp.FEATURES
+                for off, _old, new in sites or () if new == want]
+        if len(hits) != 1:
+            raise SystemExit('%s is written at %d sites in vo-patch.py, and '
+                             'this check needs exactly one' % (name, len(hits)))
+        at[name] = hits[0]
+    return at
+
+
+def check_org(at, wanted, padding=()):
     """Sources assembled at a fixed org, where the source and the site that
     writes it have to name the same address. Nothing downstream would
     notice: the code would be written, and every jump in it would land a
@@ -97,7 +125,8 @@ def check_org(src, wanted, padding=()):
     `padding` names the sources whose cave is section padding rather than a
     run of zeros cut out of live data, where the four-alignment rule below
     has nothing to protect."""
-    for name, site in wanted.items():
+    for name, (blob, delta) in wanted.items():
+        site = at[blob]
         with open(os.path.join(HERE, name), encoding='utf-8') as fh:
             org = int(re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read()).group(1), 16)
         if site % 4 and name not in padding:
@@ -105,9 +134,23 @@ def check_org(src, wanted, padding=()):
                              'of four. A run of zeros starting off a dword '
                              'boundary starts inside the last field before it.'
                              % (name, site))
-        if org != site + 0x400c00:
+        if org != site + delta:
             raise SystemExit('%s is assembled at 0x%08x but its site puts it '
-                             'at 0x%08x' % (name, org, site + 0x400c00))
+                             'at 0x%08x' % (name, org, site + delta))
+
+
+def check_addr(at, wanted):
+    """The same check for the addresses the .py packers hardcode.
+
+    They name these places as virtual addresses, because the assembly reads
+    them and the pointers inside the blobs point at them; the patch table
+    names the same places as file offsets. Nothing else compares the two, and
+    a blob written a few bytes off is a table every pointer misses."""
+    for name, (va, blob, delta) in wanted.items():
+        if va != at[blob] + delta:
+            raise SystemExit('%s is 0x%08x but %s is written at 0x%08x, which '
+                             'is 0x%08x' % (name, va, blob, at[blob],
+                                            at[blob] + delta))
 
 
 def main(check=False):
@@ -163,14 +206,24 @@ def main(check=False):
                   + hexblob('F5_FPS', dialogs.build_f5(dialogs.F5_NEW)))
     new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
                   + hexblob('DEBUGBOX_PROC', dbgproc))
-    check_org(src, {'timer.asm': 0x001f423e,
-                    'debugbox.asm': 0x001f427c,
-                    'padxinput.asm': 0x00207460,
-                    'twinstick.asm': 0x00223dc4,
-                    'kbpage.asm': 0x0023dd38},
+    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'TWIN_CODE',
+                     'KBPAGE_CODE', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES',
+                     'EXTRAS_TPL', 'EXTRAS_DATA'))
+    check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
+                   'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),
+                   'padxinput.asm': ('PADX_CODE', VA_DELTA),
+                   'twinstick.asm': ('TWIN_CODE', VA_DELTA),
+                   'kbpage.asm': ('KBPAGE_CODE', VA_DELTA)},
               # The .text cave is padding past VirtualSize, so there is no
               # field in front of it for an unaligned start to land in.
               padding=('timer.asm', 'debugbox.asm'))
+    check_addr(at, {
+        'padtables.COND': (padtables.COND, 'PAD_COND', VA_DELTA),
+        'padtables.BINDS': (padtables.BINDS, 'PAD_BINDS', VA_DELTA),
+        'padtables.NAMES': (padtables.NAMES, 'PAD_NAMES', VA_DELTA),
+        'dialogs.DATA': (dialogs.DATA, 'EXTRAS_DATA', VA_DELTA),
+        'dialogs.TEMPLATE': (dialogs.TEMPLATE, 'EXTRAS_TPL', VA_DELTA_RSRC),
+    })
 
     sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
              'levers %d, twinstick %d, kbpage %d, tables %d, dialogs %d'

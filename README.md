@@ -86,8 +86,8 @@ untick anything you do not want.
 Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
 `a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
 before anything is written, and **Restore original** puts it back so you can
-change your selection. Nothing is written unless every selected patch applied,
-so a failure leaves the game exactly as it was.
+change your selection. Nothing is written unless every selected patch applied
+and the backup was made, so a failure leaves the game exactly as it was.
 
 If **XInput gamepad support** was among them, `v_on.ini` is moved to
 `v_on.ini.bak` at the same time and the game writes a fresh one. **Restore

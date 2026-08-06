@@ -352,25 +352,25 @@ FEATURES = [
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
          (0x00077f5a, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e8df63f9ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x00078b1c, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e81d58f9ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x00079bb6, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e88347f9ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x00079f3f, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e8fa43f9ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x0007d04a, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e8ef12f9ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x000bb9ea, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e80fc1f4ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x000bc5ac, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e84db5f4ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x000bd646, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e8b3a4f4ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x000bd9cf, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e82aa1f4ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090'),
+          '90' * 42),
          (0x000c0ada, '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d91c24e81f70f4ff83c40c',
-          '909090909090909090909090909090909090909090909090909090909090909090909090909090909090')]),
+          '90' * 42)]),
 
     ('padxinput', 'XInput gamepad support',
      'Three profiles on the F7 screen, for both players.\n'
@@ -615,7 +615,7 @@ def _wav_header(pcm_bytes):
             b'data' + struct.pack('<I', pcm_bytes))
 
 
-class WavWriter(object):
+class WavWriter:
     """Writes a WAV whose length is not known until the end."""
 
     def __init__(self, path):
@@ -1325,8 +1325,50 @@ def _repoint_mci_calls(pe, slot_va, hook_va):
         pe.d[off + 5] = 0x90
 
 
+class PatchFailed(Exception):
+    """A patch did not apply. Nothing has been written: the caller holds the
+    only copy of the buffer."""
+
+    def __init__(self, key, cause):
+        super().__init__('%s: %s' % (BY_KEY[key][0], cause))
+        self.key = key
+
+
+def apply_selected(buf, wanted):
+    """Write every wanted patch into buf, in apply_order().
+
+    Returns (buffer, applied keys, [(skipped key, why)]). The buffer is not
+    the one passed in once nodisc has appended its section, so use the one
+    that comes back.
+
+    Anything that does not apply raises PatchFailed, with the first mismatch
+    aborting the lot. dinput is the exception: it is found by signature
+    rather than offset, so a miss means this build does not have the call
+    site, and the rest still go on.
+    """
+    applied, skipped = [], []
+    for key in apply_order():
+        if not wanted.get(key):
+            continue
+        sites = BY_KEY[key][2]
+        try:
+            if sites is not None:
+                apply_feature(buf, sites)
+            else:
+                apply_dinput(buf)
+            if key == 'nodisc':          # bytes first, then the section
+                buf = apply_cdaudio(buf)
+        except Exception as exc:
+            if sites is None:
+                skipped.append((key, exc))
+                continue
+            raise PatchFailed(key, exc) from exc
+        applied.append(key)
+    return buf, applied, skipped
+
+
 class Patcher:
-    """All the file handling, with no reference to any toolkit."""
+    """All the file handling. Nothing in here touches Tk."""
 
     def __init__(self):
         self.exe_path = None
@@ -1364,41 +1406,32 @@ class Patcher:
         except OSError as exc:
             return False, ['Could not read the executable: %s' % exc]
 
-        applied, skipped = [], []
-        for key in apply_order():
-            if not wanted.get(key):
-                continue
-            label, _tip, sites = BY_KEY[key]
-            try:
-                if sites is not None:
-                    apply_feature(buf, sites)
-                elif key == 'dinput':
-                    apply_dinput(buf)
-                if key == 'nodisc':          # bytes first, then the section
-                    buf = apply_cdaudio(buf)
-            except ValueError as exc:
-                if key == 'dinput':          # signature miss, not fatal
-                    log.append('Skipped %s: %s' % (label, exc))
-                    skipped.append(label)
-                    continue
-                return False, ['%s: %s' % (label, exc), 'Nothing written.']
-            applied.append(label)
+        try:
+            buf, applied, skipped = apply_selected(buf, wanted)
+        except PatchFailed as exc:
+            return False, [str(exc), 'Nothing written.']
+        except Exception as exc:             # a bug in here, not a bad file
+            return False, ['Patching failed: %s' % exc, 'Nothing written.']
+        for key, why in skipped:
+            log.append('Skipped %s: %s' % (BY_KEY[key][0], why))
 
         if not applied:
             if skipped:
                 log.append('%s was the only patch selected and its call site '
-                           'was not found. Nothing written.' % skipped[0])
+                           'was not found. Nothing written.'
+                           % BY_KEY[skipped[0][0]][0])
             else:
                 log.append('No patches selected. Nothing written.')
             return False, log
 
-        self._backup(self.exe_path, log)
+        if not self._backup(self.exe_path, log):
+            return False, log + ['Nothing written.']
         try:
             with open(self.exe_path, 'wb') as fh:
                 fh.write(buf)
         except OSError as exc:
             return False, log + ['Write failed: %s' % exc]
-        log += ['  %s' % name for name in applied]
+        log += ['  %s' % BY_KEY[key][0] for key in applied]
         log.append('Wrote %s' % self.exe_path)
         if wanted.get('padxinput'):
             self._retire_ini(log)
@@ -1447,20 +1480,26 @@ class Patcher:
 
     @staticmethod
     def _backup(path, log):
+        """Copy the original aside. False means it did not happen and nothing
+        should be written: a read-only folder or a locked file would otherwise
+        leave a patched game with no way back."""
         bak = path + '.bak'
-        if not os.path.exists(bak):
-            try:
-                shutil.copy(path, bak)
-                log.append('Backup: %s' % bak)
-            except OSError as exc:
-                log.append('Backup failed for %s: %s' % (path, exc))
+        if os.path.exists(bak):
+            return True
+        try:
+            shutil.copy(path, bak)
+        except OSError as exc:
+            log.append('Backup failed for %s: %s' % (path, exc))
+            return False
+        log.append('Backup: %s' % bak)
+        return True
 
 
 def describe(text):
     """Split a description into prose and any 'key<TAB>meaning' rows.
 
-    A blank line starts a paragraph; the breaks stay in the prose so either
-    toolkit can drop it into one wrapped label."""
+    A blank line starts a paragraph; the breaks stay in the prose so it
+    can go into one wrapped label."""
     paragraphs, para, rows = [], [], []
     for line in text.split('\n'):
         if '\t' in line:
@@ -1476,8 +1515,8 @@ def describe(text):
     return '\n\n'.join(paragraphs), rows
 
 
-# From the game's artwork. Both toolkits paint themselves with this rather
-# than following the desktop theme.
+# From the game's artwork. The window paints itself with this rather than
+# following the desktop theme.
 PALETTE = {
     'ink': '#0b1020',       # window
     'card': '#151d33',      # panel
@@ -2203,11 +2242,12 @@ def run_tk():
 
         def _patch_body(self, parent, keys, hint, link=None):
             _hint(parent, hint, self.dim, self.small, pady=(0, 8))
+            state = default_state()
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
                 row = ttk.Frame(parent, style='Card.TFrame')
                 row.pack(fill='x', pady=1)
-                var = tk.BooleanVar(value=default_state()[key])
+                var = tk.BooleanVar(value=state[key])
                 check = ttk.Checkbutton(row, text=label, variable=var,
                                         style='Card.TCheckbutton')
                 check.state(['disabled'])
@@ -2413,7 +2453,7 @@ def rip_cli(argv):
 
 
 def main():
-    """Open the window, or explain how to get a toolkit."""
+    """Open the window, or explain how to install Tk."""
     args = sys.argv[1:]
     if '--help' in args or '-h' in args:
         print(USAGE % VERSION)
