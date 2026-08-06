@@ -4,12 +4,11 @@ BASE        equ 0x00608060      ; the org again, for the pins below
 ; The XInput routine: two profile entry stubs, the message-pump stub, the
 ; per-player input tick and its parameter blocks.
 ;
-; Six addresses in here are named by something outside this file and cannot
+; Five addresses in here are named by something outside this file and cannot
 ; move. `times` pins each one, so nasm fails rather than shifting them:
 ;
 ;   0x608060, 0x608072  the profile dispatch sites point at the entry stubs
 ;   0x608098            the PeekMessageA call site points at the pump stub
-;   0x6080a4            introwait.asm calls the pad poll
 ;   0x608159            twinstick.asm calls the tick
 ;   0x608302            the levers site replaces the epilogue, and expects
 ;                       the five bytes of it to be exactly where they are
@@ -71,25 +70,31 @@ entry2p:
 ; input tick does not run while the game is paused, so pause and resume are
 ; posted from here instead.
 ;
-; The intro movie takes the loop's other branch: it is played asynchronously
-; - 0x5b13aa issues MCI_PLAY without MCI_WAIT - and leaves 0x6bc598 at 1, so
-; the test at 0x5c5e95 picks a blocking GetMessageA instead of this call.
-; introwait.asm hooks that one and shares the poll below.
+; This does not cover the intro movie, and two attempts have failed.
+;
+; The movie plays asynchronously - MCI_PLAY without MCI_WAIT - and 0x5b13aa
+; leaves 0x6bc598 at 1, which the test at 0x5c5e95 sends to a blocking
+; GetMessageA at 0x5c5eac. The pump never runs there. Hooking the common head
+; at 0x5c5e81 does not help: that branch only turns over when a message
+; arrives and a pad press is not one.
+;
+; Replacing the GetMessageA call at 0x5c5eac with a poll-and-sleep stub does
+; wake it, and does skip the movie - the VK table at 0x5c6bf4 sends Return,
+; Escape and Space to the skip at 0x5c6bce, so A reaches it. But wherever the
+; stub was put, something read it back as data and crashed on the pointer:
+; first at 0x223198, which is inside the twenty-byte table at 0x623d00, and
+; then at 0x23dd70 in the .rdata padding, where 0x0063e97c came back as
+; 0x2474ff00 - the `push dword [esp+0x14]` in the stub itself. The crash
+; landed before the Jaguarandi and final boss fights, and went away with the
+; hook disabled and everything else left in place.
+;
+; So the next attempt needs to explain that read before choosing an address,
+; and wants its own patch key so it can be turned off without the pad.
 pump:
-    call    pollpads
-    jmp     [PEEKMSG]
-
-    times   (0x006080a4 - BASE) - ($ - $$) db 0
-
-; ---------------------------------------------------------------- 0x6080a4
-; Poll both pads and post the edges for the keys the window procedure handles
-; itself. Called from the pump each frame, and from introwait.asm while the
-; intro movie holds the loop.
-pollpads:
     pushad
     pushfd
-    call    resolve             ; during the intro the tick has never run, so
-    cmp     eax, 1              ; nothing else has resolved the import yet
+    mov     eax, [XIFN]         ; nothing here resolves the import: until the
+    cmp     eax, 1              ; tick has run once there is nothing to call
     jbe     .out
     xor     esi, esi
 .pad:
@@ -137,7 +142,7 @@ pollpads:
 .out:
     popfd
     popad
-    ret
+    jmp     [PEEKMSG]
 
 ; mask, virtual key, and whether to post a release as well. Neither of these
 ; posts one: what F3 does on a keyup is not known and pause works as it is.
@@ -312,7 +317,7 @@ apply:
 ; ---------------------------------------------------------------------------
 ; Resolve XInputGetState once, and remember that it failed so a machine with
 ; no XInput is not retried every frame. Called from the tick and from the
-; poll, since either can be the first to run.
+; pump, since either can be the first to run.
 resolve:
     mov     eax, [XIFN]
     test    eax, eax
