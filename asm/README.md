@@ -61,8 +61,8 @@ There are nine blob regions, each fenced off by a pair of comment markers.
 `padxinput.asm`, `twinstick.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`
 carry an `org`, because their stubs jump to fixed addresses and their
 parameter blocks point at tables in the same blob. The `.py` modules hardcode
-addresses for the same reason - `COND`, `NAMES`, `TEMPLATE` and the rest are
-read by the assembly and pointed at from inside the blobs.
+addresses for the same reason - `COND` and `TEMPLATE` are read by the
+assembly, `NAMES` and `BINDS` are pointed at from inside the blobs.
 
 Either way the source names a place as a virtual address and the patch table
 names it as a file offset, and `build.py` checks the two agree. Nothing

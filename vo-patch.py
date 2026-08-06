@@ -1358,10 +1358,12 @@ def apply_selected(buf, wanted):
                 apply_dinput(buf)
             if key == 'nodisc':          # bytes first, then the section
                 buf = apply_cdaudio(buf)
-        except Exception as exc:
-            if sites is None:
+        except ValueError as exc:
+            if sites is None:            # signature miss, not fatal
                 skipped.append((key, exc))
                 continue
+            raise PatchFailed(key, exc) from exc
+        except Exception as exc:         # a bug in here, not a bad file
             raise PatchFailed(key, exc) from exc
         applied.append(key)
     return buf, applied, skipped

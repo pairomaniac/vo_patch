@@ -12,7 +12,8 @@ readable description.
 vo-patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
 in when the assembly changes, and --check catches assembly edited without them
-being regenerated.
+being regenerated. It also reads the patch table back, so each blob's site and
+the address its source names for it are checked against each other.
 
 Everything nasm needs is built in a temporary directory, so neither mode
 leaves anything behind in the tree.
@@ -139,11 +140,23 @@ def check_org(at, wanted, padding=()):
                              'at 0x%08x' % (name, org, site + delta))
 
 
+def check_follows(at, name, after, length):
+    """A blob written straight after another one, with no org of its own.
+
+    levers.asm replaces the tail of the XInput routine, and the jump into it
+    is a distance nasm worked out from the routine's own layout. So its site
+    is not free: it is the routine's site plus the routine's length, and a
+    site a few bytes off would leave that jump pointing into padding."""
+    if at[name] != at[after] + length:
+        raise SystemExit('%s is written at 0x%08x but %s ends at 0x%08x'
+                         % (name, at[name], after, at[after] + length))
+
+
 def check_addr(at, wanted):
     """The same check for the addresses the .py packers hardcode.
 
     They name these places as virtual addresses, because the assembly reads
-    them and the pointers inside the blobs point at them; the patch table
+    them or the pointers inside the blobs point at them; the patch table
     names the same places as file offsets. Nothing else compares the two, and
     a blob written a few bytes off is a table every pointer misses."""
     for name, (va, blob, delta) in wanted.items():
@@ -206,9 +219,9 @@ def main(check=False):
                   + hexblob('F5_FPS', dialogs.build_f5(dialogs.F5_NEW)))
     new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
                   + hexblob('DEBUGBOX_PROC', dbgproc))
-    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'TWIN_CODE',
-                     'KBPAGE_CODE', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES',
-                     'EXTRAS_TPL', 'EXTRAS_DATA'))
+    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'LEVERS_CODE',
+                     'TWIN_CODE', 'KBPAGE_CODE', 'PAD_COND', 'PAD_BINDS',
+                     'PAD_NAMES', 'EXTRAS_TPL', 'EXTRAS_DATA'))
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
                    'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),
                    'padxinput.asm': ('PADX_CODE', VA_DELTA),
@@ -217,6 +230,7 @@ def main(check=False):
               # The .text cave is padding past VirtualSize, so there is no
               # field in front of it for an unaligned start to land in.
               padding=('timer.asm', 'debugbox.asm'))
+    check_follows(at, 'LEVERS_CODE', 'PADX_CODE', len(padx))
     check_addr(at, {
         'padtables.COND': (padtables.COND, 'PAD_COND', VA_DELTA),
         'padtables.BINDS': (padtables.BINDS, 'PAD_BINDS', VA_DELTA),
