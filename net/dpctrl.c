@@ -26,6 +26,8 @@
 #define MSGRING_MASK     (MSGRING - 1)
 #define MAXPKT           512
 #define RESEND_MS        1000
+#define BEAT_MS          250     /* idle heartbeat, so silence means silence  */
+#define SILENCE_MS       3000    /* nothing at all from the peer -> link dead */
 #define HANDSHAKE_MS     30000
 #define NEGOTIATE_MS     10000
 #define PING_ROUNDS      9
@@ -95,8 +97,15 @@ static struct {
     int    hs_done, hs_failed;
     DWORD  hs_start, hs_last;
 
+    DWORD  last_rx;        /* last packet accepted from the peer */
+    DWORD  last_tx;        /* last packet we put on the wire     */
+    int    peer_quit;      /* peer said goodbye, cleanly         */
+
     char   ip[128];
     int    port;
+    char   lan[192];       /* this machine's LAN addresses               */
+    char   pub[64];        /* public address, only looked up on request  */
+    int    pub_shown;
 } g;
 
 /* ------------------------------------------------------------------ */
@@ -133,9 +142,11 @@ static void sock_close(void)
 
 static void send_raw(const void *buf, int len)
 {
-    if (g.up)
+    if (g.up) {
         sendto(g.sock, (const char *)buf, len, 0,
                (struct sockaddr *)&g.peer, sizeof(g.peer));
+        g.last_tx = timeGetTime();
+    }
 }
 
 static void send_ctl(unsigned char type, DWORD arg)
@@ -144,13 +155,13 @@ static void send_ctl(unsigned char type, DWORD arg)
     memset(b, 0, sizeof(b));
     b[0] = type;
     switch (type) {
-    case P_RESEND: case P_DELAY: case P_CMD:
-        *(DWORD *)(b + 4) = arg;
-        send_raw(b, 8);
-        break;
-    default:
-        send_raw(b, 1);
-        break;
+        case P_RESEND: case P_DELAY: case P_CMD:
+            *(DWORD *)(b + 4) = arg;
+            send_raw(b, 8);
+            break;
+        default:
+            send_raw(b, 1);
+            break;
     }
 }
 
@@ -197,7 +208,25 @@ static int poll_recv(void)
         return 0;
 
     g.pktlen = n;
+    g.last_rx = timeGetTime();
     return 1;
+}
+
+/* Keep something on the wire while idle, so a gap really means the peer is
+ *  gone rather than merely quiet - during a relayed menu neither side sends
+ *  frames, and without this that looks identical to a crash. */
+static void heartbeat(void)
+{
+    if (g.linked && timeGetTime() - g.last_tx >= BEAT_MS)
+        send_ctl(P_POLL, 0);
+}
+
+/* True once the peer has been silent long enough to call it dead. Frames
+ *  going missing is a separate, far more patient case: the peer is still
+ *  audible, so the resend path handles it on the original's timings. */
+static int link_silent(void)
+{
+    return g.linked && (timeGetTime() - g.last_rx >= SILENCE_MS);
 }
 
 static int handle_packet(void)
@@ -207,53 +236,65 @@ static int handle_packet(void)
     int i;
 
     switch (type) {
-    case P_DATA: {
-        int seq = g.pkt[1] & RING_MASK;
-        slot = g.rx + seq * MAXPKT;
-        for (i = 0; i < g.framelen && i < g.pktlen; i++)
-            slot[i] = g.pkt[i];
-        return R_DATA;
-    }
-    case P_RESEND: {
-        int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
-        slot = g.tx + seq * MAXPKT;
-        if (slot[0] == P_DATA)
-            send_raw(slot, g.framelen);
-        return R_RESEND;
-    }
-    case P_PING:
-        send_ctl(P_PONG, 0);
-        return R_PONG;
-    case P_PONG:
-        return R_PONG;
-    case P_POLL:
-        return R_NONE;
-    case P_DELAY:
-        return R_DELAY;
-    case P_CMD:
-        return R_CMD;
-    case P_QUIT:
-        return R_PEERQUIT;
-    case P_HELLO:
-        /* A late duplicate of the guest's hello. Re-ack it. */
-        if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            unsigned char b[1 + sizeof(g.tag)];
-            b[0] = P_ACK;
-            memcpy(b + 1, g.tag, sizeof(g.tag));
-            send_raw(b, sizeof(b));
+        case P_DATA: {
+            int seq = g.pkt[1] & RING_MASK;
+            slot = g.rx + seq * MAXPKT;
+            for (i = 0; i < g.framelen && i < g.pktlen; i++)
+                slot[i] = g.pkt[i];
+            return R_DATA;
         }
-        return R_NONE;
-    case P_ACK:
-        return R_NONE;
-    default:
-        /* Anything else is a game message. Queue it for ReceiveDirectPlay. */
-        g.msg[g.msg_head] = (unsigned char)g.pktlen;
-        g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
-        for (i = 0; i < g.pktlen; i++) {
-            g.msg[g.msg_head] = g.pkt[i];
-            g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
+        case P_RESEND: {
+            int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
+            slot = g.tx + seq * MAXPKT;
+            if (slot[0] == P_DATA)
+                send_raw(slot, g.framelen);
+            return R_RESEND;
         }
-        return R_NONE;
+        case P_PING:
+            send_ctl(P_PONG, 0);
+            return R_PONG;
+        case P_PONG:
+            return R_PONG;
+        case P_POLL:
+            g.linked = 1;          /* the original sets its link flag here */
+            return R_NONE;
+        case P_DELAY:
+            return R_DELAY;
+        case P_CMD:
+            return R_CMD;
+            /* Our own types are length-checked as well as value-checked. The game
+             *      sends 21-byte messages of an unknown type through SendDirectPlay, and
+             *      one of those must never be mistaken for ours and swallowed. */
+            case P_QUIT:
+                if (g.pktlen == 1) {
+                    g.peer_quit = 1;
+                    return R_PEERQUIT;
+                }
+                goto queue;
+            case P_HELLO:
+                if (g.pktlen == 1 + (int)sizeof(g.tag) &&
+                    !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                    unsigned char b[1 + sizeof(g.tag)];   /* re-ack a late hello */
+                    b[0] = P_ACK;
+                memcpy(b + 1, g.tag, sizeof(g.tag));
+                send_raw(b, sizeof(b));
+                return R_NONE;
+                    }
+                    goto queue;
+            case P_ACK:
+                if (g.pktlen == 1 + (int)sizeof(g.tag))
+                    return R_NONE;
+        goto queue;
+            default:
+                queue:
+                /* Anything else is a game message. Queue it for ReceiveDirectPlay. */
+                g.msg[g.msg_head] = (unsigned char)g.pktlen;
+                g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
+                for (i = 0; i < g.pktlen; i++) {
+                    g.msg[g.msg_head] = g.pkt[i];
+                    g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
+                }
+                return R_NONE;
     }
 }
 
@@ -261,11 +302,21 @@ static int handle_packet(void)
 /* connection dialogs, built in memory so the DLL needs no resources    */
 /* ------------------------------------------------------------------ */
 
-#define ID_IP     0x3E8
-#define ID_PORT   0x3E9
-#define ID_HOST   0x3EA
-#define ID_JOIN   0x3EB
-#define ID_STATUS 0x3EC
+#define ID_IP      0x3E8
+#define ID_PORT    0x3E9
+#define ID_HOST    0x3EA    /* radio: host a game */
+#define ID_JOIN    0x3EB    /* radio: join a game */
+#define ID_STATUS  0x3EC
+#define ID_LOCAL   0x3ED    /* shows this machine's address when hosting */
+#define ID_IPLABEL 0x3EE
+#define ID_PUBBTN  0x3EF    /* toggles the public address on and off */
+#define ID_PUBTEXT 0x3F0
+#define ID_COPYBTN 0x3F1
+
+#define STUN_HOST1 "stun.l.google.com"
+#define STUN_HOST2 "stun1.l.google.com"
+#define STUN_PORT  19302
+#define STUN_WAIT  1500     /* total ms to wait before giving up */
 
 static WORD *tpl_str(WORD *p, const char *s)
 {
@@ -317,61 +368,297 @@ static WORD *tpl_head(WORD *buf, DWORD style, short cx, short cy,
 #define CLS_EDIT   0x0081
 #define CLS_STATIC 0x0082
 
+/* Ask a STUN server what address the outside world sees us as. The mapped
+ *  port is deliberately ignored: it describes the NAT's outbound mapping,
+ *  not whether an inbound forward exists, so showing it would mislead.
+ *  Best effort - any failure just means the address is not shown. */
+static int stun_query(const char *server, char *out, int outsz)
+{
+    unsigned char req[20], resp[512];
+    struct sockaddr_in sa, from;
+    struct hostent *he;
+    SOCKET s2;
+    unsigned long nb = 1;
+    DWORD start;
+    int fromlen, n, i;
+
+    he = gethostbyname(server);
+    if (!he || he->h_addrtype != AF_INET)
+        return 0;
+
+    s2 = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s2 == INVALID_SOCKET)
+        return 0;
+    ioctlsocket(s2, FIONBIO, &nb);
+
+    /* Binding request: type 0x0001, no attributes, magic cookie, then a
+     *      transaction id we do not bother to randomise. */
+    memset(req, 0, sizeof(req));
+    req[1] = 0x01;
+    req[4] = 0x21; req[5] = 0x12; req[6] = 0xA4; req[7] = 0x42;
+    for (i = 8; i < 20; i++)
+        req[i] = (unsigned char)(i * 7 + 3);
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons((u_short)STUN_PORT);
+    memcpy(&sa.sin_addr, he->h_addr, sizeof(sa.sin_addr));
+
+    start = timeGetTime();
+    sendto(s2, (const char *)req, sizeof(req), 0,
+           (struct sockaddr *)&sa, sizeof(sa));
+
+    for (;;) {
+        if (timeGetTime() - start >= STUN_WAIT)
+            break;
+
+        fromlen = sizeof(from);
+        n = recvfrom(s2, (char *)resp, sizeof(resp), 0,
+                     (struct sockaddr *)&from, &fromlen);
+        if (n < 20) {
+            Sleep(20);
+            if ((timeGetTime() - start) % 500 < 25)
+                sendto(s2, (const char *)req, sizeof(req), 0,
+                       (struct sockaddr *)&sa, sizeof(sa));
+                continue;
+        }
+        if (resp[0] != 0x01 || resp[1] != 0x01)     /* binding response */
+            continue;
+
+        /* Walk the attributes for XOR-MAPPED-ADDRESS (0x0020), falling back
+         *          to the older MAPPED-ADDRESS (0x0001). */
+        i = 20;
+        while (i + 4 <= n) {
+            int atype = (resp[i] << 8) | resp[i + 1];
+            int alen  = (resp[i + 2] << 8) | resp[i + 3];
+            unsigned char *v = resp + i + 4;
+
+            if (i + 4 + alen > n)
+                break;
+            if ((atype == 0x0020 || atype == 0x0001) && alen >= 8 &&
+                v[1] == 0x01) {
+                unsigned char ip[4];
+            memcpy(ip, v + 4, 4);
+            if (atype == 0x0020) {
+                ip[0] ^= 0x21; ip[1] ^= 0x12;
+                ip[2] ^= 0xA4; ip[3] ^= 0x42;
+            }
+            wsprintfA(out, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+            closesocket(s2);
+            return 1;
+                }
+                i += 4 + ((alen + 3) & ~3);
+        }
+    }
+
+    closesocket(s2);
+    return 0;
+}
+
+static int public_address(char *out, int outsz)
+{
+    if (stun_query(STUN_HOST1, out, outsz))
+        return 1;
+    return stun_query(STUN_HOST2, out, outsz);
+}
+
+static void copy_to_clipboard(HWND owner, const char *text)
+{
+    HGLOBAL h;
+    char *p;
+    int n;
+
+    if (!text || !text[0] || !OpenClipboard(owner))
+        return;
+    n = lstrlenA(text) + 1;
+    h = GlobalAlloc(GMEM_MOVEABLE, n);
+    if (h) {
+        p = (char *)GlobalLock(h);
+        if (p) {
+            memcpy(p, text, n);
+            GlobalUnlock(h);
+            EmptyClipboard();
+            SetClipboardData(CF_TEXT, h);   /* clipboard owns it now */
+        } else {
+            GlobalFree(h);
+        }
+    }
+    CloseClipboard();
+}
+
+/* This machine's IPv4 addresses, for reading out to the other player. */
+static void local_addresses(char *out, int outsz)
+{
+    char host[128];
+    struct hostent *he;
+    int n = 0;
+
+    out[0] = 0;
+    if (gethostname(host, sizeof(host)) != 0)
+        return;
+    he = gethostbyname(host);
+    if (!he || he->h_addrtype != AF_INET)
+        return;
+
+    while (he->h_addr_list[n]) {
+        struct in_addr a;
+        char *t;
+        memcpy(&a, he->h_addr_list[n], sizeof(a));
+        t = inet_ntoa(a);
+        if (t && strcmp(t, "127.0.0.1") != 0) {
+            if (out[0] && (int)(strlen(out) + strlen(t) + 3) < outsz)
+                strcat(out, ", ");
+            if ((int)(strlen(out) + strlen(t) + 1) < outsz)
+                strcat(out, t);
+        }
+        n++;
+    }
+}
+
+static void set_mode(HWND dlg, int hosting)
+{
+    int sw = hosting ? SW_SHOW : SW_HIDE;
+
+    EnableWindow(GetDlgItem(dlg, ID_IP), !hosting);
+    EnableWindow(GetDlgItem(dlg, ID_IPLABEL), !hosting);
+    ShowWindow(GetDlgItem(dlg, ID_LOCAL), sw);
+    ShowWindow(GetDlgItem(dlg, ID_PUBBTN), sw);
+    ShowWindow(GetDlgItem(dlg, ID_PUBTEXT), sw);
+    ShowWindow(GetDlgItem(dlg, ID_COPYBTN), sw);
+    if (!hosting)
+        SetFocus(GetDlgItem(dlg, ID_IP));
+}
+
 static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 {
-    char buf[128];
+    char buf[256];
 
     switch (msg) {
-    case WM_INITDIALOG:
-        SetDlgItemTextA(dlg, ID_IP, g.ip);
-        wsprintfA(buf, "%d", g.port);
-        SetDlgItemTextA(dlg, ID_PORT, buf);
-        SetFocus(GetDlgItem(dlg, ID_IP));
-        return FALSE;
+        case WM_INITDIALOG:
+            SetDlgItemTextA(dlg, ID_IP, g.ip);
+            wsprintfA(buf, "%d", g.port);
+            SetDlgItemTextA(dlg, ID_PORT, buf);
 
-    case WM_COMMAND:
-        switch (LOWORD(wp)) {
-        case ID_HOST:
-        case ID_JOIN:
-            GetDlgItemTextA(dlg, ID_IP, g.ip, sizeof(g.ip));
-            GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
-            g.port = atoi(buf);
-            if (g.port <= 0 || g.port > 65535)
-                g.port = DEFAULT_PORT;
-            if (LOWORD(wp) == ID_JOIN && g.ip[0] == 0) {
-                MessageBoxA(dlg, "Enter the host's address.", "Message", 0);
+            local_addresses(g.lan, sizeof(g.lan));
+            if (g.lan[0])
+                wsprintfA(buf, "This machine: %s", g.lan);
+        else
+            lstrcpyA(buf, "This machine: address not found");
+        SetDlgItemTextA(dlg, ID_LOCAL, buf);
+
+        SetDlgItemTextA(dlg, ID_PUBTEXT, "");
+        SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
+        g.pub_shown = 0;
+
+        CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
+        set_mode(dlg, 1);
+        return TRUE;
+
+        case WM_COMMAND:
+            switch (LOWORD(wp)) {
+                case ID_HOST:
+                    set_mode(dlg, 1);
+                    return TRUE;
+                case ID_JOIN:
+                    set_mode(dlg, 0);
+                    return TRUE;
+
+                    /* Off by default, and one click hides it again: the public address
+                     *          should not sit on screen while someone is streaming. */
+                    case ID_PUBBTN:
+                        if (g.pub_shown) {
+                            SetDlgItemTextA(dlg, ID_PUBTEXT, "");
+                            SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
+                            g.pub_shown = 0;
+                            return TRUE;
+                        }
+                        SetDlgItemTextA(dlg, ID_PUBTEXT, "looking up...");
+                        EnableWindow(GetDlgItem(dlg, ID_PUBBTN), FALSE);
+                        UpdateWindow(dlg);
+                        if (!public_address(g.pub, sizeof(g.pub)))
+                            lstrcpyA(g.pub, "not available");
+                SetDlgItemTextA(dlg, ID_PUBTEXT, g.pub);
+                SetDlgItemTextA(dlg, ID_PUBBTN, "Hide");
+                EnableWindow(GetDlgItem(dlg, ID_PUBBTN), TRUE);
+                g.pub_shown = 1;
                 return TRUE;
+
+                /* Copies whatever is currently shown - the public address if it has
+                 *          been revealed, otherwise the LAN one. */
+                case ID_COPYBTN:
+                    copy_to_clipboard(dlg,
+                                      (g.pub_shown && g.pub[0] &&
+                                      lstrcmpA(g.pub, "not available") != 0) ? g.pub : g.lan);
+                    return TRUE;
+
+                case IDOK: {
+                    int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
+                    GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
+                    g.port = atoi(buf);
+                    if (g.port <= 0 || g.port > 65535) {
+                        MessageBoxA(dlg, "Port must be between 1 and 65535.",
+                                    "Message", 0);
+                        SetFocus(GetDlgItem(dlg, ID_PORT));
+                        return TRUE;
+                    }
+                    if (!hosting) {
+                        GetDlgItemTextA(dlg, ID_IP, g.ip, sizeof(g.ip));
+                        if (g.ip[0] == 0) {
+                            MessageBoxA(dlg, "Enter the host's address.",
+                                        "Message", 0);
+                            SetFocus(GetDlgItem(dlg, ID_IP));
+                            return TRUE;
+                        }
+                    } else {
+                        g.ip[0] = 0;
+                    }
+                    EndDialog(dlg, hosting ? 1 : 2);
+                    return TRUE;
+                }
+
+                case IDCANCEL:
+                    EndDialog(dlg, 0);
+                    return TRUE;
             }
-            EndDialog(dlg, LOWORD(wp) == ID_HOST ? 1 : 2);
-            return TRUE;
-        case IDCANCEL:
-            EndDialog(dlg, 0);
-            return TRUE;
-        }
-        break;
+            break;
     }
     return FALSE;
 }
 
 static int ask_connection(HINSTANCE inst)
 {
-    WORD buf[512], *p;
+    WORD buf[768], *p;
 
-    p = tpl_head(buf, DLG_STYLE, 200, 96, 7, "Virtual-On Netplay");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 8, 10, 70, 10,
-                0xFFFF, CLS_STATIC, "Host address:");
+    p = tpl_head(buf, DLG_STYLE, 214, 142, 12, "Virtual-On Netplay");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
+    BS_AUTORADIOBUTTON, 10, 8, 90, 12,
+    ID_HOST, CLS_BUTTON, "Host a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 22, 23, 182, 9,
+                ID_LOCAL, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                22, 34, 78, 12, ID_PUBBTN, CLS_BUTTON, "Show public address");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 104, 37, 68, 9,
+                ID_PUBTEXT, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                176, 34, 28, 12, ID_COPYBTN, CLS_BUTTON, "Copy");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                10, 54, 90, 12, ID_JOIN, CLS_BUTTON, "Join a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 22, 70, 52, 9,
+                ID_IPLABEL, CLS_STATIC, "Host address:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                80, 8, 110, 12, ID_IP, CLS_EDIT, "");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 8, 30, 70, 10,
+                78, 68, 126, 12, ID_IP, CLS_EDIT, "");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 10, 94, 24, 9,
                 0xFFFF, CLS_STATIC, "Port:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                80, 28, 46, 12, ID_PORT, CLS_EDIT, "");
+                40, 92, 46, 12, ID_PORT, CLS_EDIT, "");
+
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                8, 60, 58, 14, ID_HOST, CLS_BUTTON, "Host game");
+                92, 116, 54, 14, IDOK, CLS_BUTTON, "OK");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                72, 60, 58, 14, ID_JOIN, CLS_BUTTON, "Connect");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                136, 60, 54, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                152, 116, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, connect_proc, 0);
@@ -402,16 +689,16 @@ static void handshake_tick(void)
             !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
             g.peer = from;                       /* learn the guest's address */
             b[0] = P_ACK;
-            memcpy(b + 1, g.tag, sizeof(g.tag));
-            send_raw(b, sizeof(b));
-            g.hs_done = 1;
+        memcpy(b + 1, g.tag, sizeof(g.tag));
+        send_raw(b, sizeof(b));
+        g.hs_done = 1;
+        return;
+            }
+            if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
+                !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                g.hs_done = 1;
             return;
-        }
-        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
-            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            g.hs_done = 1;
-            return;
-        }
+                }
     }
 
     if (now - g.hs_start >= HANDSHAKE_MS)
@@ -421,30 +708,30 @@ static void handshake_tick(void)
 static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
-    case WM_INITDIALOG:
-        SetDlgItemTextA(dlg, ID_STATUS,
-                        g.host ? "Waiting for the other player..."
-                               : "Connecting...");
-        g.hs_start = g.hs_last = timeGetTime();
-        g.hs_done = g.hs_failed = 0;
-        SetTimer(dlg, 1, 50, NULL);
-        return TRUE;
-
-    case WM_TIMER:
-        handshake_tick();
-        if (g.hs_done || g.hs_failed) {
-            KillTimer(dlg, 1);
-            EndDialog(dlg, g.hs_done ? 1 : 0);
-        }
-        return TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wp) == IDCANCEL) {
-            KillTimer(dlg, 1);
-            EndDialog(dlg, 0);
+        case WM_INITDIALOG:
+            SetDlgItemTextA(dlg, ID_STATUS,
+                            g.host ? "Waiting for the other player..."
+                            : "Connecting...");
+            g.hs_start = g.hs_last = timeGetTime();
+            g.hs_done = g.hs_failed = 0;
+            SetTimer(dlg, 1, 50, NULL);
             return TRUE;
-        }
-        break;
+
+        case WM_TIMER:
+            handshake_tick();
+            if (g.hs_done || g.hs_failed) {
+                KillTimer(dlg, 1);
+                EndDialog(dlg, g.hs_done ? 1 : 0);
+            }
+            return TRUE;
+
+        case WM_COMMAND:
+            if (LOWORD(wp) == IDCANCEL) {
+                KillTimer(dlg, 1);
+                EndDialog(dlg, 0);
+                return TRUE;
+            }
+            break;
     }
     return FALSE;
 }
@@ -520,8 +807,8 @@ static int negotiate_delay(void)
                     g.delay = (int)(*(DWORD *)(g.pkt + 4));
                     if (g.delay < 1)
                         g.delay = 1;
-                    if (g.delay > 16)
-                        g.delay = 16;
+                    if (g.delay > RING / 2 - 2)
+                        g.delay = RING / 2 - 2;
                     break;
                 }
                 continue;
@@ -568,13 +855,16 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     memcpy(g.tag, init->session, 8);
     memcpy(g.tag + 8, "SEGA PC ", 8);
 
-    choice = ask_connection(inst);
-    if (choice == 0)
-        return 0;
-    g.host = (choice == 1);
-
+    /* Winsock comes up first: the dialog asks it for our own addresses. */
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
         return 0;
+
+    choice = ask_connection(inst);
+    if (choice == 0) {
+        WSACleanup();
+        return 0;
+    }
+    g.host = (choice == 1);
 
     g.sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (g.sock == INVALID_SOCKET) {
@@ -617,6 +907,7 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
         return 0;
     }
     g.linked = 1;
+    g.last_rx = g.last_tx = timeGetTime();
 
     if (!negotiate_delay()) {
         notice("Now Network interrupted.");
@@ -631,7 +922,7 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
 int __stdcall DestroyDirectPlay(HWND hwnd)
 {
     if (g.up) {
-        if (g.linked) {
+        if (g.linked && !g.peer_quit) {
             send_ctl(P_QUIT, 0);
             send_ctl(P_QUIT, 0);   /* unreliable, so say it twice */
         }
@@ -674,9 +965,17 @@ int __stdcall ReceiveDirectPlay(HWND hwnd, void *buf)
         if (r == 0)
             break;
         if (handle_packet() == R_PEERQUIT) {
+            sock_close();
             notice("Your challenger has stopped playing Netplay.");
             return 0;
         }
+    }
+
+    heartbeat();
+    if (link_silent()) {
+        sock_close();
+        notice("Now Network interrupted.");
+        return 0;
     }
 
     if (g.msg_tail == g.msg_head)
@@ -704,7 +1003,7 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
         return 0;
 
     /* First frame primes the pipeline so the send sequence runs `delay`
-       ahead of the read cursor. Every later frame sends exactly once. */
+     *      ahead of the read cursor. Every later frame sends exactly once. */
     while (g.prime > 0) {
         send_frame(local);
         g.prime--;
@@ -720,6 +1019,7 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
         if (r > 0) {
             int what = handle_packet();
             if (what == R_PEERQUIT) {
+                sock_close();
                 notice("Your challenger has stopped playing Netplay.");
                 return 1;
             }
@@ -730,6 +1030,12 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
             }
         } else if (relaying) {
             MSG m;
+            heartbeat();
+            if (link_silent()) {
+                sock_close();
+                notice("Now Network interrupted.");
+                return 0;
+            }
             if (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
                 if (m.message == WM_QUIT)
                     return 1;
@@ -738,6 +1044,17 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
             }
         } else {
             DWORD now = timeGetTime();
+
+            /* Peer has gone quiet altogether: crash, kill, cable out. */
+            if (link_silent()) {
+                sock_close();
+                notice("Now Network interrupted.");
+                return 0;
+            }
+
+            /* Peer is still audible, we are just missing a frame. This is
+             *              the original's patient path: ask again once a second and hold
+             *              on for the full timeout before giving up. */
             if (idle_since == 0)
                 idle_since = last_resend = now;
             if (now - last_resend >= RESEND_MS) {
@@ -757,7 +1074,7 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
     }
 
     /* Both sides are handed the same delayed pair: the peer's frame from the
-       receive ring, and our own frame as it was actually sent. */
+     *      receive ring, and our own frame as it was actually sent. */
     slot = g.rx + (g.cursor & RING_MASK) * MAXPKT;
     for (i = 2; i < g.framelen; i++)
         remote[i - 2] = slot[i];
