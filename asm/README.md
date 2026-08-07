@@ -205,20 +205,15 @@ the execute bit:
 The last of those is the `.rdata` padding the F11 dialog already uses, so it
 appears in both tables.
 
-Two of those are nearly full, and there is no comfortable room left. The
-`.rdata` padding is now down to eight bytes as well.
+Most of those are nearly full, the `.rdata` padding down to eight bytes.
 
-`0x1f74e0` and `0x223198` look like free 174-byte runs and are **not**. Both
-are live data. `0x623d08` is a table of twenty-byte entries the code at
-`0x5be302` indexes into, and each run ends inside a `qword` the FPU loads -
-`0x5f8188` and `0x623e40` are both `480.0`, which is `00 00 00 00 00 00 7e
-40`. Six leading zero bytes, so a scan for the longest run of `00` reads six
-bytes into a float constant and reports a run that is longer than the space
-actually is. Writing there crashed the game in the Jaguarandi fight, where
-the table is walked and an entry came back as `0xd58c25ff` - four bytes of
-the code that had been written over it.
+`0x1f74e0` and `0x223198` scan as free 174-byte runs and are not. `0x623d08`
+is a table of twenty-byte entries the code at `0x5be302` indexes into, and
+each run ends inside a `qword` the FPU loads: `0x5f8188` and `0x623e40` are
+both `480.0`, or `00 00 00 00 00 00 7e 40`. Six leading zero bytes, so a scan
+for the longest run of `00` reports six bytes more than there are.
 
-A run of zeros is not free space until two things are true of it.
+A run of zeros is not free space until three things are true of it.
 
 **Nothing points into it.** The tables above are file offsets; the addresses
 in this paragraph are virtual, which is file offset plus `0x400c00`.
@@ -234,10 +229,9 @@ That search has false positives on long spans - four bytes of data can happen
 to equal an address - so read the instruction at each hit rather than counting
 them.
 
-**It does not end inside one either.** A zero run that abuts a small
-constant - a float, a short string, a counter - scans as longer than it is.
-Check what the bytes immediately after the run belong to, not just what
-points into it.
+**It does not end inside one.** A zero run that abuts a small constant - a
+float, a short string, a counter - scans as longer than it is. Check what the
+bytes after the run belong to, not only what points into it.
 
 **Its start is a multiple of four.** Addresses in this image are all below
 `0x01000000`, so every pointer has a zero top byte, and a scan for the longest

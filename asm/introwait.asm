@@ -10,16 +10,16 @@ BASE        equ 0x0063e970  ; kbpage.asm; 144 bytes to the end of the section
 ; VK jump table at 0x5c6bf4 sends Return, Escape and Space to the skip at
 ; 0x5c6bce. The pump stub polls on the *other* branch and never runs here.
 ;
-; So poll here instead, and wait in short sleeps rather than in the call.
-; Once anything is queued the call is made for real, so the game sees exactly
-; what GetMessageA would have given it, WM_QUIT included.
+; So poll here, and wait in short sleeps rather than in the call. Once
+; anything is queued the call is made for real, so the game sees exactly what
+; GetMessageA would have given it, WM_QUIT included.
 ;
-; The stack makes that free. On entry it is
+; On entry the stack is
 ;
 ;     [retaddr][lpMsg][hWnd][wMsgFilterMin][wMsgFilterMax]
 ;
-; which is what GetMessageA itself expects, so the tail jump below returns
-; straight to 0x5c5eb2 and lets GetMessageA do the stdcall cleanup.
+; which is what GetMessageA expects, so the tail jump below returns straight
+; to 0x5c5eb2 and lets GetMessageA do the stdcall cleanup.
 
 LOADLIB     equ 0x0365d504      ; LoadLibraryA
 GETPROC     equ 0x0365d508      ; GetProcAddress
@@ -28,9 +28,9 @@ PEEKMSG     equ 0x0365d590      ; PeekMessageA
 
 POLLPADS    equ 0x006080a4      ; padxinput.asm, pinned there for this
 
-; This blob lands in .rdata, which the patch marks executable but not
-; writable, so the resolved pointer cannot be cached here. It goes in the
-; four bytes between PSTATE and PREV in the scratch the routine already owns.
+; .rdata is executable here but not writable, so the resolved pointer cannot
+; be cached in this blob. It goes in the four bytes between PSTATE and PREV,
+; in the scratch the routine already owns.
 SLEEPFN     equ 0x0365cb80      ; resolved Sleep: 0 not yet, 1 failed
 
 PM_NOREMOVE equ 0
@@ -91,12 +91,10 @@ nap:
 kern32:     db 'kernel32.dll', 0
 sleepnm:    db 'Sleep', 0
 
-; This lives in the raw padding past .rdata's VirtualSize, not in a run of
-; zeros inside it. The long zero runs at 0x5f80e0 and 0x623d98 look free and
-; are not: both are read as data - 0x623d08 is a table of twenty-byte entries
-; the code indexes into, and 0x623e40 is a qword the FPU loads - so zeros
-; there mean NULL and 0.0. Nothing can reference this padding, because it is
-; past the size the image declares.
+; This is the raw padding past .rdata's VirtualSize, not a run of zeros
+; inside it: nothing can reference it, because it is past the size the image
+; declares. The zero runs at 0x5f80e0 and 0x623d98 are data, not space - see
+; the cave rules in asm/README.md.
 ;
 ; It ends at file offset 0x23de00. Growing past that runs into .data, where
 ; the site's expected bytes stop being zeros, so selftest.py catches it.
