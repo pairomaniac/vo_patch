@@ -6,7 +6,7 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.7.4
+Version 0.7.5
 https://github.com/pairomaniac/vo_patch
 """
 
