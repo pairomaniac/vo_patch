@@ -150,13 +150,10 @@ mirror, so both sides are the same routine with a different parameter block.
 Start and A are also posted as key messages from the message pump, because
 the input tick does not run while the game is paused.
 
-The intro movie is a third case. It plays asynchronously and leaves the game
-blocked in `GetMessageA`, where the pump stub never runs and no pad press
-wakes anything. So that call is replaced too, by a stub that polls, waits in
-short sleeps, and makes the real call once something is queued - the game
-gets exactly what `GetMessageA` would have returned. Space, Enter and Escape
-all skip the movie, so A does; F3 is ignored while it plays, so Start does
-not.
+The intro movie is a third case: it plays asynchronously and leaves the game
+blocked in `GetMessageA`, on the branch the pump stub is not on, so that call
+is hooked as well. Space, Enter and Escape all skip the movie, so A does; F3
+is ignored while it plays, so Start does not.
 
 *Keyboard (Real)* is the game's other keyboard profile, untouched except for
 where it keeps its binds. It shared one twenty-four byte block with Simple,
@@ -195,10 +192,3 @@ a network game and F10 is a Windows system key.
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying
 its ID, `GetDlgItem` hands back nothing to talk to.
-
----
-
-Written with AI assistance. Every offset and byte sequence is checked against
-the original executable before it is written, and the patcher refuses anything
-that is not the unmodified disc file - but this is a hobby project poking at a
-nearly 30-year-old binary so expect bugs.

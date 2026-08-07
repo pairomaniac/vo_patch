@@ -409,12 +409,13 @@ hang off.
 Both pollers read the same resolved import but keep separate `XINPUT_STATE`
 buffers and separate edge state, so neither can eat the other's press.
 
-Five addresses in the file are named from outside it - the two entry stubs by
-the profile dispatch, the pump stub by the `PeekMessageA` call site, the tick
-by `twinstick.asm`, and the epilogue by `levers.asm`, whose site expects those
-five bytes where they are. The blob is also padded to a fixed 830 bytes,
-because `levers.asm` is written immediately after it. `times` pins all of it,
-so nasm fails rather than quietly shifting anything.
+Six addresses in the file are named from outside it: the two entry stubs by
+the profile dispatch, the pump stub by the `PeekMessageA` call site, the poll
+by `introwait.asm`, the tick by `twinstick.asm`, and the epilogue by
+`levers.asm`, whose site expects those five bytes where they are. The blob is
+also padded to a fixed 830 bytes, because `levers.asm` is written immediately
+after it. `times` pins all of it, so nasm fails rather than quietly shifting
+anything.
 
 ## levers.asm, what it does
 
@@ -433,6 +434,25 @@ routine written by the site before it: `0x207702` expects the `5f5e5bc9c3`
 that `0x207460` wrote there, not anything from the original file. The site
 list is applied in order and `_check_table` enforces that relationship, so
 sorting that list by offset will fail at import rather than at write time.
+
+## introwait.asm, what it does
+
+The pad cannot reach the intro movie, and the reason is the message loop
+rather than the pad. `0x6bc598` picks between two loops; the movie leaves it
+at 1, which blocks in `GetMessageA`, and the pump stub is on the other
+branch. A blocked loop only turns over when a message arrives, and a button
+press is not one.
+
+So this replaces that call. It polls the pad, checks the queue with
+`PM_NOREMOVE`, sleeps 8 ms, and makes the real call once something is there,
+so the game receives exactly what `GetMessageA` would have returned. The
+stack it is entered on is already the frame `GetMessageA` expects, so the
+last step is a jump and not a call.
+
+`Sleep` is not imported and comes through `GetProcAddress`; the pointer is
+cached in the `.data` scratch rather than in the blob, which is executable
+here but not writable. If it cannot be resolved the stub falls through to the
+blocking call, which is what the game did before.
 
 ## twinstick.asm, what it does
 

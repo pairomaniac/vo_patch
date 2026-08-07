@@ -251,3 +251,10 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 ## Notes
 
 Every patch, its offsets and how it works: [NOTES.md](NOTES.md).
+
+---
+
+Written with AI assistance. Every offset and byte sequence is checked against
+the original executable before it is written, and the patcher refuses anything
+that is not the unmodified disc file - but this is a hobby project poking at a
+nearly 30-year-old binary so expect bugs.
