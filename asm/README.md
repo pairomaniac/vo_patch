@@ -18,7 +18,7 @@ editing this directory does.
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
-| `build.py` | builds every blob in `../vo-patch.py`, from the seven `.asm` files and the three `.py` ones |
+| `build.py` | builds every blob in `../vo-patch.py`, from the `.asm` and `.py` sources above |
 
 ## How the assembly gets into the patcher
 
@@ -33,7 +33,7 @@ replaces everything between a pair of comment markers. Nothing outside the
 markers is touched, so the patch tables around them are safe, and nothing is
 written into `asm/` either - nasm works in a temporary directory.
 
-There are ten such regions, and `build.py` fails if a pair is missing:
+One region per blob, and `build.py` fails if a pair is missing:
 
 ```
 # VOCD BLOB BEGIN        <- VOCD_MAGICS, VOCD_CODE, VOCD_DATA
@@ -74,7 +74,7 @@ it points at.
 
 ## Addresses that cannot move
 
-Six `.asm` files carry an `org`: `padxinput.asm`, `twinstick.asm`,
+Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
 `introwait.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
@@ -154,9 +154,8 @@ Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
 previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
-**`padtables.py`** fills three of the gamepad patch's caves - the condition
-table, the bind list and the strings both point at - and the device list in
-`.data`. **`dialogs.py`** fills the `.rdata` cave the Extras box reads, the
+**`padtables.py`** fills the condition table, the bind list and the strings
+both point at, and the device list in `.data`. **`dialogs.py`** fills the `.rdata` cave the Extras box reads, the
 `.rsrc` run the dead menu resource left behind, and the tail of the F5
 resource that the frame rate labels live in. That last one is the only site
 whose `original` column is generated too: the stock labels packed by the same
@@ -409,7 +408,7 @@ hang off.
 Both pollers read the same resolved import but keep separate `XINPUT_STATE`
 buffers and separate edge state, so neither can eat the other's press.
 
-Six addresses in the file are named from outside it: the two entry stubs by
+Several addresses in the file are named from outside it: the entry stubs by
 the profile dispatch, the pump stub by the `PeekMessageA` call site, the poll
 by `introwait.asm`, the tick by `twinstick.asm`, and the epilogue by
 `levers.asm`, whose site expects those five bytes where they are. The blob is
@@ -464,8 +463,8 @@ named action, so the sticks land straight in the levers and the game works
 out walking, turning, jump and crouch from the pair.
 
 So the file is two entry stubs, a bind list, two mask tables and a parameter
-block per player - 164 bytes, 116 of them tables. It carries an `org` because
-the stubs jump to fixed addresses and the blocks point at its tables.
+block per player, mostly tables. It carries an `org` because the stubs jump
+to fixed addresses and the blocks point at its tables.
 
 ## kbpage.asm, what it does
 

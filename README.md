@@ -4,7 +4,7 @@ Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
 both players, and reads the soundtrack from files instead of the disc.
 
-Four of the byte edits come from the original VO_Patch 0.43 (2008) by
+Some of the byte edits come from the original VO_Patch 0.43 (2008) by
 [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the
 game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
 the game and not the bytes quoted from it.
@@ -24,8 +24,8 @@ run.
 ## What the patches do
 
 **Essential** fix what is broken on modern systems; **Extra** are up to
-taste. Everything starts ticked. How each one works is in
-[NOTES.md](NOTES.md).
+taste. Everything starts ticked. Every patch's offsets and how it works are
+in [NOTES.md](NOTES.md).
 
 ### Essential
 
@@ -46,9 +46,8 @@ opening an F-key dialog kills the keyboard for the rest of the session.
 ### Extra
 
 - **XInput gamepad support** - twelve bindable actions on a modern
-controller, plus the arcade twin-stick scheme, for both players. Disables
-*Keyboard only(Simple)* for the time being: the gamepad needs its bind page.
-See [Gamepad](#gamepad).
+controller, plus the arcade twin-stick scheme, for both players. Costs the
+*Keyboard only(Simple)* profile. See [Gamepad](#gamepad).
 - **No disc required** - removes the disc check and reads the soundtrack from
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
@@ -138,8 +137,7 @@ pad 2 drives 2P.
 all twelve actions, so the gamepad profile takes it. *Real* keeps its own
 page.
 
-These work on every profile, and Start works on the pause screen too, where
-the input tick does not run:
+Four buttons work on every profile, Start on the pause screen included:
 
 | Button | Does |
 | --- | --- |
@@ -247,10 +245,6 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 ```
 
 `-S fit` fills more of the screen without whole-number scaling.
-
-## Notes
-
-Every patch, its offsets and how it works: [NOTES.md](NOTES.md).
 
 ---
 

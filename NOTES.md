@@ -20,7 +20,7 @@ they are built see [asm/](asm/).
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, six `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
+| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
 
@@ -28,10 +28,10 @@ Bold entries are not part of original VO_Patch.
 
 ## How each patch works
 
-Not every row needs a note; the four inherited byte edits are self-explanatory.
-These are the rest, in the order of the table above. The CD audio and gamepad
-patches install assembled machine code rather than editing bytes; the sources
-and a longer account of both are in [asm/](asm/).
+In the order of the table above; rows that are a single obvious byte edit are
+skipped. The CD audio and gamepad patches install assembled machine code
+rather than editing bytes, and the sources and a longer account of both are
+in [asm/](asm/).
 
 **Sample rate.** This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
@@ -50,8 +50,8 @@ That is little enough to answer from WAV files instead, which a routine in a
 new `.vocd` section does.
 
 This is the one patch that cannot be a byte edit in place: the padding at the
-end of `.text` has 24 bytes left after the timer stub and the F11 dialog, and
-the zero runs in `.data` are globals the game writes at runtime. The
+end of `.text` is nearly spent on the timer stub and the F11 dialog, and the
+zero runs in `.data` are globals the game writes at runtime. The
 executable gets a section of its own and grows by about 3 KB, and the entry
 point is repointed at the setup thunk, which chains to whatever it was before
 - hence this patch running after all the others.
@@ -133,8 +133,8 @@ condition.
 **Gamepad.** The game predates XInput and reads pads through the Windows 95
 joystick API, which on a modern controller reports a partial view: one trigger
 unreachable, axis order inconsistent between Windows and Wine. So it is not
-read through it at all. A routine in `.rdata` padding calls `XInputGetState`
-and folds the result into the game's own action tables.
+read through it at all. A routine in a run of zeros inside `.rdata` calls
+`XInputGetState` and folds the result into the game's own action tables.
 
 The device number keys three tables, not one, and all three had to move
 together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
@@ -173,7 +173,7 @@ two pages pass the current player, so this one is corrected to match.
 mask engine, and the arcade scheme is just a different set of binds and
 masks: each of the twelve slots drives one lever direction or button instead
 of a named action, so the thumbsticks land straight in the two lever words.
-It is 164 bytes, of which 116 are tables. It binds nothing, so it takes the
+It is mostly tables. It binds nothing, so it takes the
 page-table entry that opens no dialog, which also disposes of the
 `0x3651554 == 1` check that made **Next** refuse without a joystick attached.
 
