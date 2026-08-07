@@ -25,10 +25,15 @@ editing this directory does.
 `vo-patch.py` never reads these files. It carries the finished machine code as
 hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
-with nothing installed. `build.py` is what copies one into the other.
+with nothing installed.
 
-There are ten blob regions, each fenced off by a pair of comment markers.
-`build.py` searches for them and fails if a pair is missing.
+`build.py` copies one into the other. It runs nasm on each `.asm` file, calls
+`build()` on each `.py` one, formats the output as `bytes.fromhex(...)`, and
+replaces everything between a pair of comment markers. Nothing outside the
+markers is touched, so the patch tables around them are safe, and nothing is
+written into `asm/` either - nasm works in a temporary directory.
+
+There are ten such regions, and `build.py` fails if a pair is missing:
 
 ```
 # VOCD BLOB BEGIN        <- VOCD_MAGICS, VOCD_CODE, VOCD_DATA
@@ -62,29 +67,26 @@ There are ten blob regions, each fenced off by a pair of comment markers.
 # DIALOGS BLOB END
 ```
 
-`padxinput.asm`, `twinstick.asm`, `introwait.asm`, `kbpage.asm`, `debugbox.asm`
-and `timer.asm`
-carry an `org`, because their stubs jump to fixed addresses and their
-parameter blocks point at tables in the same blob. The `.py` modules hardcode
-addresses for the same reason - `COND` and `TEMPLATE` are read by the
-assembly, `NAMES` and `BINDS` are pointed at from inside the blobs.
-
-Either way the source names a place as a virtual address and the patch table
-names it as a file offset, and `build.py` checks the two agree. Nothing
-downstream would notice a mismatch: the bytes would be written, and every
-address into them would be a few bytes out. The offsets come from the patch
-table itself rather than a second copy here.
-
-`build.py` runs nasm on each `.asm` file, calls `build()` on each `.py` one,
-formats the output as `bytes.fromhex(...)`, and replaces everything between
-each pair of markers. Nothing outside the markers is touched, so the patch
-tables around them are safe. Neither mode writes anything into `asm/`; nasm
-works in a temporary directory that is deleted afterwards.
-
 The three `.py` modules also emit an `.inc` file each, which the assembly
 includes. An address both sides need - the condition table, the Extras
 strings, a control id - is written once, by the module that packs the bytes
 it points at.
+
+## Addresses that cannot move
+
+Six `.asm` files carry an `org`: `padxinput.asm`, `twinstick.asm`,
+`introwait.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`. Their stubs
+jump to fixed addresses and their parameter blocks point at tables in the
+same blob, so the code only works where it was assembled to sit. The `.py`
+modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
+read by the assembly, `NAMES` and `BINDS` are pointed at from inside the
+blobs.
+
+So the source names a place as a virtual address and the patch table names
+the same place as a file offset. `build.py` checks the two agree, reading the
+offsets out of the patch table rather than keeping a second copy here.
+Nothing downstream would notice a mismatch: the bytes would be written, and
+every address into them would be a few bytes out.
 
 ## The loop
 
@@ -188,9 +190,9 @@ worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
 `layout.py` costs nothing in the file until the section passes 3 KB, because
 it is page aligned.
 
-Five of the gamepad patch's six caves are runs of zeros inside `.rdata`
-proper rather than padding, which is why that section's characteristics get
-the execute bit:
+Most of the gamepad patch's caves are runs of zeros inside `.rdata` proper
+rather than padding, which is why that section's characteristics get the
+execute bit:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
@@ -202,42 +204,40 @@ the execute bit:
 | keyboard page fixes | `0x23dd38`-`0x23dd6d` | 53 | 53 | 0 |
 | intro-movie message wait | `0x23dd70`-`0x23de00` | 144 | 136 | 8 |
 
-The last of those is the `.rdata` padding the F11 dialog already uses, so it
-appears in both tables.
+The last two are the `.rdata` padding from the table above, so they appear
+twice.
 
-Most of those are nearly full, the `.rdata` padding down to eight bytes.
+There is no comfortable room left anywhere. Picking a new cave means finding
+a run of zeros and proving it is free, which takes three checks.
 
-`0x1f74e0` and `0x223198` scan as free 174-byte runs and are not. `0x623d08`
-is a table of twenty-byte entries the code at `0x5be302` indexes into, and
-each run ends inside a `qword` the FPU loads: `0x5f8188` and `0x623e40` are
-both `480.0`, or `00 00 00 00 00 00 7e 40`. Six leading zero bytes, so a scan
-for the longest run of `00` reports six bytes more than there are.
+Addresses below are virtual; the tables above are file offsets. The two
+differ by `0x400c00`.
 
-A run of zeros is not free space until three things are true of it.
+**Nothing points into it.** Search the file for a dword equal to any address
+in the span, and read the instruction at each hit - four bytes of data can
+happen to equal an address, so counting hits is not enough.
 
-**Nothing points into it.** The tables above are file offsets; the addresses
-in this paragraph are virtual, which is file offset plus `0x400c00`.
-`0x6083e0` - the end of the XInput routine's cave, `0x2077e0` above - sits in
-the middle of the run of zeros that cave was cut from: a base address the
-geometry code indexes off, reading as zeros because that is what the game
-expects to find there. The routine stops just short of it, at `0x6083d1`. Writing over it corrupts
-the loading screens, so the usable tail of that run is fifteen bytes, not
-sixty-five.
+`0x6083e0` sits in the middle of the run the XInput routine's cave was cut
+from. It is a base address the geometry code indexes off, reading as zeros
+because that is what the game expects there. Writing over it corrupts the
+loading screens, so the routine stops short at `0x6083d1` and the usable tail
+is fifteen bytes rather than sixty-five.
 
-To check, search the file for a dword equal to any address inside the span.
-That search has false positives on long spans - four bytes of data can happen
-to equal an address - so read the instruction at each hit rather than counting
-them.
+**It does not end inside one.** A run that abuts a small constant scans as
+longer than it is, so check what the bytes after it belong to.
 
-**It does not end inside one.** A zero run that abuts a small constant - a
-float, a short string, a counter - scans as longer than it is. Check what the
-bytes after the run belong to, not only what points into it.
+`0x1f74e0` and `0x223198` scan as free 174-byte runs and are neither free nor
+174 bytes. `0x623d08` is a table of twenty-byte entries the code at
+`0x5be302` walks, and each run ends inside a `qword` the FPU loads: both
+`0x5f8188` and `0x623e40` hold `480.0`, which is `00 00 00 00 00 00 7e 40`.
+Six leading zero bytes, so the scan overshoots by six.
 
-**Its start is a multiple of four.** Addresses in this image are all below
-`0x01000000`, so every pointer has a zero top byte, and a scan for the longest
-run of `00` starts one byte inside the last pointer of a table. Writing there turns `0x00623bb0` into `0x11623bb0`, and the game dies
-when it dereferences it. `build.py` refuses any `org` whose site is not
-four-aligned; the same rule applies to a cave picked by hand.
+**Its start is a multiple of four.** Every address in this image is below
+`0x01000000`, so every pointer has a zero top byte, and the longest run of
+`00` begins one byte inside the last pointer of a table. Writing there turns
+`0x00623bb0` into `0x11623bb0` and the game dies dereferencing it. `build.py`
+refuses any `org` whose site is not four-aligned, and a cave picked by hand
+needs the same.
 
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will

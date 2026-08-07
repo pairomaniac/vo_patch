@@ -2,8 +2,7 @@
 
 Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
-both players, and drops the disc requirement by reading the soundtrack from
-files.
+both players, and reads the soundtrack from files instead of the disc.
 
 Four of the byte edits come from the original VO_Patch 0.43 (2008) by
 [UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the
@@ -17,17 +16,16 @@ the game and not the bytes quoted from it.
 **Windows:** Get `vo-patch-*.exe` from the
 [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
 
-It is unsigned, so SmartScreen calls it an unknown publisher on the first run.
-The build log is under this repository's Actions.
+It is unsigned, so SmartScreen calls it an unknown publisher on the first
+run.
 
 **Linux:** check [Running from source](#running-from-source).
 
 ## What the patches do
 
-**Essential** fix things that are broken on modern systems; **Extra** are up
-to taste. Everything starts ticked, so untick what you do not want before
-patching - **Extra** starts collapsed, so open it first if you want to look.
-How each one works is under [Notes](#notes).
+**Essential** fix what is broken on modern systems; **Extra** are up to
+taste. Everything starts ticked. How each one works is under
+[Notes](#notes).
 
 ### Essential
 
@@ -115,13 +113,11 @@ To build the Windows binary yourself, `pip install pyinstaller` and run
 `pyinstaller vo-patch.spec`. The spec takes the version out of the script, so
 that is the only place it is written down.
 
-To change the machine code the patches install, see [asm/](asm/). The assembly
-lives there, with the descriptions the gamepad tables and both dialogs are
-packed from, and `asm/build.py` builds all of it into `vo-patch.py`. The long
-hex strings in the script are generated and should never be edited by hand. CI
-checks the two still agree on every push. `python3 vo-patch.py --selfcheck`
-validates the patch tables without needing a copy of the game;
-`python3 tools/selftest.py path/to/v_on.exe` applies them to a real one.
+To change the machine code the patches install, see [asm/](asm/), which
+`asm/build.py` builds into the hex strings in `vo-patch.py`. Never edit those
+by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
+a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
+to a real one.
 
 ## Gamepad
 
@@ -138,9 +134,9 @@ pad 2 drives 2P.
 | **Gamepad (XInput)** | twelve named actions, bound from the F7 screen |
 | **Twin-stick (XInput)** | the arcade levers, nothing to bind |
 
-*Keyboard only(Simple)* is gone for the time being. It is the only F7 page
-that binds all twelve actions, so the gamepad profile has to take it. *Real*
-is the other keyboard profile and it keeps its own page.
+*Keyboard only(Simple)* is gone for now: it is the only F7 page that binds
+all twelve actions, so the gamepad profile takes it. *Real* keeps its own
+page.
 
 These work on every profile, and Start works on the pause screen too, where
 the input tick does not run:
@@ -152,13 +148,11 @@ the input tick does not run:
 | **Start** | Pause |
 | **D-pad** | Moves, so it also drives menus |
 
-The D-pad is not in the bind list. It is wired to the same four directions as
-the movement binds, which is what the menus and the mech list read, so it
-navigates them and it walks in a round.
+The D-pad is not bindable. It is wired to the same four directions as the
+movement binds, which is what the menus read.
 
-The intro movie runs under a message loop of its own, which blocks rather than
-polls. **A** reaches it and skips the movie, the same as Space. **Start** does
-not: the game ignores F3 for as long as the movie is playing.
+**A** skips the intro movie, the same as Space. **Start** does not - the game
+ignores F3 while the movie plays.
 
 ### Gamepad (XInput)
 
@@ -169,9 +163,8 @@ dashes, A jumps, X guards. **Default** on the F7 page puts them back.
 
 ### Twin-stick (XInput)
 
-Each thumbstick *is* a lever, so the game derives everything from the pair,
-the way the cabinet did. Nothing is bindable and the F7 bind list does not
-apply.
+Each thumbstick *is* a lever, the way the cabinet worked, so nothing is
+bindable.
 
 | Input | Does |
 | --- | --- |
@@ -184,8 +177,8 @@ apply.
 
 ### Keyboard (Real)
 
-Two keys cannot be shared between players. If 2P wants keys 1P already has,
-rebind 1P first - if 1P is on a pad those binds do nothing anyway.
+Keys cannot be shared between players. If 2P wants keys 1P already has,
+rebind 1P first.
 
 Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
 the unpatched game do not fit the new device list; the game writes a fresh
@@ -193,20 +186,16 @@ one. **Restore original** puts it back.
 
 ## Music
 
-The BGM is Redbook CD audio, driven through 37 `mciSendCommandA` calls against
-the `cdaudio` device. Unpatched it needs a disc or a virtual drive with the
-audio tracks; a data-only ISO plays nothing.
-
-**No disc required** reads it from WAV files beside the game instead. No drive,
-no extra DLL.
+The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
+with the audio tracks - a data-only ISO plays nothing. **No disc required**
+reads it from WAV files beside the game instead. No drive, no extra DLL.
 
 ### Ripping the tracks
 
-Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it knows
-where the files go, put a cue sheet or a drive in **Source** - **Browse…**
-finds a cue sheet, a drive is filled in for you if there is one - then press
-**Rip tracks**. Closing the window mid-rip cancels it and discards the part
-track.
+Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it
+knows where the files go, put a cue sheet or a drive in **Source**, then
+press **Rip tracks**. Closing the window mid-rip cancels it and discards the
+part track.
 
 Or from a terminal:
 
