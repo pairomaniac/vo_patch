@@ -1513,6 +1513,21 @@ def apply_selected(buf, wanted):
     return buf, applied, skipped
 
 
+def backup_is_original(path):
+    """Is this .bak the file the patcher started from?
+
+    Checking the backup rather than the exe is what makes "already patched"
+    reliable: the patched file's own size and checksum depend on which boxes
+    were ticked, but the backup is always the untouched original."""
+    try:
+        if os.path.getsize(path) != EXE_SIZE:
+            return False
+        with open(path, 'rb') as fh:
+            return hashlib.md5(fh.read()).hexdigest() == ORIGINAL_MD5
+    except OSError:
+        return False
+
+
 def compare_report(size, digest, why, hint, level):
     """What the patcher wants against what it was given.
 
@@ -1560,9 +1575,12 @@ class Patcher:
             # the file, it is the wrong file.
             what, why, hint, level = ('%s build' % known[1], known[2],
                                       RETAIL_HINT, 'warn')
-        elif os.path.exists(path + '.bak') and len(data) == EXE_SIZE:
+        elif backup_is_original(path + '.bak'):
+            # The size cannot be part of this test: No disc required appends
+            # a section, so a patched file is 3 KB larger than the original
+            # and looked unrecognisable here.
             what, level = 'already patched', 'warn'
-            why = 'A v_on.exe.bak sits beside it.'
+            why = 'The v_on.exe.bak beside it is the unmodified original.'
             hint = 'Press Restore original, or copy the .bak back by hand.'
         else:
             what, level = 'unrecognised file', 'bad'
