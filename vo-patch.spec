@@ -41,9 +41,11 @@ _version_file.write_text("""VSVersionInfo(
 )
 """ % {'parts': _parts, 'version': VERSION}, encoding='utf-8')
 
-# Stdlib packages this script never touches which come in transitively;
-# together they are about 9 MB.
-EXCLUDES = ['unittest', 'pydoc', 'email', 'http', 'xml', 'lib2to3']
+# Stdlib packages this script never touches which come in transitively.
+# email and http are not among them: urllib.request imports both, and
+# excluding them builds an exe that dies at its own import line. The bundle
+# check in the workflow is there to catch that happening again.
+EXCLUDES = ['unittest', 'pydoc', 'xml', 'lib2to3']
 
 a = Analysis(
     [SOURCE],
@@ -77,7 +79,7 @@ exe = EXE(
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,                  # no console window behind the GUI
+    console=True,                  # no console window behind the GUI
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

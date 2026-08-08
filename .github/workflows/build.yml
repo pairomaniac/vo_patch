@@ -121,6 +121,21 @@ jobs:
           grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
           echo "$(grep -c . listing.txt) entries, tkinter present"
 
+      # The listing cannot see inside the PYZ, so an over-eager entry in
+      # EXCLUDES looks fine there and dies at the exe's own import line -
+      # which is how a build shipped with email excluded and urllib.request
+      # importing it. Running it is the only test that catches that.
+      # --selfcheck needs neither a display nor a copy of the game.
+      #
+      # The exe is windowed: on a crash it puts up a dialog and waits for
+      # someone to click it, so the timeout is what makes that a failed step
+      # instead of a hung job.
+      - name: The exe starts
+        shell: bash
+        run: |
+          timeout 60 dist/vo-patch-*.exe --selfcheck
+          echo 'the exe runs and its tables check out'
+
       # To the log, not an asset: a checksum beside its own binary proves
       # nothing.
       - name: Checksum
