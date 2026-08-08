@@ -80,7 +80,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install pyinstaller==6.21.0
+      # certifi is not imported unless the platform trust store fails, but it
+      # has to be installed here or there is nothing to fall back to in the
+      # exe. The bundle check below is what notices if it goes missing.
+      - run: pip install pyinstaller==6.21.0 certifi
 
       # The source carries no version. A tag build takes it from the tag, so
       # the tag and the filename cannot disagree; anything else takes the
@@ -119,7 +122,8 @@ jobs:
           pyi-archive_viewer -l -b dist/*.exe > listing.txt
           grep -q '_tkinter' listing.txt || { echo 'tkinter was not bundled'; exit 1; }
           grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
-          echo "$(grep -c . listing.txt) entries, tkinter present"
+          grep -q 'cacert.pem' listing.txt || { echo 'certifi CA list was not bundled'; exit 1; }
+          echo "$(grep -c . listing.txt) entries, tkinter and CA list present"
 
       # The listing cannot see inside the PYZ, so an over-eager entry in
       # EXCLUDES looks fine there and dies at the exe's own import line -

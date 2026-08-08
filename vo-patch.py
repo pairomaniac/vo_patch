@@ -17,10 +17,12 @@ import os
 import queue
 import re
 import shutil
+import ssl
 import struct
 import sys
 import webbrowser
 import threading
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -1085,6 +1087,29 @@ def ddraw_status(gamedir):
     return os.path.exists(dll)
 
 
+def _urlopen(req, timeout=30):
+    """urlopen, retried against a bundled CA list.
+
+    Windows keeps only a small set of root certificates and fetches the rest
+    on demand through CryptoAPI, which OpenSSL never consults - so a machine
+    that has not needed this root before reports it as missing and the
+    download fails. certifi is bundled in the release build for that case.
+    Anything else, including a genuinely bad certificate, is raised as it
+    was."""
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.URLError as exc:
+        if not isinstance(getattr(exc, 'reason', None),
+                          ssl.SSLCertVerificationError):
+            raise
+        try:
+            import certifi
+        except ImportError:
+            raise
+        context = ssl.create_default_context(cafile=certifi.where())
+    return urllib.request.urlopen(req, timeout=timeout, context=context)
+
+
 def install_ddraw(gamedir, progress=None):
     """Download cnc-ddraw and unpack it beside the game.
 
@@ -1094,7 +1119,7 @@ def install_ddraw(gamedir, progress=None):
     req = urllib.request.Request(DDRAW_URL, headers={
         'User-Agent': 'vo-patch/%s' % VERSION})
     blob = io.BytesIO()
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with _urlopen(req, timeout=30) as resp:
         total = int(resp.headers.get('Content-Length') or 0)
         while True:
             chunk = resp.read(64 << 10)
