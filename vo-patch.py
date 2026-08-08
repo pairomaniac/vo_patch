@@ -1584,8 +1584,8 @@ class Patcher:
             hint = 'Press Restore original, or copy the .bak back by hand.'
         else:
             what, level = 'unrecognised file', 'bad'
-            why = ('Not a v_on.exe this patcher knows. Usually a bad rip, a '
-                   'repack, or a copy something else has already modified.')
+            why = ('Not a v_on.exe this patcher knows - a bad rip, a repack, '
+                   'or a copy already patched or otherwise modified.')
             hint = RETAIL_HINT
         self.compare = compare_report(len(data), digest, why, hint, level)
         return 'CANNOT PATCH - %s.' % what, False
