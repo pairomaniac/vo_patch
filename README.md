@@ -9,7 +9,7 @@ Some of the byte edits come from the original VO_Patch 0.43 (2008) by
 game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
 the game and not the bytes quoted from it.
 
-<img width="418" height="417" alt="The patcher main window" src="https://github.com/user-attachments/assets/a363ca3f-e9d4-4da9-8bb6-a427067343c6" />
+<img width="500" alt="Screenshot_20260808_144501" src="https://github.com/user-attachments/assets/343c2da7-a7ba-47ee-bb45-2c1848d0282a" />
 
 ## Download
 
@@ -96,6 +96,10 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset, and those offsets belong to that build alone - applying
 them to another would write into unrelated code.
 
+<img height="175" alt="image" src="https://github.com/user-attachments/assets/cefb985b-b8ee-4b40-ae35-ab7431fde607" />
+<img height="175" alt="image" src="https://github.com/user-attachments/assets/5c3acc21-0bf5-4961-acce-ae1990061c4f" />
+
+
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
@@ -112,49 +116,14 @@ If **XInput gamepad support** was among them, `v_on.ini` is moved to
 original** puts that back too, keeping whatever the patched game wrote as
 `v_on.ini.patched`.
 
-## Running from source
-
-Windows, with Python from python.org - Tk ships with it, nothing else needed:
-
-```
-py vo-patch.py
-```
-
-On Linux, Tk usually needs installing:
-
-```bash
-sudo apt install python3-tk        # Debian, Ubuntu, Mint
-sudo dnf install python3-tkinter   # Fedora, RHEL
-sudo pacman -S tk                  # Arch, EndeavourOS
-python3 vo-patch.py
-```
-
-To build the Windows binary yourself, `pip install pyinstaller` and run
-`pyinstaller vo-patch.spec`. It builds as `vo-patch-dev.exe`: releases take
-their version from the git tag, and a source tree has no tag to take it from.
-
-To change the machine code the patches install, see [asm/](asm/), which
-`asm/build.py` builds into the hex strings in `vo-patch.py`. Never edit those
-by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
-a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
-to a real one.
-
-Everything the patcher does is also available without a window:
-
-```bash
-python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
-python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
-python3 vo-patch.py --selfcheck        # validate the patch tables
-```
-
 ## Gamepad
-
-<img width="382" height="267" alt="F7 device list with the three profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
-<img width="382" height="267" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
 profiles are hidden and three remain, for both players - pad 1 drives 1P,
 pad 2 drives 2P.
+
+<img width="350" alt="F7 device list with the three profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
+<img width="350" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
 | Profile | What it is |
 | --- | --- |
@@ -217,12 +186,16 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game instead. No drive, no extra DLL.
 
+<img height="280" alt="image" src="https://github.com/user-attachments/assets/8d98b4ea-8092-4399-8794-81d858a0f5a5" />
+
 ### Ripping the tracks
 
 Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it
 knows where the files go, put a cue sheet or a drive in **Source**, then
 press **Rip tracks**. Closing the window mid-rip cancels it and discards the
 part track.
+
+<img height="280" alt="image" src="https://github.com/user-attachments/assets/7754628c-028f-4471-8a33-59264e930e41" />
 
 Or from a terminal:
 
@@ -260,6 +233,8 @@ The game asks for 640x480 exclusive fullscreen and leaves the rest to the
 display, which on a modern panel usually means a stretched picture. The 4:3
 framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
 something between the game and the graphics driver.
+
+<img height="360" alt="image" src="https://github.com/user-attachments/assets/28c65fbf-99ed-4b11-b2a4-01fde3bf3d16" />
 
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
 the game renders through, adding windowed and borderless modes, correct aspect
@@ -304,6 +279,40 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 `-S fit` fills more of the screen without whole-number scaling.
 
+## Running from source
+
+Windows, with Python from python.org - Tk ships with it, nothing else needed:
+
+```
+py vo-patch.py
+```
+
+On Linux, Tk usually needs installing:
+
+```bash
+sudo apt install python3-tk        # Debian, Ubuntu, Mint
+sudo dnf install python3-tkinter   # Fedora, RHEL
+sudo pacman -S tk                  # Arch, EndeavourOS
+python3 vo-patch.py
+```
+
+To build the Windows binary yourself, `pip install pyinstaller` and run
+`pyinstaller vo-patch.spec`. It builds as `vo-patch-dev.exe`: releases take
+their version from the git tag, and a source tree has no tag to take it from.
+
+To change the machine code the patches install, see [asm/](asm/), which
+`asm/build.py` builds into the hex strings in `vo-patch.py`. Never edit those
+by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
+a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
+to a real one.
+
+Everything the patcher does is also available without a window:
+
+```bash
+python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo-patch.py --selfcheck        # validate the patch tables
+```
 ---
 
 Written with AI assistance. Every offset and byte sequence is checked against
