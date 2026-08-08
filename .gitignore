@@ -12,3 +12,10 @@ __pycache__/
 # layout.py writes these when run on its own; build.py uses a temp directory.
 asm/strings.inc
 asm/*.bin
+
+# net/build.py bakes the DLL into vo-patch.py; the file itself is scratch.
+net/dpctrl.dll
+vo-net.log
+
+# Personal dev notes
+DEVELOPING.md
