@@ -58,6 +58,15 @@ other eight and works out `delay = mean_rtt / 32 + 1` frames, then tells
 the guest. The first `SWDataSendReceive` sends its frame `delay + 1` times
 to fill the pipeline; every call after that sends once.
 
+Game messages that are not frames - whatever the menus exchange between
+rounds - go into an 8 KB ring for `ReceiveDirectPlay` to hand back. The ring
+is bounded: a message that will not fit is dropped and counted rather than
+allowed to lap the reader, because a wrapped write puts a mid-message byte
+where a length belongs and everything read after that is garbage the game
+acts on. If `vo-net.log` starts reporting dropped messages, the game is
+queueing faster than it drains and that is worth investigating rather than
+tuning away.
+
 A missing frame and a missing player are different problems and get
 different answers. A frame that has not arrived means the peer is slow: ask
 again every second and hold on for the full thirty, as the original did.

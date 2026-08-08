@@ -80,9 +80,14 @@ beside the game.
 
 ## Using the patcher
 
-Select `v_on.exe` and press **Apply patches**. Expand **ESSENTIAL PATCHES** or
-**EXTRA PATCHES** and click the ⓘ beside a patch to read what it does, and
+Select `v_on.exe` and press **Apply patches**. Click the ⓘ beside a patch
+under **ESSENTIAL PATCHES** or **EXTRA PATCHES** to read what it does, and
 untick anything you do not want.
+
+**ADD-ONS** is separate because nothing in it is a patch. Those two entries
+write files beside the game rather than editing the executable, so **Apply
+patches** and **Restore original** leave them alone - each one installs and
+removes itself with its own button.
 
 Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
 `a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
@@ -135,8 +140,9 @@ Hence the usual advice to run a VPN and pretend everyone is on one LAN.
 
 <img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
 
-**Internet play** replaces that layer with plain UDP. One player hosts, the
-other types an address, and the match runs the same as it always did.
+**Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
+player hosts, the other types an address, and the match runs the same as it
+always did.
 
 The part worth keeping was never DirectPlay's. The frame exchange, the
 retransmission, the input delay the game measures from the round trip and
@@ -291,7 +297,7 @@ something between the game and the graphics driver.
 the game renders through, adding windowed and borderless modes, correct aspect
 ratio and upscaling. Every patch here works with it.
 
-**Install** under EXTRA PATCHES downloads the current release and unpacks it
+**Install** under ADD-ONS downloads the current release and unpacks it
 beside `v_on.exe` - `ddraw.dll`, `ddraw.ini`, `cnc-ddraw config.exe` and the
 shaders. Once it is there the same button reads **Remove**, which deletes
 them again and keeps `ddraw.ini`. From a terminal:
