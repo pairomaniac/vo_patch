@@ -5,21 +5,28 @@
     pyinstaller vo-patch.spec
 
 Everything the build needs is here, so the CI workflow is one command. The
-version is read out of vo-patch.py's docstring, which is the only place it is
-written down.
+version is read out of vo-patch.py's VERSION line, which the workflow stamps
+from the tag before this runs; an unstamped source tree builds as 'dev'.
 """
 
 import pathlib
 import re
 
 SOURCE = 'vo-patch.py'
-VERSION = re.search(r'^Version (\S+)',
+VERSION = re.search(r"^VERSION = '(.*)'$",
                     pathlib.Path(SOURCE).read_text(encoding='utf-8'),
                     re.M).group(1)
 
 # Windows file properties. Without this the exe carries no version information
-# at all, which looks broken in the properties dialog.
-_parts = tuple(int(n) for n in (VERSION.split('.') + ['0'] * 4)[:4])
+# at all, which looks broken in the properties dialog. Each component is
+# packed into 16 bits, so anything that is not a dotted number in that range
+# gets zeros - which covers 'dev' and also an all-digit short SHA, which
+# otherwise looks like a version number and overflows the field.
+_digits = VERSION.split('.')
+if len(_digits) > 4 or not all(p.isdigit() and int(p) < 1 << 16
+                               for p in _digits):
+    _digits = []
+_parts = tuple(int(n) for n in (_digits + ['0'] * 4)[:4])
 _version_file = pathlib.Path('build') / 'file-version.txt'
 _version_file.parent.mkdir(exist_ok=True)
 _version_file.write_text("""VSVersionInfo(
@@ -39,9 +46,11 @@ _version_file.write_text("""VSVersionInfo(
 )
 """ % {'parts': _parts, 'version': VERSION}, encoding='utf-8')
 
-# Stdlib packages this script never touches which come in transitively;
-# together they are about 9 MB.
-EXCLUDES = ['unittest', 'pydoc', 'email', 'http', 'xml', 'lib2to3']
+# Stdlib packages this script never touches which come in transitively.
+# email and http are not among them: urllib.request imports both, and
+# excluding them builds an exe that dies at its own import line. The bundle
+# check in the workflow is there to catch that happening again.
+EXCLUDES = ['unittest', 'pydoc', 'xml', 'lib2to3']
 
 a = Analysis(
     [SOURCE],

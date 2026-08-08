@@ -17,6 +17,6 @@ asm/*.bin
 net/dpctrl.dll
 vo-net.log
 
-# Personal dev notes
+# Personal dev stuff
 DEVELOPING.md
 tools/vo-loopback.sh

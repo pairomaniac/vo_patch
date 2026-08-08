@@ -9,6 +9,9 @@
     python3 vo-patch.py --version
 
 Version 0.7.6
+    python3 vo-patch.py --selfcheck     validate the patch tables and exit
+    python3 vo-patch.py --version
+
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -20,6 +23,7 @@ import os
 import queue
 import re
 import shutil
+import ssl
 import struct
 import sys
 import webbrowser
@@ -27,12 +31,28 @@ import threading
 import urllib.request
 import zipfile
 import zlib
+import urllib.error
 
-VERSION = re.search(r'^Version (\S+)', __doc__, re.M).group(1)
+# Stamped by the build from the tag; see .github/workflows/build.yml. A
+# source checkout has no version of its own, and saying so is more use in a
+# bug report than a number nobody bumped.
+VERSION = 'dev'
 
 EXE_SIZE = 6650880
 
 ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
+
+# Other builds that turn up. None of them can be patched - they are listed
+# only so the patcher can name what it was handed instead of saying "not the
+# original". md5 -> (size, name, why).
+OTHER_BUILDS = {
+    '4c70f780a7f0d98d74be62304fb99021': (
+        6649344, 'USA OEM',
+        'A different release of the same game. Everything here is written '
+        'for the retail disc build.'),
+}
+
+RETAIL_HINT = 'Use v_on.exe from a standard retail VIRTUAL-ON CD.'
 
 # GENERATED - do not edit the hex by hand.
 #
@@ -1676,6 +1696,19 @@ DDRAW_MAX = 32 << 20            # sanity bound on the download
 DDRAW_FILES = ('ddraw.dll', 'ddraw.ini', 'cnc-ddraw config.exe')
 DDRAW_DIRS = ('Shaders/',)
 
+# Applied to the [ddraw] section of the archive's own ddraw.ini the first
+# time it is written, and never afterwards. The rest of that file - the
+# comments and the 280-odd game specific sections - is left as it comes.
+# Together these give a borderless window at the right aspect ratio, which
+# the stock defaults do not.
+DDRAW_SETTINGS = (
+    ('fullscreen', 'true'),         # stretch to the screen
+    ('windowed', 'true'),           # with fullscreen=true, borderless
+    ('maintas', 'true'),            # 4:3, the whole point
+    ('noactivateapp', 'true'),      # survive alt+tab
+    ('toggle_borderless', 'true'),  # let alt+enter switch back
+)
+
 
 def _ddraw_wanted(name):
     """True for the members worth extracting, false for anything else.
@@ -1700,6 +1733,58 @@ def ddraw_status(gamedir):
     return os.path.exists(dll)
 
 
+def _urlopen(req, timeout=30):
+    """urlopen, retried against a bundled CA list.
+
+    Windows keeps only a small set of root certificates and fetches the rest
+    on demand through CryptoAPI, which OpenSSL never consults - so a machine
+    that has not needed this root before reports it as missing and the
+    download fails. certifi is bundled in the release build for that case.
+    Anything else, including a genuinely bad certificate, is raised as it
+    was."""
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.URLError as exc:
+        if not isinstance(getattr(exc, 'reason', None),
+                          ssl.SSLCertVerificationError):
+            raise
+        try:
+            import certifi
+        except ImportError:
+            raise
+        context = ssl.create_default_context(cafile=certifi.where())
+    return urllib.request.urlopen(req, timeout=timeout, context=context)
+
+
+def _ddraw_configure(text):
+    """Set DDRAW_SETTINGS in the [ddraw] section, leave everything else.
+
+    The file is edited line by line rather than parsed and rewritten: it is
+    mostly comments and per-game sections, and configparser would throw all
+    of that away. A key that is not found is added at the end of the section
+    rather than silently dropped."""
+    lines = text.split('\n')
+    want = dict(DDRAW_SETTINGS)
+    section, end = None, None
+    for n, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('['):
+            if section == 'ddraw':
+                break
+            section = stripped[1:-1].lower()
+            continue
+        if section != 'ddraw' or stripped.startswith(';') or '=' not in line:
+            continue
+        key = line.split('=', 1)[0].strip()
+        end = n
+        if key in want:
+            lines[n] = '%s=%s' % (key, want.pop(key))
+    if want and end is not None:
+        lines[end + 1:end + 1] = ['%s=%s' % kv for kv in DDRAW_SETTINGS
+                                  if kv[0] in want]
+    return '\n'.join(lines)
+
+
 def install_ddraw(gamedir, progress=None):
     """Download cnc-ddraw and unpack it beside the game.
 
@@ -1710,6 +1795,7 @@ def install_ddraw(gamedir, progress=None):
         'User-Agent': 'vo-patch/%s' % VERSION})
     blob = io.BytesIO()
     with urllib.request.urlopen(req, timeout=30) as resp:
+    with _urlopen(req, timeout=30) as resp:
         total = int(resp.headers.get('Content-Length') or 0)
         while True:
             chunk = resp.read(64 << 10)
@@ -1734,6 +1820,16 @@ def install_ddraw(gamedir, progress=None):
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             with zf.open(name) as src, open(dest, 'wb') as out:
                 shutil.copyfileobj(src, out)
+            if name == 'ddraw.ini':
+                # Written once, on a folder that has none. cnc-ddraw reads
+                # this file as CRLF text, so keep it that way.
+                text = zf.read(name).decode('utf-8', 'replace')
+                text = _ddraw_configure(text.replace('\r\n', '\n'))
+                with open(dest, 'wb') as out:
+                    out.write(text.replace('\n', '\r\n').encode('utf-8'))
+            else:
+                with zf.open(name) as src, open(dest, 'wb') as out:
+                    shutil.copyfileobj(src, out)
             written.append(name)
     return written
 
@@ -2128,11 +2224,45 @@ def apply_selected(buf, wanted):
     return buf, applied, skipped
 
 
+def backup_is_original(path):
+    """Is this .bak the file the patcher started from?
+
+    Checking the backup rather than the exe is what makes "already patched"
+    reliable: the patched file's own size and checksum depend on which boxes
+    were ticked, but the backup is always the untouched original."""
+    try:
+        if os.path.getsize(path) != EXE_SIZE:
+            return False
+        with open(path, 'rb') as fh:
+            return hashlib.md5(fh.read()).hexdigest() == ORIGINAL_MD5
+    except OSError:
+        return False
+
+
+def compare_report(size, digest, why, hint, level):
+    """What the patcher wants against what it was given.
+
+    Two rows so the difference is visible rather than described. The short
+    hash is what goes on screen; the log gets both in full, because that is
+    what ends up in a bug report."""
+    return {
+        'rows': [('SUPPORTED', EXE_SIZE, ORIGINAL_MD5),
+                 ('YOURS', size, digest)],
+        'why': why,
+        'hint': hint,
+        'level': level,
+        'log': ['supported: %d bytes  %s' % (EXE_SIZE, ORIGINAL_MD5),
+                'yours:     %d bytes  %s' % (size, digest),
+                why, hint],
+    }
+
+
 class Patcher:
     """All the file handling. Nothing in here touches Tk."""
 
     def __init__(self):
         self.exe_path = None
+        self.compare = None
 
     def load(self, path):
         """Return (description, accepted). Raises OSError.
@@ -2142,17 +2272,34 @@ class Patcher:
         original stayed lit and rewrote an executable the window was no
         longer showing."""
         self.exe_path = None
+        self.compare = None
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
-        if hashlib.md5(data).hexdigest() == ORIGINAL_MD5:
+        digest = hashlib.md5(data).hexdigest()
+        if digest == ORIGINAL_MD5:
             return 'READY - unmodified disc original', True
-        note = 'CANNOT PATCH - this is not the original v_on.exe.'
-        if len(data) != EXE_SIZE:
-            note += '  Expected %d bytes, got %d.' % (EXE_SIZE, len(data))
-        elif os.path.exists(path + '.bak'):
-            note += '  Already patched - restore the backup first.'
-        return note, False
+
+        known = OTHER_BUILDS.get(digest)
+        if known:
+            # A real release, just not this one. Amber: nothing is wrong with
+            # the file, it is the wrong file.
+            what, why, hint, level = ('%s build' % known[1], known[2],
+                                      RETAIL_HINT, 'warn')
+        elif backup_is_original(path + '.bak'):
+            # The size cannot be part of this test: No disc required appends
+            # a section, so a patched file is 3 KB larger than the original
+            # and looked unrecognisable here.
+            what, level = 'already patched', 'warn'
+            why = 'The v_on.exe.bak beside it is the unmodified original.'
+            hint = 'Press Restore original, or copy the .bak back by hand.'
+        else:
+            what, level = 'unrecognised file', 'bad'
+            why = ('Not a v_on.exe this patcher knows - a bad rip, a repack, '
+                   'or a copy already patched or otherwise modified.')
+            hint = RETAIL_HINT
+        self.compare = compare_report(len(data), digest, why, hint, level)
+        return 'CANNOT PATCH - %s.' % what, False
 
     def apply(self, wanted):
         """Patch a clean original in place.
@@ -2795,6 +2942,9 @@ def run_tk():
             self.small.configure(size=small)
             self.bold = default.copy()
             self.bold.configure(weight='bold')
+            # the comparison rows only line up in a fixed pitch
+            self.mono = tkfont.nametofont('TkFixedFont').copy()
+            self.mono.configure(size=small)
             self.dim = p['dim']
 
         def _corners(self, parent, colour, spots, pad):
@@ -2897,6 +3047,44 @@ def run_tk():
                        command=self._pick).pack(side='left', padx=(8, 0))
             self.file_note = _hint(parent, NO_FILE, self.dim, self.small,
                                    pady=(8, 0))
+
+            # Only packed when a file was rejected. "Not the original" on its
+            # own leaves nothing to act on, so show both files side by side
+            # and say what to do about it.
+            self.mismatch = ttk.Frame(parent, style='Card.TFrame')
+            wrap = tk.Frame(self.mismatch, background=PALETTE['line'])
+            wrap.pack(fill='x', pady=(8, 0))
+            inner = tk.Frame(wrap, background=PALETTE['ink'])
+            inner.pack(fill='x', padx=1, pady=1)
+            self.rows = []
+            for colour in (self.dim, PALETTE['bad']):
+                row = tk.Label(inner, text='', font=self.mono, anchor='w',
+                               justify='left', padx=8, pady=2,
+                               background=PALETTE['ink'], foreground=colour)
+                row.pack(fill='x')
+                self.rows.append(row)
+            self.mismatch_why = _hint(self.mismatch, '', self.dim, self.small,
+                                      pady=(6, 0))
+            self.mismatch_hint = _hint(self.mismatch, '', self.dim,
+                                       self.small, pady=(4, 0))
+
+        def _compare(self, report):
+            """Show or hide the mismatch box.
+
+            Amber for a file that is simply the wrong one, red for a file
+            that looks damaged - the advice differs, so the colour should
+            too."""
+            if not report:
+                self.mismatch.pack_forget()
+                return
+            colour = PALETTE['amber' if report['level'] == 'warn' else 'bad']
+            for row, (name, size, digest) in zip(self.rows, report['rows']):
+                row.config(text='%-10s%11s B  %s'
+                                % (name, '{:,}'.format(size), digest[:12]))
+            self.rows[1].config(foreground=colour)
+            self.mismatch_why.config(text=report['why'], foreground=colour)
+            self.mismatch_hint.config(text=report['hint'])
+            self.mismatch.pack(fill='x')
 
         def _music_body(self, parent):
             _hint(parent, MUSIC_HINT, self.dim, self.small, pady=(0, 8))
@@ -3239,9 +3427,9 @@ def run_tk():
 
         # -- behaviour
 
-        def _set_status(self, text, ok=None):
+        def _set_status(self, text, ok=None, level='bad'):
             colour = self.dim if ok is None else \
-                PALETTE['ok'] if ok else PALETTE['bad']
+                PALETTE['ok'] if ok else PALETTE[level]
             font = self.small if ok is None else self.bold
             # the card above shows it in full
             short = text if len(text) <= 52 else text[:51] + '\u2026'
@@ -3261,6 +3449,7 @@ def run_tk():
                 note, ok = self.core.load(path)
             except OSError as exc:
                 self._set_status('Could not read it: %s' % exc, False)
+                self._compare(None)
                 for key, check in self.checks.items():
                     self.vars[key].set(False)
                     check.state(['disabled'])
@@ -3270,7 +3459,9 @@ def run_tk():
                 self._ddraw_sync()
                 self._netplay_sync()
                 return
-            self._set_status(note, ok)
+            level = (self.core.compare or {}).get('level', 'bad')
+            self._set_status(note, ok, 'amber' if level == 'warn' else 'bad')
+            self._compare(self.core.compare)
             state = default_state()
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
@@ -3286,6 +3477,8 @@ def run_tk():
             self._netplay_sync()
             if not ok:
                 self._log(note)
+                for line in (self.core.compare or {}).get('log', ()):
+                    self._log(line)
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}

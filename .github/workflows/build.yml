@@ -84,19 +84,6 @@ jobs:
       - name: Lint
         run: python3 -m pyflakes vo-patch.py asm/*.py net/build.py tools/selftest.py
 
-      # The exe is named from the script, so a mismatched tag ships the wrong
-      # filename under the right release. Checked here so a bad tag fails in
-      # under a minute instead of after a PyInstaller run.
-      - name: Tag matches the script version
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          version=$(grep -oP '(?<=^Version )\S+' vo-patch.py)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME but the script says $version"
-            exit 1
-          fi
-          echo "tag and script agree on $version"
-
       # What this job cannot do is apply the patches to a real v_on.exe: the
       # game is not in the repository. Run tools/selftest.py by hand before
       # tagging - it is the only check that catches a wrong offset.
@@ -120,7 +107,34 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install pyinstaller==6.21.0
+      # certifi is not imported unless the platform trust store fails, but it
+      # has to be installed here or there is nothing to fall back to in the
+      # exe. The bundle check below is what notices if it goes missing.
+      - run: pip install pyinstaller==6.21.0 certifi
+
+      # The source carries no version. A tag build takes it from the tag, so
+      # the tag and the filename cannot disagree; anything else takes the
+      # short SHA, so a downloaded artifact says which commit built it.
+      # Everything downstream - the spec, the exe name, the Windows file
+      # properties, the window title, --version - reads this one line.
+      - name: Stamp the version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${GITHUB_SHA::7}"
+          fi
+          python - "$version" <<'EOF'
+          import pathlib, re, sys
+          src = pathlib.Path('vo-patch.py')
+          text, n = re.subn(r"^VERSION = '.*'$", "VERSION = '%s'" % sys.argv[1],
+                            src.read_text(encoding='utf-8'), count=1, flags=re.M)
+          if n != 1:
+              raise SystemExit('no VERSION line in vo-patch.py')
+          src.write_text(text, encoding='utf-8', newline='\n')
+          EOF
+          grep '^VERSION = ' vo-patch.py
 
       # Everything about the build lives in vo-patch.spec, including the
       # version, which it reads out of the script.
@@ -135,7 +149,23 @@ jobs:
           pyi-archive_viewer -l -b dist/*.exe > listing.txt
           grep -q '_tkinter' listing.txt || { echo 'tkinter was not bundled'; exit 1; }
           grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
-          echo "$(grep -c . listing.txt) entries, tkinter present"
+          grep -q 'cacert.pem' listing.txt || { echo 'certifi CA list was not bundled'; exit 1; }
+          echo "$(grep -c . listing.txt) entries, tkinter and CA list present"
+
+      # The listing cannot see inside the PYZ, so an over-eager entry in
+      # EXCLUDES looks fine there and dies at the exe's own import line -
+      # which is how a build shipped with email excluded and urllib.request
+      # importing it. Running it is the only test that catches that.
+      # --selfcheck needs neither a display nor a copy of the game.
+      #
+      # The exe is windowed: on a crash it puts up a dialog and waits for
+      # someone to click it, so the timeout is what makes that a failed step
+      # instead of a hung job.
+      - name: The exe starts
+        shell: bash
+        run: |
+          timeout 60 dist/vo-patch-*.exe --selfcheck
+          echo 'the exe runs and its tables check out'
 
       # To the log, not an asset: a checksum beside its own binary proves
       # nothing.
@@ -152,7 +182,7 @@ jobs:
           import pathlib, re
           src = pathlib.Path('vo-patch.py')
           text = src.read_bytes().replace(b'\r\n', b'\n')
-          version = re.search(rb'^Version (\S+)', text, re.M).group(1).decode()
+          version = re.search(rb"^VERSION = '(.*)'$", text, re.M).group(1).decode()
           pathlib.Path('dist/vo-patch-%s.py' % version).write_bytes(text)
           print('staged vo-patch-%s.py' % version)
           EOF
