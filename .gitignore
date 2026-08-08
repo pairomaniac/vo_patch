@@ -12,3 +12,6 @@ __pycache__/
 # layout.py writes these when run on its own; build.py uses a temp directory.
 asm/strings.inc
 asm/*.bin
+
+# Ignore personal notes
+DEVELOPING.md

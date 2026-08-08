@@ -74,6 +74,10 @@ effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
 - **Hide loading screen text** - removes "Now Loading . . .".
 
+Under the same list, **Resolution and windowing** is not a patch but a button:
+it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
+beside the game.
+
 ## Using the patcher
 
 Select `v_on.exe` and press **Apply patches**. Expand **ESSENTIAL PATCHES** or
@@ -117,6 +121,14 @@ To change the machine code the patches install, see [asm/](asm/), which
 by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
 a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
 to a real one.
+
+Everything the patcher does is also available without a window:
+
+```bash
+python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo-patch.py --selfcheck        # validate the patch tables
+```
 
 ## Gamepad
 
@@ -225,20 +237,36 @@ With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
 `mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
-## cnc-ddraw
+## Resolution and windowing (cnc-ddraw)
 
 The game asks for 640x480 exclusive fullscreen and leaves the rest to the
 display, which on a modern panel usually means a stretched picture. The 4:3
 framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
 something between the game and the graphics driver.
 
-[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) is a separate download
-that replaces the DirectDraw the game renders through. It adds windowed and
-borderless modes, correct aspect ratio and upscaling. Unzip it beside
-`v_on.exe`; nothing needs configuring, and every patch here works with it.
+[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
+the game renders through, adding windowed and borderless modes, correct aspect
+ratio and upscaling. Every patch here works with it.
 
-On Linux it runs under Wine and Proton. gamescope handles the scaling without
-a DLL, if you would rather:
+**Install** under EXTRA PATCHES downloads the current release and unpacks it
+beside `v_on.exe` - `ddraw.dll`, `ddraw.ini`, `cnc-ddraw config.exe` and the
+shaders. From a terminal:
+
+```bash
+python3 vo-patch.py --ddraw path/to/game
+```
+
+Comes straight from
+[the releases page](https://github.com/FunkyFr3sh/cnc-ddraw/releases), so it
+is always the current version. An existing `ddraw.ini` is kept, so re-running
+to update leaves your settings alone. Close the game first: Windows will not
+replace a DLL that is loaded.
+
+**On Linux there is a second step.** Set `ddraw` to native in `winecfg` for
+that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
+its own DirectDraw and nothing changes.
+
+gamescope handles the scaling without a DLL, if you would rather:
 
 ```bash
 gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%

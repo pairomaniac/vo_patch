@@ -3,6 +3,7 @@
 
     python3 vo-patch.py                 patch a copy of v_on.exe
     python3 vo-patch.py --rip SRC DIR   rip the soundtrack, no window needed
+    python3 vo-patch.py --ddraw DIR     fetch cnc-ddraw into the game folder
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
@@ -12,6 +13,7 @@ https://github.com/pairomaniac/vo_patch
 
 import ctypes
 import hashlib
+import io
 import os
 import queue
 import re
@@ -20,6 +22,8 @@ import struct
 import sys
 import webbrowser
 import threading
+import urllib.request
+import zipfile
 
 VERSION = re.search(r'^Version (\S+)', __doc__, re.M).group(1)
 
@@ -1031,6 +1035,113 @@ def rip_in_background(source, gamedir, progress, done):
     return thread
 
 
+# --- cnc-ddraw -----------------------------------------------------------
+# Not ours and not bundled. cnc-ddraw is GPLv3, so the patcher fetches it
+# from upstream at the user's request rather than shipping a copy: that
+# keeps this a convenience wrapper around a download the user could do by
+# hand, and leaves distribution where it belongs. Do not embed the zip.
+
+DDRAW_URL = ('https://github.com/FunkyFr3sh/cnc-ddraw/releases/latest/'
+             'download/cnc-ddraw.zip')
+DDRAW_MAX = 32 << 20            # sanity bound on the download
+DDRAW_FILES = ('ddraw.dll', 'ddraw.ini', 'cnc-ddraw config.exe')
+DDRAW_DIRS = ('Shaders/',)
+
+
+def _ddraw_wanted(name):
+    """True for the members worth extracting, false for anything else.
+
+    A whitelist rather than extractall: a zip can name ..\\..\\somewhere
+    and the standard library will write it.
+    """
+    if name.endswith('/'):
+        return False
+    if '\\' in name or name.startswith('/') or '..' in name.split('/'):
+        return False
+    if name in DDRAW_FILES:
+        return True
+    return any(name.startswith(d) for d in DDRAW_DIRS)
+
+
+def ddraw_status(gamedir):
+    """Which of the pieces are already beside the game."""
+    if not gamedir:
+        return None
+    dll = os.path.join(gamedir, 'ddraw.dll')
+    return os.path.exists(dll)
+
+
+def install_ddraw(gamedir, progress=None):
+    """Download cnc-ddraw and unpack it beside the game.
+
+    Returns the list of files written. An existing ddraw.ini is left alone,
+    so re-running to update never discards someone's settings.
+    """
+    req = urllib.request.Request(DDRAW_URL, headers={
+        'User-Agent': 'vo-patch/%s' % VERSION})
+    blob = io.BytesIO()
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        total = int(resp.headers.get('Content-Length') or 0)
+        while True:
+            chunk = resp.read(64 << 10)
+            if not chunk:
+                break
+            blob.write(chunk)
+            if blob.tell() > DDRAW_MAX:
+                raise ValueError('download is larger than %d MB'
+                                 % (DDRAW_MAX >> 20))
+            if progress:
+                progress(blob.tell(), total)
+
+    written = []
+    with zipfile.ZipFile(blob) as zf:
+        members = [m for m in zf.namelist() if _ddraw_wanted(m)]
+        if 'ddraw.dll' not in members:
+            raise ValueError('no ddraw.dll in the archive')
+        for name in members:
+            dest = os.path.join(gamedir, *name.split('/'))
+            if name == 'ddraw.ini' and os.path.exists(dest):
+                continue                        # never clobber settings
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with zf.open(name) as src, open(dest, 'wb') as out:
+                shutil.copyfileobj(src, out)
+            written.append(name)
+    return written
+
+
+def remove_ddraw(gamedir):
+    """Take it back out again, leaving ddraw.ini in case it is wanted."""
+    gone = []
+    for name in DDRAW_FILES:
+        if name == 'ddraw.ini':
+            continue
+        path = os.path.join(gamedir, name)
+        if os.path.exists(path):
+            os.remove(path)
+            gone.append(name)
+    shaders = os.path.join(gamedir, 'Shaders')
+    if os.path.isdir(shaders):
+        shutil.rmtree(shaders, ignore_errors=True)
+        gone.append('Shaders')
+    return gone
+
+
+def install_ddraw_in_background(gamedir, progress, done):
+    """Same shape as rip_in_background: both callbacks fire off the UI
+    thread."""
+    def work():
+        try:
+            files = install_ddraw(gamedir, progress)
+        except Exception as exc:
+            done(exc, None)
+        else:
+            done(None, files)
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    return thread
+
+
 # --- CD audio ------------------------------------------------------------
 # GENERATED - do not edit the hex by hand.
 #
@@ -1565,10 +1676,23 @@ EXTRA_HINT = 'Optional. Untick what you do not want.'
 
 # Not a patch and not bundled: a separate download that does the things a
 # byte edit cannot, so it sits under the list rather than in it.
-EXTRA_LINK = ('cnc-ddraw', 'https://github.com/FunkyFr3sh/cnc-ddraw',
-              'Separate download. A DirectDraw wrapper that adds windowed '
-              'and borderless modes and scales 640x480 without stretching '
-              'it. Unzip beside v_on.exe. Works with every patch here.')
+EXTRA_LINK = ('Resolution and windowing', 'cnc-ddraw',
+              'https://github.com/FunkyFr3sh/cnc-ddraw',
+              'Windowed and borderless modes, and 640x480 scaled to your '
+              'monitor without stretching. Install downloads it and puts '
+              'it beside v_on.exe.')
+
+# Dropping the files in is not enough under Wine, and someone who misses
+# this sees no change at all, so it gets the accent colour rather than
+# being buried in the sentence above.
+DDRAW_WINE = ('Linux: also set ddraw to native in winecfg for this prefix, '
+              'or run cnc-ddraw config.exe once. Without that step nothing '
+              'changes.')
+
+DDRAW_BUSY = 'Downloading\u2026'
+DDRAW_NEEDS_EXE = 'Pick v_on.exe first: cnc-ddraw goes in the same folder.'
+DDRAW_LOCKED = ('Close the game first: Windows will not let the patcher '
+                'replace a DLL that is loaded.')
 
 MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
               'No disc required patch reads it. Source: a cue sheet or a CD '
@@ -2248,18 +2372,93 @@ def run_tk():
                 thread.join(1.5)
             self.root.destroy()
 
-        def _link_row(self, parent, label, url, note):
-            """A suggestion under a patch list, not a patch: nothing is
-            ticked, applied or written. Kept visually quieter than a row
-            for that reason."""
+        def _link_row(self, parent, label, name, url, note):
+            """A suggestion under a patch list, not a patch: nothing here is
+            ticked or written by Apply. Kept visually quieter for that
+            reason, but it does get its own button, since fetching it by
+            hand is the step people stall on."""
             row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(8, 1))
-            link = tk.Label(row, text=label, font=self.small, cursor='hand2',
+            row.pack(fill='x', pady=(10, 1))
+            # Same font as a patch row's label, so the eye reads it as one
+            # more entry in the list rather than a footnote. What it does
+            # comes first; whose project it is follows, in the link colour.
+            ttk.Label(row, text=label, style='Card.TLabel',
+                      foreground=PALETTE['text']).pack(side='left')
+            link = tk.Label(row, text=name, cursor='hand2',
                             background=PALETTE['card'],
                             foreground=PALETTE['cyan'])
-            link.pack(side='left')
+            link.pack(side='left', padx=(6, 0))
             link.bind('<Button-1>', lambda _e: webbrowser.open(url))
-            _hint(parent, note, self.dim, self.small, pady=(0, 2))
+            link.bind('<Enter>',
+                      lambda _e: link.config(foreground=PALETTE['cyan_hi']))
+            link.bind('<Leave>',
+                      lambda _e: link.config(foreground=PALETTE['cyan']))
+            self.ddraw_btn = ttk.Button(row, text='Install',
+                                        style='Vo.TButton',
+                                        command=self._install_ddraw)
+            self.ddraw_btn.pack(side='right', padx=(6, 2))
+            _hint(parent, note, self.dim, self.small, pady=(2, 0))
+            _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
+                  pady=(2, 0))
+            self.ddraw_note = _hint(parent, '', self.dim, self.small,
+                                    pady=(2, 2))
+
+        def _install_ddraw(self):
+            gamedir = (os.path.dirname(self.core.exe_path)
+                       if self.core.exe_path else None)
+            if not gamedir:
+                self._log(DDRAW_NEEDS_EXE)
+                self.ddraw_note.config(text=DDRAW_NEEDS_EXE,
+                                       foreground=PALETTE['cyan'])
+                return
+
+            self.ddraw_btn.state(['disabled'])
+            self.ddraw_note.config(text=DDRAW_BUSY, foreground=self.dim)
+            self._log('Fetching cnc-ddraw from %s' % DDRAW_URL)
+            self._ddrawq = queue.Queue()
+
+            def progress(got, total):
+                self._ddrawq.put(('progress', got, total))
+
+            def done(exc, files):
+                self._ddrawq.put(('done', exc, files))
+
+            install_ddraw_in_background(gamedir, progress, done)
+            self._drain_ddraw()
+
+        def _drain_ddraw(self):
+            """Poll the worker's queue on the UI thread, as the rip does."""
+            try:
+                while True:
+                    item = self._ddrawq.get_nowait()
+                    if item[0] == 'progress':
+                        _kind, got, total = item
+                        if total:
+                            self.ddraw_note.config(
+                                text='%s %d%%' % (DDRAW_BUSY,
+                                                  100 * got // total))
+                        continue
+                    _kind, exc, files = item
+                    self.ddraw_btn.state(['!disabled'])
+                    if isinstance(exc, PermissionError):
+                        self.ddraw_note.config(text=DDRAW_LOCKED,
+                                               foreground=PALETTE['bad'])
+                        self._log('cnc-ddraw: %s' % DDRAW_LOCKED)
+                    elif exc:
+                        self.ddraw_note.config(text='Download failed.',
+                                               foreground=PALETTE['bad'])
+                        self._log('cnc-ddraw: %s' % exc)
+                        self._log('Install it by hand from the link above.')
+                    else:
+                        self.ddraw_note.config(
+                            text='Installed %d files beside v_on.exe.'
+                                 % len(files), foreground=PALETTE['ok'])
+                        self._log('cnc-ddraw installed: %s'
+                                  % ', '.join(sorted(files)[:6]))
+                    return
+            except queue.Empty:
+                pass
+            self.root.after(100, self._drain_ddraw)
 
         def _patch_body(self, parent, keys, hint, link=None):
             _hint(parent, hint, self.dim, self.small, pady=(0, 8))
@@ -2420,6 +2619,7 @@ USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
   vo-patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
                                   or a CD drive, DIR holds v_on.exe
   vo-patch.py --rip               list the drives it can see
+  vo-patch.py --ddraw DIR         download cnc-ddraw into DIR (holds v_on.exe)
   vo-patch.py --selfcheck         validate the patch tables and exit
   vo-patch.py --version
 """
@@ -2441,6 +2641,28 @@ def selfcheck():
              'write order: %s' % ' '.join(apply_order()),
              'tables OK']
     print('\n'.join(lines))
+    return None
+
+
+def ddraw_cli(argv):
+    """--ddraw GAMEDIR, for a machine with no display."""
+    if len(argv) != 1:
+        return 'Usage: vo-patch.py --ddraw GAMEDIR'
+    gamedir = argv[0]
+    if not os.path.isdir(gamedir):
+        return 'Not a directory: %s' % gamedir
+
+    def progress(got, total):
+        if total:
+            sys.stderr.write('\r%5.1f%%  ' % (100.0 * got / total))
+
+    try:
+        files = install_ddraw(gamedir, progress)
+    except Exception as exc:
+        return '\ncnc-ddraw failed: %s' % exc
+    sys.stderr.write('\r')
+    print('Installed %d files into %s' % (len(files), gamedir))
+    print('On Linux, set ddraw to native in winecfg for that prefix.')
     return None
 
 
@@ -2484,6 +2706,8 @@ def main():
         return None
     if '--selfcheck' in args:
         return selfcheck()
+    if '--ddraw' in args:
+        return ddraw_cli(sys.argv[sys.argv.index('--ddraw') + 1:])
     if '--rip' in args:
         return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
 
