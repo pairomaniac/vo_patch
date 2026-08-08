@@ -116,6 +116,15 @@ If **XInput gamepad support** was among them, `v_on.ini` is moved to
 original** puts that back too, keeping whatever the patched game wrote as
 `v_on.ini.patched`.
 
+Everything the patcher does is also available without a window:
+
+```bash
+python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL
+python3 vo-patch.py --selfcheck        # validate the patch tables
+```
+
 ## Gamepad
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
@@ -227,6 +236,44 @@ With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
 `mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
+## Internet play
+
+Two-player link mode works over a LAN and, in the stock game, only over a
+LAN. It finds opponents by broadcasting on the local network, which no
+router forwards, and DirectPlay itself is deprecated on Windows and only
+partly implemented under Wine. Port forwarding does not help: the search
+never leaves the building.
+
+**Internet play** under EXTRA PATCHES replaces the game's DirectPlay layer
+with plain UDP. One player hosts, the other types an address. Everything
+above the transport - the frame exchange, the resend, the input delay the
+game negotiates from the measured round trip - is unchanged, because that
+part was never DirectPlay's; it was the game's own and it holds up well.
+
+```bash
+python3 vo-patch.py --netplay path/to/game            # install
+python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
+```
+
+The original `dpctrl.dll` is kept as `dpctrl.dll.stock` and Remove restores
+it, so you can go back to LAN-and-VPN play whenever you like.
+
+### Playing
+
+- **Both players need this installed**, and the same patches applied. The
+  two machines run the same simulation in lockstep; if they disagree about
+  the rules, they will disagree about the match.
+- **The host forwards UDP 47624.** The joining player needs nothing.
+- Host picks *Host a game*, reads out the address - the dialog shows the
+  local one, and can ask the internet for the public one - and the other
+  player picks *Join a game* and types it in. Host names work too.
+- No lobby, no server, no accounts. Arrange the match however you already
+  arrange it.
+
+If the connection cannot be established, the joining side waits until you
+cancel. Once a match is running, a player who quits or crashes is noticed
+within a few seconds.
+
 ## Resolution and windowing (cnc-ddraw)
 
 The game asks for 640x480 exclusive fullscreen and leaves the rest to the
@@ -242,6 +289,8 @@ ratio and upscaling. Every patch here works with it.
 
 **Install** under EXTRA PATCHES downloads the current release and unpacks it
 beside `v_on.exe` - `ddraw.dll`, `ddraw.ini`, `cnc-ddraw config.exe` and the
+shaders. Once it is there the same button reads **Remove**, which deletes
+them again and keeps `ddraw.ini`. From a terminal:
 shaders. From a terminal:
 
 ```bash
@@ -253,6 +302,10 @@ Comes straight from
 is always the current version. An existing `ddraw.ini` is kept, so re-running
 to update leaves your settings alone. Close the game first: Windows will not
 replace a DLL that is loaded.
+
+**On Linux there is a second step.** Set `ddraw` to native in `winecfg` for
+that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
+its own DirectDraw and nothing changes.
 
 A fresh `ddraw.ini` is cnc-ddraw's own file with five settings changed:
 `fullscreen`, `windowed`, `maintas`, `noactivateapp` and `toggle_borderless`

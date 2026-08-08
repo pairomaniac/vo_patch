@@ -13,5 +13,10 @@ __pycache__/
 asm/strings.inc
 asm/*.bin
 
-# Ignore personal notes
+# net/build.py bakes the DLL into vo-patch.py; the file itself is scratch.
+net/dpctrl.dll
+vo-net.log
+
+# Personal dev stuff
 DEVELOPING.md
+tools/vo-loopback.sh

@@ -49,13 +49,40 @@ jobs:
       - name: Sources match the committed blobs
         run: python3 asm/build.py --check
 
+      # The netplay DLL is compiled, not assembled, and two mingw versions
+      # do not produce identical bytes from identical source. So the blob
+      # records a hash of net/dpctrl.c and this compares against it: it
+      # answers "was the blob built from this source", which is the drift
+      # that matters, without demanding a reproducible toolchain.
+      - name: Netplay blob matches its source
+        run: python3 net/build.py --check
+
+      # Separately, prove the C still builds and still exports what the
+      # game imports. Nothing here compares against the committed blob.
+      - name: Netplay DLL compiles
+        run: |
+          sudo apt-get install -y gcc-mingw-w64-i686 binutils-mingw-w64-i686
+          i686-w64-mingw32-gcc -O2 -shared -o /tmp/dpctrl.dll \
+              net/dpctrl.c net/dpctrl.def -lws2_32 -lwinmm \
+              -Wl,--enable-stdcall-fixup
+          for sym in InitialDirectPlay DestroyDirectPlay SendDirectPlay \
+                     SendDirectPlayWaitMessage ReceiveDirectPlay \
+                     SWDataSendReceive CloseProvider; do
+            i686-w64-mingw32-objdump -p /tmp/dpctrl.dll | grep -q "$sym" \
+              || { echo "missing export: $sym"; exit 1; }
+          done
+          i686-w64-mingw32-objdump -p /tmp/dpctrl.dll | grep -i 'DLL Name'
+          i686-w64-mingw32-objdump -p /tmp/dpctrl.dll | grep -qi dplayx \
+            && { echo "still linked against DirectPlay"; exit 1; }
+          echo "ok"
+
       # --check is meant to be read-only. If that ever stops being true this
       # catches it, and it also catches a blob regenerated but not committed.
       - name: Working tree is clean
         run: git diff --exit-code
 
       - name: Lint
-        run: python3 -m pyflakes vo-patch.py asm/*.py tools/selftest.py
+        run: python3 -m pyflakes vo-patch.py asm/*.py net/build.py tools/selftest.py
 
       # What this job cannot do is apply the patches to a real v_on.exe: the
       # game is not in the repository. Run tools/selftest.py by hand before

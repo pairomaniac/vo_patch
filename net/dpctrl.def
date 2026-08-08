@@ -1,0 +1,9 @@
+LIBRARY DPCTRL
+EXPORTS
+    CloseProvider
+    DestroyDirectPlay
+    InitialDirectPlay
+    ReceiveDirectPlay
+    SWDataSendReceive
+    SendDirectPlay
+    SendDirectPlayWaitMessage
