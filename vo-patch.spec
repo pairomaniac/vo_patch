@@ -18,9 +18,14 @@ VERSION = re.search(r"^VERSION = '(.*)'$",
                     re.M).group(1)
 
 # Windows file properties. Without this the exe carries no version information
-# at all, which looks broken in the properties dialog. A dev or SHA build has
-# no numbering to put here, so it gets zeros.
-_digits = VERSION.split('.') if re.fullmatch(r'[\d.]+', VERSION) else []
+# at all, which looks broken in the properties dialog. Each component is
+# packed into 16 bits, so anything that is not a dotted number in that range
+# gets zeros - which covers 'dev' and also an all-digit short SHA, which
+# otherwise looks like a version number and overflows the field.
+_digits = VERSION.split('.')
+if len(_digits) > 4 or not all(p.isdigit() and int(p) < 1 << 16
+                               for p in _digits):
+    _digits = []
 _parts = tuple(int(n) for n in (_digits + ['0'] * 4)[:4])
 _version_file = pathlib.Path('build') / 'file-version.txt'
 _version_file.parent.mkdir(exist_ok=True)
