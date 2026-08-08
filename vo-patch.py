@@ -9,8 +9,6 @@
     python3 vo-patch.py --version
 
 Version 0.7.6
-    python3 vo-patch.py --selfcheck     validate the patch tables and exit
-    python3 vo-patch.py --version
 
 https://github.com/pairomaniac/vo_patch
 """
@@ -1794,7 +1792,6 @@ def install_ddraw(gamedir, progress=None):
     req = urllib.request.Request(DDRAW_URL, headers={
         'User-Agent': 'vo-patch/%s' % VERSION})
     blob = io.BytesIO()
-    with urllib.request.urlopen(req, timeout=30) as resp:
     with _urlopen(req, timeout=30) as resp:
         total = int(resp.headers.get('Content-Length') or 0)
         while True:
