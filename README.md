@@ -279,6 +279,19 @@ is always the current version. An existing `ddraw.ini` is kept, so re-running
 to update leaves your settings alone. Close the game first: Windows will not
 replace a DLL that is loaded.
 
+A fresh `ddraw.ini` is cnc-ddraw's own file with five settings changed:
+`fullscreen`, `windowed`, `maintas`, `noactivateapp` and `toggle_borderless`
+are all set to `true`, giving a borderless window at 4:3. Everything else,
+including the comments and the per-game sections, is left as it comes. Change
+any of it with `cnc-ddraw config.exe`.
+
+The intro movie is the one thing upscaling cannot help. The game plays
+`von.avi` through MCI, which draws into a window of its own that never passes
+through DirectDraw, and then pins that window to the top left corner at a
+fixed size. So it plays small and in the corner over an upscaled picture.
+Skip it with Space, Enter, Escape or pad A, or run at 1:1 if you want to
+watch it.
+
 **On Linux there is a second step.** Set `ddraw` to native in `winecfg` for
 that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
 its own DirectDraw and nothing changes.

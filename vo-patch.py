@@ -1063,6 +1063,19 @@ DDRAW_MAX = 32 << 20            # sanity bound on the download
 DDRAW_FILES = ('ddraw.dll', 'ddraw.ini', 'cnc-ddraw config.exe')
 DDRAW_DIRS = ('Shaders/',)
 
+# Applied to the [ddraw] section of the archive's own ddraw.ini the first
+# time it is written, and never afterwards. The rest of that file - the
+# comments and the 280-odd game specific sections - is left as it comes.
+# Together these give a borderless window at the right aspect ratio, which
+# the stock defaults do not.
+DDRAW_SETTINGS = (
+    ('fullscreen', 'true'),         # stretch to the screen
+    ('windowed', 'true'),           # with fullscreen=true, borderless
+    ('maintas', 'true'),            # 4:3, the whole point
+    ('noactivateapp', 'true'),      # survive alt+tab
+    ('toggle_borderless', 'true'),  # let alt+enter switch back
+)
+
 
 def _ddraw_wanted(name):
     """True for the members worth extracting, false for anything else.
@@ -1110,6 +1123,35 @@ def _urlopen(req, timeout=30):
     return urllib.request.urlopen(req, timeout=timeout, context=context)
 
 
+def _ddraw_configure(text):
+    """Set DDRAW_SETTINGS in the [ddraw] section, leave everything else.
+
+    The file is edited line by line rather than parsed and rewritten: it is
+    mostly comments and per-game sections, and configparser would throw all
+    of that away. A key that is not found is added at the end of the section
+    rather than silently dropped."""
+    lines = text.split('\n')
+    want = dict(DDRAW_SETTINGS)
+    section, end = None, None
+    for n, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('['):
+            if section == 'ddraw':
+                break
+            section = stripped[1:-1].lower()
+            continue
+        if section != 'ddraw' or stripped.startswith(';') or '=' not in line:
+            continue
+        key = line.split('=', 1)[0].strip()
+        end = n
+        if key in want:
+            lines[n] = '%s=%s' % (key, want.pop(key))
+    if want and end is not None:
+        lines[end + 1:end + 1] = ['%s=%s' % kv for kv in DDRAW_SETTINGS
+                                  if kv[0] in want]
+    return '\n'.join(lines)
+
+
 def install_ddraw(gamedir, progress=None):
     """Download cnc-ddraw and unpack it beside the game.
 
@@ -1142,8 +1184,16 @@ def install_ddraw(gamedir, progress=None):
             if name == 'ddraw.ini' and os.path.exists(dest):
                 continue                        # never clobber settings
             os.makedirs(os.path.dirname(dest), exist_ok=True)
-            with zf.open(name) as src, open(dest, 'wb') as out:
-                shutil.copyfileobj(src, out)
+            if name == 'ddraw.ini':
+                # Written once, on a folder that has none. cnc-ddraw reads
+                # this file as CRLF text, so keep it that way.
+                text = zf.read(name).decode('utf-8', 'replace')
+                text = _ddraw_configure(text.replace('\r\n', '\n'))
+                with open(dest, 'wb') as out:
+                    out.write(text.replace('\n', '\r\n').encode('utf-8'))
+            else:
+                with zf.open(name) as src, open(dest, 'wb') as out:
+                    shutil.copyfileobj(src, out)
             written.append(name)
     return written
 
