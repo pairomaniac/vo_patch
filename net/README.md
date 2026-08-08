@@ -19,7 +19,7 @@ That API has nowhere to put an address. Compound addresses and
 `InitializeConnection` arrived with `IDirectPlay3`, years later. The
 service provider is handed a GUID and no destination, so finding an
 opponent falls back to whatever it does unaddressed, which for TCP/IP means
-shouting at the local subnet. No router forwards that, which is why port
+broadcasting to the local subnet. No router forwards that, which is why port
 forwarding never helped: the search never leaves the building.
 
 Against that, what DirectPlay contributed to a running match was one call -

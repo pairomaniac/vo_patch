@@ -2470,8 +2470,8 @@ DDRAW_BUSY = 'Downloading\u2026'
 DDRAW_GONE = 'Removed. ddraw.ini was left in place.'
 
 NETPLAY_LABEL = 'Internet play'
-NETPLAY_NOTE = ('The stock game finds opponents by shouting on the local '
-                'network, which no router forwards. This replaces its '
+NETPLAY_NOTE = ('The stock game finds opponents by broadcasting on the '
+                'local network, which no router forwards. This replaces its '
                 'DirectPlay layer with plain UDP: the host opens a port, '
                 'the other player types the address. The original '
                 'dpctrl.dll is kept as dpctrl.dll.stock.')
