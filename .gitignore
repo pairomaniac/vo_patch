@@ -19,3 +19,4 @@ vo-net.log
 
 # Personal dev notes
 DEVELOPING.md
+tools/vo-loopback.sh
