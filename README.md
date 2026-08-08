@@ -128,11 +128,12 @@ python3 vo-patch.py --selfcheck        # validate the patch tables
 ## Internet play
 
 Link mode is two-player versus over a network, and in the stock game it only
-ever reaches the same room. The game looks for opponents by broadcasting on
-the local network, and no router forwards that, so port forwarding changes
-nothing - the search never leaves the building. DirectPlay, the layer doing
+ever reaches the same LAN. The game looks for opponents by broadcasting on
+the local network, and no router forwards that. DirectPlay, the layer doing
 the looking, is deprecated on Windows and only half-implemented under Wine.
 Hence the usual advice to run a VPN and pretend everyone is on one LAN.
+
+<img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
 
 **Internet play** replaces that layer with plain UDP. One player hosts, the
 other types an address, and the match runs the same as it always did.
@@ -161,13 +162,10 @@ back, so nothing stops you returning to LAN-and-VPN play.
   shows the local one, and will ask the internet for the public one if you
   press the button. The other player picks *Join a game* and types it in;
   host names work as well as addresses.
-- Nothing waits on a server, a lobby or an account. Arrange the match
-  however you already arrange it.
 
 The joining side keeps trying until you cancel, so there is no rush to
 press things at the same moment. Once a match is running, a player who
-quits or crashes is noticed within a few seconds rather than leaving the
-other one staring at a frozen arena.
+quits or crashes is noticed within a few seconds.
 
 ## Gamepad
 
