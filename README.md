@@ -90,6 +90,23 @@ before anything is written, and **Restore original** puts it back so you can
 change your selection. Nothing is written unless every selected patch applied
 and the backup was made, so a failure leaves the game exactly as it was.
 
+### Which build
+
+The patcher works on one build and refuses everything else. Every patch is a
+fixed file offset, and those offsets belong to that build alone - applying
+them to another would write into unrelated code.
+
+| Build | Size | MD5 | |
+| --- | --- | --- | --- |
+| Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
+| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
+
+The OEM release is a different build of the same game and is not supported.
+Reinstalling from the same disc will not produce a different file.
+
+If your file is neither of these, the patcher shows both checksums side by
+side and says which one it got.
+
 If **XInput gamepad support** was among them, `v_on.ini` is moved to
 `v_on.ini.bak` at the same time and the game writes a fresh one. **Restore
 original** puts that back too, keeping whatever the patched game wrote as

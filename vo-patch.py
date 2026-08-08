@@ -31,6 +31,18 @@ EXE_SIZE = 6650880
 
 ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 
+# Other builds that turn up. None of them can be patched - they are listed
+# only so the patcher can name what it was handed instead of saying "not the
+# original". md5 -> (size, name, why).
+OTHER_BUILDS = {
+    '4c70f780a7f0d98d74be62304fb99021': (
+        6649344, 'USA OEM',
+        'A different release of the same game. Everything here is written '
+        'for the retail disc build.'),
+}
+
+RETAIL_HINT = 'Use v_on.exe from a standard retail VIRTUAL-ON CD.'
+
 # GENERATED - do not edit the hex by hand.
 #
 # Assembled from the sources in asm/. To change any of them: edit the source
@@ -1499,11 +1511,30 @@ def apply_selected(buf, wanted):
     return buf, applied, skipped
 
 
+def compare_report(size, digest, why, hint, level):
+    """What the patcher wants against what it was given.
+
+    Two rows so the difference is visible rather than described. The short
+    hash is what goes on screen; the log gets both in full, because that is
+    what ends up in a bug report."""
+    return {
+        'rows': [('SUPPORTED', EXE_SIZE, ORIGINAL_MD5),
+                 ('YOURS', size, digest)],
+        'why': why,
+        'hint': hint,
+        'level': level,
+        'log': ['supported: %d bytes  %s' % (EXE_SIZE, ORIGINAL_MD5),
+                'yours:     %d bytes  %s' % (size, digest),
+                why, hint],
+    }
+
+
 class Patcher:
     """All the file handling. Nothing in here touches Tk."""
 
     def __init__(self):
         self.exe_path = None
+        self.compare = None
 
     def load(self, path):
         """Return (description, accepted). Raises OSError.
@@ -1513,17 +1544,31 @@ class Patcher:
         original stayed lit and rewrote an executable the window was no
         longer showing."""
         self.exe_path = None
+        self.compare = None
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
-        if hashlib.md5(data).hexdigest() == ORIGINAL_MD5:
+        digest = hashlib.md5(data).hexdigest()
+        if digest == ORIGINAL_MD5:
             return 'READY - unmodified disc original', True
-        note = 'CANNOT PATCH - this is not the original v_on.exe.'
-        if len(data) != EXE_SIZE:
-            note += '  Expected %d bytes, got %d.' % (EXE_SIZE, len(data))
-        elif os.path.exists(path + '.bak'):
-            note += '  Already patched - restore the backup first.'
-        return note, False
+
+        known = OTHER_BUILDS.get(digest)
+        if known:
+            # A real release, just not this one. Amber: nothing is wrong with
+            # the file, it is the wrong file.
+            what, why, hint, level = ('%s build' % known[1], known[2],
+                                      RETAIL_HINT, 'warn')
+        elif os.path.exists(path + '.bak') and len(data) == EXE_SIZE:
+            what, level = 'already patched', 'warn'
+            why = 'A v_on.exe.bak sits beside it.'
+            hint = 'Press Restore original, or copy the .bak back by hand.'
+        else:
+            what, level = 'unrecognised file', 'bad'
+            why = ('Not a v_on.exe this patcher knows. Usually a bad rip, a '
+                   'repack, or a copy something else has already modified.')
+            hint = RETAIL_HINT
+        self.compare = compare_report(len(data), digest, why, hint, level)
+        return 'CANNOT PATCH - %s.' % what, False
 
     def apply(self, wanted):
         """Patch a clean original in place.
@@ -2155,6 +2200,9 @@ def run_tk():
             self.small.configure(size=small)
             self.bold = default.copy()
             self.bold.configure(weight='bold')
+            # the comparison rows only line up in a fixed pitch
+            self.mono = tkfont.nametofont('TkFixedFont').copy()
+            self.mono.configure(size=small)
             self.dim = p['dim']
 
         def _corners(self, parent, colour, spots, pad):
@@ -2257,6 +2305,44 @@ def run_tk():
                        command=self._pick).pack(side='left', padx=(8, 0))
             self.file_note = _hint(parent, NO_FILE, self.dim, self.small,
                                    pady=(8, 0))
+
+            # Only packed when a file was rejected. "Not the original" on its
+            # own leaves nothing to act on, so show both files side by side
+            # and say what to do about it.
+            self.mismatch = ttk.Frame(parent, style='Card.TFrame')
+            wrap = tk.Frame(self.mismatch, background=PALETTE['line'])
+            wrap.pack(fill='x', pady=(8, 0))
+            inner = tk.Frame(wrap, background=PALETTE['ink'])
+            inner.pack(fill='x', padx=1, pady=1)
+            self.rows = []
+            for colour in (self.dim, PALETTE['bad']):
+                row = tk.Label(inner, text='', font=self.mono, anchor='w',
+                               justify='left', padx=8, pady=2,
+                               background=PALETTE['ink'], foreground=colour)
+                row.pack(fill='x')
+                self.rows.append(row)
+            self.mismatch_why = _hint(self.mismatch, '', self.dim, self.small,
+                                      pady=(6, 0))
+            self.mismatch_hint = _hint(self.mismatch, '', self.dim,
+                                       self.small, pady=(4, 0))
+
+        def _compare(self, report):
+            """Show or hide the mismatch box.
+
+            Amber for a file that is simply the wrong one, red for a file
+            that looks damaged - the advice differs, so the colour should
+            too."""
+            if not report:
+                self.mismatch.pack_forget()
+                return
+            colour = PALETTE['amber' if report['level'] == 'warn' else 'bad']
+            for row, (name, size, digest) in zip(self.rows, report['rows']):
+                row.config(text='%-10s%11s B  %s'
+                                % (name, '{:,}'.format(size), digest[:12]))
+            self.rows[1].config(foreground=colour)
+            self.mismatch_why.config(text=report['why'], foreground=colour)
+            self.mismatch_hint.config(text=report['hint'])
+            self.mismatch.pack(fill='x')
 
         def _music_body(self, parent):
             _hint(parent, MUSIC_HINT, self.dim, self.small, pady=(0, 8))
@@ -2554,9 +2640,9 @@ def run_tk():
 
         # -- behaviour
 
-        def _set_status(self, text, ok=None):
+        def _set_status(self, text, ok=None, level='bad'):
             colour = self.dim if ok is None else \
-                PALETTE['ok'] if ok else PALETTE['bad']
+                PALETTE['ok'] if ok else PALETTE[level]
             font = self.small if ok is None else self.bold
             # the card above shows it in full
             short = text if len(text) <= 52 else text[:51] + '\u2026'
@@ -2576,6 +2662,7 @@ def run_tk():
                 note, ok = self.core.load(path)
             except OSError as exc:
                 self._set_status('Could not read it: %s' % exc, False)
+                self._compare(None)
                 for key, check in self.checks.items():
                     self.vars[key].set(False)
                     check.state(['disabled'])
@@ -2584,7 +2671,9 @@ def run_tk():
                 self.rip_btn.state(['disabled'])
                 self._ddraw_sync()
                 return
-            self._set_status(note, ok)
+            level = (self.core.compare or {}).get('level', 'bad')
+            self._set_status(note, ok, 'amber' if level == 'warn' else 'bad')
+            self._compare(self.core.compare)
             state = default_state()
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
@@ -2599,6 +2688,8 @@ def run_tk():
             self._ddraw_sync()
             if not ok:
                 self._log(note)
+                for line in (self.core.compare or {}).get('log', ()):
+                    self._log(line)
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
