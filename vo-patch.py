@@ -1705,6 +1705,10 @@ DDRAW_SETTINGS = (
     ('maintas', 'true'),            # 4:3, the whole point
     ('noactivateapp', 'true'),      # survive alt+tab
     ('toggle_borderless', 'true'),  # let alt+enter switch back
+    ('devmode', 'true'),            # cnc-ddraw's name for "do not trap the
+                                    # cursor". The game does not use the
+                                    # mouse, so trapping it only makes the
+                                    # second monitor unreachable.
 )
 
 

@@ -11,25 +11,24 @@ build.py    compiles it and bakes the result into vo-patch.py
 
 ## Why
 
-`v_on.exe` does no networking itself. It imports six functions from
-`DPCTRL.DLL` and that DLL, in turn, uses DirectPlay 1 - `DirectPlayCreate`
-and `DirectPlayEnumerate`, ordinals 1 and 2. That API has no address
-mechanism at all: compound addresses and `InitializeConnection` arrived
-with `IDirectPlay3`, years later. So the service provider is created with a
-GUID and nothing else, and finding an opponent falls back to whatever it
-does with no address, which for TCP/IP is a subnet broadcast.
+`v_on.exe` does no networking of its own. It imports six functions from
+`DPCTRL.DLL`, and that DLL uses DirectPlay 1 - `DirectPlayCreate` and
+`DirectPlayEnumerate`, ordinals 1 and 2, nothing else.
 
-No router forwards that. Port forwarding cannot help, because the search
-never leaves the building. That is the whole reason link play only ever
-worked on a LAN, and why a layer-2 VPN made it work again.
+That API has nowhere to put an address. Compound addresses and
+`InitializeConnection` arrived with `IDirectPlay3`, years later. The
+service provider is handed a GUID and no destination, so finding an
+opponent falls back to whatever it does unaddressed, which for TCP/IP means
+shouting at the local subnet. No router forwards that, which is why port
+forwarding never helped: the search never leaves the building.
 
-What DirectPlay actually contributed was one call:
+Against that, what DirectPlay contributed to a running match was one call -
 `Send(this, idFrom, DPID_ALLPLAYERS, dwFlags=0, buf, len)`. Flags zero is
-non-guaranteed - unordered, unacknowledged, no retransmission. It is
-`sendto` with a session header on top. Everything that makes link play hold
-up over a real connection was Sega's, in this DLL, above that call.
+non-guaranteed: unordered, unacknowledged, never retransmitted. It is
+`sendto` wearing a session header. Everything that makes link play hold up
+on a real connection sits above that call, in this DLL, and was Sega's.
 
-So the transport is replaced and the rest is reimplemented as it was.
+So the transport goes and the rest is rebuilt as it was.
 
 ## What the game sees
 
@@ -49,33 +48,36 @@ original: hello, hello-ack and goodbye.
 
 Two 64-slot rings, indexed by `seq & 0x3F`. `SWDataSendReceive` sends the
 local player's frame, blocks until the peer's frame for the current
-sequence arrives, then writes both out - the peer's from the receive ring,
-and *our own from the send ring*, not the buffer we were handed. That last
-part is what keeps the two machines symmetric under input delay.
+sequence arrives, then writes both out: the peer's from the receive ring,
+and *our own from the send ring* rather than the buffer we were handed.
+That last detail is what keeps the two machines symmetric once input delay
+is in play, and it is easy to get wrong.
 
-On connect the host pings nine times, discards the first, averages the
-other eight and derives `delay = mean_rtt / 32 + 1` frames, then tells the
-guest. The first `SWDataSendReceive` sends that frame `delay + 1` times to
-prime the pipeline; every later call sends once.
+On connect the host pings nine times, throws the first away, averages the
+other eight and works out `delay = mean_rtt / 32 + 1` frames, then tells
+the guest. The first `SWDataSendReceive` sends its frame `delay + 1` times
+to fill the pipeline; every call after that sends once.
 
-Missing frames and a missing peer are different problems and are treated
-differently. A frame that has not arrived means the peer is slow: ask again
-every second, hold on for the full 30, exactly as the original did. Silence
-means the peer is gone: a 250ms heartbeat runs in both directions, so three
-seconds without anything at all is a dead link. The original never needed
-this - DirectPlay noticed the drop and told the game.
+A missing frame and a missing player are different problems and get
+different answers. A frame that has not arrived means the peer is slow: ask
+again every second and hold on for the full thirty, as the original did.
+Silence means the peer is gone, so a 250ms heartbeat runs both ways and
+three seconds of nothing at all is a dead link. The original had no need
+for this - DirectPlay watched the connection and told the game.
 
 ## Two deliberate differences
 
 **The input delay is clamped** to `RING/2 - 2` frames. The original has no
 clamp, and somewhere past a second of round trip its send sequence would
-overwrite ring slots still waiting to be read.
+start overwriting slots still waiting to be read. That is a bug worth not
+reproducing.
 
-**The wait yields.** `select()` sleeps until the packet lands rather than
-spinning on `recvfrom`. The original spun too, but through DirectPlay,
-which blocks internally and hands time back to the scheduler; replacing
-DirectPlay with non-blocking UDP inherited a busy-wait Sega never had.
-Build with `-DVO_YIELD=0` to get the spin back for comparison.
+**The wait yields.** `select()` sleeps until the packet lands instead of
+spinning on `recvfrom`. The original spun as well, but through DirectPlay,
+which blocks internally and hands the time back; swapping in non-blocking
+UDP inherited a busy-wait Sega never had, and on a modern scheduler it
+costs the render thread a frame here and there. Build with `-DVO_YIELD=0`
+to get the spin back and feel the difference.
 
 ## Building
 
@@ -94,9 +96,9 @@ produce identical output from identical source.
 
 ## Testing
 
-Loopback proves the ABI and the rings and nothing else - no loss, no
+Loopback proves the ABI and the ring handling and nothing more: no loss, no
 latency, both sides the same build. The resend path, the input delay and
-everything about NAT need two machines.
+every question about NAT need two machines and a real link.
 
 Touch `vo-net.log` beside the game to log the latency probe and the
 resulting frame delay. Delete it to stop.
