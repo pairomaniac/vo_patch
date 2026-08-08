@@ -32,7 +32,12 @@ DEF = os.path.join(HERE, 'dpctrl.def')
 TARGET = os.path.join(ROOT, 'vo-patch.py')
 
 CC = 'i686-w64-mingw32-gcc'
-STRIP = 'i686-w64-mingw32-strip'
+
+# Left to itself the linker stamps a build time and picks an image base, so
+# two runs over unchanged source give different bytes and a 40 KB blob turns
+# up in the diff for nothing. Pinned, the same mingw produces the same file.
+# Stripping is done by the linker: a separate strip pass re-stamps the time.
+IMAGE_BASE = 0x6c540000
 
 BEGIN = '# --- netplay blob: written by net/build.py, do not edit ---'
 END = '# --- end netplay blob ---'
@@ -53,14 +58,13 @@ def compile_dll(workdir):
         sys.exit('%s not found. Install gcc-mingw-w64-i686.' % CC)
 
     out = os.path.join(workdir, 'dpctrl.dll')
-    cmd = [CC, '-O2', '-shared', '-o', out, SRC, DEF,
-           '-lws2_32', '-lwinmm', '-Wl,--enable-stdcall-fixup']
+    cmd = [CC, '-O2', '-shared', '-s', '-o', out, SRC, DEF,
+           '-lws2_32', '-lwinmm', '-Wl,--enable-stdcall-fixup',
+           '-Wl,--no-insert-timestamp', '-Wl,--image-base=%#x' % IMAGE_BASE]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode:
         sys.stderr.write(proc.stderr)
         sys.exit('compile failed')
-    if shutil.which(STRIP):
-        subprocess.run([STRIP, out], check=True)
 
     with open(out, 'rb') as f:
         blob = f.read()

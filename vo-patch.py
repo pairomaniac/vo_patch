@@ -1641,6 +1641,13 @@ NETPLAY_DLL_Z = (
 NETPLAY_NAME = 'dpctrl.dll'
 NETPLAY_KEEP = 'dpctrl.dll.stock'
 
+# Ours contains this - the log file the DLL writes - and the game's own does
+# not. A hash of the current blob would not do: the linker stamps a build
+# time and an image base, so rebuilding from identical source gives
+# different bytes and a DLL installed by an earlier release would read as a
+# stranger.
+NETPLAY_MARK = b'vo-net.log'
+
 
 def netplay_dll():
     """The DLL bytes, unpacked from the blob."""
@@ -1649,20 +1656,10 @@ def netplay_dll():
     return zlib.decompress(base64.b64decode(NETPLAY_DLL_Z))
 
 
-_NETPLAY_SHA = []
-
-
-def netplay_sha():
-    """SHA-256 of the DLL this build carries. Unpacked once."""
-    if not _NETPLAY_SHA:
-        _NETPLAY_SHA.append(hashlib.sha256(netplay_dll()).hexdigest())
-    return _NETPLAY_SHA[0]
-
-
 def _netplay_is_ours(path):
     try:
         with open(path, 'rb') as fh:
-            return hashlib.sha256(fh.read()).hexdigest() == netplay_sha()
+            return NETPLAY_MARK in fh.read()
     except OSError:
         return False
 
@@ -1670,7 +1667,7 @@ def _netplay_is_ours(path):
 def netplay_status(gamedir):
     """'ours', 'stock', or None if there is nothing to look at.
 
-    The file itself is hashed rather than the .stock copy taken as proof:
+    The file itself is read rather than the .stock copy taken as proof:
     a reinstall can put the game's own DLL back and leave .stock where it
     was, and the button would then offer to remove something that is not
     there."""
