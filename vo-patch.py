@@ -7,7 +7,7 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.7.5
+Version 0.7.6
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -1690,6 +1690,7 @@ DDRAW_WINE = ('Linux: also set ddraw to native in winecfg for this prefix, '
               'changes.')
 
 DDRAW_BUSY = 'Downloading\u2026'
+DDRAW_GONE = 'Removed. ddraw.ini was left in place.'
 DDRAW_NEEDS_EXE = 'Pick v_on.exe first: cnc-ddraw goes in the same folder.'
 DDRAW_LOCKED = ('Close the game first: Windows will not let the patcher '
                 'replace a DLL that is loaded.')
@@ -2393,15 +2394,50 @@ def run_tk():
                       lambda _e: link.config(foreground=PALETTE['cyan_hi']))
             link.bind('<Leave>',
                       lambda _e: link.config(foreground=PALETTE['cyan']))
+            # One button, because Install and Remove are never both useful:
+            # which one it is follows whether ddraw.dll is beside the game.
             self.ddraw_btn = ttk.Button(row, text='Install',
                                         style='Vo.TButton',
-                                        command=self._install_ddraw)
+                                        command=self._ddraw_click)
             self.ddraw_btn.pack(side='right', padx=(6, 2))
             _hint(parent, note, self.dim, self.small, pady=(2, 0))
             _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
                   pady=(2, 0))
             self.ddraw_note = _hint(parent, '', self.dim, self.small,
                                     pady=(2, 2))
+            self.ddraw_installed = False
+
+        def _ddraw_dir(self):
+            return (os.path.dirname(self.core.exe_path)
+                    if self.core.exe_path else None)
+
+        def _ddraw_sync(self):
+            """Point the button at whichever job is available."""
+            gamedir = self._ddraw_dir()
+            self.ddraw_installed = bool(gamedir and ddraw_status(gamedir))
+            self.ddraw_btn.config(
+                text='Remove' if self.ddraw_installed else 'Install')
+
+        def _ddraw_click(self):
+            if self.ddraw_installed:
+                self._remove_ddraw()
+            else:
+                self._install_ddraw()
+
+        def _remove_ddraw(self):
+            gamedir = self._ddraw_dir()
+            if not gamedir:
+                return
+            try:
+                gone = remove_ddraw(gamedir)
+            except OSError as exc:
+                self.ddraw_note.config(text=DDRAW_LOCKED,
+                                       foreground=PALETTE['bad'])
+                self._log('cnc-ddraw: %s' % exc)
+            else:
+                self.ddraw_note.config(text=DDRAW_GONE, foreground=self.dim)
+                self._log('cnc-ddraw removed: %s' % ', '.join(gone))
+            self._ddraw_sync()
 
         def _install_ddraw(self):
             gamedir = (os.path.dirname(self.core.exe_path)
@@ -2455,6 +2491,7 @@ def run_tk():
                                  % len(files), foreground=PALETTE['ok'])
                         self._log('cnc-ddraw installed: %s'
                                   % ', '.join(sorted(files)[:6]))
+                    self._ddraw_sync()
                     return
             except queue.Empty:
                 pass
@@ -2545,6 +2582,7 @@ def run_tk():
                 self.apply_btn.state(['disabled'])
                 self.restore_btn.state(['disabled'])
                 self.rip_btn.state(['disabled'])
+                self._ddraw_sync()
                 return
             self._set_status(note, ok)
             state = default_state()
@@ -2558,6 +2596,7 @@ def run_tk():
             # that cannot be patched - already patched, most likely.
             self.rip_btn.state(['!disabled'])
             self._music(music_status(os.path.dirname(path)))
+            self._ddraw_sync()
             if not ok:
                 self._log(note)
 
