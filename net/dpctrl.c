@@ -98,7 +98,8 @@ static struct {
     unsigned char rx[RING * MAXPKT];
 
     unsigned char msg[MSGRING];   /* SendDirectPlay byte stream  */
-    int    msg_head, msg_tail;
+    int    msg_head, msg_tail, msg_used;
+    int    msg_dropped;
 
     unsigned char pkt[MAXPKT];    /* last datagram received      */
     int    pktlen;
@@ -239,6 +240,8 @@ static int link_silent(void)
     return g.linked && (timeGetTime() - g.last_rx >= SILENCE_MS);
 }
 
+static void netlog(const char *fmt, ...);
+
 /* Sleep until the socket has something or the timeout expires. Returns
    straight away if a packet is already waiting. */
 static void wait_readable(int ms)
@@ -317,13 +320,24 @@ static int handle_packet(void)
         goto queue;
     default:
     queue:
-        /* Anything else is a game message. Queue it for ReceiveDirectPlay. */
+        /* Anything else is a game message, queued for ReceiveDirectPlay.
+           The length goes in one byte, and a full ring is dropped rather
+           than allowed to lap the reader: a wrapped head puts a mid-message
+           byte where a length belongs, and everything after that is
+           garbage the game acts on. */
+        if (g.pktlen > 255 || 1 + g.pktlen > MSGRING - g.msg_used) {
+            g.msg_dropped++;
+            netlog("message dropped: %d bytes, %d free of %d",
+                   g.pktlen, MSGRING - g.msg_used, MSGRING);
+            return R_NONE;
+        }
         g.msg[g.msg_head] = (unsigned char)g.pktlen;
         g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
         for (i = 0; i < g.pktlen; i++) {
             g.msg[g.msg_head] = g.pkt[i];
             g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
         }
+        g.msg_used += 1 + g.pktlen;
         return R_NONE;
     }
 }
@@ -1038,15 +1052,23 @@ int __stdcall ReceiveDirectPlay(HWND hwnd, void *buf)
         return 0;
     }
 
-    if (g.msg_tail == g.msg_head)
+    if (g.msg_used <= 0)
         return 0;
 
     len = g.msg[g.msg_tail];
+    if (len < 1 || 1 + len > g.msg_used) {
+        /* Cannot happen if the writer is behaving. If it ever does, an
+           empty ring is recoverable and a desynchronised one is not. */
+        netlog("message ring out of step: len %d, used %d", len, g.msg_used);
+        g.msg_head = g.msg_tail = g.msg_used = 0;
+        return 0;
+    }
     g.msg_tail = (g.msg_tail + 1) & MSGRING_MASK;
     for (i = 0; i < len; i++) {
         out[i] = g.msg[g.msg_tail];
         g.msg_tail = (g.msg_tail + 1) & MSGRING_MASK;
     }
+    g.msg_used -= 1 + len;
     return len;
 }
 
