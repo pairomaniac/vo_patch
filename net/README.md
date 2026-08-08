@@ -106,10 +106,3 @@ resulting frame delay. Delete it to stop.
 Both players need the same DLL *and* the same patches. The two machines run
 one simulation in lockstep; if they disagree about the rules they will
 disagree about the match.
-
-## Provenance
-
-Written from observed behaviour - imports, exports, packet sizes, jump
-tables, constants - not from Sega's code, and not decompiled. The parts
-that came from reading the original are facts about a format and a
-protocol. Nothing was copied.
