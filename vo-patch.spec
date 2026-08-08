@@ -5,21 +5,23 @@
     pyinstaller vo-patch.spec
 
 Everything the build needs is here, so the CI workflow is one command. The
-version is read out of vo-patch.py's docstring, which is the only place it is
-written down.
+version is read out of vo-patch.py's VERSION line, which the workflow stamps
+from the tag before this runs; an unstamped source tree builds as 'dev'.
 """
 
 import pathlib
 import re
 
 SOURCE = 'vo-patch.py'
-VERSION = re.search(r'^Version (\S+)',
+VERSION = re.search(r"^VERSION = '(.*)'$",
                     pathlib.Path(SOURCE).read_text(encoding='utf-8'),
                     re.M).group(1)
 
 # Windows file properties. Without this the exe carries no version information
-# at all, which looks broken in the properties dialog.
-_parts = tuple(int(n) for n in (VERSION.split('.') + ['0'] * 4)[:4])
+# at all, which looks broken in the properties dialog. A dev or SHA build has
+# no numbering to put here, so it gets zeros.
+_digits = VERSION.split('.') if re.fullmatch(r'[\d.]+', VERSION) else []
+_parts = tuple(int(n) for n in (_digits + ['0'] * 4)[:4])
 _version_file = pathlib.Path('build') / 'file-version.txt'
 _version_file.parent.mkdir(exist_ok=True)
 _version_file.write_text("""VSVersionInfo(

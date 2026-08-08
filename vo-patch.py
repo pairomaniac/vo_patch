@@ -7,7 +7,6 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.7.6
 https://github.com/pairomaniac/vo_patch
 """
 
@@ -25,7 +24,10 @@ import threading
 import urllib.request
 import zipfile
 
-VERSION = re.search(r'^Version (\S+)', __doc__, re.M).group(1)
+# Stamped by the build from the tag; see .github/workflows/build.yml. A
+# source checkout has no version of its own, and saying so is more use in a
+# bug report than a number nobody bumped.
+VERSION = 'dev'
 
 EXE_SIZE = 6650880
 

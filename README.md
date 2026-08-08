@@ -130,8 +130,8 @@ python3 vo-patch.py
 ```
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
-`pyinstaller vo-patch.spec`. The spec takes the version out of the script, so
-that is the only place it is written down.
+`pyinstaller vo-patch.spec`. It builds as `vo-patch-dev.exe`: releases take
+their version from the git tag, and a source tree has no tag to take it from.
 
 To change the machine code the patches install, see [asm/](asm/), which
 `asm/build.py` builds into the hex strings in `vo-patch.py`. Never edit those
