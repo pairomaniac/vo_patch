@@ -22,6 +22,7 @@ leaves anything behind in the tree.
 import importlib.util
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,6 +78,9 @@ def includes(tmp):
 
 def assemble(source, tmp):
     """nasm -f bin, against the .inc files written by includes()."""
+    if not shutil.which('nasm'):
+        raise SystemExit('nasm not found. Install it: dnf install nasm, '
+                         'apt install nasm.')
     args = ['nasm', '-f', 'bin', '-I', tmp + os.sep]
     out = os.path.join(tmp, os.path.basename(source) + '.bin')
     args += ['-o', out, os.path.join(HERE, source)]

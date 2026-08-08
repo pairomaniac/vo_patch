@@ -8,7 +8,8 @@
     python3 vo-patch.py --selfcheck     validate the patch tables and exit
     python3 vo-patch.py --version
 
-Version 0.8.0
+The version is the VERSION line below and nowhere else, so there is nothing
+to keep in step with it.
 
 https://github.com/pairomaniac/vo_patch
 """
@@ -1648,16 +1649,37 @@ def netplay_dll():
     return zlib.decompress(base64.b64decode(NETPLAY_DLL_Z))
 
 
+_NETPLAY_SHA = []
+
+
+def netplay_sha():
+    """SHA-256 of the DLL this build carries. Unpacked once."""
+    if not _NETPLAY_SHA:
+        _NETPLAY_SHA.append(hashlib.sha256(netplay_dll()).hexdigest())
+    return _NETPLAY_SHA[0]
+
+
+def _netplay_is_ours(path):
+    try:
+        with open(path, 'rb') as fh:
+            return hashlib.sha256(fh.read()).hexdigest() == netplay_sha()
+    except OSError:
+        return False
+
+
 def netplay_status(gamedir):
-    """'ours', 'stock', or None if there is nothing to look at."""
+    """'ours', 'stock', or None if there is nothing to look at.
+
+    The file itself is hashed rather than the .stock copy taken as proof:
+    a reinstall can put the game's own DLL back and leave .stock where it
+    was, and the button would then offer to remove something that is not
+    there."""
     if not gamedir:
         return None
     path = os.path.join(gamedir, NETPLAY_NAME)
     if not os.path.exists(path):
         return None
-    if os.path.exists(os.path.join(gamedir, NETPLAY_KEEP)):
-        return 'ours'
-    return 'stock'
+    return 'ours' if _netplay_is_ours(path) else 'stock'
 
 
 def install_netplay(gamedir):
@@ -1667,7 +1689,11 @@ def install_netplay(gamedir):
     if not os.path.exists(path) and not os.path.exists(keep):
         raise ValueError('no %s here - is this the game folder?'
                          % NETPLAY_NAME)
-    if os.path.exists(path) and not os.path.exists(keep):
+    # Only ever keep a DLL that is not ours. Installing over our own copy
+    # with the .stock one missing used to save that copy as the stock file,
+    # and the game's own was then gone for good.
+    if (os.path.exists(path) and not os.path.exists(keep)
+            and not _netplay_is_ours(path)):
         shutil.copy2(path, keep)
     with open(path, 'wb') as f:
         f.write(netplay_dll())
@@ -1822,8 +1848,6 @@ def install_ddraw(gamedir, progress=None):
             if name == 'ddraw.ini' and os.path.exists(dest):
                 continue                        # never clobber settings
             os.makedirs(os.path.dirname(dest), exist_ok=True)
-            with zf.open(name) as src, open(dest, 'wb') as out:
-                shutil.copyfileobj(src, out)
             if name == 'ddraw.ini':
                 # Written once, on a folder that has none. cnc-ddraw reads
                 # this file as CRLF text, so keep it that way.
@@ -2338,11 +2362,20 @@ class Patcher:
 
         if not self._backup(self.exe_path, log):
             return False, log + ['Nothing written.']
+        # Written beside the game and renamed over it, so a full disk or a
+        # pulled stick leaves the original where it was rather than half an
+        # executable. Same filesystem, so the rename is atomic.
+        temp = self.exe_path + '.new'
         try:
-            with open(self.exe_path, 'wb') as fh:
+            with open(temp, 'wb') as fh:
                 fh.write(buf)
+            os.replace(temp, self.exe_path)
         except OSError as exc:
-            return False, log + ['Write failed: %s' % exc]
+            try:
+                os.remove(temp)
+            except OSError:
+                pass
+            return False, log + ['Write failed: %s' % exc, 'Nothing written.']
         log += ['  %s' % BY_KEY[key][0] for key in applied]
         log.append('Wrote %s' % self.exe_path)
         if wanted.get('padxinput'):
@@ -3687,6 +3720,11 @@ def main():
         return ddraw_cli(sys.argv[sys.argv.index('--ddraw') + 1:])
     if '--rip' in args:
         return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
+    # Anything left that looks like an option is a typo. Opening the window
+    # instead looks like it worked.
+    for arg in args:
+        if arg.startswith('-'):
+            return '%s\n%s' % (USAGE % VERSION, 'Unknown option: %s' % arg)
 
     why = probe_tk()
     if why is None:

@@ -95,6 +95,11 @@ before anything is written, and **Restore original** puts it back so you can
 change your selection. Nothing is written unless every selected patch applied
 and the backup was made, so a failure leaves the game exactly as it was.
 
+If **XInput gamepad support** is among the patches, `v_on.ini` is moved to
+`v_on.ini.bak` at the same time and the game writes a fresh one. **Restore
+original** puts that back too, keeping whatever the patched game wrote as
+`v_on.ini.patched`.
+
 ### Which build
 
 The patcher works on one build and refuses everything else. Every patch is a
@@ -115,11 +120,6 @@ Reinstalling from the same disc will not produce a different file.
 
 If your file is neither of these, the patcher shows both checksums side by
 side and says which one it got.
-
-If **XInput gamepad support** was among them, `v_on.ini` is moved to
-`v_on.ini.bak` at the same time and the game writes a fresh one. **Restore
-original** puts that back too, keeping whatever the patched game wrote as
-`v_on.ini.patched`.
 
 Everything the patcher does is also available without a window:
 
@@ -301,7 +301,6 @@ ratio and upscaling. Every patch here works with it.
 beside `v_on.exe` - `ddraw.dll`, `ddraw.ini`, `cnc-ddraw config.exe` and the
 shaders. Once it is there the same button reads **Remove**, which deletes
 them again and keeps `ddraw.ini`. From a terminal:
-shaders. From a terminal:
 
 ```bash
 python3 vo-patch.py --ddraw path/to/game
@@ -317,9 +316,10 @@ replace a DLL that is loaded.
 that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
 its own DirectDraw and nothing changes.
 
-A fresh `ddraw.ini` is cnc-ddraw's own file with five settings changed:
-`fullscreen`, `windowed`, `maintas`, `noactivateapp` and `toggle_borderless`
-are all set to `true`, giving a borderless window at 4:3. Everything else,
+A fresh `ddraw.ini` is cnc-ddraw's own file with six settings changed:
+`fullscreen`, `windowed`, `maintas`, `noactivateapp`, `toggle_borderless` and
+`devmode` are all set to `true`, giving a borderless window at 4:3 that does
+not trap the cursor. Everything else,
 including the comments and the per-game sections, is left as it comes. Change
 any of it with `cnc-ddraw config.exe`.
 
@@ -329,10 +329,6 @@ through DirectDraw, and then pins that window to the top left corner at a
 fixed size. So it plays small and in the corner over an upscaled picture.
 Skip it with Space, Enter, Escape or pad A, or run at 1:1 if you want to
 watch it.
-
-**On Linux there is a second step.** Set `ddraw` to native in `winecfg` for
-that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
-its own DirectDraw and nothing changes.
 
 gamescope handles the scaling without a DLL, if you would rather:
 
@@ -369,13 +365,10 @@ by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
 a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
 to a real one.
 
-Everything the patcher does is also available without a window:
+The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
+and run `python3 net/build.py`, which compiles it with mingw and bakes it back
+into `vo-patch.py`.
 
-```bash
-python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
-python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
-python3 vo-patch.py --selfcheck        # validate the patch tables
-```
 ---
 
 Written with AI assistance. Every offset and byte sequence is checked against
