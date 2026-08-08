@@ -17,6 +17,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 #define DEFAULT_PORT     47624   /* same number DirectPlay used, for firewall parity */
@@ -28,7 +29,16 @@
 #define RESEND_MS        1000
 #define BEAT_MS          250     /* idle heartbeat, so silence means silence  */
 #define SILENCE_MS       3000    /* nothing at all from the peer -> link dead */
-#define HANDSHAKE_MS     30000
+
+/* The wait for the peer's frame used to be a bare spin on recvfrom, which
+   holds a core flat out for most of every frame. select() sleeps until the
+   packet lands, so it wakes just as fast but leaves the scheduler alone.
+   Build with -DVO_YIELD=0 to get the old spin back for comparison. */
+#ifndef VO_YIELD
+#define VO_YIELD 1
+#endif
+/* No handshake timeout: the wait dialog has a Cancel button, and a host
+   waiting for a friend to alt-tab back has no business being disconnected. */
 #define NEGOTIATE_MS     10000
 #define PING_ROUNDS      9
 
@@ -95,7 +105,7 @@ static struct {
 
     /* handshake dialog state */
     int    hs_done, hs_failed;
-    DWORD  hs_start, hs_last;
+    DWORD  hs_last;
 
     DWORD  last_rx;        /* last packet accepted from the peer */
     DWORD  last_tx;        /* last packet we put on the wire     */
@@ -155,13 +165,13 @@ static void send_ctl(unsigned char type, DWORD arg)
     memset(b, 0, sizeof(b));
     b[0] = type;
     switch (type) {
-        case P_RESEND: case P_DELAY: case P_CMD:
-            *(DWORD *)(b + 4) = arg;
-            send_raw(b, 8);
-            break;
-        default:
-            send_raw(b, 1);
-            break;
+    case P_RESEND: case P_DELAY: case P_CMD:
+        *(DWORD *)(b + 4) = arg;
+        send_raw(b, 8);
+        break;
+    default:
+        send_raw(b, 1);
+        break;
     }
 }
 
@@ -213,8 +223,8 @@ static int poll_recv(void)
 }
 
 /* Keep something on the wire while idle, so a gap really means the peer is
- *  gone rather than merely quiet - during a relayed menu neither side sends
- *  frames, and without this that looks identical to a crash. */
+   gone rather than merely quiet - during a relayed menu neither side sends
+   frames, and without this that looks identical to a crash. */
 static void heartbeat(void)
 {
     if (g.linked && timeGetTime() - g.last_tx >= BEAT_MS)
@@ -222,11 +232,31 @@ static void heartbeat(void)
 }
 
 /* True once the peer has been silent long enough to call it dead. Frames
- *  going missing is a separate, far more patient case: the peer is still
- *  audible, so the resend path handles it on the original's timings. */
+   going missing is a separate, far more patient case: the peer is still
+   audible, so the resend path handles it on the original's timings. */
 static int link_silent(void)
 {
     return g.linked && (timeGetTime() - g.last_rx >= SILENCE_MS);
+}
+
+/* Sleep until the socket has something or the timeout expires. Returns
+   straight away if a packet is already waiting. */
+static void wait_readable(int ms)
+{
+#if VO_YIELD
+    struct timeval tv;
+    fd_set rd;
+
+    if (!g.up)
+        return;
+    FD_ZERO(&rd);
+    FD_SET(g.sock, &rd);
+    tv.tv_sec = 0;
+    tv.tv_usec = ms * 1000;
+    select(0, &rd, NULL, NULL, &tv);
+#else
+    (void)ms;
+#endif
 }
 
 static int handle_packet(void)
@@ -236,65 +266,65 @@ static int handle_packet(void)
     int i;
 
     switch (type) {
-        case P_DATA: {
-            int seq = g.pkt[1] & RING_MASK;
-            slot = g.rx + seq * MAXPKT;
-            for (i = 0; i < g.framelen && i < g.pktlen; i++)
-                slot[i] = g.pkt[i];
-            return R_DATA;
+    case P_DATA: {
+        int seq = g.pkt[1] & RING_MASK;
+        slot = g.rx + seq * MAXPKT;
+        for (i = 0; i < g.framelen && i < g.pktlen; i++)
+            slot[i] = g.pkt[i];
+        return R_DATA;
+    }
+    case P_RESEND: {
+        int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
+        slot = g.tx + seq * MAXPKT;
+        if (slot[0] == P_DATA)
+            send_raw(slot, g.framelen);
+        return R_RESEND;
+    }
+    case P_PING:
+        send_ctl(P_PONG, 0);
+        return R_PONG;
+    case P_PONG:
+        return R_PONG;
+    case P_POLL:
+        g.linked = 1;          /* the original sets its link flag here */
+        return R_NONE;
+    case P_DELAY:
+        return R_DELAY;
+    case P_CMD:
+        return R_CMD;
+    /* Our own types are length-checked as well as value-checked. The game
+       sends 21-byte messages of an unknown type through SendDirectPlay, and
+       one of those must never be mistaken for ours and swallowed. */
+    case P_QUIT:
+        if (g.pktlen == 1) {
+            g.peer_quit = 1;
+            return R_PEERQUIT;
         }
-        case P_RESEND: {
-            int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
-            slot = g.tx + seq * MAXPKT;
-            if (slot[0] == P_DATA)
-                send_raw(slot, g.framelen);
-            return R_RESEND;
-        }
-        case P_PING:
-            send_ctl(P_PONG, 0);
-            return R_PONG;
-        case P_PONG:
-            return R_PONG;
-        case P_POLL:
-            g.linked = 1;          /* the original sets its link flag here */
-            return R_NONE;
-        case P_DELAY:
-            return R_DELAY;
-        case P_CMD:
-            return R_CMD;
-            /* Our own types are length-checked as well as value-checked. The game
-             *      sends 21-byte messages of an unknown type through SendDirectPlay, and
-             *      one of those must never be mistaken for ours and swallowed. */
-            case P_QUIT:
-                if (g.pktlen == 1) {
-                    g.peer_quit = 1;
-                    return R_PEERQUIT;
-                }
-                goto queue;
-            case P_HELLO:
-                if (g.pktlen == 1 + (int)sizeof(g.tag) &&
-                    !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-                    unsigned char b[1 + sizeof(g.tag)];   /* re-ack a late hello */
-                    b[0] = P_ACK;
-                memcpy(b + 1, g.tag, sizeof(g.tag));
-                send_raw(b, sizeof(b));
-                return R_NONE;
-                    }
-                    goto queue;
-            case P_ACK:
-                if (g.pktlen == 1 + (int)sizeof(g.tag))
-                    return R_NONE;
         goto queue;
-            default:
-                queue:
-                /* Anything else is a game message. Queue it for ReceiveDirectPlay. */
-                g.msg[g.msg_head] = (unsigned char)g.pktlen;
-                g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
-                for (i = 0; i < g.pktlen; i++) {
-                    g.msg[g.msg_head] = g.pkt[i];
-                    g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
-                }
-                return R_NONE;
+    case P_HELLO:
+        if (g.pktlen == 1 + (int)sizeof(g.tag) &&
+            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+            unsigned char b[1 + sizeof(g.tag)];   /* re-ack a late hello */
+            b[0] = P_ACK;
+            memcpy(b + 1, g.tag, sizeof(g.tag));
+            send_raw(b, sizeof(b));
+            return R_NONE;
+        }
+        goto queue;
+    case P_ACK:
+        if (g.pktlen == 1 + (int)sizeof(g.tag))
+            return R_NONE;
+        goto queue;
+    default:
+    queue:
+        /* Anything else is a game message. Queue it for ReceiveDirectPlay. */
+        g.msg[g.msg_head] = (unsigned char)g.pktlen;
+        g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
+        for (i = 0; i < g.pktlen; i++) {
+            g.msg[g.msg_head] = g.pkt[i];
+            g.msg_head = (g.msg_head + 1) & MSGRING_MASK;
+        }
+        return R_NONE;
     }
 }
 
@@ -368,10 +398,35 @@ static WORD *tpl_head(WORD *buf, DWORD style, short cx, short cy,
 #define CLS_EDIT   0x0081
 #define CLS_STATIC 0x0082
 
+/* Writes to vo-net.log beside the game, but only if that file already
+   exists - create it to switch logging on, delete it to switch it off. */
+static void netlog(const char *fmt, ...)
+{
+    static int checked, on;
+    FILE *f;
+    va_list ap;
+
+    if (!checked) {
+        checked = 1;
+        f = fopen("vo-net.log", "r");
+        if (f) { on = 1; fclose(f); }
+    }
+    if (!on)
+        return;
+    f = fopen("vo-net.log", "a");
+    if (!f)
+        return;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fputc('\n', f);
+    fclose(f);
+}
+
 /* Ask a STUN server what address the outside world sees us as. The mapped
- *  port is deliberately ignored: it describes the NAT's outbound mapping,
- *  not whether an inbound forward exists, so showing it would mislead.
- *  Best effort - any failure just means the address is not shown. */
+   port is deliberately ignored: it describes the NAT's outbound mapping,
+   not whether an inbound forward exists, so showing it would mislead.
+   Best effort - any failure just means the address is not shown. */
 static int stun_query(const char *server, char *out, int outsz)
 {
     unsigned char req[20], resp[512];
@@ -392,7 +447,7 @@ static int stun_query(const char *server, char *out, int outsz)
     ioctlsocket(s2, FIONBIO, &nb);
 
     /* Binding request: type 0x0001, no attributes, magic cookie, then a
-     *      transaction id we do not bother to randomise. */
+       transaction id we do not bother to randomise. */
     memset(req, 0, sizeof(req));
     req[1] = 0x01;
     req[4] = 0x21; req[5] = 0x12; req[6] = 0xA4; req[7] = 0x42;
@@ -420,13 +475,13 @@ static int stun_query(const char *server, char *out, int outsz)
             if ((timeGetTime() - start) % 500 < 25)
                 sendto(s2, (const char *)req, sizeof(req), 0,
                        (struct sockaddr *)&sa, sizeof(sa));
-                continue;
+            continue;
         }
         if (resp[0] != 0x01 || resp[1] != 0x01)     /* binding response */
             continue;
 
         /* Walk the attributes for XOR-MAPPED-ADDRESS (0x0020), falling back
-         *          to the older MAPPED-ADDRESS (0x0001). */
+           to the older MAPPED-ADDRESS (0x0001). */
         i = 20;
         while (i + 4 <= n) {
             int atype = (resp[i] << 8) | resp[i + 1];
@@ -438,16 +493,16 @@ static int stun_query(const char *server, char *out, int outsz)
             if ((atype == 0x0020 || atype == 0x0001) && alen >= 8 &&
                 v[1] == 0x01) {
                 unsigned char ip[4];
-            memcpy(ip, v + 4, 4);
-            if (atype == 0x0020) {
-                ip[0] ^= 0x21; ip[1] ^= 0x12;
-                ip[2] ^= 0xA4; ip[3] ^= 0x42;
-            }
-            wsprintfA(out, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-            closesocket(s2);
-            return 1;
+                memcpy(ip, v + 4, 4);
+                if (atype == 0x0020) {
+                    ip[0] ^= 0x21; ip[1] ^= 0x12;
+                    ip[2] ^= 0xA4; ip[3] ^= 0x42;
                 }
-                i += 4 + ((alen + 3) & ~3);
+                wsprintfA(out, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+                closesocket(s2);
+                return 1;
+            }
+            i += 4 + ((alen + 3) & ~3);
         }
     }
 
@@ -534,14 +589,14 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
     char buf[256];
 
     switch (msg) {
-        case WM_INITDIALOG:
-            SetDlgItemTextA(dlg, ID_IP, g.ip);
-            wsprintfA(buf, "%d", g.port);
-            SetDlgItemTextA(dlg, ID_PORT, buf);
+    case WM_INITDIALOG:
+        SetDlgItemTextA(dlg, ID_IP, g.ip);
+        wsprintfA(buf, "%d", g.port);
+        SetDlgItemTextA(dlg, ID_PORT, buf);
 
-            local_addresses(g.lan, sizeof(g.lan));
-            if (g.lan[0])
-                wsprintfA(buf, "This machine: %s", g.lan);
+        local_addresses(g.lan, sizeof(g.lan));
+        if (g.lan[0])
+            wsprintfA(buf, "This machine: %s", g.lan);
         else
             lstrcpyA(buf, "This machine: address not found");
         SetDlgItemTextA(dlg, ID_LOCAL, buf);
@@ -554,73 +609,73 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         set_mode(dlg, 1);
         return TRUE;
 
-        case WM_COMMAND:
-            switch (LOWORD(wp)) {
-                case ID_HOST:
-                    set_mode(dlg, 1);
-                    return TRUE;
-                case ID_JOIN:
-                    set_mode(dlg, 0);
-                    return TRUE;
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case ID_HOST:
+            set_mode(dlg, 1);
+            return TRUE;
+        case ID_JOIN:
+            set_mode(dlg, 0);
+            return TRUE;
 
-                    /* Off by default, and one click hides it again: the public address
-                     *          should not sit on screen while someone is streaming. */
-                    case ID_PUBBTN:
-                        if (g.pub_shown) {
-                            SetDlgItemTextA(dlg, ID_PUBTEXT, "");
-                            SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
-                            g.pub_shown = 0;
-                            return TRUE;
-                        }
-                        SetDlgItemTextA(dlg, ID_PUBTEXT, "looking up...");
-                        EnableWindow(GetDlgItem(dlg, ID_PUBBTN), FALSE);
-                        UpdateWindow(dlg);
-                        if (!public_address(g.pub, sizeof(g.pub)))
-                            lstrcpyA(g.pub, "not available");
-                SetDlgItemTextA(dlg, ID_PUBTEXT, g.pub);
-                SetDlgItemTextA(dlg, ID_PUBBTN, "Hide");
-                EnableWindow(GetDlgItem(dlg, ID_PUBBTN), TRUE);
-                g.pub_shown = 1;
+        /* Off by default, and one click hides it again: the public address
+           should not sit on screen while someone is streaming. */
+        case ID_PUBBTN:
+            if (g.pub_shown) {
+                SetDlgItemTextA(dlg, ID_PUBTEXT, "");
+                SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
+                g.pub_shown = 0;
                 return TRUE;
+            }
+            SetDlgItemTextA(dlg, ID_PUBTEXT, "looking up...");
+            EnableWindow(GetDlgItem(dlg, ID_PUBBTN), FALSE);
+            UpdateWindow(dlg);
+            if (!public_address(g.pub, sizeof(g.pub)))
+                lstrcpyA(g.pub, "not available");
+            SetDlgItemTextA(dlg, ID_PUBTEXT, g.pub);
+            SetDlgItemTextA(dlg, ID_PUBBTN, "Hide");
+            EnableWindow(GetDlgItem(dlg, ID_PUBBTN), TRUE);
+            g.pub_shown = 1;
+            return TRUE;
 
-                /* Copies whatever is currently shown - the public address if it has
-                 *          been revealed, otherwise the LAN one. */
-                case ID_COPYBTN:
-                    copy_to_clipboard(dlg,
-                                      (g.pub_shown && g.pub[0] &&
-                                      lstrcmpA(g.pub, "not available") != 0) ? g.pub : g.lan);
-                    return TRUE;
+        /* Copies whatever is currently shown - the public address if it has
+           been revealed, otherwise the LAN one. */
+        case ID_COPYBTN:
+            copy_to_clipboard(dlg,
+                (g.pub_shown && g.pub[0] &&
+                 lstrcmpA(g.pub, "not available") != 0) ? g.pub : g.lan);
+            return TRUE;
 
-                case IDOK: {
-                    int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
-                    GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
-                    g.port = atoi(buf);
-                    if (g.port <= 0 || g.port > 65535) {
-                        MessageBoxA(dlg, "Port must be between 1 and 65535.",
-                                    "Message", 0);
-                        SetFocus(GetDlgItem(dlg, ID_PORT));
-                        return TRUE;
-                    }
-                    if (!hosting) {
-                        GetDlgItemTextA(dlg, ID_IP, g.ip, sizeof(g.ip));
-                        if (g.ip[0] == 0) {
-                            MessageBoxA(dlg, "Enter the host's address.",
-                                        "Message", 0);
-                            SetFocus(GetDlgItem(dlg, ID_IP));
-                            return TRUE;
-                        }
-                    } else {
-                        g.ip[0] = 0;
-                    }
-                    EndDialog(dlg, hosting ? 1 : 2);
+        case IDOK: {
+            int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
+            GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
+            g.port = atoi(buf);
+            if (g.port <= 0 || g.port > 65535) {
+                MessageBoxA(dlg, "Port must be between 1 and 65535.",
+                            "Message", 0);
+                SetFocus(GetDlgItem(dlg, ID_PORT));
+                return TRUE;
+            }
+            if (!hosting) {
+                GetDlgItemTextA(dlg, ID_IP, g.ip, sizeof(g.ip));
+                if (g.ip[0] == 0) {
+                    MessageBoxA(dlg, "Enter the host's address.",
+                                "Message", 0);
+                    SetFocus(GetDlgItem(dlg, ID_IP));
                     return TRUE;
                 }
-
-                case IDCANCEL:
-                    EndDialog(dlg, 0);
-                    return TRUE;
+            } else {
+                g.ip[0] = 0;
             }
-            break;
+            EndDialog(dlg, hosting ? 1 : 2);
+            return TRUE;
+        }
+
+        case IDCANCEL:
+            EndDialog(dlg, 0);
+            return TRUE;
+        }
+        break;
     }
     return FALSE;
 }
@@ -632,8 +687,8 @@ static int ask_connection(HINSTANCE inst)
     p = tpl_head(buf, DLG_STYLE, 214, 142, 12, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-    BS_AUTORADIOBUTTON, 10, 8, 90, 12,
-    ID_HOST, CLS_BUTTON, "Host a game");
+                BS_AUTORADIOBUTTON, 10, 8, 90, 12,
+                ID_HOST, CLS_BUTTON, "Host a game");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 22, 23, 182, 9,
                 ID_LOCAL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
@@ -689,49 +744,47 @@ static void handshake_tick(void)
             !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
             g.peer = from;                       /* learn the guest's address */
             b[0] = P_ACK;
-        memcpy(b + 1, g.tag, sizeof(g.tag));
-        send_raw(b, sizeof(b));
-        g.hs_done = 1;
-        return;
-            }
-            if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
-                !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-                g.hs_done = 1;
+            memcpy(b + 1, g.tag, sizeof(g.tag));
+            send_raw(b, sizeof(b));
+            g.hs_done = 1;
             return;
-                }
+        }
+        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
+            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+            g.hs_done = 1;
+            return;
+        }
     }
 
-    if (now - g.hs_start >= HANDSHAKE_MS)
-        g.hs_failed = 1;
 }
 
 static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
-        case WM_INITDIALOG:
-            SetDlgItemTextA(dlg, ID_STATUS,
-                            g.host ? "Waiting for the other player..."
-                            : "Connecting...");
-            g.hs_start = g.hs_last = timeGetTime();
-            g.hs_done = g.hs_failed = 0;
-            SetTimer(dlg, 1, 50, NULL);
-            return TRUE;
+    case WM_INITDIALOG:
+        SetDlgItemTextA(dlg, ID_STATUS,
+                        g.host ? "Waiting for the other player..."
+                               : "Connecting...");
+        g.hs_last = timeGetTime();
+        g.hs_done = g.hs_failed = 0;
+        SetTimer(dlg, 1, 50, NULL);
+        return TRUE;
 
-        case WM_TIMER:
-            handshake_tick();
-            if (g.hs_done || g.hs_failed) {
-                KillTimer(dlg, 1);
-                EndDialog(dlg, g.hs_done ? 1 : 0);
-            }
-            return TRUE;
+    case WM_TIMER:
+        handshake_tick();
+        if (g.hs_done || g.hs_failed) {
+            KillTimer(dlg, 1);
+            EndDialog(dlg, g.hs_done ? 1 : 0);
+        }
+        return TRUE;
 
-        case WM_COMMAND:
-            if (LOWORD(wp) == IDCANCEL) {
-                KillTimer(dlg, 1);
-                EndDialog(dlg, 0);
-                return TRUE;
-            }
-            break;
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDCANCEL) {
+            KillTimer(dlg, 1);
+            EndDialog(dlg, 0);
+            return TRUE;
+        }
+        break;
     }
     return FALSE;
 }
@@ -772,10 +825,13 @@ static int negotiate_delay(void)
                     return 0;
                 if (r > 0) {
                     if (handle_packet() == R_PONG) {
+                        DWORD rtt = timeGetTime() - sent;
                         if (i > 0) {          /* first round is discarded */
-                            total += timeGetTime() - sent;
+                            total += rtt;
                             samples++;
                         }
+                        netlog("ping %d: %lu ms%s", i, (unsigned long)rtt,
+                               i ? "" : "  (discarded)");
                         break;
                     }
                     continue;
@@ -795,6 +851,9 @@ static int negotiate_delay(void)
             g.delay = 1;
         if (g.delay > 16)
             g.delay = 16;
+        netlog("host: %d samples, mean %lu ms -> delay %d frames",
+               samples, (unsigned long)(samples ? total / samples : 0),
+               g.delay);
         send_ctl(P_DELAY, (DWORD)g.delay);
     } else {
         start = sent = timeGetTime();
@@ -809,6 +868,7 @@ static int negotiate_delay(void)
                         g.delay = 1;
                     if (g.delay > RING / 2 - 2)
                         g.delay = RING / 2 - 2;
+                    netlog("guest: host says delay %d frames", g.delay);
                     break;
                 }
                 continue;
@@ -1003,7 +1063,7 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
         return 0;
 
     /* First frame primes the pipeline so the send sequence runs `delay`
-     *      ahead of the read cursor. Every later frame sends exactly once. */
+       ahead of the read cursor. Every later frame sends exactly once. */
     while (g.prime > 0) {
         send_frame(local);
         g.prime--;
@@ -1045,6 +1105,9 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
         } else {
             DWORD now = timeGetTime();
 
+            /* Nothing waiting, so give the core back until it is. */
+            wait_readable(1);
+
             /* Peer has gone quiet altogether: crash, kill, cable out. */
             if (link_silent()) {
                 sock_close();
@@ -1053,8 +1116,8 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
             }
 
             /* Peer is still audible, we are just missing a frame. This is
-             *              the original's patient path: ask again once a second and hold
-             *              on for the full timeout before giving up. */
+               the original's patient path: ask again once a second and hold
+               on for the full timeout before giving up. */
             if (idle_since == 0)
                 idle_since = last_resend = now;
             if (now - last_resend >= RESEND_MS) {
@@ -1074,7 +1137,7 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
     }
 
     /* Both sides are handed the same delayed pair: the peer's frame from the
-     *      receive ring, and our own frame as it was actually sent. */
+       receive ring, and our own frame as it was actually sent. */
     slot = g.rx + (g.cursor & RING_MASK) * MAXPKT;
     for (i = 2; i < g.framelen; i++)
         remote[i - 2] = slot[i];
