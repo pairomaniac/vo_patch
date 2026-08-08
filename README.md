@@ -9,7 +9,7 @@ Some of the byte edits come from the original VO_Patch 0.43 (2008) by
 game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
 the game and not the bytes quoted from it.
 
-<img width="500" alt="Screenshot_20260808_144501" src="https://github.com/user-attachments/assets/343c2da7-a7ba-47ee-bb45-2c1848d0282a" />
+<img height="700" alt="image" src="https://github.com/user-attachments/assets/3a5058ca-f933-4b26-95b8-a51587ebabcf" />
 
 ## Download
 
