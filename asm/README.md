@@ -15,6 +15,7 @@ editing this directory does.
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
+| `movie.asm` | intro movie: measures the real window and fits the movie to it |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -54,6 +55,9 @@ One region per blob, and `build.py` fails if a pair is missing:
 # KBPAGE BLOB BEGIN      <- KBPAGE_CODE
 # KBPAGE BLOB END
 
+# MOVIE BLOB BEGIN       <- MOVIE_CODE
+# MOVIE BLOB END
+
 # DEBUGBOX BLOB BEGIN    <- DEBUGBOX_HOOK, DEBUGBOX_PROC
 # DEBUGBOX BLOB END
 
@@ -75,7 +79,7 @@ it points at.
 ## Addresses that cannot move
 
 Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
-`introwait.asm`, `kbpage.asm`, `debugbox.asm` and `timer.asm`. Their stubs
+`introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm` and `timer.asm`. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
 modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
@@ -114,7 +118,7 @@ It installs nasm and runs the same checks you would:
 
 | Step | Catches |
 | --- | --- |
-| `vo-patch.py --selfcheck` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered |
+| `vo-patch.py --selfcheck` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
 | `asm/build.py --check` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing |
 | `git diff --exit-code` | blobs regenerated but not committed |
 | `pyflakes` | unused names, undefined names, bad imports |
@@ -176,7 +180,7 @@ Sites written into section padding, and what is still free after them:
 | --- | --- | --- | --- | --- |
 | `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 426 | **24** |
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 272 | **8** |
-| `.rsrc` past VirtualSize | `0x60c258`-`0x60c400` | 424 | 0 | 424 |
+| `.rsrc` past VirtualSize | `0x60c25c`-`0x60c400` | 420 | 396 | **24** |
 
 The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left,
 which is why CD audio got a section of its own rather than another cave. The
@@ -355,6 +359,11 @@ is built from it too.
 An input's id is `0xe0` plus its position in the list, which is also its index
 into the condition table. Reordering the list moves everyone's saved binds.
 
+`DEADZONE` is what a stick axis has to pass to count as pushed, out of 32767.
+It is per axis rather than radial, so a 45 degree push puts 23170 on each and
+diagonals have room to spare. 13000 is about 40%, above Microsoft's own 7849
+and 8689, which are loose enough to pick up drift on a worn stick.
+
 ## dialogs.py, what it does
 
 Both dialogs, from a control list each.
@@ -485,3 +494,36 @@ pages both pass `ds:0xbf6bac`; this one is the odd one out.
 The two slots are a fixed 32 bytes apart, padded with `nop`, because the
 second one's site names its address. Let the first grow and the second moves,
 and nothing downstream would notice.
+
+## movie.asm, what it does
+
+Places the intro movie's window. The game does this itself from `0x54e817`,
+using an offset out of two globals that are each a hardcoded centre for one
+movie size in a 640x480 picture, so under any upscaler the movie ends up
+small and in a corner.
+
+The obvious fix is to read the window's real size, and the obvious call for
+that is the `GetClientRect` the routine already makes and discards. It does
+not work: cnc-ddraw hooks `GetClientRect` and answers with the game's own
+640x480 whenever it is asked about the game window, which is the whole point
+of the hook. `GetWindowRect`, `GetSystemMetrics`, `MoveWindow` and
+`SetWindowPos` are hooked with it, so no call the game can make tells the
+truth.
+
+cnc-ddraw exports `DDGetProcAddress` for this, forwarding to the real
+`GetProcAddress`. So this resolves `ddraw.dll`, asks it for user32's
+`GetClientRect`, and measures with that. Every step falls back to the
+imported one, which without cnc-ddraw is the real function anyway and gives
+what the game did before.
+
+From the real client rect it takes the biggest rectangle of the movie's own
+shape that fits, centres it, and writes the result back into the caller's
+frame - so the game's own `MoveWindow` a few instructions later does the
+work, with the values it was going to use replaced. mciavi does not follow
+the window, so the last thing the stub does is send `MCI_PUT` with a
+destination rect. The game sends no `MCI_PUT` of its own, and this is the
+only one.
+
+It reaches `mciSendCommandA` through a register rather than the six-byte
+indirect call, because `apply_cdaudio` counts those and aborts on anything
+but 37.
