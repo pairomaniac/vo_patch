@@ -10,7 +10,6 @@ they are built see [asm/](asm/).
 | --- | --- | --- |
 | Remove SE playback wait | `0x2bba60` | `.data` `15` → `1` |
 | Sound 22050 → 44100 Hz | `0x189546`, `0x189552` | `WAVEFORMATEX` `nSamplesPerSec` and `nAvgBytesPerSec` |
-| Hide "Now Loading . . ." | `0x2c7678` | first byte → `NUL` |
 | Enemy Fei-Yen hypermode SE | `0x058189`, `0x170dc9` | `cmp [eax+0x68], 1` → `2` |
 | **No disc required** | `0x1c76d4` | `je` past the nag → `nop` |
 | **Skip processor check** | `0x107930` | `or [0xbf84c8], 1` → `nop`, so the check is never enabled |
@@ -20,9 +19,10 @@ they are built see [asm/](asm/).
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players |
+| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
+| **Intro and loading screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL` |
 
 Bold entries are not part of original VO_Patch.
 
@@ -192,3 +192,41 @@ a network game and F10 is a Windows system key.
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying
 its ID, `GetDlgItem` hands back nothing to talk to.
+
+**Intro movie.** The movie is not drawn through DirectDraw. The game opens
+`von.avi` with `MCI_ANIM_OPEN_WS` and `MCI_ANIM_OPEN_PARENT`, so mciavi makes
+a `WS_CHILD` window of the main window and everything after that is plain
+Win32. The game then moves that window itself, to an offset it reads from two
+globals, each written as a hardcoded centre for one movie size in a 640x480
+picture: `0`/`0x28` for 640x400, `0xa0`/`0x8c` for 320x200, `0`/`0x14` for
+640x440.
+
+Scaled up, the main window is the whole screen and the picture is drawn
+centred inside it, which the child window knows nothing about, so the movie
+stays in the corner at its original size.
+
+The routine does call `GetClientRect` on the parent, and throws the result
+away, but reading it would not have helped: cnc-ddraw hooks that call and
+answers with the game's own 640x480 whenever it is asked about the game
+window. So there is no honest geometry to be had through any call the game
+makes. cnc-ddraw exports `DDGetProcAddress` for this, which forwards to the
+real `GetProcAddress`, and asking it for user32's `GetClientRect` gives the
+unhooked one.
+
+That is more than an edit, so it is a stub in the `.rsrc` padding - see
+[asm/](asm/). Without cnc-ddraw the import is already the real function and
+the result is what the game did before. mciavi does not follow the window, so
+a `MCI_PUT` destination rect goes with the resize; the game never sends one
+of its own.
+
+**Prompt text.** Two prompts name a key the pad covers, so they change with
+the gamepad patch and not on their own: the pause screen's and the
+scoreboard's. The title and scoreboard banner is a third case and not text at
+all. All three are set out in [TEXT.md](TEXT.md).
+
+The title screen's *Press Space Bar* and the mech select screen's *PRESS
+BUTTON* are bitmaps, not text, and neither appears in the file as a string.
+There is a `PRESS SPACE BAR` in the tile-grid table at `0x285e04`, beside
+strings that do render - `HBV-10-B` and the weapon names on the same screen -
+but both of its call sites are gated on a flag the PC build never sets, so
+editing it changes nothing.

@@ -144,8 +144,8 @@ INTROWAIT_CODE = bytes.fromhex(
 PAD_COND = bytes.fromhex(
     '0200000000100000020000000020000002000000004000000200000000800000'
     '0200000000010000020000000002000003000200400000000300030040000000'
-    '010006001027000000000600f0d8ffff00000400f0d8ffff0100040010270000'
-    '01000a001027000000000a00f0d8ffff00000800f0d8ffff0100080010270000'
+    '01000600c83200000000060038cdffff0000040038cdffff01000400c8320000'
+    '01000a00c832000000000a0038cdffff0000080038cdffff01000800c8320000'
 )
 
 PAD_BINDS = bytes.fromhex(
@@ -271,7 +271,142 @@ KBPAGE_CODE = bytes.fromhex(
 )
 # KBPAGE BLOB END
 
+# MOVIE BLOB BEGIN
+MOVIE_CODE = bytes.fromhex(
+    '5589e583ec405356578b7d08a1345fae018947f4a1385fae018947f031f668b4'
+    '876603ff15a0d4650385c0742b68be87660350ff1508d5650385c0741b89c368'
+    'cf876603ff15a0d4650385c0740a68da87660350ffd389c685f675068b35d4d5'
+    '65038d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
+    'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
+    'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
+    'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
+    '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
+    '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff35c888ef01ff15e0d565'
+    '0331c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
+    '006842080000ff35f088ef01a148d66503ffd05f5e5bc9c364647261772e646c'
+    '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
+    '74436c69656e745265637400'
+)
+# MOVIE BLOB END
+
 # Each site: (offset, original, patched).
+
+# The title and scoreboard prompt is not text: it is 42x3 cells of 8x8 tiles
+# drawn from a table of tile indices. Only the indices are in the executable;
+# the artwork is in escrgame.bin. Kept here as a 1bpp 336x24 bitmap, an
+# eighth the size of the tiles it expands to.
+BANNER_BITS = bytes.fromhex(
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '000000000000000000000000000000000000000000ffffff0000000000000000'
+    '00000000000000fff800003fffff8000000000000000000000000000000000ff'
+    'ffffc00000000000000000000000000001fffc00003ffffff000000003ff80ff'
+    'e00000000000000001fffffff00000000000000000000000000003fffc00007f'
+    'fffff800000003ff80ffe00000000000000001fffffff8000000000000000000'
+    '0000000007fffc00007ff8fffc00000003ff81ffc00000000000000001ffe0ff'
+    'f8001fc0ff8000ffe001ffc000000ffffe0000fff03ffc00000007ff81ffc000'
+    'ffc000007f8003ffc07ffffffffffff81fffff3ffffe00001ffffe0000fff03f'
+    'fdffe07fffffffffffdffffc1ffffff003ffc07ffffffffffffe7ffffffffffe'
+    '00001ffffe0000fff07ff9ffc0ffffffffffffffffff1ffffff803ffc07fffff'
+    'fffffffffffffffffffe00003fffff0000fff1fff1ffc0ffffffffffffffffff'
+    'bffffffc03ff81ffffffe7ff83ffffc01fff803e0000fff7ff0001ffffffc3ff'
+    'c0ffeffe07ff87ffc3ffffff3ffc07ffffffffff0fff03ffffc003ff80000000'
+    'ffe7ff0001ffffff83ff81ffcffe07ff07ff81fffffc3ffc07ffffffdffe1fff'
+    'ffffffff81ffff000001ffc7ff8001ffffffe3ff81ffdffc07ff0fff01fffff8'
+    '3ffc07ffffff3ffc1ffffffffffff1fffff00003ff87ff8003ffc1fff3ff01ff'
+    'dffc07ff0ffe01fffff03ff80ffffff03ff81ffffffffffffcfffff80007ff83'
+    'ff8003ffc07ff7ff03ffbffc0ffe1ffe01fffff03ff80fff00003ff81ffc0000'
+    '0ffffe1ffffc000fffffff8003ff807ff7ff03ffbff80ffe1ffc03ffffe07ff8'
+    '1ffe00007ff81ffc0000001ffe003ffc001fffffffc007ff80ffffff07ffbff8'
+    '0ffe1ffe07ffffe07ff01ffe00007ff01ffc003f800fff001ffc003fffffffc0'
+    '07ff81ffefff0fffbff81ffe1ffe0fffffe07ff01ffe00007ff01fff87fffc1f'
+    'fff83ffc007ff801ffc00fffffffefffffff3fffffffffffffffffc0fff03ffc'
+    '00007ff00ffffffffffffffffff800fff001ffe00fffffff87ffffff3fffffff'
+    'fffffff9ffc0ffe03ffc0000ffe003ffffffffffffffffe000ffe000ffe00fff'
+    'fffc03ffffff1fffe7fff9ffffe1ffc0ffe03ff80000ffe000ffffc3ffff83ff'
+    'ff0000ffc000ffe00fffff8001ffeffe03ffe0fff07fff01ff80ffc000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '00000000000000000000000000000000'
+)
+BANNER_W, BANNER_H = 42, 3      # cells
+BANNER_TILE_OFF = 0x21c000      # escrgame.bin, first tile slot
+BANNER_TILE_BASE = 17280        # its tile index within that file
+BANNER_TILE_MAX = 109           # slots this banner owns
+BANNER_SPILL = 24845            # a run of 116 empty tiles further in
+BANNER_INK = 0xfca0             # the orange the original uses
+ESCRGAME = 'escrgame.bin'
+ESCRGAME_SIZE = 4194304
+ESCRGAME_MD5 = 'f0c2b33c6d32e8e25cee840a0de65dc0'
+
+
+def banner_tiles():
+    """Expand the bitmap into 8x8 tiles, and the tile index for each cell.
+
+    Deduplicated: 126 cells do not otherwise fit in 109 slots. Anything past
+    those 109 goes to a run of empty tiles elsewhere in the file rather than
+    over the neighbouring banner."""
+    want = BANNER_W * 8 * BANNER_H * 8 // 8
+    if len(BANNER_BITS) != want:
+        raise AssertionError('banner bitmap is %d bytes, expected %d for '
+                             '%dx%d' % (len(BANNER_BITS), want,
+                                        BANNER_W * 8, BANNER_H * 8))
+    tiles, table = [], []
+    for r in range(BANNER_H):
+        for c in range(BANNER_W):
+            raw = bytearray()
+            for y in range(8):
+                base = (r * 8 + y) * BANNER_W * 8
+                for x in range(c * 8, c * 8 + 8):
+                    i = base + x
+                    on = BANNER_BITS[i >> 3] >> (7 - (i & 7)) & 1
+                    raw += (BANNER_INK if on else 0).to_bytes(2, 'little')
+            raw = bytes(raw)
+            if raw not in tiles:
+                tiles.append(raw)
+            table.append(tiles.index(raw))
+    spill = BANNER_SPILL - BANNER_TILE_BASE
+    table = [t if t < BANNER_TILE_MAX else spill + t - BANNER_TILE_MAX
+             for t in table]
+    return tiles, table
+
+
+BANNER_TILES, BANNER_TABLE = banner_tiles()
+BANNER_NEW = b''.join(t.to_bytes(2, 'little') for t in BANNER_TABLE).hex()
+
+
+def _check_banner():
+    """The bitmap is generated by tools/vonbanner.py and checked in, so
+    nothing regenerates it here. These are the ways a hand-edited or
+    mis-generated one goes wrong, and every one of them would otherwise show
+    up as a scrambled title screen.
+
+    Returns (unique tiles, how many spill past the slots this banner owns).
+    """
+    if len(BANNER_TABLE) != BANNER_W * BANNER_H:
+        raise AssertionError('banner table is %d entries, expected %d'
+                             % (len(BANNER_TABLE), BANNER_W * BANNER_H))
+    spill = sum(1 for t in BANNER_TILES) - BANNER_TILE_MAX
+    if spill > 116:
+        raise AssertionError('banner needs %d tiles: %d of its own and %d '
+                             'spare, but only 116 spare are free'
+                             % (len(BANNER_TILES), BANNER_TILE_MAX, spill))
+    for t in BANNER_TABLE:
+        # the renderer masks the map entry with 0x3fff, so an index past
+        # that draws some other tile entirely
+        if not 0 <= t + 0x380 < 0x4000:
+            raise AssertionError('banner tile index %d is outside the 14 bits '
+                                 'the renderer reads' % t)
+        off = (BANNER_TILE_OFF + t * 128 if t < BANNER_TILE_MAX
+               else (BANNER_TILE_BASE + t) * 128)
+        if off + 128 > ESCRGAME_SIZE:
+            raise AssertionError('banner tile %d lands past the end of %s'
+                                 % (t, ESCRGAME))
+    return len(BANNER_TILES), max(0, spill)
+
+
+BANNER_UNIQUE, BANNER_SPILLED = _check_banner()
+
 
 FEATURES = [
     ('sound', 'Sound fixes',
@@ -286,10 +421,37 @@ FEATURES = [
          (0x00058189, '01', '02'),
          (0x00170dc9, '01', '02')]),
 
-    ('noloading', 'Hide loading screen text',
-     'Hides "Now Loading . . .". Cosmetic: the loading it announced is\n'
-     'already over by the time you read it.', [
-         (0x002c7678, '4e', '00')]),
+    ('movie', 'Intro and loading screens',
+     'Two cosmetic fixes either side of a load.\n'
+     '\n'
+     'Intro movie\tIt plays in a window of its own, which the game places\n'
+     '\tand sizes for a 640x480 picture, so scaled up it ends\n'
+     '\tup small and in the corner. Fitted to the window,\n'
+     '\tkeeping its shape.\n'
+     'Loading text\t"Now Loading . . ." is hidden. The loading it\n'
+     '\tannounced is over by the time you read it.', [
+         # The movie is not drawn through DirectDraw: mciavi opens it as a
+         # WS_CHILD of the main window and the game places that window
+         # itself, from an offset it reads from two globals. Each is a
+         # hardcoded centre for one movie size in a 640x480 picture.
+         #
+         # Reading the window's real size instead is not something the game
+         # can do - cnc-ddraw hooks GetClientRect and answers 640x480 - so
+         # the work goes to a stub. See asm/movie.asm.
+         #
+         #   push ebp
+         #   call movie_place
+         #   add  esp, 4
+         (0x0014dc42,
+          'c745f400000000c745f028000000a1345fae018945f4a1385fae018945f0',
+          '55e8149e110383c404909090909090909090909090909090909090909090'),
+         # movie.asm, in the .rsrc padding past VirtualSize - after the
+         # four bytes of it the frame rate patch's F5 labels use
+         (0x0060c25c, '00' * len(MOVIE_CODE), MOVIE_CODE.hex()),
+         # "Now Loading . . ." - the first byte to NUL ends the string
+         (0x002c7678, '4e', '00'),
+         # which the loader maps but does not make executable
+         (0x0000023f, '40', '60')]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
@@ -313,9 +475,9 @@ FEATURES = [
      'Removes the disc check. The soundtrack then has to come from\n'
      'somewhere, so the same patch adds playback from files.\n'
      '\n'
-     'Disc check\tThe "Please insert VIRTUAL ON CD" prompt is skipped. The drive is still scanned, so a mounted image still works.\n'
-     'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below. With no files there, the game reads the drive.\n'
-     'Section\tThe music routine goes in a section of its own rather than into spare bytes, so the file grows by about 3 KB.\n'
+     'Disc check\tSkipped. The drive is still scanned, so a mounted image still works.\n'
+     'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below; with none there, the game reads the drive.\n'
+     'Section\tThe music routine needs a section of its own, so the file grows by about 3 KB.\n'
      'Calls\tThe game\'s 37 calls to the CD audio function are pointed at that routine directly, so a DirectDraw wrapper loaded alongside cannot take them over.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
@@ -419,24 +581,15 @@ FEATURES = [
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
      'Twin-stick (XInput)\tthe arcade levers, nothing to bind\n'
      '\n'
-     'Disables Keyboard (Simple) for the time being: it is the only page\n'
-     'that binds all twelve actions, so the gamepad has to take it.\n'
+     'Costs Keyboard (Simple), the only page that binds all twelve\n'
+     'actions, so the gamepad has to take it.\n'
      '\n'
-     'A\tAccept\n'
-     'Select\tCamera\n'
-     'Start\tPause\n'
-     'D-pad\tMove, and menu navigation\n'
+     'A accepts, Select is the camera, Start pauses, and the D-pad\n'
+     'moves and drives menus. The prompts that named a key follow the\n'
+     'pad.\n'
      '\n'
-     'A skips the intro movie, which runs under a message loop of its\n'
-     'own. Start does not: the game ignores it while the movie plays.\n'
-     '\n'
-     'Twin-stick makes each thumbstick a lever: both the same way walks,\n'
-     'opposite ways turns, apart jumps, together crouches. The triggers\n'
-     'fire, both at once for the centre weapon, and LB/RB dash.\n'
-     '\n'
-     'Your v_on.ini is renamed to v_on.ini.bak and the game writes a fresh\n'
-     'one, because binds saved by the unpatched game do not fit the new\n'
-     'device list. Restore original puts it back.', [
+     'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
+     'original puts both back.', [
          # the routine lives in .rdata padding, so mark it executable
          (0x000001c4, '40000040', '40000060'),
          # F7 page: drop the letter, digit and named-key sections
@@ -532,7 +685,25 @@ FEATURES = [
          # and only when a pad was actually read, so the keyboard path
          # is left exactly as it was.
          (0x00207702, '5f5e5bc9c3', 'e997000000'),
-         (0x0020779e, '00' * len(LEVERS_CODE), LEVERS_CODE.hex())]),
+         (0x0020779e, '00' * len(LEVERS_CODE), LEVERS_CODE.hex()),
+         # Two prompts naming a key the pad now covers, so they are only
+         # true with this patch on.
+         #
+         # The scoreboard screen's, tile-grid text in a fixed 16-cell slot
+         # blanked by overwriting with the 16 spaces at 0x00285df0, so the
+         # replacement has to be the same width.
+         (0x00285e04, '20505245535320535041434520424152',
+                      '205052455353204120425554544f4e20'),
+         # The pause screen's, a C string drawn with TextOutA onto a DC from
+         # the DirectDraw surface. The site runs to the four bytes of padding
+         # after it; PAUSE follows at 0x2c7670.
+         (0x002c7654,
+          '546f20526573756d652047616d652c20507265737320463300000000',
+          '505245535320535441525420544f20554e5041555345000000000000'),
+         # The title and scoreboard banner says the same thing in artwork.
+         # Only the tile indices are here; escrgame.bin holds the tiles and
+         # is written after the executable, and backed up the same way.
+         (0x00269b60, '000001000200030004000500060007000800090007000a000b000c000d000e000f00100011001200040004001300090004001400150004001600170007000800180019001a001b001c0014001d001e001f0020002100220023002400250026002700280029002a002b002c002d002e002f0030003100320033003400350036003700380039003a003b003c003d003e00280029003f003a0040004100420043004400450046004700480049004a004b004c004a004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063004d004e004f006400650066006700680069006a006b006c004a00', BANNER_NEW)]),
 ]
 
 # Found by signature rather than offset, so it cannot live in FEATURES.
@@ -551,8 +722,7 @@ BY_KEY['dinput'] = (
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
 ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
-EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound',
-         'noloading')
+EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
 
 
 def apply_order():
@@ -2357,6 +2527,15 @@ class Patcher:
                 log.append('No patches selected. Nothing written.')
             return False, log
 
+        # The banner's tile indices go in the executable and the tiles go in
+        # escrgame.bin. One without the other draws the old artwork through
+        # the new table, which is worse than not patching at all - so check
+        # the file is there and writable before anything is written.
+        if 'padxinput' in applied:
+            ready, why = self._banner_ready()
+            if not ready:
+                return False, log + [why, 'Nothing written.']
+
         if not self._backup(self.exe_path, log):
             return False, log + ['Nothing written.']
         # Written beside the game and renamed over it, so a full disk or a
@@ -2377,6 +2556,8 @@ class Patcher:
         log.append('Wrote %s' % self.exe_path)
         if wanted.get('padxinput'):
             self._retire_ini(log)
+        if 'padxinput' in applied:
+            self._write_banner(log)
         return True, log
 
     def can_restore(self):
@@ -2395,6 +2576,18 @@ class Patcher:
         # The patched game rebuilds v_on.ini on its first run, so by now
         # there is almost always one in the way. It holds pad binds the
         # restored game cannot read, so it is the one to move aside.
+        # Both halves of the banner go back together. Restoring one alone
+        # leaves the table pointing at the other's tiles, which draws the
+        # prompt as scrambled letters.
+        art = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
+        if os.path.exists(art + '.bak'):
+            try:
+                shutil.copy(art + '.bak', art)
+                log.append('Restored %s from the backup' % ESCRGAME)
+            except OSError as exc:
+                log.append('Could not restore %s: %s - the title prompt will '
+                           'be scrambled until it goes back' % (ESCRGAME, exc))
+
         ini = os.path.join(os.path.dirname(self.exe_path), 'v_on.ini')
         if os.path.exists(ini + '.bak'):
             try:
@@ -2406,6 +2599,77 @@ class Patcher:
             except OSError as exc:
                 log.append('Could not restore v_on.ini: %s' % exc)
         return log
+
+    def _banner_ready(self):
+        """Can escrgame.bin take the new tiles? Returns (ok, why not).
+
+        An already-modified copy is refused rather than backed up: the backup
+        would then hold somebody else's edit, and Restore original would put
+        that back instead of the original."""
+        path = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
+        if not os.path.exists(path):
+            return False, ('%s is missing. XInput gamepad support renames the '
+                           'title prompt, which is artwork in that file.'
+                           % ESCRGAME)
+        try:
+            with open(path, 'rb') as fh:
+                data = fh.read()
+        except OSError as exc:
+            return False, 'Could not read %s: %s' % (ESCRGAME, exc)
+        if len(data) != ESCRGAME_SIZE:
+            return False, ('%s is %d bytes, expected %d.'
+                           % (ESCRGAME, len(data), ESCRGAME_SIZE))
+        digest = hashlib.md5(data).hexdigest()
+        if digest != ESCRGAME_MD5:
+            if os.path.exists(path + '.bak'):
+                return True, ''          # ours from a previous run
+            return False, ('%s has been modified (MD5 %s, expected %s) and '
+                           'there is no %s.bak to fall back on. Put the '
+                           'original back first.'
+                           % (ESCRGAME, digest, ESCRGAME_MD5, ESCRGAME))
+        return True, ''
+
+    def _write_banner(self, log):
+        """The tile indices went into the executable; the tiles themselves
+        live in escrgame.bin, so that has to be written too or the prompt
+        draws the old artwork through the new table.
+
+        A missing or unexpected escrgame.bin is not fatal - every other patch
+        has already been written - but it does have to be said out loud."""
+        path = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
+        try:
+            with open(path, 'rb') as fh:
+                data = bytearray(fh.read())
+        except OSError as exc:
+            log.append('Could not read %s: %s' % (ESCRGAME, exc))
+            return
+        if len(data) != ESCRGAME_SIZE:
+            log.append('%s is %d bytes, expected %d - left alone'
+                       % (ESCRGAME, len(data), ESCRGAME_SIZE))
+            return
+        if not self._backup(path, log):
+            log.append('%s not patched' % ESCRGAME)
+            return
+        for i, raw in enumerate(BANNER_TILES):
+            off = (BANNER_TILE_OFF + i * 128 if i < BANNER_TILE_MAX
+                   else (BANNER_SPILL + i - BANNER_TILE_MAX) * 128)
+            data[off:off + 128] = raw
+        for i in range(len(BANNER_TILES), BANNER_TILE_MAX):
+            off = BANNER_TILE_OFF + i * 128
+            data[off:off + 128] = b'\x00' * 128
+        temp = path + '.new'
+        try:
+            with open(temp, 'wb') as fh:
+                fh.write(data)
+            os.replace(temp, path)
+        except OSError as exc:
+            try:
+                os.remove(temp)
+            except OSError:
+                pass
+            log.append('Could not write %s: %s' % (ESCRGAME, exc))
+            return
+        log.append('Wrote %s' % path)
 
     def _retire_ini(self, log):
         """Binds written by the unpatched game crash the gamepad profile.
@@ -3623,6 +3887,8 @@ def selfcheck():
              'CD audio blob: %d bytes of code, %d of data, %d placeholders'
              % (len(VOCD_CODE), len(VOCD_DATA), len(VOCD_MAGICS)),
              'lever routine: %d bytes' % len(LEVERS_CODE),
+             'title banner: %d tiles (%d spare), %d bytes of %s'
+             % (BANNER_UNIQUE, BANNER_SPILLED, BANNER_UNIQUE * 128, ESCRGAME),
              'write order: %s' % ' '.join(apply_order()),
              'tables OK']
     print('\n'.join(lines))

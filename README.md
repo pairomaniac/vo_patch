@@ -72,7 +72,9 @@ boxes on, Field Graphic Rich, Screen Large.
 - **Sound fixes** - three small ones: the built-in delay before each sound
 effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
-- **Hide loading screen text** - removes "Now Loading . . .".
+- **Intro and loading screens** - two cosmetic fixes either side of a load:
+the intro movie is fitted to the window rather than left small in a corner,
+and "Now Loading . . ." is hidden.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
@@ -96,9 +98,15 @@ change your selection. Nothing is written unless every selected patch applied
 and the backup was made, so a failure leaves the game exactly as it was.
 
 If **XInput gamepad support** is among the patches, `v_on.ini` is moved to
-`v_on.ini.bak` at the same time and the game writes a fresh one. **Restore
-original** puts that back too, keeping whatever the patched game wrote as
-`v_on.ini.patched`.
+`v_on.ini.bak` at the same time and the game writes a fresh one, and
+`escrgame.bin` is rewritten with the new title artwork after a copy is kept
+as `escrgame.bin.bak`. **Restore original** puts both back, keeping whatever
+the patched game wrote as `v_on.ini.patched`.
+
+`escrgame.bin` and `v_on.exe` have to match: the executable holds the tile
+indices for the title prompt and the file holds the tiles. Putting only one
+of them back draws the prompt as scrambled letters. Use **Restore original**,
+which does both, rather than copying a `.bak` over by hand.
 
 ### Which build
 
@@ -206,6 +214,12 @@ movement binds, which is what the menus read.
 
 **A** skips the intro movie, the same as Space. **Start** does not - the game
 ignores F3 while the movie plays.
+
+The prompts follow the pad: the pause screen reads **PRESS START TO
+UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
+last one is artwork rather than text, so `escrgame.bin` is rewritten too and
+backed up to `escrgame.bin.bak`; **Restore original** puts it back. See
+[TEXT.md](TEXT.md).
 
 ### Gamepad (XInput)
 
@@ -323,12 +337,12 @@ not trap the cursor. Everything else,
 including the comments and the per-game sections, is left as it comes. Change
 any of it with `cnc-ddraw config.exe`.
 
-The intro movie is the one thing upscaling cannot help. The game plays
-`von.avi` through MCI, which draws into a window of its own that never passes
-through DirectDraw, and then pins that window to the top left corner at a
-fixed size. So it plays small and in the corner over an upscaled picture.
-Skip it with Space, Enter, Escape or pad A, or run at 1:1 if you want to
-watch it.
+The intro movie does not pass through DirectDraw: the game plays `von.avi`
+through MCI, which draws into a window of its own, and then places and sizes
+that window for a 640x480 picture. So by default it plays small and in the
+corner over an upscaled picture. **Fit intro movie** under Extra fixes that;
+without it, skip the movie with Space, Enter, Escape or pad A, or run at 1:1
+to watch it.
 
 gamescope handles the scaling without a DLL, if you would rather:
 
