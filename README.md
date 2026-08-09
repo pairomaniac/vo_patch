@@ -4,11 +4,6 @@ Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
 both players, and reads the soundtrack from files instead of the disc.
 
-Some of the byte edits come from the original VO_Patch 0.43 (2008) by
-[UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the
-game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
-the game and not the bytes quoted from it.
-
 <img height="700" alt="image" src="https://github.com/user-attachments/assets/187c8a52-e2f8-4121-a88e-f66993cfd9c9" />
 
 ## Download
@@ -21,11 +16,28 @@ run.
 
 **Linux:** check [Running from source](#running-from-source).
 
+## Using the patcher
+
+Select `v_on.exe` and press **Apply patches**. Click the ⓘ beside a patch to
+read what it does, and untick anything you do not want. Everything starts
+ticked.
+
+**Restore original** puts the game back, so you can change your selection and
+apply again.
+
+**ADD-ONS** is separate because nothing in it is a patch: those entries write
+files beside the game rather than editing it, and each installs and removes
+itself with its own button.
+
+Only the unmodified disc file is accepted. If yours is refused, see
+[Which build](#which-build).
+
+
 ## What the patches do
 
 **Essential** fix what is broken on modern systems; **Extra** are up to
-taste. Everything starts ticked. Every patch's offsets and how it works are
-in [NOTES.md](NOTES.md).
+taste. Every patch's offsets and how it works are in
+[NOTES.md](docs/NOTES.md).
 
 ### Essential
 
@@ -80,109 +92,6 @@ Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
 beside the game.
 
-## Using the patcher
-
-Select `v_on.exe` and press **Apply patches**. Click the ⓘ beside a patch
-under **ESSENTIAL PATCHES** or **EXTRA PATCHES** to read what it does, and
-untick anything you do not want.
-
-**ADD-ONS** is separate because nothing in it is a patch. Those two entries
-write files beside the game rather than editing the executable, so **Apply
-patches** and **Restore original** leave them alone - each one installs and
-removes itself with its own button.
-
-Only the unmodified disc file is accepted - 6,650,880 bytes, MD5
-`a464b0ff32d5bab499f265e45658504e`. The original is copied to `v_on.exe.bak`
-before anything is written, and **Restore original** puts it back so you can
-change your selection. Nothing is written unless every selected patch applied
-and the backup was made, so a failure leaves the game exactly as it was.
-
-If **XInput gamepad support** is among the patches, `v_on.ini` is moved to
-`v_on.ini.bak` at the same time and the game writes a fresh one, and
-`escrgame.bin` is rewritten with the new title artwork after a copy is kept
-as `escrgame.bin.bak`. **Restore original** puts both back, keeping whatever
-the patched game wrote as `v_on.ini.patched`.
-
-`escrgame.bin` and `v_on.exe` have to match: the executable holds the tile
-indices for the title prompt and the file holds the tiles. Putting only one
-of them back draws the prompt as scrambled letters. Use **Restore original**,
-which does both, rather than copying a `.bak` over by hand. If `escrgame.bin`
-is missing, the wrong size, or already modified with no backup beside it, the
-patcher stops before writing anything and says so.
-
-### Which build
-
-The patcher works on one build and refuses everything else. Every patch is a
-fixed file offset, and those offsets belong to that build alone - applying
-them to another would write into unrelated code.
-
-<img height="175" alt="image" src="https://github.com/user-attachments/assets/cefb985b-b8ee-4b40-ae35-ab7431fde607" />
-<img height="175" alt="image" src="https://github.com/user-attachments/assets/5c3acc21-0bf5-4961-acce-ae1990061c4f" />
-
-
-| Build | Size | MD5 | |
-| --- | --- | --- | --- |
-| Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
-| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
-
-The OEM release is a different build of the same game and is not supported.
-Reinstalling from the same disc will not produce a different file.
-
-If your file is neither of these, the patcher shows both checksums side by
-side and says which one it got.
-
-Everything the patcher does is also available without a window:
-
-```bash
-python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
-python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
-python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL
-python3 vo-patch.py --selfcheck        # validate the patch tables
-```
-
-## Internet play
-
-Link mode is two-player versus over a network, and in the stock game it only
-ever reaches the same LAN. The game looks for opponents by broadcasting on
-the local network, and no router forwards that. DirectPlay, the layer doing
-the looking, is deprecated on Windows and only half-implemented under Wine.
-Hence the usual advice to run a VPN and pretend everyone is on one LAN.
-
-<img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
-
-**Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
-player hosts, the other types an address, and the match runs the same as it
-always did.
-
-The part worth keeping was never DirectPlay's. The frame exchange, the
-retransmission, the input delay the game measures from the round trip and
-holds for the session - all of that is the game's own, and it is why link
-play feels as good as it does over a real connection. Only the transport
-underneath it is new.
-
-```bash
-python3 vo-patch.py --netplay path/to/game            # install
-python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
-```
-
-The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, and Remove puts it
-back, so nothing stops you returning to LAN-and-VPN play.
-
-### Playing
-
-- **Both players need this, and the same patches.** The two machines run
-  one simulation in step with each other. If they disagree about the rules,
-  they will disagree about the match.
-- **The host forwards UDP 47624.** Whoever joins needs nothing.
-- The host picks *Host a game* and reads out their address. The dialog
-  shows the local one, and will ask the internet for the public one if you
-  press the button. The other player picks *Join a game* and types it in;
-  host names work as well as addresses.
-
-The joining side keeps trying until you cancel, so there is no rush to
-press things at the same moment. Once a match is running, a player who
-quits or crashes is noticed within a few seconds.
-
 ## Gamepad
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
@@ -225,7 +134,7 @@ The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
 last one is artwork rather than text, so `escrgame.bin` is rewritten too and
 backed up to `escrgame.bin.bak`; **Restore original** puts it back. See
-[TEXT.md](TEXT.md).
+[TEXT.md](docs/TEXT.md).
 
 ### Gamepad (XInput)
 
@@ -304,6 +213,49 @@ With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
 `mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
 
+## Internet play
+
+Link mode is two-player versus over a network, and in the stock game it only
+ever reaches the same LAN. The game looks for opponents by broadcasting on
+the local network, and no router forwards that. DirectPlay, the layer doing
+the looking, is deprecated on Windows and only half-implemented under Wine.
+Hence the usual advice to run a VPN and pretend everyone is on one LAN.
+
+<img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
+
+**Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
+player hosts, the other types an address, and the match runs the same as it
+always did.
+
+The part worth keeping was never DirectPlay's. The frame exchange, the
+retransmission, the input delay the game measures from the round trip and
+holds for the session - all of that is the game's own, and it is why link
+play feels as good as it does over a real connection. Only the transport
+underneath it is new.
+
+```bash
+python3 vo-patch.py --netplay path/to/game            # install
+python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
+```
+
+The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, and Remove puts it
+back, so nothing stops you returning to LAN-and-VPN play.
+
+### Playing
+
+- **Both players need this, and the same patches.** The two machines run
+  one simulation in step with each other. If they disagree about the rules,
+  they will disagree about the match.
+- **The host forwards UDP 47624.** Whoever joins needs nothing.
+- The host picks *Host a game* and reads out their address. The dialog
+  shows the local one, and will ask the internet for the public one if you
+  press the button. The other player picks *Join a game* and types it in;
+  host names work as well as addresses.
+
+The joining side keeps trying until you cancel, so there is no rush to
+press things at the same moment. Once a match is running, a player who
+quits or crashes is noticed within a few seconds.
+
 ## Resolution and windowing (cnc-ddraw)
 
 The game asks for 640x480 exclusive fullscreen and leaves the rest to the
@@ -358,6 +310,45 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 `-S fit` fills more of the screen without whole-number scaling.
 
+## Which build
+
+The patcher works on one build and refuses everything else. Every patch is a
+fixed file offset, and those offsets belong to that build alone - applying
+them to another would write into unrelated code.
+
+<img height="175" alt="image" src="https://github.com/user-attachments/assets/cefb985b-b8ee-4b40-ae35-ab7431fde607" />
+<img height="175" alt="image" src="https://github.com/user-attachments/assets/5c3acc21-0bf5-4961-acce-ae1990061c4f" />
+
+
+| Build | Size | MD5 | |
+| --- | --- | --- | --- |
+| Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
+| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
+
+The OEM release is a different build of the same game and is not supported.
+Reinstalling from the same disc will not produce a different file.
+
+If your file is neither of these, the patcher shows both checksums side by
+side and says which one it got.
+
+### What gets written
+
+The original is copied to `v_on.exe.bak` before anything is written, and
+nothing is written unless every selected patch applied and the backup was
+made, so a failure leaves the game exactly as it was.
+
+**XInput gamepad support** touches two more files. `v_on.ini` is moved to
+`v_on.ini.bak` and the game writes a fresh one, because binds saved by the
+unpatched game do not fit the new device list. `escrgame.bin` is rewritten
+with the new title artwork, after a copy is kept as `escrgame.bin.bak`.
+
+**Restore original** puts all three back, keeping whatever the patched game
+wrote as `v_on.ini.patched`. Restore rather than copying a `.bak` over by
+hand: `escrgame.bin` and `v_on.exe` have to match, and putting back only one
+draws the title prompt as scrambled letters. If `escrgame.bin` is missing,
+the wrong size, or already modified with no backup beside it, the patcher
+stops before writing anything and says so.
+
 ## Running from source
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
@@ -373,6 +364,15 @@ sudo apt install python3-tk        # Debian, Ubuntu, Mint
 sudo dnf install python3-tkinter   # Fedora, RHEL
 sudo pacman -S tk                  # Arch, EndeavourOS
 python3 vo-patch.py
+```
+
+Everything the patcher does is also available without a window:
+
+```bash
+python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL
+python3 vo-patch.py --selfcheck        # validate the patch tables
 ```
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
@@ -395,3 +395,10 @@ Written with AI assistance. Every offset and byte sequence is checked against
 the original executable before it is written, and the patcher refuses anything
 that is not the unmodified disc file - but this is a hobby project poking at a
 nearly 30-year-old binary so expect bugs.
+
+## Credits and licence
+
+Some of the byte edits come from the original VO_Patch 0.43 (2008) by
+[UE2A-GEL](https://jaguarandi.xxxxxxxx.jp/). Rights to the
+game belong to SEGA. `LICENSE` (CC0) covers this repository's own code, not
+the game and not the bytes quoted from it.

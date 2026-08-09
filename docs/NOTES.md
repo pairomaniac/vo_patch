@@ -1,8 +1,8 @@
 # Notes
 
 How the patches work, rather than how to use them. For using the
-patcher see [README.md](README.md); for the assembly sources and how
-they are built see [asm/](asm/).
+patcher see [README.md](../README.md); for the assembly sources and how
+they are built see [asm/](../asm/).
 
 ## Patches
 
@@ -31,7 +31,7 @@ Bold entries are not part of original VO_Patch.
 In the order of the table above; rows that are a single obvious byte edit are
 skipped. The CD audio and gamepad patches install assembled machine code
 rather than editing bytes, and the sources and a longer account of both are
-in [asm/](asm/).
+in [asm/](../asm/).
 
 **Sample rate.** This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
@@ -214,7 +214,7 @@ real `GetProcAddress`, and asking it for user32's `GetClientRect` gives the
 unhooked one.
 
 That is more than an edit, so it is a stub in the `.rsrc` padding - see
-[asm/](asm/). Without cnc-ddraw the import is already the real function and
+[asm/](../asm/). Without cnc-ddraw the import is already the real function and
 the result is what the game did before. mciavi does not follow the window, so
 a `MCI_PUT` destination rect goes with the resize; the game never sends one
 of its own.
