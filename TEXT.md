@@ -1,8 +1,12 @@
 # On-screen text
 
 Where each string the patcher touches actually lives, and why some of them
-are not strings at all. Offsets are file offsets into `v_on.exe` unless
-another file is named.
+are not strings at all.
+
+The tables give file offsets into `v_on.exe`, unless another file is named,
+because that is what the patch tables use. Routines and globals are named by
+virtual address, the way a debugger shows them: add `0x400c00` to a `.text`
+or `.rdata` offset and `0x401200` to a `.data` one.
 
 ## Three ways the game draws text
 
