@@ -106,7 +106,9 @@ the patched game wrote as `v_on.ini.patched`.
 `escrgame.bin` and `v_on.exe` have to match: the executable holds the tile
 indices for the title prompt and the file holds the tiles. Putting only one
 of them back draws the prompt as scrambled letters. Use **Restore original**,
-which does both, rather than copying a `.bak` over by hand.
+which does both, rather than copying a `.bak` over by hand. If `escrgame.bin`
+is missing, the wrong size, or already modified with no backup beside it, the
+patcher stops before writing anything and says so.
 
 ### Which build
 
@@ -344,9 +346,9 @@ any of it with `cnc-ddraw config.exe`.
 The intro movie does not pass through DirectDraw: the game plays `von.avi`
 through MCI, which draws into a window of its own, and then places and sizes
 that window for a 640x480 picture. So by default it plays small and in the
-corner over an upscaled picture. **Fit intro movie** under Extra fixes that;
-without it, skip the movie with Space, Enter, Escape or pad A, or run at 1:1
-to watch it.
+corner over an upscaled picture. **Intro and loading screens** under Extra
+fixes that; without it, skip the movie with Space, Enter, Escape or pad A, or
+run at 1:1 to watch it.
 
 gamescope handles the scaling without a DLL, if you would rather:
 

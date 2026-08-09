@@ -224,9 +224,6 @@ the gamepad patch and not on their own: the pause screen's and the
 scoreboard's. The title and scoreboard banner is a third case and not text at
 all. All three are set out in [TEXT.md](TEXT.md).
 
-The title screen's *Press Space Bar* and the mech select screen's *PRESS
-BUTTON* are bitmaps, not text, and neither appears in the file as a string.
-There is a `PRESS SPACE BAR` in the tile-grid table at `0x285e04`, beside
-strings that do render - `HBV-10-B` and the weapon names on the same screen -
-but both of its call sites are gated on a flag the PC build never sets, so
-editing it changes nothing.
+The mech select screen's *PRESS  BUTTON* and *MACHINE SELECT* are
+pre-rendered word sprites rather than text, and appear in no file as a
+string, so they are left as they are.

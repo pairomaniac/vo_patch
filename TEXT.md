@@ -18,12 +18,12 @@ nothing: the phrase is stored as 126 tile indices, and the letterforms are
 
 ## Strings
 
-| Text | Offset | Notes |
-| --- | --- | --- |
-| `To Resume Game, Press F3` | `0x2c7654` | GDI. 24 bytes plus four of padding; `PAUSE` follows at `0x2c7670`, so 27 characters is the ceiling |
-| `Now Loading . . .` | `0x2c7678` | GDI. Hidden by writing `NUL` over the first byte |
-| `Connecting...` | `0x2c7644` | GDI |
-| ` PRESS SPACE BAR` | `0x285e04` | tile font, 16 cells. Blanked by overwriting with the 16 spaces at `0x285df0`, so a replacement must be the same width |
+| Text | Screen | Offset | Notes |
+| --- | --- | --- | --- |
+| `To Resume Game, Press F3` | pause | `0x2c7654` | GDI. 24 bytes plus four of padding; `PAUSE` follows at `0x2c7670`, so 27 characters is the ceiling |
+| `Now Loading . . .` | loading | `0x2c7678` | GDI. Hidden by writing `NUL` over the first byte |
+| `Connecting...` | link play | `0x2c7644` | GDI |
+| ` PRESS SPACE BAR` | scoreboard | `0x285e04` | tile font, 16 cells. Blanked by overwriting with the 16 spaces at `0x285df0`, so a replacement must be the same width |
 
 The tile font table around `0x285df0` also holds `INSERT COIN(S)`,
 `TO BE CONTINUED ...`, `MOVE  FORWARD`, `DASH  BUTTON`, the mech names and
@@ -88,12 +88,12 @@ does not try. What `--selfcheck` does check, at import:
 | every index inside 14 bits | an index the renderer would mask into another tile |
 | every tile inside the file | an offset past the end of `escrgame.bin` |
 
-## Not editable
+## Left alone
 
-The title screen's mixed-case `Press Space Bar` is the banner above. Nothing
-else on that screen is text either: the logo, the kanji and the copyright
-line are all artwork.
+Nothing else on the title screen is text: the logo, the kanji and the
+copyright line are artwork, and not tiles either.
 
 `PRESS  BUTTON` and `MACHINE SELECT` on the mech select screen are
 pre-rendered word sprites, in the same family as `CREDIT`, `PLAYER`,
-`GAME OVER` and `CONTINUE`. None of them appear as strings in any file.
+`GAME OVER` and `CONTINUE`. None of them appear as a string in any file, and
+none is a tile table, so changing them means repainting the sprites.
