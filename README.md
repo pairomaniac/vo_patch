@@ -215,6 +215,10 @@ movement binds, which is what the menus read.
 **A** skips the intro movie, the same as Space. **Start** does not - the game
 ignores F3 while the movie plays.
 
+<img height="200" alt="image" src="https://github.com/user-attachments/assets/1524c516-9252-4f57-83fe-0a47fdc7ad11" />
+<img height="200" alt="image" src="https://github.com/user-attachments/assets/7008db66-3297-4aae-8952-b1d56855df44" />
+<img height="80" alt="image" src="https://github.com/user-attachments/assets/444f08bc-0efa-4200-b4c2-a2ef5691b8b3" />
+
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
 last one is artwork rather than text, so `escrgame.bin` is rewritten too and
