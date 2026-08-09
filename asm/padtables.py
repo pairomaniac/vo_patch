@@ -37,7 +37,9 @@ WBUTTONS = 0
 LTRIGGER, RTRIGGER = 2, 3
 LX, LY, RX, RY = 4, 6, 8, 10
 
-DEADZONE = 10000        # what a stick has to pass to count as pushed
+DEADZONE = 13000        # what a stick has to pass to count as pushed. Per
+                        # axis, not radial: a 45 degree push puts 23170 on
+                        # each, so diagonals stay comfortable
 PULL = 0x40             # and a trigger
 
 # (name, kind, where, value). Sixteen entries, ids 0xe0 to 0xef.
