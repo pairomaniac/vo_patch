@@ -1915,6 +1915,10 @@ DDRAW_SETTINGS = (
                                     # cursor". The game does not use the
                                     # mouse, so trapping it only makes the
                                     # second monitor unreachable.
+    ('game_handles_close', 'true'),  # without it cnc-ddraw answers the close
+                                    # button with ExitProcess, so the game
+                                    # never gets WM_DESTROY and never writes
+                                    # v_on.ini or BkUp.bin.
 )
 
 

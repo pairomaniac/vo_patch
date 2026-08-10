@@ -287,12 +287,23 @@ replace a DLL that is loaded.
 that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
 its own DirectDraw and nothing changes.
 
-A fresh `ddraw.ini` is cnc-ddraw's own file with six settings changed:
-`fullscreen`, `windowed`, `maintas`, `noactivateapp`, `toggle_borderless` and
-`devmode` are all set to `true`, giving a borderless window at 4:3 that does
-not trap the cursor. Everything else,
+A fresh `ddraw.ini` is cnc-ddraw's own file with seven settings changed:
+`fullscreen`, `windowed`, `maintas`, `noactivateapp`, `toggle_borderless`,
+`devmode` and `game_handles_close` are all set to `true`, giving a borderless
+window at 4:3 that does not trap the cursor. Everything else,
 including the comments and the per-game sections, is left as it comes. Change
 any of it with `cnc-ddraw config.exe`.
+
+`game_handles_close` is the one that is not about the picture. Left at its
+default, cnc-ddraw answers the close button with `ExitProcess`, so the game
+never sees `WM_DESTROY` - which is where it writes `v_on.ini` and `BkUp.bin`.
+Closing the window then loses every setting and every record from that
+session. If you already have a `ddraw.ini`, add the line by hand:
+
+```ini
+[ddraw]
+game_handles_close=true
+```
 
 The intro movie does not pass through DirectDraw: the game plays `von.avi`
 through MCI, which draws into a window of its own, and then places and sizes
