@@ -35,27 +35,23 @@ jobs:
 
       - run: pip install pyflakes
 
-      # Imports the module, so the patch table checks run: lengths, bounds,
-      # cross-patch collisions, and the one intra-patch overlap the XInput
-      # routine relies on.
-      - name: Patch tables
-        run: python3 vo-patch.py --selfcheck
-
-      # Reassembles asm/*.asm, repacks the tables and dialogs from asm/*.py,
-      # and compares the lot against the committed blobs. Also checks each
-      # blob's site in the patch table against the address the source names
-      # for it, which is the one mistake nothing downstream would notice.
-      # Writes nothing - nasm works in a temporary directory.
-      - name: Sources match the committed blobs
-        run: python3 asm/build.py --check
-
-      # The netplay DLL is compiled, not assembled, and two mingw versions
-      # do not produce identical bytes from identical source. So the blob
-      # records a hash of net/dpctrl.c and this compares against it: it
-      # answers "was the blob built from this source", which is the drift
-      # that matters, without demanding a reproducible toolchain.
-      - name: Netplay blob matches its source
-        run: python3 net/build.py --check
+      # One runner, the same one used locally, so the two cannot drift.
+      # It skips the two checks that need a copy of the game and says so.
+      #
+      # tables   patch tables, blobs and the banner bitmap: lengths, bounds,
+      #          cross-patch collisions, the intra-patch overlap the XInput
+      #          routine relies on, and every banner tile index in range.
+      # asm      reassembles asm/ and compares against the committed blobs,
+      #          and checks each blob's site against the address its source
+      #          names - the one mistake nothing downstream would notice.
+      #          Writes nothing; nasm works in a temporary directory.
+      # net      two mingw versions do not produce identical bytes, so the
+      #          blob records a hash of net/dpctrl.c and this compares
+      #          against that: "was the blob built from this source".
+      # tree     a blob regenerated but not committed, and proof that the
+      #          --check runs above really are read-only.
+      - name: Checks
+        run: python3 tools/check.py --colour always
 
       # Separately, prove the C still builds and still exports what the
       # game imports. Nothing here compares against the committed blob.
@@ -76,17 +72,14 @@ jobs:
             && { echo "still linked against DirectPlay"; exit 1; }
           echo "ok"
 
-      # --check is meant to be read-only. If that ever stops being true this
-      # catches it, and it also catches a blob regenerated but not committed.
-      - name: Working tree is clean
-        run: git diff --exit-code
-
-      - name: Lint
-        run: python3 -m pyflakes vo-patch.py asm/*.py net/build.py tools/selftest.py
-
-      # What this job cannot do is apply the patches to a real v_on.exe: the
-      # game is not in the repository. Run tools/selftest.py by hand before
-      # tagging - it is the only check that catches a wrong offset.
+      # What this job cannot do is touch a real copy of the game, so two of
+      # the seven checks are skipped here. Run them by hand before tagging:
+      #
+      #     python3 tools/check.py /path/to/VIRTUAL-ON
+      #
+      # offsets  the only check that catches a wrong offset
+      # banner   the only check that proves the title prompt reads back as
+      #          it was written, since escrgame.bin is not here either
 
   # Builds on every push to main, on a tag, and on demand from the Actions
   # tab. Pull requests are left out: the push that follows the merge builds
