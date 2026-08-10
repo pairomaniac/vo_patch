@@ -113,31 +113,34 @@ edit anyway.
 
 The `verify` job in `.github/workflows/build.yml` runs on every push to main,
 every `v*` tag and every pull request, and the Windows build will not start
-until it passes.
-It installs nasm and runs the same checks you would:
+until it passes. It installs nasm and runs `python3 tools/check.py`, the same
+runner you would run locally:
 
-| Step | Catches |
+| Check | Catches |
 | --- | --- |
-| `vo-patch.py --selfcheck` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
-| `asm/build.py --check` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing |
-| `git diff --exit-code` | blobs regenerated but not committed |
-| `pyflakes` | unused names, undefined names, bad imports |
+| `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
+| `asm` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing |
+| `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
+| `lint` | pyflakes: unused names, undefined names, bad imports |
+| `tree` | blobs regenerated but not committed |
 
-The middle two are the ones that matter here. Without them the repository
-stays self-consistent while the shipped patcher installs last week's code -
-nothing else in the project would notice.
+`asm` is the one that matters here. Without it the repository stays
+self-consistent while the shipped patcher installs last week's code - nothing
+else in the project would notice.
 
-What CI cannot do is apply the patches to a real `v_on.exe`, because the game
-is not in the repository. So before tagging:
+What CI cannot do is touch a real `v_on.exe` or `escrgame.bin`, because the
+game is not in the repository, so two checks are skipped there. Run them
+before tagging by giving the runner a game folder:
 
 ```
-python3 tools/selftest.py /path/to/v_on.exe
+python3 tools/check.py /path/to/VIRTUAL-ON
 ```
 
-That is the only check that catches a wrong offset. It verifies every
+`offsets` is the only check that catches a wrong offset. It verifies every
 `original` column against the real file, applies 350-odd combinations of
 patches, and compares the fully patched MD5 against `EXPECTED_ALL` in
-`tools/selftest.py`.
+`tools/selftest.py`. `banner` is the only one that proves the tile indices in
+the executable and the artwork in `escrgame.bin` still line up.
 
 ## Where each blob lands
 

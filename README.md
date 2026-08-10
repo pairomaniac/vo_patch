@@ -391,15 +391,14 @@ their version from the git tag, and a source tree has no tag to take it from.
 
 To change the machine code the patches install, see [asm/](asm/), which
 `asm/build.py` builds into the hex strings in `vo-patch.py`. Never edit those
-by hand. `python3 vo-patch.py --selfcheck` validates the patch tables without
-a copy of the game; `python3 tools/selftest.py path/to/v_on.exe` applies them
-to a real one.
+by hand.
 
 The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
 and run `python3 net/build.py`, which compiles it with mingw and bakes it back
 into `vo-patch.py`.
 
-`python3 tools/check.py` runs every check in the project;
+`python3 tools/check.py` runs every check in the project - give it your game
+folder and it runs the two that need one.
 [docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
 ---
