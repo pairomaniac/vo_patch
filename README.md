@@ -399,6 +399,9 @@ The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
 and run `python3 net/build.py`, which compiles it with mingw and bakes it back
 into `vo-patch.py`.
 
+`python3 tools/check.py` runs every check in the project;
+[docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
+
 ---
 
 Written with AI assistance. Every offset and byte sequence is checked against

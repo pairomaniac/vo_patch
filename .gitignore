@@ -17,6 +17,5 @@ asm/*.bin
 net/dpctrl.dll
 vo-net.log
 
-# Personal dev stuff
-DEVELOPING.md
-tools/vo-loopback.sh
+# vo-loopback.sh reads its paths from here; they are machine specific.
+.vo-loopback
