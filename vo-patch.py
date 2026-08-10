@@ -16,6 +16,7 @@ https://github.com/pairomaniac/vo_patch
 
 import base64
 import ctypes
+import errno
 import hashlib
 import io
 import os
@@ -51,7 +52,15 @@ OTHER_BUILDS = {
         'for the retail disc build.'),
 }
 
-RETAIL_HINT = 'Use v_on.exe from a standard retail VIRTUAL-ON CD.'
+RETAIL_HINT = 'Reinstall from the retail disc and pick the installed copy.'
+
+# Handed to this window instead of the executable often enough to be worth
+# naming. The CD MUSIC section wants the cue sheet; this one wants the game.
+DISC_IMAGES = {
+    '.cue': 'cue sheet', '.bin': 'disc image', '.iso': 'disc image',
+    '.img': 'disc image', '.mds': 'disc image', '.mdf': 'disc image',
+    '.nrg': 'disc image', '.ccd': 'disc image', '.toc': 'cue sheet',
+}
 
 # GENERATED - do not edit the hex by hand.
 #
@@ -330,6 +339,7 @@ BANNER_BITS = bytes.fromhex(
     '00000000000000000000000000000000'
 )
 BANNER_W, BANNER_H = 42, 3      # cells
+BANNER_TABLE = 0x00269b60       # v_on.exe, the tile index for each cell
 BANNER_TILE_OFF = 0x21c000      # escrgame.bin, first tile slot
 BANNER_TILE_BASE = 17280        # its tile index within that file
 BANNER_TILE_MAX = 109           # slots this banner owns
@@ -371,8 +381,8 @@ def banner_tiles():
     return tiles, table
 
 
-BANNER_TILES, BANNER_TABLE = banner_tiles()
-BANNER_NEW = b''.join(t.to_bytes(2, 'little') for t in BANNER_TABLE).hex()
+BANNER_TILES, BANNER_CELLS = banner_tiles()
+BANNER_NEW = b''.join(t.to_bytes(2, 'little') for t in BANNER_CELLS).hex()
 
 
 def _check_banner():
@@ -383,15 +393,15 @@ def _check_banner():
 
     Returns (unique tiles, how many spill past the slots this banner owns).
     """
-    if len(BANNER_TABLE) != BANNER_W * BANNER_H:
+    if len(BANNER_CELLS) != BANNER_W * BANNER_H:
         raise AssertionError('banner table is %d entries, expected %d'
-                             % (len(BANNER_TABLE), BANNER_W * BANNER_H))
+                             % (len(BANNER_CELLS), BANNER_W * BANNER_H))
     spill = sum(1 for t in BANNER_TILES) - BANNER_TILE_MAX
     if spill > 116:
         raise AssertionError('banner needs %d tiles: %d of its own and %d '
                              'spare, but only 116 spare are free'
                              % (len(BANNER_TILES), BANNER_TILE_MAX, spill))
-    for t in BANNER_TABLE:
+    for t in BANNER_CELLS:
         # the renderer masks the map entry with 0x3fff, so an index past
         # that draws some other tile entirely
         if not 0 <= t + 0x380 < 0x4000:
@@ -703,7 +713,7 @@ FEATURES = [
          # The title and scoreboard banner says the same thing in artwork.
          # Only the tile indices are here; escrgame.bin holds the tiles and
          # is written after the executable, and backed up the same way.
-         (0x00269b60, '000001000200030004000500060007000800090007000a000b000c000d000e000f00100011001200040004001300090004001400150004001600170007000800180019001a001b001c0014001d001e001f0020002100220023002400250026002700280029002a002b002c002d002e002f0030003100320033003400350036003700380039003a003b003c003d003e00280029003f003a0040004100420043004400450046004700480049004a004b004c004a004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063004d004e004f006400650066006700680069006a006b006c004a00', BANNER_NEW)]),
+         (BANNER_TABLE, '000001000200030004000500060007000800090007000a000b000c000d000e000f00100011001200040004001300090004001400150004001600170007000800180019001a001b001c0014001d001e001f0020002100220023002400250026002700280029002a002b002c002d002e002f0030003100320033003400350036003700380039003a003b003c003d003e00280029003f003a0040004100420043004400450046004700480049004a004b004c004a004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063004d004e004f006400650066006700680069006a006b006c004a00', BANNER_NEW)]),
 ]
 
 # Found by signature rather than offset, so it cannot live in FEATURES.
@@ -2375,6 +2385,15 @@ def _repoint_mci_calls(pe, slot_va, hook_va):
         pe.d[off + 5] = 0x90
 
 
+def _same_file(a, b):
+    """Byte comparison, for deciding whether a file is worth keeping."""
+    try:
+        with open(a, 'rb') as fa, open(b, 'rb') as fb:
+            return fa.read() == fb.read()
+    except OSError:
+        return False
+
+
 class PatchFailed(Exception):
     """A patch did not apply. Nothing has been written: the caller holds the
     only copy of the buffer."""
@@ -2468,12 +2487,28 @@ class Patcher:
         longer showing."""
         self.exe_path = None
         self.compare = None
+
+        # Decided on the name, before the read: a disc image is hundreds of
+        # megabytes and hashing one to conclude "that is not an executable"
+        # freezes the window for no reason.
+        kind = DISC_IMAGES.get(os.path.splitext(path)[1].lower())
+        if kind:
+            self.compare = {
+                'rows': [],
+                'why': 'This is a %s, not the game.' % kind,
+                'hint': 'Pick v_on.exe here. To rip the soundtrack, put the '
+                        'cue sheet in Source under CD MUSIC instead.',
+                'level': 'warn',
+                'log': ['%s is a %s' % (os.path.basename(path), kind)],
+            }
+            return 'CANNOT PATCH - that is a %s.' % kind, False
+
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
         digest = hashlib.md5(data).hexdigest()
         if digest == ORIGINAL_MD5:
-            return 'READY - unmodified disc original', True
+            return 'READY - press Apply patches', True
 
         known = OTHER_BUILDS.get(digest)
         if known:
@@ -2531,6 +2566,10 @@ class Patcher:
         # escrgame.bin. One without the other draws the old artwork through
         # the new table, which is worse than not patching at all - so check
         # the file is there and writable before anything is written.
+        writable, why = self._folder_writable()
+        if not writable:
+            return False, log + [why, 'Nothing written.']
+
         if 'padxinput' in applied:
             ready, why = self._banner_ready()
             if not ready:
@@ -2551,7 +2590,10 @@ class Patcher:
                 os.remove(temp)
             except OSError:
                 pass
-            return False, log + ['Write failed: %s' % exc, 'Nothing written.']
+            return False, log + [
+                self._why_unwritable(os.path.dirname(self.exe_path) or '.',
+                                     exc, os.path.basename(self.exe_path)),
+                'Nothing written.']
         log += ['  %s' % BY_KEY[key][0] for key in applied]
         log.append('Wrote %s' % self.exe_path)
         if wanted.get('padxinput'):
@@ -2564,41 +2606,96 @@ class Patcher:
         return bool(self.exe_path) and os.path.exists(self.exe_path + '.bak')
 
     def restore(self):
-        """Copy the .bak back over the exe. Returns a list of log lines."""
-        bak = self.exe_path + '.bak'
-        try:
-            shutil.copy(bak, self.exe_path)
-        except OSError as exc:
-            return ['Restore failed: %s' % exc]
-        log = ['Restored %s from the backup'
-               % os.path.basename(self.exe_path)]
+        """Put every file this patcher touched back. Returns log lines.
 
-        # The patched game rebuilds v_on.ini on its first run, so by now
-        # there is almost always one in the way. It holds pad binds the
-        # restored game cannot read, so it is the one to move aside.
-        # Both halves of the banner go back together. Restoring one alone
-        # leaves the table pointing at the other's tiles, which draws the
-        # prompt as scrambled letters.
-        art = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
-        if os.path.exists(art + '.bak'):
+        One rule for all three: copy the .bak over the top and leave the .bak
+        where it is, so restoring twice does the same thing as restoring
+        once. Only v_on.ini keeps what it replaces, as .patched - the pad
+        binds are the player's work, where a patched exe is not."""
+        folder = os.path.dirname(self.exe_path)
+        targets = [(self.exe_path, False),
+                   (os.path.join(folder, ESCRGAME), False),
+                   (os.path.join(folder, 'v_on.ini'), True)]
+        log = []
+        for path, keep_current in targets:
+            bak = path + '.bak'
+            name = os.path.basename(path)
+            if not os.path.exists(bak):
+                continue
             try:
-                shutil.copy(art + '.bak', art)
-                log.append('Restored %s from the backup' % ESCRGAME)
+                if (keep_current and os.path.exists(path)
+                        and not _same_file(path, bak)):
+                    # Only when it differs: restoring twice would otherwise
+                    # overwrite the player's binds with the copy of the
+                    # original that the first restore just put there.
+                    os.replace(path, path + '.patched')
+                    log.append('Kept the patched %s as %s.patched'
+                               % (name, name))
+                shutil.copy(bak, path)
+                log.append('Restored %s' % name)
             except OSError as exc:
-                log.append('Could not restore %s: %s - the title prompt will '
-                           'be scrambled until it goes back' % (ESCRGAME, exc))
-
-        ini = os.path.join(os.path.dirname(self.exe_path), 'v_on.ini')
-        if os.path.exists(ini + '.bak'):
-            try:
-                if os.path.exists(ini):
-                    os.replace(ini, ini + '.patched')
-                    log.append('Kept the patched settings as v_on.ini.patched')
-                shutil.move(ini + '.bak', ini)
-                log.append('Put the original v_on.ini back')
-            except OSError as exc:
-                log.append('Could not restore v_on.ini: %s' % exc)
+                log.append('Could not restore %s: %s' % (name, exc))
+        if not log:
+            return ['Nothing to restore - no backups found']
         return log
+
+    def _folder_writable(self):
+        """Can anything be written beside the game? Returns (ok, why not).
+
+        Checked before the backup rather than discovered halfway through.
+        The advice depends on why it failed, so the reason is read off errno
+        rather than pasting the OS message into a sentence about permissions
+        - "cannot write here (No such file or directory)" helps nobody."""
+        folder = os.path.dirname(self.exe_path) or '.'
+        probe = os.path.join(folder, '.vo-patch-write-test')
+        try:
+            with open(probe, 'wb') as fh:
+                fh.write(b'x')
+            os.remove(probe)
+        except OSError as exc:
+            return False, self._why_unwritable(folder, exc)
+        return True, ''
+
+    @staticmethod
+    def _why_unwritable(folder, exc, name=None):
+        """Turn a failed write into advice.
+
+        Windows is checked first, because it folds several different causes
+        into EACCES: a write-protected drive, a file another process has
+        open, and an actual permission problem all arrive as errno 13, and
+        the answer to each is different."""
+        elsewhere = ('Copy the game folder somewhere you own - your home or '
+                     'Documents - and patch it there.')
+        # The caller passes both, rather than this guessing from the path:
+        # splitting a Windows path on a Linux box gets it wrong, and the
+        # sentences need the folder in some cases and the file in others.
+        name = name or folder
+        win = getattr(exc, 'winerror', None)
+        if win == 32 or win == 33:          # SHARING_VIOLATION, LOCK_VIOLATION
+            return ('Something else has %s open. Close the game and any '
+                    'launcher or anti-virus scanning it, then try again.'
+                    % name)
+        if win == 19:                       # WRITE_PROTECT
+            return ('%s is write protected. If the game is on a mounted '
+                    'disc image, copy it to your hard drive first.' % folder)
+        if exc.errno in (errno.EACCES, errno.EPERM):
+            # Deliberately not "run as administrator": that writes a backup
+            # and a log the player then cannot delete, and Program Files is
+            # the usual cause.
+            return 'No permission to write in %s. %s' % (folder, elsewhere)
+        if exc.errno == errno.EROFS:
+            return ('%s is read-only. If the game is on a mounted disc '
+                    'image, copy it to your hard drive first.' % folder)
+        if exc.errno == errno.ENOSPC:
+            return ('No space left on the drive holding %s. About 7 MB is '
+                    'needed for the backup.' % folder)
+        if exc.errno == errno.ENOENT:
+            return ('%s is gone. Has the folder been moved, or a drive '
+                    'disconnected, since the file was selected?' % folder)
+        if exc.errno == errno.ETXTBSY:      # the same thing on Linux
+            return ('%s is in use. Close the game and try again.' % name)
+        # Anything else: report it and stop guessing at the cause.
+        return 'Cannot write in %s: %s.' % (folder, exc.strerror or exc)
 
     def _banner_ready(self):
         """Can escrgame.bin take the new tiles? Returns (ok, why not).
@@ -2623,10 +2720,11 @@ class Patcher:
         if digest != ESCRGAME_MD5:
             if os.path.exists(path + '.bak'):
                 return True, ''          # ours from a previous run
-            return False, ('%s has been modified (MD5 %s, expected %s) and '
-                           'there is no %s.bak to fall back on. Put the '
-                           'original back first.'
-                           % (ESCRGAME, digest, ESCRGAME_MD5, ESCRGAME))
+            return False, ('%s has been modified and there is no %s.bak '
+                           'beside it. It holds the title screen artwork, so '
+                           'reinstall the game to get the original back. '
+                           '(MD5 %s, expected %s)'
+                           % (ESCRGAME, ESCRGAME, digest, ESCRGAME_MD5))
         return True, ''
 
     def _write_banner(self, log):
@@ -2672,17 +2770,25 @@ class Patcher:
         log.append('Wrote %s' % path)
 
     def _retire_ini(self, log):
-        """Binds written by the unpatched game crash the gamepad profile.
+        """Binds written by the unpatched game do not fit the new device
+        list, so the file has to go and the game rebuilds it.
 
-        The game rebuilds the file, so moving it aside is enough."""
+        Backed up the same way as everything else, then deleted: "move it
+        aside" and "keep a copy" are the same thing here, and treating it as
+        one avoids the ini having rules of its own."""
         ini = os.path.join(os.path.dirname(self.exe_path), 'v_on.ini')
         if not os.path.exists(ini):
             return
+        if not self._backup(ini, log):
+            log.append('v_on.ini left alone - the gamepad profile may not '
+                       'work until you delete it by hand')
+            return
         try:
-            shutil.move(ini, ini + '.bak')
-            log.append('Moved v_on.ini aside - the game will rebuild it')
+            os.remove(ini)
+            log.append('Removed v_on.ini - the game will write a fresh one')
         except OSError as exc:
-            log.append('Could not move v_on.ini: %s - delete it by hand' % exc)
+            log.append('Could not remove v_on.ini: %s - delete it by hand'
+                       % exc)
 
     @staticmethod
     def _backup(path, log):
@@ -2743,7 +2849,14 @@ PALETTE = {
 # thing worth knowing about a bug report.
 TITLE = 'Virtual-On patcher %s' % VERSION
 INTRO = 'Select an unmodified v_on.exe.'
+MIN_CONTENT = 520               # px; narrower and the hints wrap badly
 NO_FILE = 'No file selected'
+
+# Shown on the checkbox itself. Only for patches that take something away:
+# the tip explains, but nobody opens the tip before ticking.
+SIDE_EFFECTS = {
+    'padxinput': '  (replaces Keyboard Simple)',
+}
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
@@ -2803,7 +2916,7 @@ MUSIC_TIP = ('Rip before or after patching, it makes no difference, and '
              'is the data track.')
 
 DONE = 'Done. Restore the original to change your selection.'
-FAILED = 'Nothing was written - see the log.'
+FAILED = 'Nothing was written - see the log below.'
 
 
 def win_dpi():
@@ -3045,6 +3158,7 @@ def run_tk():
             self.vars, self.checks = {}, {}
             self._corner_cache = {}
             self._bodies = []
+            self._openers = {}
             self._rip_thread, self._rip_dir = None, None
             self._cancel_rip = False
             root.title(TITLE)
@@ -3071,9 +3185,12 @@ def run_tk():
                           lambda p: self._patch_body(p, EXTRA, EXTRA_HINT))
             # Separate, because these two are not patches: Apply never
             # touches them and they write files rather than bytes.
-            self._section(body, 'ADD-ONS', self._addons_body)
-            self._section(body, 'CD MUSIC', self._music_body)
-            self._section(body, 'LOG', self._log_body)
+            # Collapsed: none of these is part of patching, and open they
+            # push Apply below the fold. A header you can see beats content
+            # you have to scroll to find.
+            self._section(body, 'ADD-ONS', self._addons_body, expanded=False)
+            self._section(body, 'CD MUSIC', self._music_body, expanded=False)
+            self._section(body, 'LOG', self._log_body, expanded=False)
             self._log(INTRO)
 
             # Width is settled here rather than on the canvas's first
@@ -3092,7 +3209,10 @@ def run_tk():
             # canvas forces its content to the window width rather than
             # scrolling sideways, so anything wider is cut off. The CD music
             # row is the widest thing in the window and starts collapsed.
-            wide = self.inner.winfo_reqwidth()
+            # A floor as well as the content width: with the long sections
+            # collapsed the window would otherwise shrink to the widest
+            # checkbox, and every hint below it would wrap to three lines.
+            wide = max(MIN_CONTENT, self.inner.winfo_reqwidth())
             for body, shown in self._bodies:
                 if not shown:
                     body.pack_forget()
@@ -3335,16 +3455,25 @@ def run_tk():
 
             state = {'open': expanded}
 
-            def toggle(_event=None):
-                state['open'] = not state['open']
-                arrow.config(text='\u25be' if state['open'] else '\u25b8')
-                if state['open']:
+            def set_open(flag):
+                # Drives the widget rather than trusting the flag: the sizing
+                # pass hides bodies by their starting state, so anything that
+                # opened one before that ran would be left marked open and
+                # packed away.
+                state['open'] = flag
+                arrow.config(text='\u25be' if flag else '\u25b8')
+                if flag:
                     inner.pack(fill='x')
                 else:
                     inner.pack_forget()
 
+            def toggle(_event=None):
+                set_open(not inner.winfo_manager())
+
             for widget in (head, arrow, name):
                 widget.bind('<Button-1>', toggle)
+
+            self._openers[title] = lambda: set_open(True)
             return inner
 
         def _file_body(self, parent):
@@ -3368,6 +3497,7 @@ def run_tk():
             inner = tk.Frame(wrap, background=PALETTE['ink'])
             inner.pack(fill='x', padx=1, pady=1)
             self.rows = []
+            self.rows_wrap = wrap
             for colour in (self.dim, PALETTE['bad']):
                 row = tk.Label(inner, text='', font=self.mono, anchor='w',
                                justify='left', padx=8, pady=2,
@@ -3389,10 +3519,20 @@ def run_tk():
                 self.mismatch.pack_forget()
                 return
             colour = PALETTE['amber' if report['level'] == 'warn' else 'bad']
-            for row, (name, size, digest) in zip(self.rows, report['rows']):
-                row.config(text='%-10s%11s B  %s'
-                                % (name, '{:,}'.format(size), digest[:12]))
-            self.rows[1].config(foreground=colour)
+            # Some refusals have nothing to compare - a cue sheet has no
+            # business being weighed against the executable's checksum. Hide
+            # the table rather than leave the last file's numbers under a
+            # message about this one.
+            if report['rows']:
+                for row, (name, size, digest) in zip(self.rows,
+                                                     report['rows']):
+                    row.config(text='%-10s%11s B  %s'
+                                    % (name, '{:,}'.format(size),
+                                       digest[:12]))
+                self.rows[1].config(foreground=colour)
+                self.rows_wrap.pack(fill='x', pady=(8, 0))
+            else:
+                self.rows_wrap.pack_forget()
             self.mismatch_why.config(text=report['why'], foreground=colour)
             self.mismatch_hint.config(text=report['hint'])
             self.mismatch.pack(fill='x')
@@ -3706,9 +3846,12 @@ def run_tk():
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
                 row = ttk.Frame(parent, style='Card.TFrame')
-                row.pack(fill='x', pady=1)
+                row.pack(fill='x', pady=3)
                 var = tk.BooleanVar(value=state[key])
-                check = ttk.Checkbutton(row, text=label, variable=var,
+                # Said on the row rather than in the tip, because the tip is
+                # a click away and this one surprises people after the fact.
+                text = label + SIDE_EFFECTS.get(key, '')
+                check = ttk.Checkbutton(row, text=text, variable=var,
                                         style='Card.TCheckbutton')
                 check.state(['disabled'])
                 check.pack(side='left')
@@ -3768,7 +3911,8 @@ def run_tk():
         def _pick(self):
             path = filedialog.askopenfilename(
                 title='Select v_on.exe',
-                filetypes=[('Executables', '*.exe'), ('All files', '*.*')])
+                filetypes=[('Game executable', '*.exe'),
+                           ('All files', '*.*')])
             if path:
                 self.path_var.set(path)
                 self._check_file(path)
@@ -3830,6 +3974,11 @@ def run_tk():
             self._check_file(self.core.exe_path)
 
         def _log(self, text):
+            # Open it on the first line written: collapsed by default, but
+            # "see the log" is useless if the log is hidden.
+            opener = self._openers.get('LOG')
+            if opener:
+                opener()
             self.log_box.config(state='normal')
             self.log_box.insert('end', text + '\n')
             self.log_box.see('end')
