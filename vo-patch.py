@@ -674,6 +674,12 @@ FEATURES = [
          # the picker's Next handler, where slot 2 demanded two or three
          # joysticks. Send it to the case that requires nothing.
          (0x00095217, '415d4900', '235e4900'),
+         # The device page's OK handler counts the joysticks enumerated at
+         # startup and spends one per selection, refusing the page if a
+         # counter goes negative. Twin-stick reads the pad through XInput
+         # and spends nothing, so send its case straight to that check,
+         # where the keyboard and gamepad selections already arrive.
+         (0x00096731, 'e0724900', '49734900'),
          # F7 page table: twin-stick binds nothing, so it takes the case
          # that opens no dialog and reports success.
          (0x00095bdc, '28674900', 'a9674900'),
