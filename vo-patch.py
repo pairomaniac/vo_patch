@@ -446,7 +446,7 @@ FEATURES = [
          (0x00170dc9, '01', '02')]),
 
     ('movie', 'Intro, loading and ending screens',
-     'Four fixes to the parts you sit and watch.\n'
+     'Four fixes to the screens between the fighting.\n'
      '\n'
      'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
      'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
@@ -617,7 +617,7 @@ FEATURES = [
           '90' * 42)]),
 
     ('padxinput', 'XInput gamepad support',
-     'Three profiles on the F7 screen, either of them for either player.\n'
+     'Three profiles on the F7 screen, any of them for either player.\n'
      '\n'
      'Keyboard (Real)\tthe game\'s two-lever keyboard scheme\n'
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
