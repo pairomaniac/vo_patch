@@ -138,9 +138,19 @@ read through it at all. A routine in a run of zeros inside `.rdata` calls
 
 The device number keys three tables, not one, and all three had to move
 together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
-picks the F7 page, and `0x495e0f` decides whether the picker will let you
-leave. The picker skips device slots whose name pointer is null, so hiding
-the legacy profiles is zeroing the rest.
+picks the F7 page, and `0x495e0f` validates the device saved in `v_on.ini`
+at startup. The picker skips device slots whose name pointer is null, so
+hiding the legacy profiles is zeroing the rest.
+
+The F7 page has a check of its own, and twin-stick failed it. Before reading
+the two combo boxes, the OK handler at `0x49716e` counts the joysticks
+enumerated at startup, then spends one per selection through a second table
+at `0x497331`, refusing the page if a counter goes negative. It refuses by
+putting focus back on the combo, with no message, so the button looked dead.
+Twin-stick spent a joystick it did not need - it reads the pad through
+XInput - and a pad plugged in after launch was never enumerated, which is
+why a restart appeared to fix it. Its case now goes straight to the check,
+where the keyboard and gamepad selections already arrive.
 
 The gamepad profile takes *Keyboard only(Simple)*'s slot, the only F7 page
 that binds all twelve actions, with its input list swapped for pad inputs.

@@ -623,8 +623,8 @@ FEATURES = [
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
      'Twin-stick (XInput)\tthe arcade levers, nothing to bind\n'
      '\n'
-     'Costs Keyboard (Simple), the only page that binds all twelve actions,\n'
-     'so the gamepad has to take it.\n'
+     'Costs Keyboard only(Simple), the only page that binds all twelve\n'
+     'actions, so the gamepad has to take it.\n'
      '\n'
      'A accepts, Select is the camera, Start pauses, and the D-pad moves and\n'
      'drives menus. The prompts that named a key follow the pad.\n'
@@ -701,8 +701,10 @@ FEATURES = [
          # Keyboard writes that block after the keyboard profile does. It is
          # hidden, so drop its call; the pushes around it stay balanced.
          (0x00094ea0, 'e8592b0000', '9090909090'),
-         # the picker's Next handler, where slot 2 demanded two or three
-         # joysticks. Send it to the case that requires nothing.
+         # Startup validates the device saved in v_on.ini through a table
+         # at 0x495e0f indexed by device - 2, so this entry is device 4,
+         # a legacy joystick profile. It is hidden and unreachable, and
+         # this only spares it a check it would fail.
          (0x00095217, '415d4900', '235e4900'),
          # The device page's OK handler counts the joysticks enumerated at
          # startup and spends one per selection, refusing the page if a
@@ -2911,7 +2913,7 @@ NO_FILE = 'No file selected'
 # Shown on the checkbox itself. Only for patches that take something away:
 # the tip explains, but nobody opens the tip before ticking.
 SIDE_EFFECTS = {
-    'padxinput': '  (replaces Keyboard Simple)',
+    'padxinput': '  (replaces Keyboard only(Simple))',
 }
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
