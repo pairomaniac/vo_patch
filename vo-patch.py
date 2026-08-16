@@ -450,8 +450,8 @@ FEATURES = [
      '\n'
      'Intro movie\tIt plays in a window of its own, which the game places and sizes for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
      'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
-     'Ending credits\tNothing skips them in the stock game. A or Space does. The cutscene and mission complete screen before them still play.\n'
-     'Initials\tThe screen after them takes a letter on the weapon trigger, and on A or Space as well now.', [
+     'Ending credits\tSkipped with A or Space. Stock plays them to the end, and so does the cutscene before them.\n'
+     'Initials\tThe screen after them takes a letter on A or Space as well as the weapon trigger.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
@@ -2913,7 +2913,7 @@ NO_FILE = 'No file selected'
 # Shown on the checkbox itself. Only for patches that take something away:
 # the tip explains, but nobody opens the tip before ticking.
 SIDE_EFFECTS = {
-    'padxinput': '  (replaces Keyboard only(Simple))',
+    'padxinput': '  - replaces Keyboard only(Simple)',
 }
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
