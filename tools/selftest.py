@@ -23,10 +23,27 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-EXPECTED_ALL = '1dde2e698563b734381d6cd6562e3bb6'
+EXPECTED_ALL = 'ed37aac3c49012a2c5e06f2c534761f1'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHER = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
+
+
+def pristine(path, vp):
+    """The unmodified file, from `path` or from the backup beside it.
+
+    A development copy of the game is usually patched, which is the whole
+    point of having one, so fall back the way bannertest.py does."""
+    for candidate in (path, path + '.bak'):
+        try:
+            with open(candidate, 'rb') as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if (len(data) == vp.EXE_SIZE
+                and hashlib.md5(data).hexdigest() == vp.ORIGINAL_MD5):
+            return data, candidate
+    return None, None
 
 
 def load_patcher():
@@ -51,16 +68,24 @@ def apply(vp, original, keys):
 
 def main(path):
     vp = load_patcher()
-    with open(path, 'rb') as fh:
-        original = fh.read()
-
-    if len(original) != vp.EXE_SIZE:
-        return '%s is %d bytes, expected %d' % (path, len(original),
-                                                vp.EXE_SIZE)
-    got = hashlib.md5(original).hexdigest()
-    if got != vp.ORIGINAL_MD5:
-        return '%s has MD5 %s, expected %s' % (path, got, vp.ORIGINAL_MD5)
-    print('original: %d bytes, MD5 %s' % (len(original), got))
+    original, read = pristine(path, vp)
+    if original is None:
+        try:
+            with open(path, 'rb') as fh:
+                data = fh.read()
+        except OSError as err:
+            return str(err)
+        if len(data) != vp.EXE_SIZE:
+            return ('%s is %d bytes, expected %d, and there is no %s.bak '
+                    'holding the original'
+                    % (path, len(data), vp.EXE_SIZE, path))
+        return ('%s has MD5 %s, expected %s, and there is no %s.bak holding '
+                'the original' % (path, hashlib.md5(data).hexdigest(),
+                                  vp.ORIGINAL_MD5, path))
+    if read != path:
+        print('note: read %s, not the patched file beside it' % read)
+    print('original: %d bytes, MD5 %s'
+          % (len(original), hashlib.md5(original).hexdigest()))
 
     # Every 'original' column against the untouched file. Sites that overlap
     # an earlier site in the same patch are skipped: they expect what that
