@@ -671,9 +671,12 @@ FEATURES = [
          # Keyboard writes that block after the keyboard profile does. It is
          # hidden, so drop its call; the pushes around it stay balanced.
          (0x00094ea0, 'e8592b0000', '9090909090'),
-         # the picker's Next handler, where slot 2 demanded two or three
-         # joysticks. Send it to the case that requires nothing.
-         (0x00095217, '415d4900', '235e4900'),
+         # The picker's leave check is a switch on device - 2, so the table
+         # at 0x495e0f starts at device 2, which is twin-stick. Its stock
+         # case demands a legacy joystick counted at startup by
+         # joyGetNumDevs, and a pad plugged in later is not one. Send it to
+         # the no-check case devices 0 and 1 already fall through to.
+         (0x0009520f, '185d4900', '235e4900'),
          # F7 page table: twin-stick binds nothing, so it takes the case
          # that opens no dialog and reports success.
          (0x00095bdc, '28674900', 'a9674900'),
