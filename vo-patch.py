@@ -434,7 +434,7 @@ BANNER_UNIQUE, BANNER_SPILLED = _check_banner()
 
 FEATURES = [
     ('sound', 'Sound fixes',
-     'Three small fixes, applied together.\n'
+     'Three small fixes.\n'
      '\n'
      'Sound effects\tThe built-in delay before each one is removed.\n'
      'Output frequency\t22050 to 44100 Hz. The samples are 8-bit either way.\n'
@@ -446,11 +446,11 @@ FEATURES = [
          (0x00170dc9, '01', '02')]),
 
     ('movie', 'Intro, loading and ending screens',
-     'Four fixes to the stretches you sit through, at both ends of the game.\n'
+     'Four fixes to the parts you sit and watch.\n'
      '\n'
-     'Intro movie\tIt plays in a window of its own, which the game places and sizes for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
+     'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
      'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
-     'Ending credits\tSkipped with A or Space. Stock plays them to the end, and so does the cutscene before them.\n'
+     'Ending credits\tSkipped with A or Space. Stock has no way past them. The cutscene before them still plays in full.\n'
      'Initials\tThe screen after them takes a letter on A or Space as well as the weapon trigger.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
@@ -498,9 +498,9 @@ FEATURES = [
 
 
     ('defaults', 'Better defaults with no v_on.ini',
-     'Changes what the game falls back on when a key is missing from\n'
-     'v_on.ini, which on a first run is all of them. An existing key wins,\n'
-     'and F5 overrides both.\n'
+     'Changes what the game falls back on when a setting is missing from\n'
+     'v_on.ini, which on a first run is all of them. A setting already there\n'
+     'wins, and F5 overrides both.\n'
      '\n'
      'Sky\tOn, was Off.\n'
      'Texture\tAll three on, were all off.\n'
@@ -518,22 +518,22 @@ FEATURES = [
      'Removes the disc check. The soundtrack then has to come from\n'
      'somewhere, so the same patch adds playback from files.\n'
      '\n'
-     'Disc check\tSkipped. The drive is still scanned, so a mounted image still works.\n'
+     'Disc check\tNot done. The drive is still read for music, so a mounted image works.\n'
      'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below; with none there, the game reads the drive.\n'
-     'Section\tThe music routine needs a section of its own, so the file grows by about 3 KB.', [
+     'File size\tThe music needs a section of its own, so the file grows by about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
      'The game will not start on a modern CPU without this. Same as\n'
-     'ProcessorCheck=Off in v_on.ini, but with no ini needed, and it takes\n'
-     'the MMX, Pentium and vendor checks with it.', [
+     'ProcessorCheck=Off in v_on.ini, but with no ini needed, and it removes\n'
+     'the MMX, Pentium and vendor checks too.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
      'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
-     'Motion value\tMakes Motion= in v_on.ini work and stick. It is a divisor: 1 draws every frame, 2 draws half.\n'
-     'Motion Type\tThe two settings on F5 could not reach 60 fps between them. They read 30 FPS and 60 FPS now, and set what they say.', [
+     'Motion value\tMotion= in v_on.ini is a frame divisor: 1 draws every frame, 2 draws half. The game ignored it and wrote it back; it works now.\n'
+     'Motion Type\tThe two speed choices on F5 set that divisor, and neither of them reached 60 fps. They read 30 FPS and 60 FPS now, and set those.', [
          (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
          (0x000000a8, '30791e00', '3e4e1f00'),
          (0x000273c1, '833d0843be0003', '833d0843be0002'),
@@ -617,21 +617,21 @@ FEATURES = [
           '90' * 42)]),
 
     ('padxinput', 'XInput gamepad support',
-     'Three profiles on the F7 screen, for both players.\n'
+     'Three profiles on the F7 screen, either of them for either player.\n'
      '\n'
      'Keyboard (Real)\tthe game\'s two-lever keyboard scheme\n'
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
      'Twin-stick (XInput)\tthe arcade levers, nothing to bind\n'
      '\n'
-     'Costs Keyboard only(Simple), the only page that binds all twelve\n'
-     'actions, so the gamepad has to take it.\n'
+     'Keyboard only(Simple) is the one they replace: it is the only page that\n'
+     'binds all twelve actions, so the gamepad has to take it.\n'
      '\n'
-     'A accepts, Select is the camera, Start pauses, and the D-pad moves and\n'
-     'drives menus. The prompts that named a key follow the pad.\n'
+     'A accepts, Select is the camera, Start pauses, and the D-pad works the\n'
+     'menus. On-screen prompts that named a key now name the button.\n'
      '\n'
-     'Two repairs to the keyboard page come with it. 1P\'s binds are dormant\n'
-     'while it is on a pad, so 2P may take those keys now. And Default\n'
-     'resets the side you are on; it always reset 1P.', [
+     'The keyboard page gets two fixes as well. 2P can use a key 1P has\n'
+     'bound, as long as 1P is on a pad and not using it. And Default resets\n'
+     'whichever side you are editing, instead of always 1P.', [
          # F7 page: drop the letter, digit and named-key sections
          (0x00097042, '1a', '00'),
          (0x00097082, '0a', '00'),
