@@ -2826,7 +2826,13 @@ def describe(text):
     for line in text.split('\n'):
         if '\t' in line:
             key, _, meaning = line.partition('\t')
-            rows.append((key.strip(), meaning.strip()))
+            if not key.strip() and rows:
+                # A continuation of the row above. The source wraps long
+                # meanings to keep its own lines short; the bubble wraps
+                # them again at its own width, so join them back up first.
+                rows[-1] = (rows[-1][0], rows[-1][1] + ' ' + meaning.strip())
+            else:
+                rows.append((key.strip(), meaning.strip()))
         elif line.strip():
             para.append(line.strip())
         elif para:
