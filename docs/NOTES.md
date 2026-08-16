@@ -157,6 +157,11 @@ that binds all twelve actions, with its input list swapped for pad inputs.
 Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
 mirror, so both sides are the same routine with a different parameter block.
+The win and lose screens read the camera key rather than the accept key, so
+Select skipped them and A did not. The tick writes the camera slot for A as
+well, gated on the two sub-states those screens use, since everywhere else
+that key swings the camera.
+
 Start and A are also posted as key messages from the message pump, because
 the input tick does not run while the game is paused.
 

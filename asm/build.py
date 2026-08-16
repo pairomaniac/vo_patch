@@ -184,6 +184,7 @@ def main(check=False):
         movie = assemble('movie.asm', tmp)
         credits = assemble('credits.asm', tmp)
         nameentry = assemble('nameentry.asm', tmp)
+        camskip = assemble('camskip.asm', tmp)
     _inc, data = layout.build()
     _inc, cond, pbinds, pnames, devlist = padtables.build()
     _inc, extras_tpl, extras_data = dialogs.build_extras()
@@ -217,6 +218,7 @@ def main(check=False):
     new = replace(new, 'MOVIE', hexblob('MOVIE_CODE', movie))
     new = replace(new, 'CREDITS', hexblob('CREDITS_CODE', credits))
     new = replace(new, 'NAMEENTRY', hexblob('NAMEENTRY_CODE', nameentry))
+    new = replace(new, 'CAMSKIP', hexblob('CAMSKIP_CODE', camskip))
     new = replace(new, 'TIMER', hexblob('TIMER_CODE', timer))
     new = replace(new, 'PADTABLES',
                   hexblob('PAD_COND', cond) + '\n'
@@ -234,6 +236,7 @@ def main(check=False):
     at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'LEVERS_CODE',
                      'TWIN_CODE', 'INTROWAIT_CODE', 'KBPAGE_CODE',
                      'MOVIE_CODE', 'CREDITS_CODE', 'NAMEENTRY_CODE',
+                     'CAMSKIP_CODE',
                      'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'EXTRAS_TPL',
                      'EXTRAS_DATA'))
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
@@ -244,7 +247,8 @@ def main(check=False):
                    'kbpage.asm': ('KBPAGE_CODE', VA_DELTA),
                    'movie.asm': ('MOVIE_CODE', VA_DELTA_RSRC),
                    'credits.asm': ('CREDITS_CODE', VA_DELTA),
-                   'nameentry.asm': ('NAMEENTRY_CODE', VA_DELTA)},
+                   'nameentry.asm': ('NAMEENTRY_CODE', VA_DELTA),
+                   'camskip.asm': ('CAMSKIP_CODE', VA_DELTA)},
               # The .text and .rsrc caves are padding past VirtualSize, so
               # there is no field in front of them for an unaligned start
               # to land in.
@@ -261,11 +265,11 @@ def main(check=False):
 
     sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
              'levers %d, twinstick %d, introwait %d, kbpage %d, movie %d, '
-             'credits %d, nameentry %d, '
+             'credits %d, nameentry %d, camskip %d, '
              'tables %d, dialogs %d'
              % (len(code), len(data), len(timer), len(dbgbox), len(padx),
                 len(levers), len(twin), len(introwait), len(kbpage),
-                len(movie), len(credits), len(nameentry),
+                len(movie), len(credits), len(nameentry), len(camskip),
                 len(cond) + len(pbinds) + len(pnames) + len(devlist),
                 len(extras_tpl) + len(extras_data) + 2 * dialogs.F5_LEN))
     if check:

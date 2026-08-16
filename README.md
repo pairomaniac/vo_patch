@@ -118,8 +118,8 @@ Four buttons work on every profile, Start on the pause screen included:
 
 | Button | Does |
 | --- | --- |
-| **A** | Accept - confirms menus |
-| **Select** | Camera |
+| **A** | Accept - confirms menus, and skips the screens between rounds |
+| **Select** | Camera, and skips those screens too |
 | **Start** | Pause |
 | **D-pad** | Moves, so it also drives menus |
 

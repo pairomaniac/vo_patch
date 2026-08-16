@@ -18,6 +18,7 @@ editing this directory does.
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
 | `credits.asm` | ends the credits early on A or Space |
 | `nameentry.asm` | adds A and Space to the initials screen, beside the triggers |
+| `camskip.asm` | lets A skip the win and lose screens, as Select does |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -82,7 +83,7 @@ it points at.
 
 Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
 `introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm`, `credits.asm`,
-`nameentry.asm` and `timer.asm`. Their stubs
+`nameentry.asm`, `camskip.asm` and `timer.asm`. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
 modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
@@ -576,7 +577,26 @@ so the slot is Space's and a keyboard player gets this without the gamepad
 patch. A level rather than an edge, worked out here the same way
 `credits.asm` does.
 
+Both read the camera slot alongside the accept one, so the pair that skips
+the win and lose screens is the pair that works here too.
+
 The two share `PREV` on purpose. Skipping the credits with A lands on this
 screen a frame or two later with A still held, and one shared byte is what
 keeps that press from being taken as the first letter as well. They ship in
 the same patch, so they are always both there or neither.
+
+## camskip.asm, what it does
+
+Lets A skip the win and lose screens, which stock only takes on the camera
+key.
+
+Those screens do not read the accept key. They test bit 4 of the input word
+`0x56207a` builds, which the camera key sets and A does not, so Select skips
+them and A does nothing. The tick already writes the camera slot when Back
+is held; this writes the same slot for A.
+
+Only on those screens, though. Everywhere else the camera key swings the
+camera, and A is jump by default, so it is gated on `MODE` 4 with `SUBMODE`
+`0x0c` or `0x14` - a round is `0x0a`. The tick calls it from inside the
+branch that has already established A is held, with `ebx` still holding the
+parameter block the camera slot comes out of.

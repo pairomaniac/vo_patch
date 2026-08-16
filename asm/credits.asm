@@ -26,6 +26,8 @@ org 0x0063d6d0          ; a run of zeros in .rdata; 156 bytes of it, and
 ; which is why that write is repeated below.
 
 ACCEPT      equ 0x00bf0481      ; 1P's key buffer slot for A and Space
+CAMERA      equ 0x00bf0457      ; and the one Select writes, which is what
+                                ; skips the win and lose screens
 PHASE       equ 0x01ad0964      ; where the credits sequence is up to
 FLAG        equ 0x01ae1c1c      ; the displaced write
 PREV        equ 0x006c3d48      ; last frame's slot, in .data: a byte
@@ -36,6 +38,7 @@ ROLL        equ 2               ; the phase the credits themselves are
 
 skip:
     mov     al, [ACCEPT]        ; 0x80 while held, 0 otherwise
+    or      al, [CAMERA]        ; either button, as on the screens before
     mov     dl, [PREV]
     mov     [PREV], al          ; tracked in every phase, not just the roll
     cmp     byte [PHASE], ROLL

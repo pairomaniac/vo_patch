@@ -39,6 +39,8 @@ GETPROC     equ 0x0365d508      ; GetProcAddress
 POSTMSG     equ 0x0365d56c      ; PostMessageA
 PEEKMSG     equ 0x0365d590      ; PeekMessageA, the call this stub replaced
 
+CAMSKIP     equ 0x0063dda0      ; camskip.asm, called from the tick
+
 MODE        equ 0x01ae3594      ; game state and sub-state. The pair the
 SUBMODE     equ 0x01ae3690      ; stock keyboard handler gates its bind
                                 ; slots on; see the tick.
@@ -192,6 +194,8 @@ tick:
     jz      .nocam
     mov     edx, [ebx + 0x18]
     mov     byte [edx], 0x80
+    call    CAMSKIP             ; and the camera slot too, on the screens
+                                ; that only read that one; see camskip.asm
 .nocam:
     movzx   eax, word [BTN]
     test    eax, 0x20

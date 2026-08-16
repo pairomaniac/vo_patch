@@ -78,25 +78,25 @@ DISC_IMAGES = {
 PADX_CODE = bytes.fromhex(
     '6822836000e8ef00000083c404e952aee3ff684a836000e8dd00000083c404e9'
     'd34cfbff0000000000000000000000000000000000000000e807000000ff2590'
-    'd5650300609ce80502000083f801767431f683fe02736d6870cb650356ff1540'
+    'd5650300609ce80a02000083f801767431f683fe02736d6870cb650356ff1540'
     'cb650385c0755a0fb71d74cb65038d14b584cb65030fb72a66891a31ff83ff02'
     '733f8d0cbd278160000fb70189da21c221e839c27428b80001000085d2750b80'
     '7903007419b8010100006a000fb651025250ff35585fae01ff156cd5650347eb'
     'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
     '000000000000000000000000000000000000000000000000005589e583ec0453'
-    '56578b5d08c745fc00000000e83f01000083f801743c6844cb6503ff33ffd085'
-    'c0752fc745fc010000000fb70548cb6503a90010000074068b5318c602800fb7'
-    '0548cb6503a92000000074068b5324c602808b4320ffd0837dfc000f84410100'
-    '0031f683fe0c0f839c000000833d9435ae01047512833d9036ae01087c09833d'
-    '9036ae010c7e0f83fe04747683fe05747183fe077f728b53040fb604722de000'
-    '0000725e83f81073598d3cc51b4d62000fb6070fb757028b4f0483f800741783'
-    'f801741f83f80274270fb68248cb650339c87729eb2c0fbf8248cb650339c87c'
-    '1ceb1f0fbf8248cb650339c87f0feb120fb70548cb650385c87502eb05e82500'
-    '000046e95bffffff31f683fe040f838f0000000fb70548cb65030fa3f07305e8'
-    '0300000046ebe38b53100fb60c32f7d18b53080fb70221c86689028b53140fb6'
-    '0c32f7d18b530c0fb70221c8668902c3a140cb650385c075385631f683fe0373'
-    '258b04b50783600050ff1504d5650385c0750346ebe6681383600050ff1508d5'
-    '650385c07505b801000000a340cb65035ec30000000000000000000000000000'
+    '56578b5d08c745fc00000000e84401000083f80174416844cb6503ff33ffd085'
+    'c07534c745fc010000000fb70548cb6503a900100000740b8b5318c60280e8fd'
+    '5b03000fb70548cb6503a92000000074068b5324c602808b4320ffd0837dfc00'
+    '0f843c01000031f683fe0c0f839c000000833d9435ae01047512833d9036ae01'
+    '087c09833d9036ae010c7e0f83fe04747683fe05747183fe077f728b53040fb6'
+    '04722de0000000725e83f81073598d3cc51b4d62000fb6070fb757028b4f0483'
+    'f800741783f801741f83f80274270fb68248cb650339c87729eb2c0fbf8248cb'
+    '650339c87c1ceb1f0fbf8248cb650339c87f0feb120fb70548cb650385c87502'
+    'eb05e82500000046e95bffffff31f683fe040f838a0000000fb70548cb65030f'
+    'a3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb70221c8668902'
+    '8b53140fb60c32f7d18b530c0fb70221c8668902c3a140cb650385c075385631'
+    'f683fe0373258b04b50783600050ff1504d5650385c0750346ebe66813836000'
+    '50ff1508d5650385c07505b801000000a340cb65035ec3000000000000000000'
     '00005f5e5bc9c372836000808360008e83600058496e70757447657453746174'
     '65000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb'
     '6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb'
@@ -300,17 +300,24 @@ MOVIE_CODE = bytes.fromhex(
 
 # CREDITS BLOB BEGIN
 CREDITS_CODE = bytes.fromhex(
-    'a08104bf008a15483d6c00a2483d6c00803d6409ad0102750f84c0740b84d275'
-    '07c6056409ad0103c7051c1cae0100000000c3'
+    'a08104bf000a055704bf008a15483d6c00a2483d6c00803d6409ad0102750f84'
+    'c0740b84d27507c6056409ad0103c7051c1cae0100000000c3'
 )
 # CREDITS BLOB END
 
 # NAMEENTRY BLOB BEGIN
 NAMEENTRY_CODE = bytes.fromhex(
-    'a0c55eed010a05c65eed01240188c4a08104bf008a15483d6c00a2483d6c0084'
-    'e4750884c0740784d27503b001c330c0c3'
+    'a0c55eed010a05c65eed01240188c4a08104bf000a055704bf008a15483d6c00'
+    'a2483d6c0084e4750884c0740784d27503b001c330c0c3'
 )
 # NAMEENTRY BLOB END
+
+# CAMSKIP BLOB BEGIN
+CAMSKIP_CODE = bytes.fromhex(
+    '833d9435ae01047518833d9036ae010c7409833d9036ae011475068b5324c602'
+    '80c3'
+)
+# CAMSKIP BLOB END
 
 # Each site: (offset, original, patched).
 
@@ -450,8 +457,8 @@ FEATURES = [
      '\n'
      'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
      'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
-     'Ending credits\tSkipped with A or Space. Stock has no way past them. The cutscene before them still plays in full.\n'
-     'Initials\tThe screen after them takes a letter on A or Space as well as the weapon trigger.', [
+     'Ending credits\tSkipped with A, Select or Space. Stock has no way past them. The cutscene before them still plays in full.\n'
+     'Initials\tThe screen after them takes a letter on A, Select or Space as well as the weapon trigger.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
@@ -493,8 +500,8 @@ FEATURES = [
          #   jne  take the letter
          #   jmp  carry on
          (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
-                      'e83b6a160084c07511e9fe010000909090909090909090909090'),
-         (0x0023cb08, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
+                      'e83f6a160084c07511e9fe010000909090909090909090909090'),
+         (0x0023cb0c, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
@@ -725,6 +732,11 @@ FEATURES = [
          (0x0022411b, '00' * len(PAD_COND), PAD_COND.hex()),
          (0x00223c43, '00' * len(PAD_BINDS), PAD_BINDS.hex()),
          (0x00223f9b, '00' * len(PAD_NAMES), PAD_NAMES.hex()),
+         # The win and lose screens read the camera key, not the accept
+         # key, which is why Select skips them and A does not. The tick
+         # calls this to write the camera slot for A as well, on those
+         # screens only. See asm/camskip.asm.
+         (0x0023d1a0, '00' * len(CAMSKIP_CODE), CAMSKIP_CODE.hex()),
          # the routine itself: entry stubs, pump stub, tick, blocks
          (0x00207460, '00' * len(PADX_CODE), PADX_CODE.hex()),
          # the tick ORs every active input together, but the game's
