@@ -22,7 +22,7 @@ they are built see [asm/](../asm/).
 | **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
-| **Intro and loading screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL` |
+| **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23cb08` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase on an A press, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot |
 
 Bold entries are not part of original VO_Patch.
 
@@ -218,6 +218,29 @@ That is more than an edit, so it is a stub in the `.rsrc` padding - see
 the result is what the game did before. mciavi does not follow the window, so
 a `MCI_PUT` destination rect goes with the resize; the game never sends one
 of its own.
+
+**Ending screens.** The credits are sub-state `0x20`, whose handler at
+`0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the ending cutscene
+and the mission complete screen, 2 is the roll, and anything else falls
+through to a tail that stops the music and moves on. Skipping is one write,
+putting the phase past 2, so the game ends the sequence its own way.
+
+The input is not the press edges at `0x1ed5ec4` that the game over and
+ranking screens test. Those are built at `0x56207a` out of the lever words,
+and that routine does not run in this state - the word reads zero for the
+whole sequence. The DirectInput keyboard state at `0xbf0448` is live
+throughout, so the stub reads the slot for Space, which is also where the
+XInput tick writes A.
+
+The initials screen after it, sub-state `0x17`, takes a letter only on the
+weapon triggers: `0x4d6cc8` for 1P and the test after it for 2P. Both go to a
+stub answering the same question with that slot folded in, so the triggers
+still work.
+
+A key slot is a level and not an edge, so both stubs share one byte of
+`.data` holding last frame's reading. That byte is why skipping the credits
+with A does not also enter the first letter: A is still held when the
+initials screen opens, and only a press that starts there counts.
 
 **Prompt text.** Two prompts name a key the pad covers, so they change with
 the gamepad patch and not on their own: the pause screen's and the

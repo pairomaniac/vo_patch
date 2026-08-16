@@ -213,8 +213,13 @@ about where bytes go, not whether the code runs. Get a log with
 `PROTON_LOG=1`, then the forty lines around `dispatch_exception
 code=c0000005`. Subtract the blob's org from the fault address to find it in
 the source. Two ways to earn one, both already paid for: writing into a run of
-zeros that is not free, and writing to `.rdata`, which the gamepad patch marks
-executable but not writable - mutable state goes in the `.data` scratch.
+zeros that is not free, and writing to `.rdata`, which is marked executable
+but not writable - mutable state goes in the `.data` scratch.
+
+A stub in `.rdata` needs that mark, and the site that sets it is `RDATA_EXEC`
+in `vo-patch.py` rather than any one patch's site list, because a site written
+twice fails its own original check. Add the patch's key to `RDATA_EXEC_KEYS`
+and it is applied once for whichever of them is ticked.
 
 ## Useful commands
 

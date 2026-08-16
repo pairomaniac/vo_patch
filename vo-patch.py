@@ -298,6 +298,20 @@ MOVIE_CODE = bytes.fromhex(
 )
 # MOVIE BLOB END
 
+# CREDITS BLOB BEGIN
+CREDITS_CODE = bytes.fromhex(
+    'a08104bf008a15483d6c00a2483d6c00803d6409ad0102750f84c0740b84d275'
+    '07c6056409ad0103c7051c1cae0100000000c3'
+)
+# CREDITS BLOB END
+
+# NAMEENTRY BLOB BEGIN
+NAMEENTRY_CODE = bytes.fromhex(
+    'a0c55eed010a05c65eed01240188c4a08104bf008a15483d6c00a2483d6c0084'
+    'e4750884c0740784d27503b001c330c0c3'
+)
+# NAMEENTRY BLOB END
+
 # Each site: (offset, original, patched).
 
 # The title and scoreboard prompt is not text: it is 42x3 cells of 8x8 tiles
@@ -431,15 +445,13 @@ FEATURES = [
          (0x00058189, '01', '02'),
          (0x00170dc9, '01', '02')]),
 
-    ('movie', 'Intro and loading screens',
-     'Two cosmetic fixes either side of a load.\n'
+    ('movie', 'Intro, loading and ending screens',
+     'Four fixes to the stretches you sit through, at both ends of the game.\n'
      '\n'
-     'Intro movie\tIt plays in a window of its own, which the game places\n'
-     '\tand sizes for a 640x480 picture, so scaled up it ends\n'
-     '\tup small and in the corner. Fitted to the window,\n'
-     '\tkeeping its shape.\n'
-     'Loading text\t"Now Loading . . ." is hidden. The loading it\n'
-     '\tannounced is over by the time you read it.', [
+     'Intro movie\tIt plays in a window of its own, which the game places and sizes for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
+     'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
+     'Ending credits\tNothing skips them in the stock game. A or Space does. The cutscene and mission complete screen before them still play.\n'
+     'Initials\tThe screen after them takes a letter on the weapon trigger, and on A or Space as well now.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
@@ -461,7 +473,28 @@ FEATURES = [
          # "Now Loading . . ." - the first byte to NUL ends the string
          (0x002c7678, '4e', '00'),
          # which the loader maps but does not make executable
-         (0x0000023f, '40', '60')]),
+         (0x0000023f, '40', '60'),
+         # The credits are sub-state 0x20, a phase machine on 0x1ad0964:
+         # 0 and 1 are the cutscene and the mission complete screen, 2 is
+         # the roll, anything else is the tail that ends the sequence. So
+         # the stub only has to put the phase past 2. See asm/credits.asm.
+         #
+         #   call skip
+         (0x0018fc25, 'c7051c1cae0100000000', 'e8a6ce0a009090909090'),
+         (0x0023cad0, '00' * len(CREDITS_CODE), CREDITS_CODE.hex()),
+         # The initials screen after them takes a letter on the weapon
+         # triggers only, LT for 1P and RT for 2P. Both tests go to a call
+         # answering the same question with A folded in, so the triggers
+         # still work. Same key slot as the skip above, so this needs no
+         # gamepad either. See asm/nameentry.asm.
+         #
+         #   call confirm
+         #   test al, al
+         #   jne  take the letter
+         #   jmp  carry on
+         (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
+                      'e83b6a160084c07511e9fe010000909090909090909090909090'),
+         (0x0023cb08, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
@@ -487,8 +520,7 @@ FEATURES = [
      '\n'
      'Disc check\tSkipped. The drive is still scanned, so a mounted image still works.\n'
      'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below; with none there, the game reads the drive.\n'
-     'Section\tThe music routine needs a section of its own, so the file grows by about 3 KB.\n'
-     'Calls\tThe game\'s 37 calls to the CD audio function are pointed at that routine directly, so a DirectDraw wrapper loaded alongside cannot take them over.', [
+     'Section\tThe music routine needs a section of its own, so the file grows by about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -501,7 +533,7 @@ FEATURES = [
      '\n'
      'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
      'Motion value\tMakes Motion= in v_on.ini work and stick. It is a divisor: 1 draws every frame, 2 draws half.\n'
-     'Motion Type\tThe F5 radios wrote 3 and 2, so 60 fps was unreachable from the interface. They write 2 and 1 now, and read 30 FPS and 60 FPS.', [
+     'Motion Type\tThe two settings on F5 could not reach 60 fps between them. They read 30 FPS and 60 FPS now, and set what they say.', [
          (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
          (0x000000a8, '30791e00', '3e4e1f00'),
          (0x000273c1, '833d0843be0003', '833d0843be0002'),
@@ -522,9 +554,9 @@ FEATURES = [
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
     ('debugbox', 'Disable menu bar (Extras menu on F11)',
-     'Removes the menu bar. F11 opens a dialog with the Debug options in\n'
-     'its place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit\n'
-     'Program. Motion has moved to F5.\n'
+     'Removes the menu bar. F11 opens a dialog with the Debug options in its\n'
+     'place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit\n'
+     'Program. Motion is not among them; it has moved to F5.\n'
      '\n'
      'Every other menu was already on a key.\n'
      '\n'
@@ -591,17 +623,15 @@ FEATURES = [
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
      'Twin-stick (XInput)\tthe arcade levers, nothing to bind\n'
      '\n'
-     'Costs Keyboard (Simple), the only page that binds all twelve\n'
-     'actions, so the gamepad has to take it.\n'
+     'Costs Keyboard (Simple), the only page that binds all twelve actions,\n'
+     'so the gamepad has to take it.\n'
      '\n'
-     'A accepts, Select is the camera, Start pauses, and the D-pad\n'
-     'moves and drives menus. The prompts that named a key follow the\n'
-     'pad.\n'
+     'A accepts, Select is the camera, Start pauses, and the D-pad moves and\n'
+     'drives menus. The prompts that named a key follow the pad.\n'
      '\n'
-     'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
-     'original puts both back.', [
-         # the routine lives in .rdata padding, so mark it executable
-         (0x000001c4, '40000040', '40000060'),
+     'Two repairs to the keyboard page come with it. 1P\'s binds are dormant\n'
+     'while it is on a pad, so 2P may take those keys now. And Default\n'
+     'resets the side you are on; it always reset 1P.', [
          # F7 page: drop the letter, digit and named-key sections
          (0x00097042, '1a', '00'),
          (0x00097082, '0a', '00'),
@@ -2413,6 +2443,14 @@ class PatchFailed(Exception):
         self.key = key
 
 
+# .rdata is where padxinput and the credits stub put their routines, and
+# the loader does not make it executable. Applied once for whichever of them
+# is selected, because a site written twice would fail its own original
+# check.
+RDATA_EXEC = (0x000001c4, '40000040', '40000060')
+RDATA_EXEC_KEYS = ('padxinput', 'movie')
+
+
 def apply_selected(buf, wanted):
     """Write every wanted patch into buf, in apply_order().
 
@@ -2426,6 +2464,8 @@ def apply_selected(buf, wanted):
     site, and the rest still go on.
     """
     applied, skipped = [], []
+    if any(wanted.get(key) for key in RDATA_EXEC_KEYS):
+        apply_feature(buf, [RDATA_EXEC])
     for key in apply_order():
         if not wanted.get(key):
             continue

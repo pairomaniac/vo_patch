@@ -84,9 +84,12 @@ boxes on, Field Graphic Rich, Screen Large.
 - **Sound fixes** - three small ones: the built-in delay before each sound
 effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
-- **Intro and loading screens** - two cosmetic fixes either side of a load:
-the intro movie is fitted to the window rather than left small in a corner,
-and "Now Loading . . ." is hidden.
+- **Intro, loading and ending screens** - four fixes to the sequences the
+game does not let you leave: the intro movie is fitted to the window rather
+than left small in a corner, "Now Loading . . ." is hidden, **A** or Space
+skips the ending credits, and the same buttons enter a letter on the initials
+screen after them, as well as the weapon trigger. The cutscene and mission
+complete screen before the credits are not affected.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
@@ -158,8 +161,9 @@ bindable.
 
 ### Keyboard (Real)
 
-Keys cannot be shared between players. If 2P wants keys 1P already has,
-rebind 1P first.
+Two players on the keyboard cannot share a key: if 2P wants one 1P already
+has, rebind 1P first. With 1P on a pad its keys are dormant, so 2P can take
+them. **Default** on the page resets the side you are on.
 
 Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
 the unpatched game do not fit the new device list; the game writes a fresh
@@ -308,7 +312,8 @@ game_handles_close=true
 The intro movie does not pass through DirectDraw: the game plays `von.avi`
 through MCI, which draws into a window of its own, and then places and sizes
 that window for a 640x480 picture. So by default it plays small and in the
-corner over an upscaled picture. **Intro and loading screens** under Extra
+corner over an upscaled picture. **Intro, loading and ending screens** under
+Extra
 fixes that; without it, skip the movie with Space, Enter, Escape or pad A, or
 run at 1:1 to watch it.
 

@@ -16,6 +16,8 @@ editing this directory does.
 | `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
+| `credits.asm` | ends the credits early on A or Space |
+| `nameentry.asm` | adds A and Space to the initials screen, beside the triggers |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -79,7 +81,8 @@ it points at.
 ## Addresses that cannot move
 
 Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
-`introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm` and `timer.asm`. Their stubs
+`introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm`, `credits.asm`,
+`nameentry.asm` and `timer.asm`. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
 modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
@@ -530,3 +533,50 @@ only one.
 It reaches `mciSendCommandA` through a register rather than the six-byte
 indirect call, because `apply_cdaudio` counts those and aborts on anything
 but 37.
+
+## credits.asm, what it does
+
+Makes the ending credits skippable, which they are not in the stock game.
+
+The credits are sub-state `0x20`, and its handler at `0x59081f` is a phase
+machine on `0x1ad0964`: 0 and 1 are the ending cutscene and the mission
+complete screen, 2 is the roll, and anything else falls through to the tail
+at `0x5908f2` that stops the music and moves on to the name entry. So the
+skip is one write - put the phase past 2 and the game ends the sequence its
+own way on the next frame. None of that teardown is repeated here.
+
+The input is not the one the game over and ranking screens test. Those read
+the press edges at `0x1ed5ec4`, which `0x56207a` builds from the 1P input
+block - and that does not run in this state, so the word sits at zero for
+the whole sequence. The key buffer is live throughout - it is the
+DirectInput keyboard state at `0xbf0448`, filled at `0x442d19` - so the slot
+read here is Space's, which is also the one the XInput tick writes for A.
+Either works, with or without the gamepad patch.
+
+The slot is a level and not an edge, so last frame's is kept in a byte of
+`.data`, in a run of zeros nothing in the file points at. It is updated in
+every phase rather than only during the roll, so A still held from the last
+round does not skip the credits it arrives on - only a press that starts
+during them does.
+
+It runs in place of the write that opens the handler, so that write is
+repeated at the end of the stub.
+
+## nameentry.asm, what it does
+
+Adds A to the initials screen, which stock takes a letter on only from the
+weapon triggers: LT for 1P at `0x4d6cc8` and RT for 2P immediately after it.
+Both tests are replaced by a call to this, which answers the same question
+with A folded in, so the triggers keep working.
+
+A is not in the press edges those tests read. `0x1ed5ec4` is built from the
+lever words and A is a key, so it arrives in the key buffer slot instead -
+which is the DirectInput keyboard state at `0xbf0448`, filled at `0x442d19`,
+so the slot is Space's and a keyboard player gets this without the gamepad
+patch. A level rather than an edge, worked out here the same way
+`credits.asm` does.
+
+The two share `PREV` on purpose. Skipping the credits with A lands on this
+screen a frame or two later with A still held, and one shared byte is what
+keeps that press from being taken as the first letter as well. They ship in
+the same patch, so they are always both there or neither.
