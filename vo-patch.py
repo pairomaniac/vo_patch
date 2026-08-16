@@ -1235,7 +1235,7 @@ def rip(source, outdir, progress=None):
 # Shown until a file is picked. The GUI highlights this one line, because a
 # user who has not picked one yet reads the CD MUSIC section first and finds
 # the Rip button does nothing.
-MUSIC_NEEDS_EXE = 'Select v_on.exe first - the tracks go beside it.'
+MUSIC_NEEDS_EXE = 'Pick v_on.exe first: the tracks go beside it.'
 
 
 def music_status(gamedir):
