@@ -12,7 +12,7 @@ or `.rdata` offset and `0x401200` to a `.data` one.
 
 | Path | Used by | Source |
 | --- | --- | --- |
-| GDI | pause, loading, connecting | C strings, `TextOutA` onto a DC from the DirectDraw surface |
+| GDI | pause, loading, connecting, the credits prompt | C strings, `TextOutA` onto a DC from the DirectDraw surface |
 | Tile font | mech data, tutorial lines | ASCII strings, one character per 8x8 cell |
 | Tile artwork | title and scoreboard prompt | a table of tile indices; the pixels are in `escrgame.bin` |
 
@@ -28,6 +28,7 @@ nothing: the phrase is stored as 126 tile indices, and the letterforms are
 | `Now Loading . . .` | loading | `0x2c7678` | GDI. Hidden by writing `NUL` over the first byte |
 | `Connecting...` | link play | `0x2c7644` | GDI |
 | ` PRESS SPACE BAR` | scoreboard | `0x285e04` | tile font, 16 cells. Blanked by overwriting with the 16 spaces at `0x285df0`, so a replacement must be the same width |
+| `HOLD TO SKIP` | ending credits | in the patch | GDI. Not the game's - it is carried in `overlay.asm` and drawn at 320, 440, halved with everything else in low resolution |
 
 The tile font table around `0x285df0` also holds `INSERT COIN(S)`,
 `TO BE CONTINUED ...`, `MOVE  FORWARD`, `DASH  BUTTON`, the mech names and
@@ -36,6 +37,13 @@ the weapon names.
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
 through GDI. `0x4cd8c3(col, row)` sets the tile cursor and `0x4ce573(str)`
 prints through it.
+
+`0x5c991c` paints on whichever surface `0x1ae5f40` names, and returns without
+drawing if that is null. The pause screen is not flipping, so it wants the
+primary surface; anything drawn during a running frame has to point that
+global at the back buffer for the length of the call. This is the whole
+reason the credits prompt is not a tile: the tile layer is what the roll
+scrolls, so the text would climb the screen with the credits.
 
 ## The title and scoreboard banner
 
