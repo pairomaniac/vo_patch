@@ -64,10 +64,10 @@ controller, plus the arcade twin-stick scheme, for both players. Costs the
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
 the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
-Scorekeeping and **Quit**. **Credits** is there too, which is not one of the
-game's own: it runs the ending from wherever you are in a match, so the
-credits can be reached without finishing the game. Motion is not among them;
-it has moved to F5. Every other menu was already on a key:
+Scorekeeping and **Quit**. **Credits** sits outside the Debug box, because it
+is not one of the game's own: it runs the ending from wherever you are in a
+match, so the credits can be reached without finishing the game. Motion is
+not among them; it has moved to F5. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -86,12 +86,14 @@ boxes on, Field Graphic Rich, Screen Large.
 - **Sound fixes** - three small ones: the built-in delay before each sound
 effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
-- **Intro, loading and ending screens** - four fixes to the sequences the
-game does not let you leave: the intro movie is fitted to the window rather
-than left small in a corner, "Now Loading . . ." is hidden, holding **A** or Space for a second
-skips the ending credits, and the same buttons enter a letter on the initials
-screen after them, as well as the weapon trigger. The cutscene and mission
-complete screen before the credits are not affected.
+- **Intro, loading and ending screens** - four fixes to the screens between
+the fighting: the intro movie is fitted to the window rather than left small
+in a corner, "Now Loading . . ." is hidden, holding **A**, **Select** or
+Space for a second skips the ending credits, and the same three enter a
+letter on the initials screen after them, alongside the weapon trigger. The
+credits are the only one of these the game gives you no way past at all; the
+cutscene and mission complete screen before them are not affected. Both are
+1P's buttons, so 2P still enters initials on **RT**.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
@@ -120,7 +122,7 @@ Four buttons work on every profile, Start on the pause screen included:
 
 | Button | Does |
 | --- | --- |
-| **A** | Accept - confirms menus, and skips the screens between rounds |
+| **A** | Accept - confirms menus, and skips the win and lose screens |
 | **Select** | Camera, and skips those screens too |
 | **Start** | Pause |
 | **D-pad** | Moves, so it also drives menus |
@@ -315,9 +317,8 @@ The intro movie does not pass through DirectDraw: the game plays `von.avi`
 through MCI, which draws into a window of its own, and then places and sizes
 that window for a 640x480 picture. So by default it plays small and in the
 corner over an upscaled picture. **Intro, loading and ending screens** under
-Extra
-fixes that; without it, skip the movie with Space, Enter, Escape or pad A, or
-run at 1:1 to watch it.
+Extra fixes that; without it, skip the movie with Space, Enter, Escape or
+pad A, or run at 1:1 to watch it.
 
 gamescope handles the scaling without a DLL, if you would rather:
 
