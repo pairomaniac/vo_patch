@@ -203,9 +203,10 @@ from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
 straight to the main window and **Quit** is just the *Exit Game* command; the
 check boxes read the game's own flags. **Credits** is the one control with no
-menu item behind it, so the dialog procedure writes the sub-state itself, and
-it sits outside the *Debug* box because it is not one of the game's. F11
-because F9 disconnects a network game and F10 is a Windows system key.
+menu item behind it, so the dialog procedure writes the sub-state itself. It
+is in the *Debug* box with the rest all the same, since what it does to a
+running match is the same kind of thing. F11 because F9 disconnects a network
+game and F10 is a Windows system key.
 
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying

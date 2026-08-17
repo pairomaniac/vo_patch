@@ -362,7 +362,8 @@ into the `.rsrc` cave.
 control's id is the game's own command id, so a click is posted straight to
 the main window as `WM_COMMAND` and needs no lookup table. Quit is the one
 special case: the dialog is closed first, because the game tears the window
-down under it.
+down under it, and it sits under the *Debug* box with Close rather than in
+it, being the dialog's own button and not something done to the match.
 
 Credits is the exception to the rule. There is no menu item behind it, so the
 procedure acts on it rather than posting it: `0x1f` into the sub-state at
