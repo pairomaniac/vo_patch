@@ -35,26 +35,33 @@ IDCANCEL = 2
 
 # (label, command id, x, y, w, h, style, the flag it shows or None).
 #
-# The first three are check boxes, and the dialog procedure ticks each from
-# the game's own flag when the box opens, so what it shows is what is on.
-# The rest are one-shot buttons and have nothing to read.
+# Three are check boxes, and the dialog procedure ticks each from the game's
+# own flag when the box opens, so what it shows is what is on. The rest are
+# one-shot buttons and have nothing to read.
 GROUP = 0x50000007      # BS_GROUPBOX, the box the F5 page draws its own with
 
 # Credits has no menu item to post, so it is the one id the dialog acts on
 # itself. Small, and nowhere near the game's own 0x9cxx ids.
 CMD_CREDITS = 0x0051
 
+# The group box holds the six entries that were on the game's own Debug menu
+# and nothing else, so the label is true: Credits is ours and Quit is Exit
+# Game, and both sit outside it. It comes first because a group box drawn
+# after the controls it frames paints over them.
+#
+# The template has no room to spare - it goes over a 460-byte menu resource
+# and fills it exactly - so this is a layout, not a place to add a button.
 ITEMS = [
-    ('No shot',      0x9c47,  16, 14, 56, 12, CHECKBOX, 0x00652fd8),
-    ('SE',           0x9c5b,  80, 14, 36, 12, CHECKBOX, 0x006bcc4c),
-    ('CD',           0x9c5c, 124, 14, 36, 12, CHECKBOX, 0x0063f430),
-    ('Debug',        0xffff,  10, 32, 192, 34, GROUP,   None),
-    ('Kill 1P',      0x9c61,  16, 44, 50, 14, PUSH,     None),
-    ('Kill 2P',      0x9c62,  70, 44, 50, 14, PUSH,     None),
-    ('Credits', CMD_CREDITS, 124, 44, 50, 14, PUSH,     None),
-    ('Scorekeeping', 0x9c67,  16, 74, 72, 14, PUSH,     None),
-    ('Quit',         0x9c41,  16, 98, 50, 14, PUSH,     None),
-    ('Close',      IDCANCEL, 146, 98, 50, 14, PUSH,     None),
+    ('Debug',        0xffff,  10,  4, 192, 74, GROUP,   None),
+    ('No shot',      0x9c47,  16, 18,  56, 12, CHECKBOX, 0x00652fd8),
+    ('SE',           0x9c5b,  80, 18,  36, 12, CHECKBOX, 0x006bcc4c),
+    ('CD',           0x9c5c, 124, 18,  36, 12, CHECKBOX, 0x0063f430),
+    ('Kill 1P',      0x9c61,  16, 40,  50, 14, PUSH,     None),
+    ('Kill 2P',      0x9c62,  70, 40,  50, 14, PUSH,     None),
+    ('Scorekeeping', 0x9c67, 124, 40,  72, 14, PUSH,     None),
+    ('Credits', CMD_CREDITS,  16, 86,  50, 14, PUSH,     None),
+    ('Quit',         0x9c41,  86, 86,  50, 14, PUSH,     None),
+    ('Close',      IDCANCEL, 146, 86,  50, 14, PUSH,     None),
 ]
 
 RATES = ['1/1', '1/2', '1/3', '1/4', '1/5']
@@ -85,7 +92,7 @@ def item(style, x, y, cx, cy, iid, cls, text):
 def build_extras():
     """-> inc text, the dialog template, the strings and tables."""
     tpl = struct.pack('<II', DLGSTYLE, 0)
-    tpl += struct.pack('<5H', len(ITEMS), 0, 0, 212, 118)
+    tpl += struct.pack('<5H', len(ITEMS), 0, 0, 212, 108)
     tpl += struct.pack('<HH', 0, 0)             # no menu, default class
     tpl += wstr('Extras') + struct.pack('<H', 8) + wstr('MS Sans Serif')
     for label, iid, x, y, cx, cy, style, _flag in ITEMS:
@@ -116,7 +123,7 @@ def build_extras():
         ('CHECKS', checks),
         ('RATES', rates),
         ('TEMPLATE', TEMPLATE),
-        ('CMD_QUIT', dict((l, i) for l, i, *_r in ITEMS)['Quit']),
+        ('CMD_QUIT', dict((name, i) for name, i, *_r in ITEMS)['Quit']),
         ('CMD_CREDITS', CMD_CREDITS),
         ('IDCANCEL', IDCANCEL),
     ))
