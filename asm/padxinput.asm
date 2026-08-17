@@ -190,15 +190,15 @@ tick:
     ; has to happen before the keyboard handler runs, because that is the
     ; code that reads them.
     movzx   eax, word [BTN]
-    test    eax, 0x1000
-    jz      .nocam
+    test    eax, 0x1000         ; A -> the accept key slot
+    jz      .back
     mov     edx, [ebx + 0x18]
     mov     byte [edx], 0x80
-    call    CAMSKIP             ; and the camera slot too, on the screens
-                                ; that only read that one; see camskip.asm
-.nocam:
+    call    CAMSKIP             ; and, on the screens that read only the
+                                ; camera key, that slot too; see camskip.asm
+.back:
     movzx   eax, word [BTN]
-    test    eax, 0x20
+    test    eax, 0x20           ; Back -> the camera key slot
     jz      .keyboard
     mov     edx, [ebx + 0x24]
     mov     byte [edx], 0x80
