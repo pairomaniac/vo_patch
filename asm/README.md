@@ -16,14 +16,19 @@ editing this directory does.
 | `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
-| `credits.asm` | ends the credits early on A or Space |
-| `nameentry.asm` | adds A and Space to the initials screen, beside the triggers |
-| `camskip.asm` | lets A skip the win and lose screens, as Select does |
-| `overlay.asm` | draws HOLD TO SKIP over the credits while the button is down |
+| `credits.asm` | ending screens: ends the credits once the button has been held a second |
+| `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
+| `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
+| `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
 | `build.py` | builds every blob in `../vo-patch.py`, from the `.asm` and `.py` sources above |
+
+The prefix is the patch each file ships in, which is not always the obvious
+one: `camskip.asm` goes out with **XInput gamepad support** because the tick
+is what calls it, while the other three ending-screen files go out with
+**Intro, loading and ending screens**.
 
 ## How the assembly gets into the patcher
 
@@ -167,16 +172,18 @@ previous entry point, and where the blobs landed. Everything else is self
 relative, so the section can go anywhere.
 
 **`padtables.py`** fills the condition table, the bind list and the strings
-both point at, and the device list in `.data`. **`dialogs.py`** fills the `.rdata` cave the Extras box reads, the
-`.rsrc` run the dead menu resource left behind, and the tail of the F5
+both point at, and the device list in `.data`. **`dialogs.py`** fills the
+`.rdata` cave the Extras box reads, the `.rsrc` run the dead menu resource
+left behind, and the tail of the F5
 resource that the frame rate labels live in. That last one is the only site
 whose `original` column is generated too: the stock labels packed by the same
 code, which is the check that this packing matches the resource compiler's.
 
 **`padxinput.asm`**, **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`**
 each go to one site inside the XInput patch table, at `0x00207460`,
-`0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length from the blob, so a routine can
-change size without the run of `00` beside it needing a manual edit - but it
+`0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length
+from the blob, so a routine can change size without the run of `00` beside it
+needing a manual edit - but it
 has to stay inside its cave, and the last two carry an `org`, so growing them
 past the cave is a source edit and not just a rebuild.
 
@@ -186,14 +193,18 @@ Sites written into section padding, and what is still free after them:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
-| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 426 | **24** |
+| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 450 | **0** |
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 272 | **8** |
 | `.rsrc` past VirtualSize | `0x60c25c`-`0x60c400` | 420 | 396 | **24** |
 
-The `.text` cave holds `timer.asm` and `debugbox.asm` and has 24 bytes left,
-which is why CD audio got a section of its own rather than another cave. The
-`.rdata` one holds the F11 dialog template, the keyboard page fixes and the
-intro-movie message wait, and is now nearly full too. Anything else of any
+The `.text` cave holds `timer.asm` and `debugbox.asm` and is full. Its 24
+spare bytes went on the Credits button, and the run of zeros continuing past
+`0x1f4400` is not more cave - `0x5f5000` is a `qword` 0.0 that `0x401ce4`
+compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
+at the first of them and `build.py` checks it. This is why CD audio got a
+section of its own rather than another cave. The `.rdata` one holds the F11
+dialog template, the keyboard page fixes and the intro-movie message wait,
+and is now nearly full too. Anything else of any
 size wants its own section, the way `vocd.asm` has one.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
@@ -214,9 +225,19 @@ execute bit:
 | twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
 | keyboard page fixes | `0x23dd38`-`0x23dd6d` | 53 | 53 | 0 |
 | intro-movie message wait | `0x23dd70`-`0x23de00` | 144 | 136 | 8 |
+| win and lose skip, initials | `0x23d1a0`-`0x23d23c` | 156 | 91 | 65 |
 
-The last two are the `.rdata` padding from the table above, so they appear
-twice.
+The last two of the first seven are the `.rdata` padding from the table
+above, so they appear twice. The last row is shared: `camskip.asm` ships with
+the gamepad patch and `nameentry.asm` with the ending screens, so either can
+be present without the other.
+
+The ending screens use two more runs of zeros in `.rdata`, on the same terms:
+
+| Cave | File range | Size | Used | Free |
+| --- | --- | --- | --- | --- |
+| credits skip | `0x23cad0`-`0x23cb6c` | 156 | 99 | 57 |
+| HOLD TO SKIP overlay | `0x1f74e0`-`0x1f7588` | 168 | 142 | 26 |
 
 There is no comfortable room left anywhere. Picking a new cave means finding
 a run of zeros and proving it is free, which takes three checks.
@@ -226,7 +247,9 @@ differ by `0x400c00`.
 
 **Nothing points into it.** Search the file for a dword equal to any address
 in the span, and read the instruction at each hit - four bytes of data can
-happen to equal an address, so counting hits is not enough.
+happen to equal an address, so counting hits is not enough. `selftest.py`
+does this for every cave already in use, on the real file; the three checks
+here are for picking a new one.
 
 `0x6083e0` sits in the middle of the run the XInput routine's cave was cut
 from. It is a base address the geometry code indexes off, reading as zeros
@@ -343,9 +366,11 @@ down under it.
 
 Credits is the exception to the rule. There is no menu item behind it, so the
 procedure acts on it rather than posting it: `0x1f` into the sub-state at
-`0x1ae3690`, which sets the ending up and steps to the credits on its own.
-Only while `0x1ae3594` reads 4, since that state number means something else
-in the title and attract tables.
+`0x1ae3690`, which sets the ending up and steps to the credits, `0x20`, on
+its own. Only while `0x1ae3594` reads 4, since that state number means
+something else in the title and attract tables. It is written with a
+`push`/`pop` pair rather than a `mov` because the cave has exactly two bytes
+to spare; see `BOXLEN`.
 
 It assembles as one run but lands as two sites, since the byte in front of the
 dialog procedure is alignment padding the patch has never written. `build.py`
@@ -587,7 +612,8 @@ patch. A level rather than an edge, worked out here the same way
 `credits.asm` does.
 
 Both read the camera slot alongside the accept one, so the pair that skips
-the win and lose screens is the pair that works here too.
+the win and lose screens is the pair that works here too. Both read 1P's
+slots and only 1P's, so 2P skips nothing and enters initials on RT alone.
 
 The two share `PREV` on purpose. Skipping the credits with A lands on this
 screen a frame or two later with A still held, and one shared byte is what
