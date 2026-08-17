@@ -1,6 +1,7 @@
 bits 32
-org 0x0063d70c          ; the same run of zeros credits.asm sits in, after
-                        ; it and on the next four-byte boundary
+org 0x0063ddc4          ; the run of zeros camskip.asm sits in, after it and
+                        ; on the next four-byte boundary; credits.asm has
+                        ; the whole of the other one
 ; Adds A to the initials screen, which stock takes only on the weapon
 ; triggers - LT for 1P at 0x4d6cc8, RT for 2P just after it.
 ;

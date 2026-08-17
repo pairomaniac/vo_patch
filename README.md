@@ -88,7 +88,7 @@ effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
 - **Intro, loading and ending screens** - four fixes to the sequences the
 game does not let you leave: the intro movie is fitted to the window rather
-than left small in a corner, "Now Loading . . ." is hidden, **A** or Space
+than left small in a corner, "Now Loading . . ." is hidden, holding **A** or Space for a second
 skips the ending credits, and the same buttons enter a letter on the initials
 screen after them, as well as the weapon trigger. The cutscene and mission
 complete screen before the credits are not affected.

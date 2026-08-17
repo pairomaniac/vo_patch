@@ -301,8 +301,10 @@ MOVIE_CODE = bytes.fromhex(
 
 # CREDITS BLOB BEGIN
 CREDITS_CODE = bytes.fromhex(
-    'a08104bf000a055704bf008a15483d6c00a2483d6c00803d6409ad0102750f84'
-    'c0740b84d27507c6056409ad0103c7051c1cae0100000000c3'
+    'a08104bf000a055704bf008a15483d6c00a2483d6c00803d6409ad0102753284'
+    'c0742e84d27421803d493d6c00007428fe05493d6c00803d493d6c003c7219c6'
+    '056409ad0103eb10c605493d6c0001eb07c605493d6c0000c7051c1cae010000'
+    '0000c3'
 )
 # CREDITS BLOB END
 
@@ -458,7 +460,7 @@ FEATURES = [
      '\n'
      'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
      'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
-     'Ending credits\tSkipped with A, Select or Space. Stock has no way past them. The cutscene before them still plays in full.\n'
+     'Ending credits\tHold A, Select or Space for a second to skip them; stock has no way past at all. The cutscene before them still plays in full.\n'
      'Initials\tThe screen after them takes a letter on A, Select or Space as well as the weapon trigger.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
@@ -501,8 +503,8 @@ FEATURES = [
          #   jne  take the letter
          #   jmp  carry on
          (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
-                      'e83f6a160084c07511e9fe010000909090909090909090909090'),
-         (0x0023cb0c, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
+                      'e8f770160084c07511e9fe010000909090909090909090909090'),
+         (0x0023d1c4, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',

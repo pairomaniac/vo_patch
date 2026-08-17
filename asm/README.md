@@ -556,15 +556,17 @@ The input is not the one the game over and ranking screens test. Those read
 the press edges at `0x1ed5ec4`, which `0x56207a` builds from the 1P input
 block - and that does not run in this state, so the word sits at zero for
 the whole sequence. The key buffer is live throughout - it is the
-DirectInput keyboard state at `0xbf0448`, filled at `0x442d19` - so the slot
-read here is Space's, which is also the one the XInput tick writes for A.
-Either works, with or without the gamepad patch.
+DirectInput keyboard state at `0xbf0448`, filled at `0x442d19` - so the
+slots read here are Space's and the camera key's, which the tick also
+writes for A and Select.
 
-The slot is a level and not an edge, so last frame's is kept in a byte of
-`.data`, in a run of zeros nothing in the file points at. It is updated in
-every phase rather than only during the roll, so A still held from the last
-round does not skip the credits it arrives on - only a press that starts
-during them does.
+It is a hold rather than a press. A press that starts during the roll
+begins a count, the phase is written once the count reaches `HOLD`, and
+releasing zeroes it; the sub-state runs once a tick whatever Motion is set
+to, so 60 is about a second. A button already held when the roll opens
+never starts a count, which is what keeps the press that skipped the win
+screens from carrying through. `PREV` is shared with `nameentry.asm`, which
+needs the same reading for its own edge.
 
 It runs in place of the write that opens the handler, so that write is
 repeated at the end of the stub.
