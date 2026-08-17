@@ -283,8 +283,7 @@ def main(check=False):
               # The .text and .rsrc caves are padding past VirtualSize, so
               # there is no field in front of them for an unaligned start
               # to land in.
-              padding=('timer.asm', 'debugbox.asm', 'movie.asm',
-                 'credits.asm'))
+              padding=('timer.asm', 'debugbox.asm', 'movie.asm'))
     check_follows(at, 'LEVERS_CODE', 'PADX_CODE', len(padx))
     check_addr(at, {
         'padtables.COND': (padtables.COND, 'PAD_COND', VA_DELTA),
