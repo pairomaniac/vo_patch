@@ -2503,8 +2503,15 @@ def apply_selected(buf, wanted):
     site, and the rest still go on.
     """
     applied, skipped = [], []
-    if any(wanted.get(key) for key in RDATA_EXEC_KEYS):
-        apply_feature(buf, [RDATA_EXEC])
+    shared = [key for key in RDATA_EXEC_KEYS if wanted.get(key)]
+    if shared:
+        try:
+            apply_feature(buf, [RDATA_EXEC])
+        except ValueError as exc:
+            # Named after the first patch that wanted it, so the message the
+            # user gets points at a box they ticked rather than at a site
+            # that belongs to no patch.
+            raise PatchFailed(shared[0], exc) from exc
     for key in apply_order():
         if not wanted.get(key):
             continue
