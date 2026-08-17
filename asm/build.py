@@ -144,6 +144,32 @@ def check_org(at, wanted, padding=()):
                              'at 0x%08x' % (name, org, site + delta))
 
 
+# A cave's last usable byte, for the ones where something live sits close
+# enough behind them to matter. The zeros run past these; that is the point.
+# `selftest.py` finds them against a real v_on.exe, this pins what it found
+# so a blob cannot grow into one without CI saying so.
+CEILINGS = {
+    'DEBUGBOX_PROC': (0x005f5000, 'a qword 0.0 that 0x401ce4 compares '
+                                  'depth against'),
+    'OVERLAY_CODE': (0x005f8188, 'a live address 18 sites point at'),
+}
+
+
+def check_ceilings(at, blobs):
+    """Blobs whose cave ends before its run of zeros does.
+
+    A blob that outgrows its cave writes onto whatever follows it, and if
+    that is zeroed data every other check in the project passes. The F11
+    dialog procedure did this in v0.8.5: two bytes over the end, onto a
+    constant the game reads."""
+    for name, (limit, what) in CEILINGS.items():
+        end = at[name] + len(blobs[name]) + VA_DELTA
+        if end > limit:
+            raise SystemExit('%s ends at 0x%08x, %d bytes past 0x%08x, where '
+                             'the cave stops: %s'
+                             % (name, end, end - limit, limit, what))
+
+
 def check_follows(at, name, after, length):
     """A blob written straight after another one, with no org of its own.
 
@@ -235,12 +261,14 @@ def main(check=False):
                   + hexblob('F5_FPS', dialogs.build_f5(dialogs.F5_NEW)))
     new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
                   + hexblob('DEBUGBOX_PROC', dbgproc))
-    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'PADX_CODE', 'LEVERS_CODE',
+    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'DEBUGBOX_PROC',
+                     'PADX_CODE', 'LEVERS_CODE',
                      'TWIN_CODE', 'INTROWAIT_CODE', 'KBPAGE_CODE',
                      'MOVIE_CODE', 'CREDITS_CODE', 'NAMEENTRY_CODE',
                      'CAMSKIP_CODE', 'OVERLAY_CODE',
                      'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'EXTRAS_TPL',
                      'EXTRAS_DATA'))
+    check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'OVERLAY_CODE': overlay})
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
                    'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),
                    'padxinput.asm': ('PADX_CODE', VA_DELTA),
