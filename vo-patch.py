@@ -671,11 +671,16 @@ FEATURES = [
      'binds all twelve actions, so the gamepad has to take it.\n'
      '\n'
      'A accepts, Select is the camera, Start pauses, and the D-pad works the\n'
-     'menus. On-screen prompts that named a key now name the button.\n'
+     'menus. Either of the first two skips the win and lose screens between\n'
+     'rounds. On-screen prompts that named a key now name the button.\n'
      '\n'
      'The keyboard page gets two fixes as well. 2P can use a key 1P has\n'
      'bound, as long as 1P is on a pad and not using it. And Default resets\n'
-     'whichever side you are editing, instead of always 1P.', [
+     'whichever side you are editing, instead of always 1P.\n'
+     '\n'
+     'v_on.ini and escrgame.bin are moved aside and rewritten: binds saved\n'
+     'by the unpatched game do not fit the new device list, and the title\n'
+     'prompt is redrawn. Restore original puts both back.', [
          # F7 page: drop the letter, digit and named-key sections
          (0x00097042, '1a', '00'),
          (0x00097082, '0a', '00'),
