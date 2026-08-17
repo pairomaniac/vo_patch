@@ -468,10 +468,16 @@ FEATURES = [
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens between the fighting.\n'
      '\n'
-     'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up it ends up small and in the corner. Fitted to the window, keeping its shape.\n'
-     'Loading text\t"Now Loading . . ." is hidden. The loading it announced is over by the time you read it.\n'
-     'Ending credits\tHold A, Select or Space for a second to skip them; stock has no way past at all. The cutscene before them still plays in full.\n'
-     'Initials\tThe screen after them takes a letter on A, Select or Space as well as the weapon trigger.', [
+     'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up\n'
+     '\tit ends up small and in the corner. Fitted to the window,\n'
+     '\tkeeping its shape.\n'
+     'Loading text\t"Now Loading . . ." is hidden. The loading it announced\n'
+     '\tis over by the time you read it.\n'
+     'Ending credits\tHold A, Select or Space for a second to skip them;\n'
+     '\tstock has no way past at all. 1P only, and the cutscene\n'
+     '\tbefore them still plays in full.\n'
+     'Initials\tThe screen after them takes a letter on 1P\'s A, Select\n'
+     '\tor Space as well as either weapon trigger.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
@@ -544,9 +550,13 @@ FEATURES = [
      'Removes the disc check. The soundtrack then has to come from\n'
      'somewhere, so the same patch adds playback from files.\n'
      '\n'
-     'Disc check\tNot done. The drive is still read for music, so a mounted image works.\n'
-     'Music\tRead from music\\trackNN.wav beside the game. Rip them in the CD MUSIC section below; with none there, the game reads the drive.\n'
-     'File size\tThe music needs a section of its own, so the file grows by about 3 KB.', [
+     'Disc check\tNot done. The drive is still read for music, so a\n'
+     '\tmounted image works.\n'
+     'Music\tRead from music\\trackNN.wav beside the game. Rip them in\n'
+     '\tthe CD MUSIC section below; with none there, the game\n'
+     '\treads the drive.\n'
+     'File size\tThe music needs a section of its own, so the file grows\n'
+     '\tby about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -557,9 +567,14 @@ FEATURES = [
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
-     'Timer resolution\tWithout it the game runs at about 70 per cent speed on Windows 2000 and later. Not needed under Wine.\n'
-     'Motion value\tMotion= in v_on.ini is a frame divisor: 1 draws every frame, 2 draws half. The game ignored it and wrote it back; it works now.\n'
-     'Motion Type\tThe two speed choices on F5 set that divisor, and neither of them reached 60 fps. They read 30 FPS and 60 FPS now, and set those.', [
+     'Timer resolution\tWithout it the game runs at about 70 per cent\n'
+     '\tspeed on Windows 2000 and later. Not needed under Wine.\n'
+     'Motion value\tMotion= in v_on.ini is a frame divisor: 1 draws every\n'
+     '\tframe, 2 draws half. The game ignored it and wrote it\n'
+     '\tback; it works now.\n'
+     'Motion Type\tThe two speed choices on F5 set that divisor, and\n'
+     '\tneither reached 60 fps. They read 30 FPS and 60 FPS now,\n'
+     '\tand set those.', [
          (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
          (0x000000a8, '30791e00', '3e4e1f00'),
          (0x000273c1, '833d0843be0003', '833d0843be0002'),
