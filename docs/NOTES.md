@@ -19,10 +19,10 @@ they are built see [asm/](../asm/).
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x0001c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; two prompts renamed and the title banner redrawn |
+| **XInput gamepad support** | `0x1c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, `0x096731`, `0x23d1a0`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
-| **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23cb08` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase on an A press, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot |
+| **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23d1c4`, `0x1c58e7`, `0x1f74e0`, `0x1c4` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
 
 Bold entries are not part of original VO_Patch.
 
@@ -157,6 +157,7 @@ that binds all twelve actions, with its input list swapped for pad inputs.
 Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
 mirror, so both sides are the same routine with a different parameter block.
+
 The win and lose screens read the camera key rather than the accept key, so
 Select skipped them and A did not. The tick writes the camera slot for A as
 well, gated on the two sub-states those screens use, since everywhere else
@@ -202,8 +203,9 @@ from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
 straight to the main window and **Quit** is just the *Exit Game* command; the
 check boxes read the game's own flags. **Credits** is the one control with no
-menu item behind it, so the dialog procedure writes the sub-state itself. F11 because F9 disconnects
-a network game and F10 is a Windows system key.
+menu item behind it, so the dialog procedure writes the sub-state itself, and
+it sits outside the *Debug* box because it is not one of the game's. F11
+because F9 disconnects a network game and F10 is a Windows system key.
 
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying
@@ -256,7 +258,19 @@ still work.
 A key slot is a level and not an edge, so both stubs share one byte of
 `.data` holding last frame's reading. That byte is why skipping the credits
 with A does not also enter the first letter: A is still held when the
-initials screen opens, and only a press that starts there counts.
+initials screen opens, and only a press that starts there counts. Skipping
+is a hold rather than a press for the same reason it is not instant: a
+button already down when the roll opens never starts a count, so the press
+that skipped the win screen does not carry through.
+
+Both stubs read 1P's slots and only 1P's, so 2P skips nothing and enters
+initials on RT alone.
+
+`HOLD TO SKIP` appears while the button is down, drawn through GDI rather
+than the tile font because the roll scrolls the tilemap and anything printed
+into it would climb the screen. It goes on the frame about to be shown, so
+the hook is the call five bytes before the surface flip at `0x5c650d`, with
+the primary-surface global pointed at the back buffer across the call.
 
 **Prompt text.** Two prompts name a key the pad covers, so they change with
 the gamepad patch and not on their own: the pause screen's and the
