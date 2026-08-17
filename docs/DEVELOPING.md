@@ -80,11 +80,11 @@ inside one will do.
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, and each blob's site agrees with the address its source names |
+| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, and no blob has grown past a cave ceiling in `CEILINGS` |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
-| `offsets` | `selftest.py`: every `original` column against a real file, 350-odd combinations applied, and the fully patched MD5 |
+| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, 350-odd combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
 
 The last two need a copy of the game, which is not in the repository, so CI
@@ -173,9 +173,12 @@ gh release delete v0.8.4 --yes     # if a release was created
 | dpctrl.c stopped exporting something | mingw build step | CI, every push |
 | reordered a site list | `tables` | CI, every push |
 | two patches on one byte | `tables` | CI, every push |
+| a blob grown past a pinned cave | `asm` | CI, every push |
+| a blob grown into live data | `offsets` | **only if you run it** |
 | typo'd an offset | `offsets` | **only if you run it** |
 | wrong offset in the banner or its artwork | `banner` | **only if you run it** |
 | hand-edited a generated blob | nothing | next build eats it |
+| a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
 | a table that is well-formed and wrong | nothing | only playing the game |
 | the netplay DLL misbehaving on a real link | nothing | only two machines |
 
@@ -193,6 +196,14 @@ reordered; put it back.
 
 **`offsets` reports mismatches** - an offset is wrong for the real file.
 Nothing has been written to anyone's game. Fix the table.
+
+**`offsets` reports OVERRUN** - a blob has outgrown its cave and is writing
+onto something the game reads. The run of zeros carried on past the end of
+the cave, so nothing else noticed. It names the address and the instruction
+that reads it; shorten the blob or move it, then add the cave's real ceiling
+to `CEILINGS` in `asm/build.py` so CI catches the next one without a game
+file. Bare dwords in range are counted and ignored - four bytes of tile data
+can equal an address, and only an operand means the game reads it.
 
 **`offsets` says "is 6653952 bytes, expected 6650880"** - that is the patched
 file. Point it at `v_on.exe.bak`.
@@ -216,10 +227,18 @@ the source. Two ways to earn one, both already paid for: writing into a run of
 zeros that is not free, and writing to `.rdata`, which is marked executable
 but not writable - mutable state goes in the `.data` scratch.
 
+A run of zeros that is not free will not always crash, which is the awkward
+part. The F11 dialog outgrew its cave by two bytes in v0.8.5 and landed on a
+`qword` 0.0 the projection routine compares depth against; nothing faulted
+and nothing looked wrong. That is what the cave check in `selftest.py` and
+`CEILINGS` in `asm/build.py` are between them for.
+
 A stub in `.rdata` needs that mark, and the site that sets it is `RDATA_EXEC`
 in `vo-patch.py` rather than any one patch's site list, because a site written
 twice fails its own original check. Add the patch's key to `RDATA_EXEC_KEYS`
-and it is applied once for whichever of them is ticked.
+and it is applied once for whichever of them is ticked. `_check_table` seeds
+its collision map with those four bytes, so putting them in a patch's list as
+well is caught at import rather than in someone's game.
 
 ## Useful commands
 
