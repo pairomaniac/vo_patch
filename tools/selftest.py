@@ -4,9 +4,10 @@
     python3 tools/selftest.py /path/to/v_on.exe
 
 CI cannot do this - the game is not in the repository - so run it by hand
-before tagging. It checks three things nothing else can:
+before tagging. It checks four things nothing else can:
 
   * every 'original' byte string in the tables is really in the file
+  * no blob has outgrown its cave and run onto data the game reads
   * every combination of patches applies, not just the all-on case
   * the fully patched result still has the MD5 it had last time
 
@@ -51,6 +52,103 @@ def load_patcher():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)             # runs _check_table
     return module
+
+
+def sections(data):
+    """(file offset, size, virtual address) per section, from the headers.
+
+    The two deltas the rest of the project uses - 0x400c00 for .text and
+    .rdata, 0x305c400 for .rsrc - are these, worked out once. Reading them
+    means the mapping is right for a section nobody has hardcoded yet."""
+    pe = int.from_bytes(data[0x3c:0x40], 'little')
+    count = int.from_bytes(data[pe + 6:pe + 8], 'little')
+    optlen = int.from_bytes(data[pe + 20:pe + 22], 'little')
+    base = int.from_bytes(data[pe + 24 + 28:pe + 24 + 32], 'little')
+    out = []
+    for i in range(count):
+        h = pe + 24 + optlen + i * 40
+        rva = int.from_bytes(data[h + 12:h + 16], 'little')
+        size = int.from_bytes(data[h + 16:h + 20], 'little')
+        raw = int.from_bytes(data[h + 20:h + 24], 'little')
+        out.append((raw, size, base + rva))
+    return out
+
+
+def to_va(secs, off):
+    for raw, size, va in secs:
+        if raw <= off < raw + size:
+            return va + off - raw
+    return None
+
+
+def cave_writes(vp):
+    """Every site that fills a run of zeros, as (key, offset, length).
+
+    A byte being zero is not the same as a byte being free. These are the
+    sites where the 'original' column proves nothing, so they are the only
+    ones worth scanning."""
+    for key, (_label, _tip, sites) in vp.BY_KEY.items():
+        for off, old, _new in sites or ():
+            blob = bytes.fromhex(old)
+            if len(blob) >= 8 and not any(blob):
+                yield key, off, len(blob)
+
+
+def check_caves(vp, original):
+    """Does any cave write land on an address the game still reads?
+
+    A blob that outgrows its cave writes into whatever follows it, and if
+    that is zeroed data the site check passes and the patch ships. The
+    debugbox procedure did exactly this: two bytes over the end and onto a
+    qword 0.0 that a projection routine compares depth against.
+
+    So every dword in the file is resolved as an address and checked against
+    the write. Two kinds of hit, reported apart because they are not worth
+    the same: a dword preceded by a disp32 modrm byte is an instruction
+    operand and the game reads it, while a bare dword that happens to fall
+    in range is almost always a coincidence in tile or model data - the
+    caves in use here collect fifteen of those between them and not one
+    survives a disassembly. Operands fail; bare dwords are printed and left
+    alone.
+
+    Two limits worth knowing. It cannot see an address reached by pointer
+    arithmetic, and it only judges the original file, so a cave one patch
+    hands to another is out of scope."""
+    secs = sections(original)
+    spans = []
+    for key, off, length in sorted(cave_writes(vp), key=lambda w: w[1]):
+        va = to_va(secs, off)
+        if va is not None:
+            spans.append((key, va, length))
+    lo = min(va for _k, va, _n in spans)
+    hi = max(va + n for _k, va, n in spans)
+
+    operands, bare = {}, {}
+    for i in range(1, len(original) - 4):
+        va = int.from_bytes(original[i:i + 4], 'little')
+        if not lo <= va < hi:
+            continue
+        # mod 00, r/m 101 is the disp32 form, so the four bytes are the
+        # absolute address of an operand rather than data that looks like one.
+        table = operands if original[i - 1] & 0xC7 == 0x05 else bare
+        table.setdefault(va, []).append(i)
+
+    bad, loose = 0, 0
+    for key, va, length in spans:
+        span = range(va, va + length)
+        hit = [(a, r) for a in span for r in operands.get(a, ())]
+        loose += sum(len(bare.get(a, ())) for a in span)
+        if hit:
+            bad += 1
+            print('  OVERRUN %s writes 0x%06x..0x%06x'
+                  % (key, va, va + length))
+            for addr, ref in hit:
+                print('    VA 0x%06x is a disp32 operand, modrm at VA 0x%06x'
+                      % (addr, to_va(secs, ref - 1)))
+    print('cave check: %d write(s) into a run of zeros, %d overrun, '
+          '%d bare dword(s) in range and ignored'
+          % (len(spans), bad, loose))
+    return bad
 
 
 def apply(vp, original, keys):
@@ -103,6 +201,8 @@ def main(path):
                 print('  MISMATCH %s at 0x%08x' % (key, off))
                 bad += 1
     print('site check: %d mismatches' % bad)
+
+    bad += check_caves(vp, original)
 
     hits = len(list(vp.DI_FIND.finditer(bytearray(original))))
     print('dinput signature: %d hit(s)' % hits)
