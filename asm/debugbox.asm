@@ -14,8 +14,11 @@ BASE        equ 0x005f4e7c      ; the org again, for the pins below
 ; The strings, the tables and the dialog template are data, built by
 ; asm/dialogs.py, which also emits the addresses and control ids below.
 
-BOXLEN      equ 392             ; the cave from here; the run of zeros ends
-                                ; ten bytes further on, at 0x5f500e
+BOXLEN      equ 388             ; the cave from here to 0x5f5000. The zeros
+                                ; run fourteen bytes further, to 0x5f500e,
+                                ; but 0x5f5000 is a qword 0.0 that 0x401ce4
+                                ; compares against and 0x5f5008 a qword 1.0
+                                ; that three sites read. Zero is not free.
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
 ; RATES, the frame rate list; TEMPLATE, the dialog itself; and CMD_QUIT and
@@ -223,7 +226,8 @@ quit:
     jne     .fwd
     cmp     dword [MODE], 4
     jne     .done
-    mov     dword [SUBMODE], 0x1f
+    push    0x1f                        ; two bytes shorter than the mov, and
+    pop     dword [SUBMODE]             ; the cave has exactly two to spare
 .done:
     jmp     dlgproc.handled
 
