@@ -25,9 +25,8 @@ ticked.
 **Restore original** puts the game back, so you can change your selection and
 apply again.
 
-**ADD-ONS** is separate because nothing in it is a patch: those entries write
-files beside the game rather than editing it, and each installs and removes
-itself with its own button.
+**ADD-ONS** is separate because nothing in it edits the game - those entries
+write files beside it, and each has its own install and remove button.
 
 Only the unmodified disc file is accepted. If yours is refused, see
 [Which build](#which-build).
@@ -64,10 +63,9 @@ controller, plus the arcade twin-stick scheme, for both players. Costs the
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
 the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
-Scorekeeping and **Quit**. **Credits** is in there too, which is not one of
-the game's own: it runs the ending from wherever you are in a match, so the
-credits can be reached without finishing the game. Motion is not among them;
-it has moved to F5. Every other menu was already on a key:
+Scorekeeping and **Quit**. **Credits** is new - it jumps to the ending from
+any match, so you can see the credits without finishing the game. Motion is
+not there; it has moved to F5. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -80,20 +78,22 @@ it has moved to F5. Every other menu was already on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Better defaults with no v_on.ini** - what the game falls back on when a
-key is missing, which on a first run is all of them: Sky on, all three Texture
-boxes on, Field Graphic Rich, Screen Large.
+- **Better defaults with no v_on.ini** - what the game falls back on for any
+setting `v_on.ini` does not have, which on a first run is all of them: Sky on,
+all three Texture boxes on, Field Graphic Rich, Screen Large.
 - **Sound fixes** - three small ones: the built-in delay before each sound
 effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
 gets back the hypermode sound a bug left silent.
-- **Intro, loading and ending screens** - four fixes to the screens between
-the fighting: the intro movie is fitted to the window rather than left small
-in a corner, "Now Loading . . ." is hidden, holding **A**, **Select** or
-Space for a second skips the ending credits, and the same three enter a
-letter on the initials screen after them, alongside the weapon trigger. The
-credits are the only one of these the game gives you no way past at all; the
-cutscene and mission complete screen before them are not affected. Both are
-1P's buttons, so 2P still enters initials on **RT**.
+- **Intro, loading and ending screens** - four fixes to the screens either
+side of the fighting:
+    - the intro movie is fitted to the window, not left small in a corner
+    - "Now Loading . . ." is hidden
+    - the ending credits can be skipped - hold **A**, **Select** or Space for
+      a second. Stock has no way past them at all
+    - the initials screen after the credits takes those same buttons, as well
+      as the weapon trigger
+
+    Both are 1P's, so 2P still enters initials with **RT**.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
@@ -164,9 +164,9 @@ bindable.
 
 ### Keyboard (Real)
 
-Two players on the keyboard cannot share a key: if 2P wants one 1P already
-has, rebind 1P first. With 1P on a pad its keys are dormant, so 2P can take
-them. **Default** on the page resets the side you are on.
+Two keyboard players cannot share a key - if 2P wants one 1P already has,
+rebind 1P first. If 1P is on a pad, 2P can take 1P's keys, since nothing is
+using them. **Default** resets whichever side you are editing.
 
 Applying the patch clears `v_on.ini`, because binds saved by the unpatched
 game do not fit the new device list. See
@@ -220,11 +220,10 @@ tracks present, they are used, disc or no disc. Under Wine they play through
 
 ## Internet play
 
-Link mode is two-player versus over a network, and in the stock game it only
-ever reaches the same LAN. The game looks for opponents by broadcasting on
-the local network, and no router forwards that. DirectPlay, the layer doing
-the looking, is deprecated on Windows and only half-implemented under Wine.
-Hence the usual advice to run a VPN and pretend everyone is on one LAN.
+Link mode is two-player versus over a network, but stock it never leaves the
+LAN: the game finds opponents by broadcasting, and no router forwards a
+broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
+LAN.
 
 <img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
 
@@ -237,8 +236,8 @@ python3 vo-patch.py --netplay path/to/game            # install
 python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
 ```
 
-The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, and Remove puts it
-back, so nothing stops you returning to LAN-and-VPN play.
+The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, so Remove puts you
+back on LAN-and-VPN play.
 
 ### Playing
 

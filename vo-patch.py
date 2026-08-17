@@ -466,18 +466,18 @@ FEATURES = [
          (0x00170dc9, '01', '02')]),
 
     ('movie', 'Intro, loading and ending screens',
-     'Four fixes to the screens between the fighting.\n'
+     'Four fixes to the screens either side of the fighting.\n'
      '\n'
-     'Intro movie\tThe game sizes it for a 640x480 picture, so scaled up\n'
-     '\tit ends up small and in the corner. Fitted to the window,\n'
-     '\tkeeping its shape.\n'
-     'Loading text\t"Now Loading . . ." is hidden. The loading it announced\n'
-     '\tis over by the time you read it.\n'
-     'Ending credits\tHold A, Select or Space for a second to skip them;\n'
-     '\tstock has no way past at all. 1P only, and the cutscene\n'
-     '\tbefore them still plays in full.\n'
-     'Initials\tThe screen after them takes a letter on 1P\'s A, Select\n'
-     '\tor Space as well as either weapon trigger.', [
+     'Intro movie\tThe game sizes it for 640x480, so scaled up it sits\n'
+     '\tsmall in a corner. Fitted to the window instead.\n'
+     'Loading text\t"Now Loading . . ." is hidden. The load is over by the\n'
+     '\ttime you read it.\n'
+     'Ending credits\tSkippable - hold A, Select or Space for a second.\n'
+     '\tStock has no way past them at all.\n'
+     'Initials\tThe screen after the credits takes those buttons too,\n'
+     '\tas well as either weapon trigger.\n'
+     '2P\tA and Select are 1P\'s, so 2P skips nothing and enters\n'
+     '\tinitials with RT.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
