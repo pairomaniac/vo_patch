@@ -14,7 +14,8 @@ BASE        equ 0x005f4e7c      ; the org again, for the pins below
 ; The strings, the tables and the dialog template are data, built by
 ; asm/dialogs.py, which also emits the addresses and control ids below.
 
-BOXLEN      equ 364             ; the cave from here to the 24 bytes left free
+BOXLEN      equ 392             ; the cave from here; the run of zeros ends
+                                ; ten bytes further on, at 0x5f500e
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
 ; RATES, the frame rate list; TEMPLATE, the dialog itself; and CMD_QUIT and
@@ -22,6 +23,8 @@ BOXLEN      equ 364             ; the cave from here to the 24 bytes left free
 %include "dialogs.inc"
 
 MOTION      equ 0x006c84d0      ; frame rate, 1 to 5
+MODE        equ 0x01ae3594      ; game state; 4 is a match in progress
+SUBMODE     equ 0x01ae3690      ; and its sub-state, 0x1f the ending
 HWND        equ 0x01ae5f58      ; the game's window
 ORIGWNDPROC equ 0x005c6857      ; the handler the hook falls through to
 
@@ -202,7 +205,7 @@ dlgproc:
 ; procedure ran to the end of its cave.
 quit:
     cmp     ecx, CMD_QUIT
-    jne     .fwd
+    jne     .credits
     db      0x89, 0xcb                  ; mov ebx, ecx
     push    0
     push    dword [ebp + 8]
@@ -210,5 +213,18 @@ quit:
     db      0x89, 0xd9                  ; mov ecx, ebx
 .fwd:
     jmp     dlgproc.post
+
+; Credits is the one button with no menu item behind it, so it is handled
+; here rather than posted. 0x1f is the state that sets the ending up and
+; steps to the credits itself; it only means that during a match, so
+; pressing this anywhere else does nothing.
+.credits:
+    cmp     ecx, CMD_CREDITS
+    jne     .fwd
+    cmp     dword [MODE], 4
+    jne     .done
+    mov     dword [SUBMODE], 0x1f
+.done:
+    jmp     dlgproc.handled
 
     times   BOXLEN - ($ - $$) db 0

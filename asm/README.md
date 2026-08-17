@@ -336,9 +336,15 @@ into the `.rsrc` cave.
 **The dialog procedure** ticks each check box from the game's own flag on
 `WM_INITDIALOG`, fills the frame rate list, and forwards clicks. Every
 control's id is the game's own command id, so a click is posted straight to
-the main window as `WM_COMMAND` and needs no lookup table. Quit Program is the
-one special case: the dialog is closed first, because the game tears the
-window down under it.
+the main window as `WM_COMMAND` and needs no lookup table. Quit is the one
+special case: the dialog is closed first, because the game tears the window
+down under it.
+
+Credits is the exception to the rule. There is no menu item behind it, so the
+procedure acts on it rather than posting it: `0x1f` into the sub-state at
+`0x1ae3690`, which sets the ending up and steps to the credits on its own.
+Only while `0x1ae3594` reads 4, since that state number means something else
+in the title and attract tables.
 
 It assembles as one run but lands as two sites, since the byte in front of the
 dialog procedure is alignment padding the patch has never written. `build.py`

@@ -200,8 +200,9 @@ out, and only when a pad was read, so the keyboard path is untouched.
 **F11 dialog.** No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
-straight to the main window and **Quit Program** is just the *Exit Game*
-command; the check boxes read the game's own flags. F11 because F9 disconnects
+straight to the main window and **Quit** is just the *Exit Game* command; the
+check boxes read the game's own flags. **Credits** is the one control with no
+menu item behind it, so the dialog procedure writes the sub-state itself. F11 because F9 disconnects
 a network game and F10 is a Windows system key.
 
 Motion is not among them any more, the F5 page having taken it over. The

@@ -64,8 +64,10 @@ controller, plus the arcade twin-stick scheme, for both players. Costs the
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
 the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
-Scorekeeping and **Quit Program**. Motion is not among them; it has moved to
-F5. Every other menu was already on a key:
+Scorekeeping and **Quit**. **Credits** is there too, which is not one of the
+game's own: it runs the ending from wherever you are in a match, so the
+credits can be reached without finishing the game. Motion is not among them;
+it has moved to F5. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
