@@ -800,6 +800,13 @@ BY_KEY['dinput'] = (
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
     'keyboard input until the game is restarted.', None)
 
+# Both padxinput and the ending stubs put routines in .rdata, which the
+# loader maps without making it executable. The site that changes the section
+# flag belongs to neither of them: written twice it would fail its own
+# original check, so it is applied once for whichever patch is ticked.
+RDATA_EXEC = (0x000001c4, '40000040', '40000060')
+RDATA_EXEC_KEYS = ('padxinput', 'movie')
+
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
@@ -830,7 +837,11 @@ def _check_table():
     if apply_order()[-1] != 'nodisc':
         raise AssertionError('nodisc must be applied last')
 
-    owner = {}
+    # RDATA_EXEC is not in any feature's list, so seed it here or the four
+    # bytes it writes are the one place two patches could collide unnoticed.
+    owner = dict.fromkeys(range(RDATA_EXEC[0],
+                                RDATA_EXEC[0] + len(RDATA_EXEC[1]) // 2),
+                          'the .rdata executable flag')
     for key in BY_KEY:
         written = {}
         for off, old, new in BY_KEY[key][2] or ():
@@ -2477,14 +2488,6 @@ class PatchFailed(Exception):
     def __init__(self, key, cause):
         super().__init__('%s: %s' % (BY_KEY[key][0], cause))
         self.key = key
-
-
-# .rdata is where padxinput and the credits stub put their routines, and
-# the loader does not make it executable. Applied once for whichever of them
-# is selected, because a site written twice would fail its own original
-# check.
-RDATA_EXEC = (0x000001c4, '40000040', '40000060')
-RDATA_EXEC_KEYS = ('padxinput', 'movie')
 
 
 def apply_selected(buf, wanted):
