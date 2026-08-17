@@ -138,9 +138,8 @@ ignores F3 while the movie plays.
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
-last one is artwork rather than text, so `escrgame.bin` is rewritten too and
-backed up to `escrgame.bin.bak`; **Restore original** puts it back. See
-[TEXT.md](docs/TEXT.md).
+last one is artwork rather than text, so `escrgame.bin` is rewritten too -
+see [What gets written](#what-gets-written) and [TEXT.md](docs/TEXT.md).
 
 ### Gamepad (XInput)
 
@@ -169,9 +168,9 @@ Two players on the keyboard cannot share a key: if 2P wants one 1P already
 has, rebind 1P first. With 1P on a pad its keys are dormant, so 2P can take
 them. **Default** on the page resets the side you are on.
 
-Applying the patch moves `v_on.ini` to `v_on.ini.bak`, because binds saved by
-the unpatched game do not fit the new device list; the game writes a fresh
-one. **Restore original** puts it back.
+Applying the patch clears `v_on.ini`, because binds saved by the unpatched
+game do not fit the new device list. See
+[What gets written](#what-gets-written).
 
 ## Music
 
@@ -199,8 +198,7 @@ python3 vo-patch.py --rip                # list drives
 ```
 
 `bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
-Drives are read with `CDROMREADAUDIO` on Linux and `IOCTL_CDROM_RAW_READ` on
-Windows; a cdemu device behaves like a physical one.
+A cdemu device is read like a physical one.
 
 Output is about 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
 
@@ -233,12 +231,6 @@ Hence the usual advice to run a VPN and pretend everyone is on one LAN.
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
 player hosts, the other types an address, and the match runs the same as it
 always did.
-
-The part worth keeping was never DirectPlay's. The frame exchange, the
-retransmission, the input delay the game measures from the round trip and
-holds for the session - all of that is the game's own, and it is why link
-play feels as good as it does over a real connection. Only the transport
-underneath it is new.
 
 ```bash
 python3 vo-patch.py --netplay path/to/game            # install
@@ -285,11 +277,11 @@ them again and keeps `ddraw.ini`. From a terminal:
 python3 vo-patch.py --ddraw path/to/game
 ```
 
-Comes straight from
+It comes from
 [the releases page](https://github.com/FunkyFr3sh/cnc-ddraw/releases), so it
-is always the current version. An existing `ddraw.ini` is kept, so re-running
-to update leaves your settings alone. Close the game first: Windows will not
-replace a DLL that is loaded.
+is always current. An existing `ddraw.ini` is kept, so re-running to update
+leaves your settings alone. Close the game first: Windows will not replace a
+DLL that is loaded.
 
 **On Linux there is a second step.** Set `ddraw` to native in `winecfg` for
 that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
@@ -302,23 +294,18 @@ window at 4:3 that does not trap the cursor. Everything else,
 including the comments and the per-game sections, is left as it comes. Change
 any of it with `cnc-ddraw config.exe`.
 
-`game_handles_close` is the one that is not about the picture. Left at its
-default, cnc-ddraw answers the close button with `ExitProcess`, so the game
-never sees `WM_DESTROY` - which is where it writes `v_on.ini` and `BkUp.bin`.
-Closing the window then loses every setting and every record from that
-session. If you already have a `ddraw.ini`, add the line by hand:
+`game_handles_close` is the one that is not about the picture: without it,
+closing the window loses your settings and your records for that session. If
+you already have a `ddraw.ini`, add the line by hand:
 
 ```ini
 [ddraw]
 game_handles_close=true
 ```
 
-The intro movie does not pass through DirectDraw: the game plays `von.avi`
-through MCI, which draws into a window of its own, and then places and sizes
-that window for a 640x480 picture. So by default it plays small and in the
-corner over an upscaled picture. **Intro, loading and ending screens** under
-Extra fixes that; without it, skip the movie with Space, Enter, Escape or
-pad A, or run at 1:1 to watch it.
+The intro movie does not go through DirectDraw, so upscaling leaves it small
+and in the corner. **Intro, loading and ending screens** under Extra fits it
+to the window; without that, skip it with Space, Enter, Escape or pad A.
 
 gamescope handles the scaling without a DLL, if you would rather:
 
@@ -344,7 +331,6 @@ them to another would write into unrelated code.
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 
 The OEM release is a different build of the same game and is not supported.
-Reinstalling from the same disc will not produce a different file.
 
 If your file is neither of these, the patcher shows both checksums side by
 side and says which one it got.
