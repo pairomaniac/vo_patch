@@ -322,6 +322,16 @@ CAMSKIP_CODE = bytes.fromhex(
 )
 # CAMSKIP BLOB END
 
+# OVERLAY BLOB BEGIN
+OVERLAY_CODE = bytes.fromhex(
+    'ff742404e8f6fffcff83c404833d9435ae0104756b833d9036ae01207562803d'
+    '6409ad01027559803d493d6c00007450b840010000bab8010000f60598f56b00'
+    '04740d833d60f56b00007404d1f8d1fa8b0d405fae01518b0d5c5fae01890d40'
+    '5fae016a016800ff000052506861815f00e8c617fdff83c41459890d405fae01'
+    'c3484f4c4420544f20534b495000'
+)
+# OVERLAY BLOB END
+
 # Each site: (offset, original, patched).
 
 # The title and scoreboard prompt is not text: it is 42x3 cells of 8x8 tiles
@@ -504,7 +514,13 @@ FEATURES = [
          #   jmp  carry on
          (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
                       'e8f770160084c07511e9fe010000909090909090909090909090'),
-         (0x0023d1c4, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex())]),
+         (0x0023d1c4, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex()),
+         # HOLD TO SKIP over the credits, drawn through GDI so it does
+         # not scroll with the tilemap. The call five bytes before the
+         # surface is flipped is made in the stub instead, which is
+         # what puts the text on the frame about to be shown.
+         (0x001c58e7, 'e8f31b0000', 'e8f41b0300'),
+         (0x001f74e0, '00' * len(OVERLAY_CODE), OVERLAY_CODE.hex())]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',

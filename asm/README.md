@@ -19,6 +19,7 @@ editing this directory does.
 | `credits.asm` | ends the credits early on A or Space |
 | `nameentry.asm` | adds A and Space to the initials screen, beside the triggers |
 | `camskip.asm` | lets A skip the win and lose screens, as Select does |
+| `overlay.asm` | draws HOLD TO SKIP over the credits while the button is down |
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -83,7 +84,7 @@ it points at.
 
 Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
 `introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm`, `credits.asm`,
-`nameentry.asm`, `camskip.asm` and `timer.asm`. Their stubs
+`nameentry.asm`, `camskip.asm`, `overlay.asm` and `timer.asm`. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
 modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
@@ -608,3 +609,27 @@ camera, and A is jump by default, so it is gated on `MODE` 4 with `SUBMODE`
 `0x0c` or `0x14` - a round is `0x0a`. The tick calls it from inside the
 branch that has already established A is held, with `ebx` still holding the
 parameter block the camera slot comes out of.
+
+## overlay.asm, what it does
+
+Draws `HOLD TO SKIP` over the credits while the button is down.
+
+The tile font was the obvious way and the wrong one: that layer is what the
+roll scrolls, so anything printed into it climbs the screen with the
+credits. `0x5c991c` takes screen pixels instead, the same call the pause
+text uses, including the halving at `0x5c9a98` for low resolution.
+
+Two things about when and where it paints. It paints at the moment it is
+called, so it has to run after the frame is drawn: the hook is the call at
+`0x5c64e7`, five bytes before the surface is flipped at `0x5c650d`, and the
+stub makes that call first with its argument untouched. And it paints on
+`0x1ae5f40`, the primary surface, which suits the pause screen because that
+is not flipping - here the back buffer is flipped over it the same frame, so
+that global is pointed at the back buffer, `0x1ae5f5c`, across the call and
+put back after.
+
+The gate is `MODE` 4, `SUBMODE` `0x20` and phase 2, and only then the hold
+count. The count alone is not enough: `HELD` sits in a run of zeros in
+`.data` that something else in the game writes through, so it reads nonzero
+on the title screen and in a match. `credits.asm` owns it while the roll is
+running, which is the only place this looks at it.
