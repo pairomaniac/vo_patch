@@ -20,9 +20,10 @@ that put them there.
 
 **Never edit a blob by hand.** The next build run silently discards it.
 
-The title banner is a third generated thing, but it is checked in rather than
-rebuilt: `tools/vonbanner.py` writes the bitmap, and nothing regenerates it
-during a build. See [TEXT.md](TEXT.md).
+Two more generated things are checked in rather than rebuilt, so a build will
+not notice if they go stale: `tools/vonbanner.py` writes the title banner's
+bitmap, and `tools/vocredits.py` writes the credit line's. Change how either
+one draws and you have to rerun it by hand. See [TEXT.md](TEXT.md).
 
 ## Setup, once
 
@@ -84,7 +85,7 @@ inside one will do.
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
-| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte |
+| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 | `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, 350-odd combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
 
@@ -93,6 +94,36 @@ skips them and says so. They are the manual step before tagging.
 
 If a patch legitimately changed and the MD5 moved, update `EXPECTED_ALL` at
 the top of `tools/selftest.py`, deliberately.
+
+## The by-hand tools
+
+Neither runs in CI: both need the game's files, which are not in the
+repository. Their output is committed.
+
+**`tools/vonbanner.py`** redraws the title screen prompt. It rasterises text
+into the banner's 42x3 cells and writes the bitmap into `vo-patch.py`.
+
+```bash
+python3 tools/vonbanner.py DIR --text 'Press Start'    # preview
+python3 tools/vonbanner.py DIR --text 'Press Start' --write
+```
+
+**`tools/vocredits.py`** builds the credit line out of the roll's own
+letters. The roll is pre-rendered text chopped into cells rather than a font,
+so a new line cannot be typed - but the columns of each block separate into
+characters at the blank gaps, and matching those runs against a transcript of
+all 57 blocks gives a bitmap for each letter. 53 blocks segment exactly,
+which covers every character needed. Only `/` and `_` are drawn here, since
+neither appears anywhere in the roll.
+
+```bash
+python3 tools/vocredits.py DIR             # preview, as ASCII art
+python3 tools/vocredits.py DIR --write     # into vo-patch.py
+```
+
+Edit `LINES` at the top to change what it says. The result goes between the
+`CREDITLINE BLOB` markers - not the `CREDITS BLOB` ones, which belong to
+`asm/credits.asm` and are a different thing entirely.
 
 ## Netplay
 
@@ -133,7 +164,7 @@ read it from there. So there is nothing in a file to bump.
 
 ```bash
 git pull
-python3 tools/check.py /path/to/VIRTUAL-ON     # all seven, nothing skipped
+python3 tools/check.py /path/to/VIRTUAL-ON     # all eight, nothing skipped
 
 git tag v0.8.4
 git push && git push --tags
@@ -255,4 +286,10 @@ python3 vo-patch.py --rip          # list CD drives
 python3 vo-patch.py --netplay DIR  # install the UDP netplay DLL
 python3 tools/check.py --list      # what the checks are
 python3 tools/check.py --only asm  # run one of them
+
+python3 tools/vonbanner.py DIR     # redraw the title prompt
+python3 tools/vocredits.py DIR     # redraw the credit line
 ```
+
+`DIR` is the game folder. Both of those write into `vo-patch.py` with
+`--write`; without it they only preview.
