@@ -230,6 +230,11 @@ reordered; put it back.
 **`offsets` reports mismatches** - an offset is wrong for the real file.
 Nothing has been written to anyone's game. Fix the table.
 
+**The credit line is skipped at apply time** - one of the two roll files is
+missing or is not the one the patch was built against. Both are checked
+before the executable is written, so the run goes ahead without it rather
+than leaving a block list the map cannot satisfy.
+
 **`credit` fails** - the ending roll does not read back as written. The line
 is spread over the block list in the executable, the cells in `scrstfmp.bin`
 and the tiles in `scrstfcg.bin`, and all three have to agree. A block list

@@ -2856,6 +2856,15 @@ class Patcher:
         except OSError as exc:
             return False, ['Could not read the executable: %s' % exc]
 
+        if wanted.get('credits'):
+            ready, why = self._credits_ready()
+            if not ready:
+                # Dropped rather than fatal: it is the one patch that fixes
+                # nothing, so it should never cost somebody the rest.
+                wanted = dict(wanted, credits=False)
+                log.append('%s - credit line skipped, everything else '
+                           'applies' % why)
+
         try:
             buf, applied, skipped = apply_selected(buf, wanted)
         except PatchFailed as exc:
@@ -3072,6 +3081,40 @@ class Patcher:
                 return None
             out.append((path, bytearray(data)))
         return out
+
+    def _credits_ready(self):
+        """Can both roll files take the line? Returns (ok, why not).
+
+        Asked before the executable is written, not after. The block list
+        goes in the executable and the cells and tiles go in these two, and
+        a list naming blocks the map has no cells for walks the renderer off
+        the end of it - so if they are not both here and unmodified, the
+        whole patch has to stand down before anything is written.
+
+        A copy that is already ours, with a .bak beside it, is fine: that is
+        a re-run, and restore puts the original back either way."""
+        folder = os.path.dirname(self.exe_path)
+        for name, size, want in ((SCRSTFCG, SCRSTFCG_SIZE, SCRSTFCG_MD5),
+                                 (SCRSTFMP, SCRSTFMP_SIZE, SCRSTFMP_MD5)):
+            path = os.path.join(folder, name)
+            try:
+                with open(path, 'rb') as fh:
+                    data = fh.read()
+            except OSError as exc:
+                return False, 'Could not read %s: %s' % (name, exc)
+            if hashlib.md5(data).hexdigest() == want:
+                continue
+            bak = path + '.bak'
+            if (os.path.exists(bak)
+                    and hashlib.md5(open(bak, 'rb').read()).hexdigest()
+                    == want):
+                continue                 # ours from a previous run
+            if len(data) != size:
+                return False, ('%s is %d bytes, expected %d.'
+                               % (name, len(data), size))
+            return False, ('%s is not the file this patch was built '
+                           'against.' % name)
+        return True, ''
 
     def _write_credits(self, log):
         """Append the new tiles and splice the new cells into the map.
@@ -4249,14 +4292,48 @@ def run_tk():
                 self.vars[key], self.checks[key] = var, check
 
 
+        def _credit_preview(self, parent):
+            """The two lines, drawn from the bitmap the patch writes.
+
+            Not a mock-up of them: the same bytes, so if the artwork ever
+            changes this changes with it. Trimmed to the ink, since the
+            bitmaps are mostly the blank cells that right-align the text."""
+            gap = 4
+            rows = []
+            for n, (width, height, bits) in enumerate(CREDITS):
+                if n:
+                    rows += [[0] * (width * 8)] * gap
+                for y in range(height * 8):
+                    rows.append([bits[y * width + (x >> 3)] >> (7 - (x & 7))
+                                 & 1 for x in range(width * 8)])
+            lit = [(x, y) for y, row in enumerate(rows)
+                   for x, on in enumerate(row) if on]
+            if not lit:
+                return
+            x0, x1 = min(x for x, _ in lit), max(x for x, _ in lit)
+            y0, y1 = min(y for _, y in lit), max(y for _, y in lit)
+            ink, back = PALETTE['text'], PALETTE['card']
+            data = ' '.join(
+                '{%s}' % ' '.join(ink if row[x] else back
+                                  for x in range(x0, x1 + 1))
+                for row in rows[y0:y1 + 1])
+            # Held on self or Tk collects it and the label goes blank.
+            self.credit_shot = tk.PhotoImage(width=x1 - x0 + 1,
+                                             height=y1 - y0 + 1)
+            self.credit_shot.put(data)
+            tk.Label(parent, image=self.credit_shot, background=back,
+                     borderwidth=0, highlightthickness=0).pack(anchor='w',
+                                                               pady=(2, 10))
+
         def _about_body(self, parent):
+            self._credit_preview(parent)
             row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(0, 6))
+            row.pack(fill='x', pady=(0, 2))
             ttk.Label(row, text='Version %s' % VERSION, style='Dim.TLabel',
                       font=self.small).pack(side='left')
-            link = ttk.Label(parent, text=REPO_URL, style='Link.TLabel',
+            link = ttk.Label(row, text=REPO_URL, style='Link.TLabel',
                              font=self.small, cursor='hand2')
-            link.pack(anchor='w', pady=(0, 10))
+            link.pack(side='right')
             link.bind('<Button-1>', lambda _e: webbrowser.open(REPO_URL))
             self._patch_body(parent, ABOUT, None)
 
