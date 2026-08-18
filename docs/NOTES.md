@@ -204,10 +204,11 @@ from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
 straight to the main window and **Quit** is just the *Exit Game* command; the
 check boxes read the game's own flags. **Credits** is the one control with no
-menu item behind it, so the dialog procedure writes the sub-state itself. It
-is in the *Debug* box with the rest all the same, since what it does to a
-running match is the same kind of thing. F11 because F9 disconnects a network
-game and F10 is a Windows system key.
+menu item behind it, so the dialog procedure writes the sub-state itself -
+the title machine's, so it shows that sequence rather than the one a finished
+game runs. It is in the *Debug* box with the rest all the same, since what it
+does to a running match is the same kind of thing. F11 because F9
+disconnects a network game and F10 is a Windows system key.
 
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying
@@ -239,10 +240,16 @@ the result is what the game did before. mciavi does not follow the window, so
 a `MCI_PUT` destination rect goes with the resize; the game never sends one
 of its own.
 
-**Ending screens.** The credits are sub-state `0x20`, whose handler at
-`0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the ending cutscene
-and the mission complete screen, 2 is the roll, and anything else falls
-through to a tail that stops the music and moves on. Skipping is one write,
+**Ending screens.** There are two credit sequences. The one the **Credits**
+button reaches is sub-state `0x20` of the title machine `0x1ae3690`, whose
+handler at `0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the
+ending cutscene and the mission complete screen, 2 is the roll, and anything
+else falls through to a tail that stops the music and moves on. The one a
+finished game reaches is state 32 of the main-game machine `0x1ef9eb0`, drawn
+by `0x44a523`, which runs the same roll through `0x4489d6` in its phase 2.
+
+Both read the same block list and the same map, so the credit line lands in
+either; only the scenery behind them differs. Skipping is one write,
 putting the phase past 2, so the game ends the sequence its own way.
 
 The input is not the press edges at `0x1ed5ec4` that the game over and

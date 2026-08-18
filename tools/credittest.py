@@ -135,6 +135,20 @@ def main(folder):
         raw = raw[:mp_size]
         cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
 
+        # The site's patched bytes are committed, not generated at patch
+        # time, so check they are still what credit_table() produces from the
+        # original. Regenerating the blobs without regenerating this is an
+        # easy miss and shows up as a block of the wrong size.
+        # The site starts one entry in, at the first spacer, so put the
+        # title block back on the front before rebuilding.
+        site = [s for s in vp.BY_KEY['credits'][2] if len(s[1]) > 64][0]
+        title = struct.pack('<3I', 0xffffffff, 42, 3)
+        rebuilt = vp.credit_table(title + bytes.fromhex(site[1]))
+        if rebuilt[12:].hex() != site[2]:
+            print('the committed block table is not what credit_table() '
+                  'builds - rerun tools/vocredits.py and rebuild the site')
+            return 1
+
         table = blocks(exe, vp)
         want = wanted_pixels(vp)
 

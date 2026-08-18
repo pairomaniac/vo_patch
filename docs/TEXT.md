@@ -46,19 +46,23 @@ without growing its constant and the tail silently never loads.
 
 The layout is not a grid. `0x6bcd48` in the executable holds 12 bytes per
 block - flag, width, height, in cells - and the map is those blocks end to
-end. Text blocks are three cells tall; a block of width 0 is a blank spacer.
+end. The roll's own text blocks are three cells tall, though the height is
+read per block; a block of width 0 is a blank spacer.
 `0x448e86` centres each on 51 cells, and `0x44908e` reveals the next one
 every eight ticks per row, so the roll's length is the sum of the heights.
 
 Adding a line means all three: an entry in the block list, its cells in
-`scrstfmp.bin`, and its tiles on the end of `scrstfcg.bin`. `tools/vocredits.py`
-cuts the glyphs out of the existing artwork so a new line matches the rest.
-There are two faces: the 24px body, and the 11px capitals the title sets
-CYBER TROOPERS in. The small one covers only the letters of that phrase; the
-rest are drawn in its conventions rather than reduced from the 24px
-capitals, because it is monoline 1px and any reduction of a 2px stem lands
-unevenly and reads as bold. Round letters are 10 wide with a four-pixel
-chamfered cap, straight ones 8, diagonals step a column per row.
+`scrstfmp.bin`, and its tiles on the end of `scrstfcg.bin`, plus the two byte
+counts above. `tools/vocredits.py` does it, cutting glyphs out of the
+existing artwork so a new line matches the rest.
+
+There are two faces. The 24px body face covers everything the roll says, so
+a line set in it is harvested whole. The 11px capitals the title sets CYBER
+TROOPERS in are a real face rather than a reduction, but they exist only in
+that phrase, so anything outside `CYBERTOPS` is drawn: it is monoline 1px,
+and reducing a 2px stem lands on one or two pixels unevenly and reads as
+bold. Drawn widths come from the 24px capital at 11/17 - 13px wide there is
+8 here, 15 is 9 or 10, 17 is 11 - and edges step a column every three rows.
 
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
 through GDI. `0x4cd8c3(col, row)` sets the tile cursor and `0x4ce573(str)`

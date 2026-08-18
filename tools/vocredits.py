@@ -35,11 +35,10 @@ LINES = (('Patch by pairo', 42, 3, 24),
 RIGHT_EDGE = 46 * 8
 USABLE = 51
 
-# The small face: 11px capitals, and the band the title draws them in.
-SMALL = 11
+# The small face: the band the title draws its 11px capitals in, and where
+# an underscore sits in the small line's 16px box.
 SMALL_TOP, SMALL_BOT = 10, 21
-CAP = 17            # 24px capitals span rows 0..16
-UNDER = 13          # where an underscore sits in the small line's 16px box
+UNDER = 13
 
 SPACE = 9       # a word space
 HEIGHT = 24     # the harvested glyphs' height, three cells

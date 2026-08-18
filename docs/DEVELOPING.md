@@ -108,13 +108,14 @@ python3 tools/vonbanner.py DIR --text 'Press Start'    # preview
 python3 tools/vonbanner.py DIR --text 'Press Start' --write
 ```
 
-**`tools/vocredits.py`** builds the credit line out of the roll's own
+**`tools/vocredits.py`** builds the credit lines out of the roll's own
 letters. The roll is pre-rendered text chopped into cells rather than a font,
 so a new line cannot be typed - but the columns of each block separate into
 characters at the blank gaps, and matching those runs against a transcript of
 all 57 blocks gives a bitmap for each letter. 53 blocks segment exactly,
-which covers every character needed. Only `/` and `_` are drawn here, since
-neither appears anywhere in the roll.
+which covers the 24px face completely. The 11px face has only the letters of
+CYBER TROOPERS, so the rest are drawn; `SMALL_DRAWN` holds them as ASCII art
+and [TEXT.md](TEXT.md) has the proportions they follow.
 
 ```bash
 python3 tools/vocredits.py DIR             # preview, as ASCII art
