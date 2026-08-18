@@ -448,8 +448,8 @@ CREDITS = ((CREDIT1_W, CREDIT1_H, CREDIT1_BITS),
            (CREDIT2_W, CREDIT2_H, CREDIT2_BITS))
 
 # The roll is a list of blocks, not a grid: 12 bytes each, (flag, width in
-# cells, height in cells), width 0 being a blank spacer. The renderer centres
-# each one on 51 cells and reveals it eight ticks per row.
+# cells, height in cells), width 0 being a blank spacer. Each is placed on 51
+# cells by its flag, below, and revealed eight ticks per row.
 CREDIT_TABLE = 0x006bcd48       # v_on.exe, the block list
 CREDIT_AFTER = 1                # the first spacer, just past the title
 # The flag picks how the block is placed: below zero centres it on the 51
