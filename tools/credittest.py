@@ -60,13 +60,13 @@ def blocks(exe, vp):
 def wanted_pixels(vp):
     """The bitmap the patcher was built from, as a set of lit (x, y)."""
     out = []
-    for width, bits in vp.CREDITS:
+    for width, height, bits in vp.CREDITS:
         lit = set()
-        for y in range(vp.CREDIT_H * 8):
+        for y in range(height * 8):
             for x in range(width * 8):
                 if bits[y * width + (x >> 3)] >> (7 - (x & 7)) & 1:
                     lit.add((x, y))
-        out.append((width, lit))
+        out.append((width, height, lit))
     return out
 
 
@@ -139,14 +139,16 @@ def main(folder):
         want = wanted_pixels(vp)
 
         # Walk to each new block exactly as the renderer accumulates.
+        # The five spacers become: gap, line 1, gap, line 2, gap - so the
+        # text blocks sit one and three entries past the placement point.
         at, bad = 0, 0
         for i, (_flag, width, height) in enumerate(table):
-            if i in (vp.CREDIT_AFTER, vp.CREDIT_AFTER + 2):
-                which = 0 if i == vp.CREDIT_AFTER else 1
-                exp_w, exp_lit = want[which]
-                if width != exp_w or height != vp.CREDIT_H:
+            if i in (vp.CREDIT_AFTER + 1, vp.CREDIT_AFTER + 3):
+                which = 0 if i == vp.CREDIT_AFTER + 1 else 1
+                exp_w, exp_h, exp_lit = want[which]
+                if width != exp_w or height != exp_h:
                     print('block %d is %dx%d, expected %dx%d'
-                          % (i, width, height, exp_w, vp.CREDIT_H))
+                          % (i, width, height, exp_w, exp_h))
                     return 1
                 got = got_pixels(cells[at:at + width * height], sheet,
                                  width, vp)

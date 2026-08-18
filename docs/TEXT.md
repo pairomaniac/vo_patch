@@ -52,9 +52,13 @@ every eight ticks per row, so the roll's length is the sum of the heights.
 
 Adding a line means all three: an entry in the block list, its cells in
 `scrstfmp.bin`, and its tiles on the end of `scrstfcg.bin`. `tools/vocredits.py`
-cuts the glyphs out of the existing artwork so a new line matches the rest;
-only the slash and the underscore had to be drawn, since neither appears
-anywhere in the roll.
+cuts the glyphs out of the existing artwork so a new line matches the rest.
+There are two faces: the 24px body, and the 11px capitals the title sets
+CYBER TROOPERS in. The small one covers only the letters of that phrase; the
+rest are drawn in its conventions rather than reduced from the 24px
+capitals, because it is monoline 1px and any reduction of a 2px stem lands
+unevenly and reads as bold. Round letters are 10 wide with a four-pixel
+chamfered cap, straight ones 8, diagonals step a column per row.
 
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
 through GDI. `0x4cd8c3(col, row)` sets the tile cursor and `0x4ce573(str)`

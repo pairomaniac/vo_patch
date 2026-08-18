@@ -21,11 +21,29 @@ import os
 import struct
 import sys
 
-LINES = ('Patch by pairo', 'github.com/pairomaniac/vo_patch')
+# (text, block width in cells, letter spacing, point size). 24 is the roll's
+# body size. 11 is the smaller face the title uses for CYBER TROOPERS - a
+# real face, not a reduction, but upper case only, so a line set in it has to
+# be upper case too. Letters it does not have are reduced from their 24px
+# capitals, which lands close: a derived CYBER TROOPERS comes out 140px
+# against the genuine 139.
+LINES = (('Patch by pairo', 42, 3, 24),
+         ('GITHUB.COM/PAIROMANIAC/VO_PATCH', 42, 2, 11))
 
-GAP = 3         # between letters, the roll's most common spacing
+# The renderer centres a block of w cells at (51 - w) >> 1, so the title's 42
+# cells end at column 46 - pixel 368. Every line is right-aligned to that.
+RIGHT_EDGE = 46 * 8
+USABLE = 51
+
+# The small face: 11px capitals, and the band the title draws them in.
+SMALL = 11
+SMALL_TOP, SMALL_BOT = 10, 21
+CAP = 17            # 24px capitals span rows 0..16
+UNDER = 13          # where an underscore sits in the small line's 16px box
+
 SPACE = 9       # a word space
-HEIGHT = 24     # three cells
+HEIGHT = 24     # the harvested glyphs' height, three cells
+CELLS_H = 3
 
 # What each text block in the roll says, in block order. Four lines are left
 # out of the harvest: the curly quotes segment as two runs each and the
@@ -114,6 +132,83 @@ def harvest(folder):
     return glyphs
 
 
+def small_face(folder):
+    """The 11px capitals the title sets CYBER TROOPERS in.
+
+    A genuine smaller face rather than a reduction, but it exists only in
+    that one line, so it covers CYBERTOPS and nothing else."""
+    exe = open(os.path.join(folder, 'v_on.exe'), 'rb').read()
+    sheet = open(os.path.join(folder, 'scrstfcg.bin'), 'rb').read()
+    raw = open(os.path.join(folder, 'scrstfmp.bin'), 'rb').read()
+    cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
+    w, h = read_blocks(exe)[0]
+    lit = block_pixels(cells[:w * h], sheet, w, h)
+    lit = {(x, y) for x, y in lit if SMALL_TOP <= y < SMALL_BOT}
+    cols = [any((x, y) in lit for y in range(SMALL_TOP, SMALL_BOT))
+            for x in range(w * 8)]
+    runs, start = [], None
+    for x in range(w * 8 + 1):
+        on = x < w * 8 and cols[x]
+        if on and start is None:
+            start = x
+        if not on and start is not None:
+            if x - start > 1:
+                runs.append((start, x))
+            start = None
+        # The large VIRTUAL-ON shares these rows, so stop at the wide gap
+        # that separates the two halves of the title.
+        if start is None and len(runs) == len('CYBERTROOPERS'):
+            break
+    out = {}
+    for (x0, x1), ch in zip(runs, 'CYBERTROOPERS'):
+        out.setdefault(ch, frozenset((x - x0, y - SMALL_TOP)
+                                     for x, y in lit if x0 <= x < x1))
+    return out
+
+
+# The letters the small face lacks, drawn in its own conventions rather than
+# reduced from the 24px capitals: that face is monoline 1px, and any
+# reduction of a 2px stem lands on 1 or 2 px unevenly and reads as bold.
+#
+# Shapes follow the 24px capitals at 11/17. Widths come from that ratio
+# rather than from the eye: 13px wide at 24 is 8 here, 15 is 9 or 10, 17 is
+# 11 - which is why U is a narrow letter and not a round one, and why it is
+# B's width rather than O's. Edges step a column every three rows.
+#
+# Two places where a straight reduction reads wrong at 1px and the drawing
+# departs from it: the A's apex is two pixels for one row, because the
+# original's three rows of it turn into a blob at this weight, and the V
+# closes to a single pixel, because the original's strokes are three wide
+# and nearly touch where 1px strokes a pixel apart just look broken.
+SMALL_DRAWN = {
+    'A': ["...##...", "..#..#..", "..#..#..", "..#..#..", ".#....#.",
+          ".#....#.", ".#....#.", ".######.", "#......#", "#......#",
+          "#......#"],
+    'G': ["...####...", "..#....#..", ".#......#.", "#........#",
+          "#.........", "#....#####", "#........#", "#........#",
+          ".#......#.", "..#....#..", "...####..."],
+    'H': ["#......#", "#......#", "#......#", "#......#", "#......#",
+          "########", "#......#", "#......#", "#......#", "#......#",
+          "#......#"],
+    'I': ["#"] * 11,
+    'M': ["#.......#", "##.....##", "#.#...#.#", "#.#...#.#", "#.#...#.#",
+          "#..#.#..#", "#..#.#..#", "#..#.#..#", "#...#...#", "#...#...#",
+          "#...#...#"],
+    'N': ["#......#", "##.....#", "#.#....#", "#.#....#", "#..#...#",
+          "#..#...#", "#...#..#", "#...#..#", "#....#.#", "#....#.#",
+          "#.....##"],
+    'U': ["#......#", "#......#", "#......#", "#......#", "#......#",
+          "#......#", "#......#", "#......#", "#......#", ".#....#.",
+          "..####.."],
+    'V': ["#.........#", "#.........#", "#.........#", ".#.......#.",
+          ".#.......#.", ".#.......#.", "..#.....#..", "..#.....#..",
+          "...#...#...", "....#.#....", ".....#....."],
+    '.': ["."] * 10 + ["#"],
+    '/': [".....#", ".....#", "....#.", "....#.", "...#..", "...#..",
+          "..#...", "..#...", ".#....", ".#....", "#....."],
+}
+
+
 def drawn():
     """The two characters the roll does not contain."""
     slash = set()
@@ -124,18 +219,33 @@ def drawn():
     return {'/': (9, frozenset(slash)), '_': (11, frozenset(under))}
 
 
-def render(text, glyphs):
+def render(text, glyphs, gap, space=None):
     out, x = set(), 0
     for i, ch in enumerate(text):
         if ch == ' ':
-            x += SPACE
+            x += space or SPACE
             continue
         width, lit = glyphs[ch]
         out |= {(px + x, py) for px, py in lit}
         x += width
         if i + 1 < len(text) and text[i + 1] != ' ':
-            x += GAP
+            x += gap
     return x, out
+
+
+def small_glyphs(folder):
+    """The small face: what the title provides, plus the drawn rest."""
+    out = {}
+    for ch, lit in small_face(folder).items():
+        out[ch] = (max(x for x, _y in lit) + 1, lit)
+    for ch, rows in SMALL_DRAWN.items():
+        out.setdefault(ch, (len(rows[0]),
+                            frozenset((x, y) for y, row in enumerate(rows)
+                                      for x, c in enumerate(row) if c == '#')))
+    # The underscore sits below the baseline, outside the capital box, so it
+    # belongs to the line's 16px box rather than to the face.
+    out['_'] = (8, frozenset((x, UNDER) for x in range(8)))
+    return out
 
 
 def main(folder, write):
@@ -147,36 +257,52 @@ def main(folder, write):
         glyphs[ch] = (max(x for x, _y in best) + 1, best)
     glyphs.update(drawn())
 
-    missing = {c for line in LINES for c in line if c != ' '} - set(glyphs)
-    if missing:
-        print('not in the roll and not drawn: %s' % ''.join(sorted(missing)))
-        return 1
     print('harvested %d characters from the roll' % len(found))
 
+    small = small_glyphs(folder)
     blobs = []
-    for n, text in enumerate(LINES, 1):
-        px, lit = render(text, glyphs)
-        cells = -(-px // 8)
-        bits = bytearray(cells * HEIGHT)
+    for n, (text, cells_w, gap, size) in enumerate(LINES, 1):
+        face = glyphs if size == HEIGHT else small
+        box = HEIGHT if size == HEIGHT else 16
+        cells_h = CELLS_H if size == HEIGHT else 2
+        missing = {c for c in text if c != ' '} - set(face)
+        if missing:
+            print('%dpx face has no %s' % (size, ''.join(sorted(missing))))
+            return 1
+        px, lit = render(text, face, gap, space=SPACE if size == HEIGHT else 6)
+        # Where the renderer will put this block, and how far into it the
+        # text has to start so it ends on the title's right edge.
+        x0 = ((USABLE - cells_w) >> 1) * 8
+        pad = (RIGHT_EDGE - x0) - px
+        if pad < 0:
+            print('%r is %dpx, %dpx too wide for its %d cells'
+                  % (text, px, -pad, cells_w))
+            return 1
+        if pad + px > cells_w * 8:
+            print('%r overflows its block' % text)
+            return 1
+        lit = {(x + pad, y) for x, y in lit}
+        bits = bytearray(cells_w * box)
         for x, y in lit:
-            bits[y * cells + (x >> 3)] |= 1 << (7 - (x & 7))
-        print('  %-32r %3d px, %2d cells, %d lit' % (text, px, cells,
-                                                     len(lit)))
-        blobs.append((n, cells, bytes(bits)))
-        for y in range(HEIGHT):
+            bits[y * cells_w + (x >> 3)] |= 1 << (7 - (x & 7))
+        print('  %-32r %3d px at %dpx, gap %d, %d cells, ends at pixel %d'
+              % (text, px, size, gap, cells_w, x0 + pad + px))
+        blobs.append((n, cells_w, cells_h, bytes(bits)))
+        for y in range(box):
             print('    ' + ''.join('#' if (x, y) in lit else '.'
-                                   for x in range(px)))
+                                   for x in range(pad, pad + px)))
 
     if not write:
         print('\npreview only; pass --write to update vo-patch.py')
         return 0
 
     text = []
-    for n, cells, bits in blobs:
+    for n, cells, cells_h, bits in blobs:
         h = bits.hex()
         body = '\n'.join("    '%s'" % h[i:i + 64] for i in range(0, len(h), 64))
-        text.append("CREDIT%d_W = %d\nCREDIT%d_BITS = bytes.fromhex(\n%s\n)"
-                    % (n, cells, n, body))
+        text.append("CREDIT%d_W = %d\nCREDIT%d_H = %d\n"
+                    "CREDIT%d_BITS = bytes.fromhex(\n%s\n)"
+                    % (n, cells, n, cells_h, n, body))
     path = os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), 'vo-patch.py')
     src = open(path, encoding='utf-8').read()
