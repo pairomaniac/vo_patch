@@ -25,6 +25,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 
+def pristine(path, want):
+    """The unmodified file, from `path` or from the backup beside it.
+
+    A development copy of the game is usually patched, which is the whole
+    point of having one. selftest.py and bannertest.py both do this; without
+    it the first site to be checked fails on bytes an earlier run wrote."""
+    for candidate in (path, path + '.bak'):
+        try:
+            with open(candidate, 'rb') as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if hashlib.md5(data).hexdigest() == want:
+            return data, candidate
+    return None, None
+
+
 def load_patcher():
     import importlib.util
     path = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
@@ -73,12 +90,22 @@ def main(folder):
     tmp = tempfile.mkdtemp(prefix='vo-credit-')
     names = ('v_on.exe', vp.SCRSTFCG, vp.SCRSTFMP, vp.ESCRGAME)
     try:
+        wanted = {'v_on.exe': vp.ORIGINAL_MD5,
+                  vp.SCRSTFCG: vp.SCRSTFCG_MD5,
+                  vp.SCRSTFMP: vp.SCRSTFMP_MD5,
+                  vp.ESCRGAME: vp.ESCRGAME_MD5}
         for name in names:
             src = os.path.join(folder, name)
-            if not os.path.exists(src):
-                print('%s: not found in %s' % (name, folder))
+            data, used = pristine(src, wanted[name])
+            if data is None:
+                print('%s: no unmodified copy in %s' % (name, folder))
+                print('  neither it nor its .bak has the expected MD5')
                 return 1
-            shutil.copy(src, os.path.join(tmp, name))
+            if used != src:
+                print('  read %s, not the patched file beside it'
+                      % os.path.basename(used))
+            with open(os.path.join(tmp, name), 'wb') as fh:
+                fh.write(data)
 
         patcher = vp.Patcher()
         patcher.exe_path = os.path.join(tmp, 'v_on.exe')
@@ -136,8 +163,7 @@ def main(folder):
 
         for name in (vp.SCRSTFCG, vp.SCRSTFMP):
             path = os.path.join(tmp, name)
-            before = hashlib.md5(open(os.path.join(folder, name),
-                                      'rb').read()).hexdigest()
+            before = wanted[name]
             patcher.restore()
             after = hashlib.md5(open(path, 'rb').read()).hexdigest()
             print('%s restores: %s' % (name, 'yes' if before == after
