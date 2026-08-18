@@ -22,7 +22,7 @@ they are built see [asm/](../asm/).
 | **XInput gamepad support** | `0x1c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, `0x096731`, `0x23d1a0`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, `.rdata` caves, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu |
-| **Show the version, and credit the patch in the ending roll** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `0x223198`, `0x1c4`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the patcher's version in the corner of the title screen, through the game's own tile font |
+| **Show the version, and credit the patch in the ending roll** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `0x223198`, `0x1c4`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
 | **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23d1c4`, `0x1c58e7`, `0x1f74e0`, `0x1c4` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
 
 Bold entries are not part of original VO_Patch.
@@ -283,31 +283,23 @@ into it would climb the screen. It goes on the frame about to be shown, so
 the hook is the call five bytes before the surface flip at `0x5c650d`, with
 the primary-surface global pointed at the back buffer across the call.
 
-**Version on the title screen.** Not GDI, unlike the overlay above it. The
-game's own tile font, the one the menu items on that screen are set in:
-`0x4cd8c3` sets the cursor to a cell and `0x4ceeeb` prints through it, which
-is what `0x44b757` does with the table at `0x6537c0`. `0x5c991c` was tried
-first and is wrong here - it takes an index into the two fonts the game
-builds at `0x5c8cd7`, `century` and `modern` bold at 24px, so there is no
-third face and no smaller size, and neither of the two belongs on a title
-screen.
+**Version on the title screen.** Not GDI, unlike the overlay above it, but
+the game's own tile font: `0x4cd8c3` sets the cursor to a cell and `0x4ceeeb`
+prints through it, as `0x44b757` does for the menu items on the same screen.
+`0x5c991c` takes an index into the two fonts built at `0x5c8cd7`, `century`
+and `modern` bold at 24px, so it offers no third face and no smaller size.
 
 The hook is the load at `0x5c6500`, four along from the overlay's site and
-still ahead of the flip, so the two can be applied independently.
+still ahead of the flip, so the two can be applied independently. It is gated
+on machine 1 and its states `0x06`, `0x17` and `0x11` - the logo with the
+banner, the same screen later in the attract loop, and the logo with the
+menu. `0x07` between them is the demo match. `0x66c1ac`, the value the banner
+routine tests, names the loaded asset set rather than the screen.
 
-The gate is machine 1, the attract one, and three of its states: `0x06` and
-`0x17` are the logo with the blinking banner, `0x11` is the logo with the
-menu, and `0x07` between them is the demo match. `0x1ae3594` picks the
-machine through the table at `0x5fe5e0`, `0x1ae3690` is its state, and
-machine 1's table is `0x5fb238`. Those numbers were read off the game with a
-build that printed both globals with the gate removed, which is quicker than
-following the attract loop through the disassembly. `0x66c1ac`, the value the
-banner routine tests, names the loaded asset set rather than the screen.
-
-The string itself is not in the blob - the version comes from the git tag -
-so the patcher writes it into a field of zeros on the end after the rest of
-the patch is applied, which also keeps `EXPECTED_ALL` in `selftest.py` one
-digest rather than one per release.
+The string is not in the blob, since the version comes from the git tag, so
+the patcher writes it into a field of zeros on the end after the rest of the
+patch is applied. That keeps `EXPECTED_ALL` in `selftest.py` one digest
+rather than one per release.
 
 **Prompt text.** Two prompts name a key the pad covers, so they change with
 the gamepad patch and not on their own: the pause screen's and the

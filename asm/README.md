@@ -234,22 +234,18 @@ above, so they appear twice. The last row is shared: `camskip.asm` ships with
 the gamepad patch and `nameentry.asm` with the ending screens, so either can
 be present without the other.
 
-The ending screens use two more runs of zeros in `.rdata`, on the same terms:
+The ending screens and the credit use three more runs of zeros in `.rdata`,
+on the same terms:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
 | credits skip | `0x23cad0`-`0x23cb6c` | 156 | 99 | 57 |
 | HOLD TO SKIP overlay | `0x1f74e0`-`0x1f7588` | 168 | 142 | 26 |
-
-The credit uses one more:
-
-| Cave | File range | Size | Used | Free |
-| --- | --- | --- | --- | --- |
 | title screen version | `0x223198`-`0x223240` | 168 | 85 | 83 |
 
-The two 168-byte caves are the pair the three checks below warn about, and
-they are the last of that size. Picking a new one means finding a run of
-zeros and proving it is free, which takes those three checks.
+The last two are the pair the three checks below warn about, and the last
+runs of that size. Picking a new cave means finding a run of zeros and
+proving it is free, which takes those three checks.
 
 Addresses below are virtual; the tables above are file offsets. The two
 differ by `0x400c00`.
@@ -270,9 +266,10 @@ is fifteen bytes rather than sixty-five.
 longer than it is, so check what the bytes after it belong to.
 
 `0x1f74e0` and `0x223198` scan as free 174-byte runs and are neither free nor
-174 bytes; both are in use now, at the 168 they really hold. `0x623d08` is a table of twenty-byte entries the code at
-`0x5be302` walks, and each run ends inside a `qword` the FPU loads: both
-`0x5f8188` and `0x623e40` hold `480.0`, which is `00 00 00 00 00 00 7e 40`.
+174 bytes; both are in use now, at the 168 they really hold. `0x623d08` is a
+table of twenty-byte entries the code at `0x5be302` walks, and each run ends
+inside a `qword` the FPU loads: both `0x5f8188` and `0x623e40` hold `480.0`,
+which is `00 00 00 00 00 00 7e 40`.
 Six leading zero bytes, so the scan overshoots by six.
 
 **Its start is a multiple of four.** Every address in this image is below
@@ -672,56 +669,42 @@ running, which is the only place this looks at it.
 
 ## titlever.asm, what it does
 
-Draws `vo_patch <version>` in the bottom right of the title screen.
+Prints `vo_patch <version>` in the bottom right of the title screen.
 
-In the game's own tile font, the one the menu items on the same screen are
-set in: `0x4cd8c3` puts the cursor at a cell, `0x4ceeeb` prints through it,
-and `0x44b757` does exactly that with the table at `0x6537c0`. The map is 81
-cells wide and the copyright line is 59 of them from column 1 at row 44,
-which is what the column and row here were measured against.
+The game's own tile font, the one the menu items on that screen are set in:
+`0x4cd8c3` puts the cursor at a cell and `0x4ceeeb` prints through it, the
+pair `0x44b757` uses with the table at `0x6537c0`. The map is 81 cells wide;
+the copyright line is 59 of them from column 1 at row 44, which is what the
+column and row here are measured against. `0x4ceeeb` picks the glyph set out
+of the four at `0x600ec8` by scanning the string for lower case, so this one
+can be mixed case, and that set is half width - one cell a character where
+the menu items take two.
 
-GDI is the obvious way and the wrong one on this screen. `0x5c991c`, which
-the pause text and `HOLD TO SKIP` go through, takes an index into a pair of
-fonts the game builds at `0x5c8cd7` - `century` and `modern` bold, 24px at
-full resolution - rather than a handle, so those two are the only choices and
-neither is small or in keeping. Building a font here and swapping the game's
-handle across the call comes to more than this cave holds. The
-tile font costs less code than either, because none of the surface juggling
-GDI needs applies: no back-buffer swap, no halving for low resolution.
+Not GDI. `0x5c991c` takes an index into the two fonts the game builds at
+`0x5c8cd7`, `century` and `modern` bold at 24px, rather than a handle, so
+there is no third face and no smaller size.
 
-`0x4ceeeb` picks the glyph set itself. It scans the string for lower case and
-takes the set that has it, which is why this one can be mixed case; the four
-sets are at `0x600ec8`, eight bytes a glyph. That set is half width, so a
-character is one cell where the menu items take two.
-
-The gate is machine 1, the attract one, and three of its states. `0x1ae3594`
-picks the machine through the table at `0x5fe5e0` and `0x1ae3690` is its
-state; machine 1's dispatcher is `0x44b38c` and its table is `0x5fb238`.
+The gate is machine 1, whose dispatcher is `0x44b38c` and whose table is
+`0x5fb238`. `0x1ae3594` picks the machine through `0x5fe5e0` and `0x1ae3690`
+is its state.
 
 | State | Handler | Screen |
 | --- | --- | --- |
 | `0x06` | `0x545dfa` | the logo with the blinking banner |
-| `0x17` | `0x44b89d` | the same screen later in the loop - it calls `0x545dfa` |
+| `0x17` | `0x44b89d` | the same screen later in the loop; it calls `0x545dfa` |
 | `0x11` | `0x44b5bc` | the logo with the menu |
-| `0x07` | `0x54618b` | the demo match, and the reason this is three tests and not a range |
+| `0x07` | `0x54618b` | the demo match, which is why this is three tests and not a range |
 
-Read off the game rather than worked out: the states either side of the ones
-that matter are the demo and the credit roll, and nothing in the disassembly
-distinguishes the title states from them without following the whole attract
-loop. A build that printed `0x1ae3594` and `0x1ae3690` on screen with the
-gate taken off named all four in one pass. `0x66c1ac`, which the banner
-routine tests, is the asset set that is loaded rather than the screen, and is
-the wrong thing to gate on.
+Those four were read off the game, from a build that printed both globals
+with the gate removed. `0x66c1ac`, which the banner routine tests, is the
+asset set that is loaded rather than the screen.
 
 The hook is the load at `0x5c6500`, four instructions past the call
 `overlay.asm` took and still ahead of the flip at `0x5c650d`, so the two
-patches share no bytes and either can be applied without the other. Nothing
-here needs that point in the frame - the tiles are read on the next one - but
-it is a five-byte site on a path that runs every frame. The displaced load is
-repeated before the `ret`.
+patches share no bytes and either can be applied without the other. The
+displaced load is repeated before the `ret`.
 
-The version string is not in the blob. The blob carries zeros where it goes
-and `stamp_version` writes it in after the patch table has been applied,
-because the version comes from the git tag and these bytes are built from
-source. Keeping it out of the table is also what leaves `EXPECTED_ALL` in
-`selftest.py` one digest rather than one per release.
+The version string is not in the blob: the blob carries zeros where it goes
+and `stamp_version` writes it after the patch table has been applied. That is
+what leaves `EXPECTED_ALL` in `selftest.py` one digest rather than one per
+release.

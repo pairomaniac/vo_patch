@@ -165,9 +165,8 @@ line on the title screen all read it from there. So there is nothing in a file
 to bump.
 
 The title-screen line is the one thing the patcher writes that is not the same
-for everyone. It is written after the patch table has been applied rather than
-from it, so `EXPECTED_ALL` in `selftest.py` stays one digest and does not have
-to be re-blessed every release.
+for everyone, so it is written after the patch table rather than from it and
+`EXPECTED_ALL` in `selftest.py` stays one digest.
 
 ```bash
 git pull
