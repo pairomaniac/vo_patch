@@ -160,8 +160,14 @@ that, and read [net/README.md](../net/README.md) first.
 
 The version comes from the tag and nowhere else. `VERSION = 'dev'` stays as it
 is in the source; the workflow rewrites that line during the build, and the
-spec, the exe name, the file properties, the window title and `--version` all
-read it from there. So there is nothing in a file to bump.
+spec, the exe name, the file properties, the window title, `--version` and the
+line on the title screen all read it from there. So there is nothing in a file
+to bump.
+
+The title-screen line is the one thing the patcher writes that is not the same
+for everyone. It is written after the patch table has been applied rather than
+from it, so `EXPECTED_ALL` in `selftest.py` stays one digest and does not have
+to be re-blessed every release.
 
 ```bash
 git pull
@@ -230,10 +236,11 @@ reordered; put it back.
 **`offsets` reports mismatches** - an offset is wrong for the real file.
 Nothing has been written to anyone's game. Fix the table.
 
-**The credit line is skipped at apply time** - one of the two roll files is
+**The credit is skipped at apply time** - one of the two roll files is
 missing or is not the one the patch was built against. Both are checked
 before the executable is written, so the run goes ahead without it rather
-than leaving a block list the map cannot satisfy.
+than leaving a block list the map cannot satisfy. The title-screen version
+goes with it: it needs no files of its own, but it is the same tick box.
 
 **`credit` fails** - the ending roll does not read back as written. The line
 is spread over the block list in the executable, the cells in `scrstfmp.bin`

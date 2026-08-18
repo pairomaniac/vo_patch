@@ -96,9 +96,13 @@ side of the fighting:
     Both are 1P's, so 2P still enters initials with **RT**.
 
 **ABOUT**, the last section, holds the version, a link back here, and
-**Credit the patch in the ending roll** - two lines under the title at the
-top of the credits, on by default. It rewrites `scrstfcg.bin` and
-`scrstfmp.bin`, backing both up; **Restore original** puts them back.
+**Show the version, and credit the patch in the ending roll** - the version
+of the patcher in the bottom right of the title screen, and two lines under
+the title at the top of the ending credits. Both in the game's own lettering,
+on by default. The credit lines rewrite `scrstfcg.bin` and `scrstfmp.bin`,
+backing both up; **Restore original** puts them back. If either file is
+missing the whole box is skipped, version included, and everything else still
+applies.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
