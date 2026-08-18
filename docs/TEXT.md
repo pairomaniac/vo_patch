@@ -36,6 +36,10 @@ the weapon names.
 
 ## The ending roll
 
+Two sequences draw it - `0x4489d6` for the roll a finished game reaches and
+`0x58ecd0` for the one the **Credits** button jumps to - and both read the
+same three files, so an edit lands in either.
+
 Not text at all. `scrstfcg.bin` is 1129 tiles, 8x8 and 16bpp, holding two
 values only - `0x0000` and `0xffbf` - because the whole roll is pre-rendered
 white lettering chopped into cells. `scrstfmp.bin` gives one 16-bit index per

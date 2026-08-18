@@ -74,9 +74,9 @@ def place(flag, width):
     """The column the renderer starts this block at.
 
     Two rules, chosen by the flag at 0x448e5c: below zero centres the block
-    on the 51 cells, 0x63 pushes it flush right. Getting this wrong puts a
-    block five cells off and still reads back perfectly, so it is worth
-    modelling rather than assuming."""
+    on the 51 cells, 0x63 pushes it flush right. The difference is five
+    cells for a 42-cell block, and it does not show in the cells themselves,
+    so it has to be modelled rather than assumed."""
     if flag & 0x80000000:
         return (0x33 - width) >> 1
     if flag == 0x63:
@@ -131,12 +131,9 @@ def main(folder):
 
         exe = open(os.path.join(tmp, 'v_on.exe'), 'rb').read()
 
-        # Read the files the way the game does: to the byte counts in the
-        # executable, not to their real size. The loader takes both from
-        # constants at 0x5fdac8/0x5fdacc, so a grown file loads truncated
-        # unless the patch also grows the constants. v0.8.6's credit patch
-        # missed that: the new tiles sat past the old count and never
-        # loaded, and the walk ran 204 cells off the end of the map.
+        # Read the files the way the game does: to the byte counts held at
+        # 0x5fdac8 and 0x5fdacc, not to their size on disk. A grown file
+        # loads truncated unless the patch grows the constant with it.
         cg_size = struct.unpack_from('<I', exe, 0x1fcec8)[0]
         mp_size = struct.unpack_from('<I', exe, 0x1fcecc)[0]
         sheet = open(os.path.join(tmp, vp.SCRSTFCG), 'rb').read()
@@ -149,12 +146,10 @@ def main(folder):
         raw = raw[:mp_size]
         cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
 
-        # The site's patched bytes are committed, not generated at patch
-        # time, so check they are still what credit_table() produces from the
-        # original. Regenerating the blobs without regenerating this is an
-        # easy miss and shows up as a block of the wrong size.
-        # The site starts one entry in, at the first spacer, so put the
-        # title block back on the front before rebuilding.
+        # The site's patched bytes are committed rather than built at patch
+        # time, so check they still match what credit_table() produces. It
+        # starts one entry in, at the first spacer, so put the title block
+        # back on the front first.
         site = [s for s in vp.BY_KEY['credits'][2] if len(s[1]) > 64][0]
         title = struct.pack('<3I', 0xffffffff, 42, 3)
         rebuilt = vp.credit_table(title + bytes.fromhex(site[1]))
@@ -180,8 +175,8 @@ def main(folder):
                     return 1
                 got = got_pixels(cells[at:at + width * height], sheet,
                                  width, vp)
-                # Screen column the text ends at, so a block placed by the
-                # wrong rule cannot pass by matching its own bitmap.
+                # Screen column the text ends at: a block placed by the
+                # wrong rule still matches its own bitmap.
                 ends = place(_flag, width) * 8 + max(x for x, _y in got) + 1
                 if ends != vp.CREDIT_RIGHT:
                     print('block %d ends at pixel %d, the title at %d'

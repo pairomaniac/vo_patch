@@ -189,11 +189,9 @@ def small_face(folder):
 # 11 - which is why U is a narrow letter and not a round one, and why it is
 # B's width rather than O's. Edges step a column every three rows.
 #
-# Two places where a straight reduction reads wrong at 1px and the drawing
-# departs from it: the A's apex is two pixels for one row, because the
-# original's three rows of it turn into a blob at this weight, and the V
-# closes to a single pixel, because the original's strokes are three wide
-# and nearly touch where 1px strokes a pixel apart just look broken.
+# Two deliberate departures, because the original's proportions assume a 2px
+# stroke: the A's apex is two pixels for one row rather than three, and the V
+# closes to a single pixel where the original's strokes stop one apart.
 SMALL_DRAWN = {
     'A': ["...##...", "..#..#..", "..#..#..", "..#..#..", ".#....#.",
           ".#....#.", ".#....#.", ".######.", "#......#", "#......#",

@@ -245,8 +245,10 @@ button reaches is sub-state `0x20` of the title machine `0x1ae3690`, whose
 handler at `0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the
 ending cutscene and the mission complete screen, 2 is the roll, and anything
 else falls through to a tail that stops the music and moves on. The one a
-finished game reaches is state 32 of the main-game machine `0x1ef9eb0`, drawn
-by `0x44a523`, which runs the same roll through `0x4489d6` in its phase 2.
+finished game reaches is state 32 of the main-game machine `0x1ef9eb0`, whose
+draw table is `0x606fa0`; entry 32 is `0x44a523`, a phase machine on
+`0xbf073c` that runs the roll through `0x4489d6` in its phase 2. The title
+machine's logic table is `0x5ff1c0`.
 
 Both read the same block list and the same map, so the credit line lands in
 either; only the scenery behind them differs. Skipping is one write,
