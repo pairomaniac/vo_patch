@@ -40,7 +40,9 @@ Not text at all. `scrstfcg.bin` is 1129 tiles, 8x8 and 16bpp, holding two
 values only - `0x0000` and `0xffbf` - because the whole roll is pre-rendered
 white lettering chopped into cells. `scrstfmp.bin` gives one 16-bit index per
 cell, bit 15 set where a cell has a tile, and the loader adds the tile base
-to every non-zero entry at `0x483d9d`.
+to every non-zero entry at `0x483d9d`. It reads both files to hardcoded byte
+counts at `0x5fdac8` and `0x5fdacc`, not to their size on disk - grow a file
+without growing its constant and the tail silently never loads.
 
 The layout is not a grid. `0x6bcd48` in the executable holds 12 bytes per
 block - flag, width, height, in cells - and the map is those blocks end to

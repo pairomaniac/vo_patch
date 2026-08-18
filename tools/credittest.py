@@ -116,8 +116,23 @@ def main(folder):
             return 1
 
         exe = open(os.path.join(tmp, 'v_on.exe'), 'rb').read()
+
+        # Read the files the way the game does: to the byte counts in the
+        # executable, not to their real size. The loader takes both from
+        # constants at 0x5fdac8/0x5fdacc, so a grown file loads truncated
+        # unless the patch also grows the constants. v0.8.6's credit patch
+        # missed that: the new tiles sat past the old count and never
+        # loaded, and the walk ran 204 cells off the end of the map.
+        cg_size = struct.unpack_from('<I', exe, 0x1fcec8)[0]
+        mp_size = struct.unpack_from('<I', exe, 0x1fcecc)[0]
         sheet = open(os.path.join(tmp, vp.SCRSTFCG), 'rb').read()
         raw = open(os.path.join(tmp, vp.SCRSTFMP), 'rb').read()
+        if (cg_size, mp_size) != (len(sheet), len(raw)):
+            print('loader constants say %d+%d bytes, files are %d+%d'
+                  % (cg_size, mp_size, len(sheet), len(raw)))
+            return 1
+        sheet = sheet[:cg_size]
+        raw = raw[:mp_size]
         cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
 
         table = blocks(exe, vp)
