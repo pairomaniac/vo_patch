@@ -30,9 +30,11 @@ import sys
 LINES = (('Patch by pairo', 42, 3, 24),
          ('GITHUB.COM/PAIROMANIAC/VO_PATCH', 42, 2, 11))
 
-# The renderer centres a block of w cells at (51 - w) >> 1, so the title's 42
-# cells end at column 46 - pixel 368. Every line is right-aligned to that.
-RIGHT_EDGE = 46 * 8
+# The renderer centres a block of w cells at (51 - w) >> 1. Lines are
+# right-aligned on where the title's lettering actually ends, which is not
+# where its block ends - VIRTUAL-ON stops a couple of pixels short of the
+# 42nd cell, and aligning to the cell instead leaves everything below it
+# hanging over the edge. title_edge() measures it.
 USABLE = 51
 
 # The small face: the band the title draws its 11px capitals in, and where
@@ -129,6 +131,17 @@ def harvest(folder):
             glyphs.setdefault(ch, []).append(
                 frozenset((x - x0, y) for x, y in lit if x0 <= x < x1))
     return glyphs
+
+
+def title_edge(folder):
+    """The screen pixel the title's lettering ends at."""
+    exe = open(os.path.join(folder, 'v_on.exe'), 'rb').read()
+    sheet = open(os.path.join(folder, 'scrstfcg.bin'), 'rb').read()
+    raw = open(os.path.join(folder, 'scrstfmp.bin'), 'rb').read()
+    cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
+    w, h = read_blocks(exe)[0]
+    lit = block_pixels(cells[:w * h], sheet, w, h)
+    return ((USABLE - w) >> 1) * 8 + max(x for x, _y in lit) + 1
 
 
 def small_face(folder):
@@ -259,6 +272,8 @@ def main(folder, write):
     print('harvested %d characters from the roll' % len(found))
 
     small = small_glyphs(folder)
+    right = title_edge(folder)
+    print('title lettering ends at pixel %d' % right)
     blobs = []
     for n, (text, cells_w, gap, size) in enumerate(LINES, 1):
         face = glyphs if size == HEIGHT else small
@@ -272,7 +287,7 @@ def main(folder, write):
         # Where the renderer will put this block, and how far into it the
         # text has to start so it ends on the title's right edge.
         x0 = ((USABLE - cells_w) >> 1) * 8
-        pad = (RIGHT_EDGE - x0) - px
+        pad = (right - x0) - px
         if pad < 0:
             print('%r is %dpx, %dpx too wide for its %d cells'
                   % (text, px, -pad, cells_w))
