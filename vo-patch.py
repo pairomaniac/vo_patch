@@ -365,8 +365,11 @@ _check_titlever()
 
 
 def version_text():
-    """What the title screen shows, truncated to the field it goes in."""
-    return ('vo_patch v%s' % VERSION)[:TITLEVER_LEN - 1]
+    """What the title screen shows, truncated to the field it goes in.
+
+    No v in front of the number: a tag build reads 0.8.7 but a commit build
+    reads a short SHA, and "vo_patch v1a2b3c4" is nonsense."""
+    return ('vo_patch %s' % VERSION)[:TITLEVER_LEN - 1]
 
 
 def stamp_version(buf):

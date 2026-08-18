@@ -672,7 +672,7 @@ running, which is the only place this looks at it.
 
 ## titlever.asm, what it does
 
-Draws `vo_patch v<version>` in the bottom right of the title screen.
+Draws `vo_patch <version>` in the bottom right of the title screen.
 
 In the game's own tile font, the one the menu items on the same screen are
 set in: `0x4cd8c3` puts the cursor at a cell, `0x4ceeeb` prints through it,
