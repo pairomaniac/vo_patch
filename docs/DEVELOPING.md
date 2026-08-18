@@ -84,6 +84,7 @@ inside one will do.
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
+| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte |
 | `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, 350-odd combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
 
@@ -196,6 +197,12 @@ reordered; put it back.
 
 **`offsets` reports mismatches** - an offset is wrong for the real file.
 Nothing has been written to anyone's game. Fix the table.
+
+**`credit` fails** - the ending roll does not read back as written. The line
+is spread over the block list in the executable, the cells in `scrstfmp.bin`
+and the tiles in `scrstfcg.bin`, and all three have to agree. A block list
+naming cells the map does not have sends the renderer off the end of it, so
+the patcher checks both files before it writes either half.
 
 **`offsets` reports OVERRUN** - a blob has outgrown its cave and is writing
 onto something the game reads. The run of zeros carried on past the end of

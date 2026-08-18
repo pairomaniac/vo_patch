@@ -37,6 +37,7 @@ import urllib.error
 # source checkout has no version of its own, and saying so is more use in a
 # bug report than a number nobody bumped.
 VERSION = 'dev'
+REPO_URL = 'https://github.com/pairomaniac/vo_patch'
 
 EXE_SIZE = 6650880
 
@@ -372,6 +373,92 @@ BANNER_BITS = bytes.fromhex(
     '0000000000000000000000000000000000000000000000000000000000000000'
     '00000000000000000000000000000000'
 )
+# CREDITLINE BLOB BEGIN - tools/vocredits.py
+CREDIT1_W = 20
+CREDIT1_BITS = bytes.fromhex(
+    'ffc000000000180003000000000000000c000000ffe000018000180003000000'
+    '000000000c000000c070000180001800030000000000000000000000c0300001'
+    '80001800030000000000000000000000c0303e07e07c19e0033c0c0600cf007c'
+    '0c6607c0c0307f07e0fe1bf003fe0c0600df80fe0c7e0fe0c030e38181c71e38'
+    '03c7060c00f1c1c70c701c70c060c18181831c180383860c00e0e1830c701830'
+    'ffe00181830018180301860c00c060030c603018ffc01f818300181803018318'
+    '00c0603f0c603018c000ff81830018180301831800c061ff0c603018c001e181'
+    '830018180301831800c063c30c603018c001818183031818030181b000c06303'
+    '0c603018c001818183871818038301b000e0c3030c601830c001c78181861818'
+    '03c701b000f1c38f0c601c70c000fdc1e0fe181803fe00e000ff81fb8c600fe0'
+    'c00078c0e0781818033c00e000cf00f18c6007c00000000000000000000000c0'
+    '00c00000000000000000000000000000000000c000c000000000000000000000'
+    '000000000000018000c0000000000000000000000000000000000f8000c00000'
+    '00000000000000000000000000000f0000c00000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+)
+
+CREDIT2_W = 48
+CREDIT2_BITS = bytes.fromhex(
+    '0003000c00000300000000000000000300000001800000000000000000600000'
+    '0000c0000000000000000000000060000003060c000003000000000000000003'
+    '000000018000000000000000006000000000c000000000000000000600006000'
+    '0000060c00000300000000000000000300000000000000000000000000000000'
+    '0000c0000000000000000006000060000000060c000003000000000000000006'
+    '0000000000000000000000000000000000018000000000000000000600006000'
+    '1e631f8cf060633c000f807c0ce3c00619e00f818cc0f819c7807c0cf0607c01'
+    'f001860303e000019e00f81f81f067803fe31f8df86063fe001fc0fe0df7e006'
+    '1bf01fc18fc1fc1befc0fe0df860fe03f801830607f00001bf01fc1f83f86fc0'
+    '71e3060f1c6063c70038e1c70e3c700c1e3838e18e038e1c78e1c70f1c61c707'
+    '1c0303060e380001e3838e06071c78e060e3060e0c606383803061830e18300c'
+    '1c1c30618e03061c3061830e0c6183060c0303060c180001c1c30606060c7060'
+    'c063060c0c606301806003018c183018180c00618c0603183060030c0c60030c'
+    '0006018c180c000180c006060c006060c063060c0c606301806003018c183018'
+    '180c07e18c06031830603f0c0c603f0c0006018c180c000180c07e060c006060'
+    'c063060c0c606301806003018c183018180c3fe18c0603183061ff0c0c61ff0c'
+    '0006018c180c000180c3fe060c006060c063060c0c606301806003018c183030'
+    '180c78618c0603183063c30c0c63c30c000c01dc180c000180c786060c006060'
+    'c063060c0c606301806063018c183030180c60618c0603183063030c0c63030c'
+    '0c0c00d8180c000180c606060c0c6060e0e3060c0c60e3830070e1830c183030'
+    '1c1860618c0306183063030c0c63030e1c0c00d80c180001c18606060e1c6060'
+    '71e3060c0c71e3c70030c1c70c1830601e3871e18c038e1830638f0c0c638f06'
+    '181800d80e380001e3871e06061860607fe3078c0c3f63fe0c1fc0fe0c183060'
+    '1ff03f718c01fc183061fb8c0c61fb83f818007007f00001ff03f70783f86060'
+    '1e63038c0c1e633c0c0f007c0c1830c019e01e318c00f8183060f18c0c60f181'
+    'e030007003e000019e01e30381e0606000600000000000000000000000000000'
+    '1800000000000000000000000000000000000000000000018000000000000000'
+    '00e0000000000000000000000000000018000000000000000000000000000000'
+    '00000000000000018000000000000000c1c00000000000000000000000000000'
+    '1800000000000000000000000000000000000000000000018000000000000000'
+    '7f80000000000000000000000000000018000000000000000000000000000000'
+    '0000000000007ff180000000000000003f000000000000000000000000000000'
+    '180000000000000000000000000000000000000000007ff18000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+    '0000000000000000000000000000000000000000000000000000000000000000'
+)
+# CREDITLINE BLOB END
+
+# Two lines added to the ending roll, in the game's own letterforms: every
+# glyph but the slash and the underscore was cut out of the existing artwork
+# by tools/vocredits.py. Three cells tall, like every text block in the roll.
+CREDIT_H = 3
+CREDITS = ((CREDIT1_W, CREDIT1_BITS), (CREDIT2_W, CREDIT2_BITS))
+
+# The roll is a list of blocks, not a grid: 12 bytes each, (flag, width in
+# cells, height in cells), width 0 being a blank spacer. The renderer centres
+# each one on 51 cells and reveals it eight ticks per row.
+CREDIT_TABLE = 0x006bcd48       # v_on.exe, the block list
+CREDIT_AFTER = 1                # insert here, just past the title block
+CREDIT_FLAG = 0x63              # what the roll's own text blocks carry
+CREDIT_GAP = 1                  # blank rows between the two new lines
+# Where the new cells go in the map. The title block is 42x3, so the two new
+# blocks start right after its 126 cells.
+CREDIT_CELLS_AT = 126
+
+SCRSTFCG = 'scrstfcg.bin'       # the tile sheet: 1129 tiles, 8x8, 16bpp
+SCRSTFCG_SIZE = 144512
+SCRSTFCG_MD5 = '1141876c33fe75fe6aaaf5780ae730d8'
+SCRSTFMP = 'scrstfmp.bin'       # one 16-bit tile index per cell
+SCRSTFMP_SIZE = 9288
+SCRSTFMP_MD5 = '4cb38735719c986f7a303e8215466220'
+CREDIT_INK = 0xffbf             # the only non-zero value in the sheet
+
 BANNER_W, BANNER_H = 42, 3      # cells
 BANNER_TABLE = 0x00269b60       # v_on.exe, the tile index for each cell
 BANNER_TILE_OFF = 0x21c000      # escrgame.bin, first tile slot
@@ -413,6 +500,56 @@ def banner_tiles():
     table = [t if t < BANNER_TILE_MAX else spill + t - BANNER_TILE_MAX
              for t in table]
     return tiles, table
+
+
+def credit_tiles():
+    """Expand both lines into 8x8 tiles and the cell index for each.
+
+    Deduplicated across both lines, and blank cells cost no tile at all -
+    the map stores 0 for those and the renderer skips them, which is why a
+    line of text needs far fewer tiles than it has cells.
+
+    The tiles go on the end of scrstfcg.bin, so their indices carry on from
+    the 1129 already there. Bit 15 is set on every non-zero entry because
+    the loader tests the whole word for zero before rebasing it."""
+    tiles, cells = [], []
+    for width, bits in CREDITS:
+        for r in range(CREDIT_H):
+            for c in range(width):
+                raw = bytearray()
+                for y in range(8):
+                    base = (r * 8 + y) * width
+                    for x in range(c * 8, c * 8 + 8):
+                        on = bits[base + (x >> 3)] >> (7 - (x & 7)) & 1
+                        raw += (CREDIT_INK if on else 0).to_bytes(2, 'little')
+                raw = bytes(raw)
+                if not any(raw):
+                    cells.append(0)         # blank: no tile, no index
+                    continue
+                if raw not in tiles:
+                    tiles.append(raw)
+                cells.append(0x8000 | (SCRSTFCG_SIZE // 128 + tiles.index(raw)))
+    return tiles, cells
+
+
+CREDIT_NEW_TILES, CREDIT_CELLS = credit_tiles()
+
+
+def credit_table(original):
+    """The block list with the two new lines spliced in after the title.
+
+    Everything from the insertion point shifts down four entries. The four
+    that fall off the end were blank spacers and the entries past them are
+    blank spacers too, so nothing is lost."""
+    entry = struct.Struct('<3I')
+    rows = [entry.unpack_from(original, i * 12)
+            for i in range(len(original) // 12)]
+    added = [(CREDIT_FLAG, CREDITS[0][0], CREDIT_H),
+             (0, 0, CREDIT_GAP),
+             (CREDIT_FLAG, CREDITS[1][0], CREDIT_H),
+             (0, 0, CREDIT_GAP)]
+    rows = rows[:CREDIT_AFTER] + added + rows[CREDIT_AFTER:]
+    return b''.join(entry.pack(*r) for r in rows[:len(original) // 12])
 
 
 BANNER_TILES, BANNER_CELLS = banner_tiles()
@@ -464,6 +601,18 @@ FEATURES = [
          (0x00189552, '88580100', '10b10200'),
          (0x00058189, '01', '02'),
          (0x00170dc9, '01', '02')]),
+
+    ('credits', 'Credit the patch in the ending roll',
+     'Two lines under the CYBER TROOPERS VIRTUAL-ON title at the top of\n'
+     'the ending credits, in the roll\'s own lettering.\n'
+     '\n'
+     'Files\tThe roll is a tile sheet and a list of blocks. Both live\n'
+     '\tbeside the game, so scrstfcg.bin and scrstfmp.bin are\n'
+     '\trewritten and backed up. Restore original puts them back.\n'
+     'If they are missing\tNothing is written, here or in the\n'
+     '\texecutable. The two halves only make sense together.', [
+         (0x2bbb54, '000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000ffffffff1800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001700000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001100000003000000000000000000000003000000630000001e00000003000000000000000000000001000000630000001500000003000000000000000000000001000000630000001c00000003000000000000000000000001000000630000002400000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001800000003000000000000000000000003000000630000002400000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000001f00000003000000000000000000000001000000630000002000000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001a00000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002700000003000000000000000000000003000000630000002100000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001100000003000000000000000000000001000000630000001900000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000b00000003000000000000000000000003000000630000001b00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001600000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000001700000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001600000003000000000000000000000003000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002200000003000000000000000000000003000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002100000003000000000000000000000003000000630000001b00000003000000000000000000000001000000630000001800000003000000000000000000000001000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001200000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000e00000003000000000000000000000003000000630000001600000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000a00000003000000000000000000000003000000630000001c00000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000002100000003000000000000000000000001000000630000001500000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001c00000003000000000000000000000003000000630000002700000003000000000000000000000001000000630000001900000003000000000000000000000001000000630000002f00000003000000000000000000000001000000630000003100000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000003300000003000000000000000000000006000000630000001c00000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000000000004000000040000000500000003000000000000000000000004000000000000000000000004000000000000000000000002000000040000001900000003000000000000000000000001000000630000001500000003000000000000000000000002000000000000000000000002000000000000000000000002000000000000000000000002000000',
+          '630000001400000003000000000000000000000001000000630000003000000003000000000000000000000001000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000ffffffff1800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001700000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001100000003000000000000000000000003000000630000001e00000003000000000000000000000001000000630000001500000003000000000000000000000001000000630000001c00000003000000000000000000000001000000630000002400000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001800000003000000000000000000000003000000630000002400000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000001f00000003000000000000000000000001000000630000002000000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001a00000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002700000003000000000000000000000003000000630000002100000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001100000003000000000000000000000001000000630000001900000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000b00000003000000000000000000000003000000630000001b00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001600000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000001700000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001600000003000000000000000000000003000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002200000003000000000000000000000003000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002100000003000000000000000000000003000000630000001b00000003000000000000000000000001000000630000001800000003000000000000000000000001000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001200000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000e00000003000000000000000000000003000000630000001600000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000a00000003000000000000000000000003000000630000001c00000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000002100000003000000000000000000000001000000630000001500000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001c00000003000000000000000000000003000000630000002700000003000000000000000000000001000000630000001900000003000000000000000000000001000000630000002f00000003000000000000000000000001000000630000003100000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000003300000003000000000000000000000006000000630000001c00000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000000000004000000040000000500000003000000000000000000000004000000000000000000000004000000000000000000000002000000040000001900000003000000000000000000000001000000630000001500000003000000')]),
 
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens either side of the fighting.\n'
@@ -832,12 +981,16 @@ RDATA_EXEC_KEYS = ('padxinput', 'movie')
 # running from the biggest change down to the smallest.
 ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
 EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
+# Its own group so it stays out of the patch list: it fixes nothing and
+# undoes nothing the game does, so it belongs beside the version and the
+# link rather than among the patches. Ticked by default all the same.
+ABOUT = ('credits',)
 
 
 def apply_order():
     """Display order, except that nodisc has to be last: it appends a
     section and chains the entry point, so it must see every other edit."""
-    keys = [k for k in ESSENTIAL + EXTRA if k != 'nodisc']
+    keys = [k for k in ESSENTIAL + EXTRA + ABOUT if k != 'nodisc']
     return keys + ['nodisc']
 
 
@@ -852,7 +1005,7 @@ def _check_table():
     whole and then has its epilogue rewritten - but only where the later site
     expects exactly what the earlier one left there. Anything else means the
     list has been reordered and the patch would fail against a real file."""
-    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA):
+    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA) | set(ABOUT):
         raise AssertionError('patch list and display order disagree')
     if apply_order()[-1] != 'nodisc':
         raise AssertionError('nodisc must be applied last')
@@ -2716,6 +2869,8 @@ class Patcher:
             self._retire_ini(log)
         if 'padxinput' in applied:
             self._write_banner(log)
+        if 'credits' in applied:
+            self._write_credits(log)
         return True, log
 
     def can_restore(self):
@@ -2724,13 +2879,16 @@ class Patcher:
     def restore(self):
         """Put every file this patcher touched back. Returns log lines.
 
-        One rule for all three: copy the .bak over the top and leave the .bak
-        where it is, so restoring twice does the same thing as restoring
-        once. Only v_on.ini keeps what it replaces, as .patched - the pad
-        binds are the player's work, where a patched exe is not."""
+        One rule for all of them: copy the .bak over the top and leave the
+        .bak where it is, so restoring twice does the same thing as
+        restoring once. Only v_on.ini keeps what it replaces, as .patched -
+        the pad binds are the player's work, where a patched exe and
+        generated artwork are not."""
         folder = os.path.dirname(self.exe_path)
         targets = [(self.exe_path, False),
                    (os.path.join(folder, ESCRGAME), False),
+                   (os.path.join(folder, SCRSTFCG), False),
+                   (os.path.join(folder, SCRSTFMP), False),
                    (os.path.join(folder, 'v_on.ini'), True)]
         log = []
         for path, keep_current in targets:
@@ -2842,6 +3000,64 @@ class Patcher:
                            '(MD5 %s, expected %s)'
                            % (ESCRGAME, ESCRGAME, digest, ESCRGAME_MD5))
         return True, ''
+
+    def _credit_assets(self, log):
+        """Read both roll files, or explain why not. None means skip.
+
+        Checked before anything is written, unlike the banner: a table in
+        the executable that names blocks the map has no tiles for would send
+        the renderer off the end of the map, where the banner's worst case
+        is only the old artwork under a new table."""
+        folder = os.path.dirname(self.exe_path)
+        out = []
+        for name, size, want in ((SCRSTFCG, SCRSTFCG_SIZE, SCRSTFCG_MD5),
+                                 (SCRSTFMP, SCRSTFMP_SIZE, SCRSTFMP_MD5)):
+            path = os.path.join(folder, name)
+            try:
+                with open(path, 'rb') as fh:
+                    data = fh.read()
+            except OSError as exc:
+                log.append('Could not read %s: %s' % (name, exc))
+                return None
+            if len(data) != size:
+                log.append('%s is %d bytes, expected %d' % (name, len(data),
+                                                            size))
+                return None
+            if hashlib.md5(data).hexdigest() != want:
+                log.append('%s is not the one this patch was built against'
+                           % name)
+                return None
+            out.append((path, bytearray(data)))
+        return out
+
+    def _write_credits(self, log):
+        """Append the new tiles and splice the new cells into the map.
+
+        Both files grow. They load to a fixed address with everything before
+        them, so the room for that is finite - 580424 bytes are used of the
+        594072 before .idata, and this adds 16920."""
+        found = self._credit_assets(log)
+        if found is None:
+            log.append('Credit line skipped - the executable is unchanged')
+            return False
+        (cg_path, cg), (mp_path, mp) = found
+        for path in (cg_path, mp_path):
+            if not self._backup(path, log):
+                log.append('Credit line skipped')
+                return False
+        cg += b''.join(CREDIT_NEW_TILES)
+        at = CREDIT_CELLS_AT * 2
+        mp[at:at] = b''.join(c.to_bytes(2, 'little') for c in CREDIT_CELLS)
+        for path, data in ((cg_path, cg), (mp_path, mp)):
+            try:
+                with open(path, 'wb') as fh:
+                    fh.write(data)
+            except OSError as exc:
+                log.append('Could not write %s: %s'
+                           % (os.path.basename(path), exc))
+                return False
+            log.append('Wrote %s' % os.path.basename(path))
+        return True
 
     def _write_banner(self, log):
         """The tile indices went into the executable; the tiles themselves
@@ -2986,6 +3202,10 @@ EXTRA_HINT = 'Optional. Untick what you do not want.'
 # the button's own measured width, so it survives a longer label or a
 # different font.
 BTN_CLEARANCE = 28
+
+ABOUT_HINT = ('The patcher itself. The tick box adds two lines to the '
+              'ending credits naming this patch; it is not a fix and '
+              'nothing else depends on it.')
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -3313,6 +3533,9 @@ def run_tk():
             self._section(body, 'ADD-ONS', self._addons_body, expanded=False)
             self._section(body, 'CD MUSIC', self._music_body, expanded=False)
             self._section(body, 'LOG', self._log_body, expanded=False)
+            # Last and closed: the version and the link are reference, and
+            # the one tick box in it is not a fix to anything.
+            self._section(body, 'ABOUT', self._about_body, expanded=False)
             self._log(INTRO)
 
             # Width is settled here rather than on the canvas's first
@@ -3431,6 +3654,10 @@ def run_tk():
             style.configure('Body.TFrame', background=p['card'])
             style.configure('Card.TLabel', background=p['card'],
                             foreground=p['text'])
+            style.configure('Dim.TLabel', background=p['card'],
+                            foreground=p['dim'])
+            style.configure('Link.TLabel', background=p['card'],
+                            foreground=p['cyan'])
             style.configure('Head.TFrame', background=p['head'])
             style.configure('Head.TLabel', background=p['head'],
                             foreground=p['cyan'])
@@ -3963,7 +4190,8 @@ def run_tk():
             self.root.after(100, self._drain_ddraw)
 
         def _patch_body(self, parent, keys, hint):
-            _hint(parent, hint, self.dim, self.small, pady=(0, 8))
+            if hint:
+                _hint(parent, hint, self.dim, self.small, pady=(0, 8))
             state = default_state()
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
@@ -3981,6 +4209,18 @@ def run_tk():
                                                      padx=(6, 2))
                 self.vars[key], self.checks[key] = var, check
 
+
+        def _about_body(self, parent):
+            _hint(parent, ABOUT_HINT, self.dim, self.small, pady=(0, 8))
+            row = ttk.Frame(parent, style='Card.TFrame')
+            row.pack(fill='x', pady=(0, 6))
+            ttk.Label(row, text='Version %s' % VERSION, style='Dim.TLabel',
+                      font=self.small).pack(side='left')
+            link = ttk.Label(parent, text=REPO_URL, style='Link.TLabel',
+                             font=self.small, cursor='hand2')
+            link.pack(anchor='w', pady=(0, 10))
+            link.bind('<Button-1>', lambda _e: webbrowser.open(REPO_URL))
+            self._patch_body(parent, ABOUT, None)
 
         def _log_body(self, parent):
             wrap = self.log_wrap = tk.Frame(parent, background=PALETTE['line'],

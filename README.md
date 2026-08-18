@@ -95,6 +95,19 @@ side of the fighting:
 
     Both are 1P's, so 2P still enters initials with **RT**.
 
+**ABOUT**, the last section, holds the version, a link back here, and one
+tick box: **Credit the patch in the ending roll**, on by default. It adds two
+lines under the *CYBER TROOPERS VIRTUAL-ON* title at the top of the credits,
+in the roll's own lettering. It is the only patch that is not a fix, which is
+why it sits there rather than in the list, and untick it if you would rather
+the roll stayed as Sega shipped it.
+
+The roll is a tile sheet and a list of blocks, so `scrstfcg.bin` and
+`scrstfmp.bin` are rewritten and backed up alongside the executable.
+**Restore original** puts them back. If either is missing or is not the file
+this was built against, nothing is written - not to them and not to the
+executable, since the two halves only make sense together.
+
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
 beside the game.

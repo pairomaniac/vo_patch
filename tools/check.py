@@ -49,6 +49,7 @@ CHECKS = [
      [PY, '-m', 'pyflakes', 'vo-patch.py', 'asm/build.py', 'asm/layout.py',
       'asm/padtables.py', 'asm/dialogs.py', 'net/build.py',
       'tools/selftest.py', 'tools/bannertest.py', 'tools/vonbanner.py',
+      'tools/credittest.py',
       'tools/check.py'], False, False),
     ('tree', 'no uncommitted generated files',
      ['git', 'diff', '--exit-code', '--stat'], False, True),
@@ -56,6 +57,8 @@ CHECKS = [
      [PY, 'tools/selftest.py', '{exe}'], True, False),
     ('banner', 'the title prompt reads back as written',
      [PY, 'tools/bannertest.py', '{game}'], True, False),
+    ('credit', 'the credit line reads back out of the roll',
+     [PY, 'tools/credittest.py', '{game}'], True, False),
 ]
 
 

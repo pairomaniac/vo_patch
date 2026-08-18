@@ -34,6 +34,26 @@ The tile font table around `0x285df0` also holds `INSERT COIN(S)`,
 `TO BE CONTINUED ...`, `MOVE  FORWARD`, `DASH  BUTTON`, the mech names and
 the weapon names.
 
+## The ending roll
+
+Not text at all. `scrstfcg.bin` is 1129 tiles, 8x8 and 16bpp, holding two
+values only - `0x0000` and `0xffbf` - because the whole roll is pre-rendered
+white lettering chopped into cells. `scrstfmp.bin` gives one 16-bit index per
+cell, bit 15 set where a cell has a tile, and the loader adds the tile base
+to every non-zero entry at `0x483d9d`.
+
+The layout is not a grid. `0x6bcd48` in the executable holds 12 bytes per
+block - flag, width, height, in cells - and the map is those blocks end to
+end. Text blocks are three cells tall; a block of width 0 is a blank spacer.
+`0x448e86` centres each on 51 cells, and `0x44908e` reveals the next one
+every eight ticks per row, so the roll's length is the sum of the heights.
+
+Adding a line means all three: an entry in the block list, its cells in
+`scrstfmp.bin`, and its tiles on the end of `scrstfcg.bin`. `tools/vocredits.py`
+cuts the glyphs out of the existing artwork so a new line matches the rest;
+only the slash and the underscore had to be drawn, since neither appears
+anywhere in the roll.
+
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
 through GDI. `0x4cd8c3(col, row)` sets the tile cursor and `0x4ce573(str)`
 prints through it.

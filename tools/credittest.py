@@ -1,0 +1,156 @@
+"""Does the credit line read back out of the patched files as written?
+
+Same idea as bannertest.py, one layer further in. The line is spread over
+three files - the block list in the executable, the cells in scrstfmp.bin
+and the tiles in scrstfcg.bin - and a mistake in any one of them shows up
+as garbage in the roll rather than as a failure anywhere else.
+
+So this patches a copy, walks the block list the way 0x448d39 does, pulls
+the cells for the two new blocks, expands them back through the tile sheet,
+and compares the pixels against the bitmap the patcher started from.
+
+    python3 tools/credittest.py /path/to/VIRTUAL-ON
+
+CI cannot run it: none of the three files is in the repository.
+"""
+
+import hashlib
+import os
+import shutil
+import struct
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+
+
+def load_patcher():
+    import importlib.util
+    path = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
+    spec = importlib.util.spec_from_file_location('vo_patch', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def blocks(exe, vp):
+    """(flag, width, height) per entry, read the way the renderer does."""
+    off = vp.CREDIT_TABLE - 0x63f000 + 0x23de00
+    return [struct.unpack_from('<3I', exe, off + i * 12) for i in range(200)]
+
+
+def wanted_pixels(vp):
+    """The bitmap the patcher was built from, as a set of lit (x, y)."""
+    out = []
+    for width, bits in vp.CREDITS:
+        lit = set()
+        for y in range(vp.CREDIT_H * 8):
+            for x in range(width * 8):
+                if bits[y * width + (x >> 3)] >> (7 - (x & 7)) & 1:
+                    lit.add((x, y))
+        out.append((width, lit))
+    return out
+
+
+def got_pixels(cells, sheet, width, vp):
+    """Expand one block's cells back into lit (x, y) through the sheet."""
+    lit = set()
+    for i, cell in enumerate(cells):
+        if not cell:
+            continue
+        tile = (cell & 0x7fff) * 128
+        cx, cy = (i % width) * 8, (i // width) * 8
+        for k in range(64):
+            px = struct.unpack_from('<H', sheet, tile + k * 2)[0]
+            if px:
+                lit.add((cx + k % 8, cy + k // 8))
+    return lit
+
+
+def main(folder):
+    vp = load_patcher()
+    tmp = tempfile.mkdtemp(prefix='vo-credit-')
+    names = ('v_on.exe', vp.SCRSTFCG, vp.SCRSTFMP, vp.ESCRGAME)
+    try:
+        for name in names:
+            src = os.path.join(folder, name)
+            if not os.path.exists(src):
+                print('%s: not found in %s' % (name, folder))
+                return 1
+            shutil.copy(src, os.path.join(tmp, name))
+
+        patcher = vp.Patcher()
+        patcher.exe_path = os.path.join(tmp, 'v_on.exe')
+        ok, log = patcher.apply(dict.fromkeys(vp.BY_KEY, True))
+        for line in log:
+            print('  %s' % line)
+        if not ok:
+            return 1
+
+        exe = open(os.path.join(tmp, 'v_on.exe'), 'rb').read()
+        sheet = open(os.path.join(tmp, vp.SCRSTFCG), 'rb').read()
+        raw = open(os.path.join(tmp, vp.SCRSTFMP), 'rb').read()
+        cells = struct.unpack('<%dH' % (len(raw) // 2), raw)
+
+        table = blocks(exe, vp)
+        want = wanted_pixels(vp)
+
+        # Walk to each new block exactly as the renderer accumulates.
+        at, bad = 0, 0
+        for i, (_flag, width, height) in enumerate(table):
+            if i in (vp.CREDIT_AFTER, vp.CREDIT_AFTER + 2):
+                which = 0 if i == vp.CREDIT_AFTER else 1
+                exp_w, exp_lit = want[which]
+                if width != exp_w or height != vp.CREDIT_H:
+                    print('block %d is %dx%d, expected %dx%d'
+                          % (i, width, height, exp_w, vp.CREDIT_H))
+                    return 1
+                got = got_pixels(cells[at:at + width * height], sheet,
+                                 width, vp)
+                if got != exp_lit:
+                    bad += 1
+                    print('block %d: %d pixels differ'
+                          % (i, len(got ^ exp_lit)))
+                else:
+                    print('block %d: %d cells, %d lit pixels, exact'
+                          % (i, width * height, len(got)))
+            at += width * height
+            if at >= len(cells):
+                break
+
+        # Stop where the map runs out, not at the end of the table: the
+        # entries past that are blank spacers the roll never reaches.
+        used = rows = n = 0
+        while used < len(cells):
+            _flag, width, height = table[n]
+            used += width * height
+            rows += height
+            n += 1
+        end = rows * 8 + 0x116
+        print('roll is %d blocks, %d rows, ends at tick %d of %d (%d spare)'
+              % (n, rows, end, 0x10e2, 0x10e2 - end))
+        if end >= 0x10e2:
+            print('the roll now outlasts the sequence that drives it')
+            bad += 1
+
+        for name in (vp.SCRSTFCG, vp.SCRSTFMP):
+            path = os.path.join(tmp, name)
+            before = hashlib.md5(open(os.path.join(folder, name),
+                                      'rb').read()).hexdigest()
+            patcher.restore()
+            after = hashlib.md5(open(path, 'rb').read()).hexdigest()
+            print('%s restores: %s' % (name, 'yes' if before == after
+                                       else 'NO'))
+            if before != after:
+                bad += 1
+        return 1 if bad else 0
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print(__doc__)
+        raise SystemExit(2)
+    raise SystemExit(main(sys.argv[1]))
