@@ -4292,49 +4292,21 @@ def run_tk():
                 self.vars[key], self.checks[key] = var, check
 
 
-        def _credit_preview(self, parent):
-            """The two lines, drawn from the bitmap the patch writes.
-
-            Not a mock-up of them: the same bytes, so if the artwork ever
-            changes this changes with it. Trimmed to the ink, since the
-            bitmaps are mostly the blank cells that right-align the text."""
-            gap = 4
-            rows = []
-            for n, (width, height, bits) in enumerate(CREDITS):
-                if n:
-                    rows += [[0] * (width * 8)] * gap
-                for y in range(height * 8):
-                    rows.append([bits[y * width + (x >> 3)] >> (7 - (x & 7))
-                                 & 1 for x in range(width * 8)])
-            lit = [(x, y) for y, row in enumerate(rows)
-                   for x, on in enumerate(row) if on]
-            if not lit:
-                return
-            x0, x1 = min(x for x, _ in lit), max(x for x, _ in lit)
-            y0, y1 = min(y for _, y in lit), max(y for _, y in lit)
-            ink, back = PALETTE['text'], PALETTE['card']
-            data = ' '.join(
-                '{%s}' % ' '.join(ink if row[x] else back
-                                  for x in range(x0, x1 + 1))
-                for row in rows[y0:y1 + 1])
-            # Held on self or Tk collects it and the label goes blank.
-            self.credit_shot = tk.PhotoImage(width=x1 - x0 + 1,
-                                             height=y1 - y0 + 1)
-            self.credit_shot.put(data)
-            tk.Label(parent, image=self.credit_shot, background=back,
-                     borderwidth=0, highlightthickness=0).pack(anchor='w',
-                                                               pady=(2, 10))
-
         def _about_body(self, parent):
-            self._credit_preview(parent)
-            row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(0, 2))
-            ttk.Label(row, text='Version %s' % VERSION, style='Dim.TLabel',
-                      font=self.small).pack(side='left')
-            link = ttk.Label(row, text=REPO_URL, style='Link.TLabel',
+            ttk.Label(parent, text='vo-patch %s' % VERSION,
+                      style='Card.TLabel', font=self.bold).pack(anchor='w')
+            # Without the scheme, which is nine characters of nothing and
+            # makes the line wider than the card wants to be.
+            short = REPO_URL.split('//', 1)[-1]
+            link = ttk.Label(parent, text=short, style='Link.TLabel',
                              font=self.small, cursor='hand2')
-            link.pack(side='right')
+            link.pack(anchor='w', pady=(1, 0))
             link.bind('<Button-1>', lambda _e: webbrowser.open(REPO_URL))
+            # A ttk separator takes the theme's colour, which is not one of
+            # ours; a one pixel frame in the palette's line colour is.
+            tk.Frame(parent, height=1, background=PALETTE['line'],
+                     borderwidth=0, highlightthickness=0).pack(
+                         fill='x', pady=(10, 8))
             self._patch_body(parent, ABOUT, None)
 
         def _log_body(self, parent):
