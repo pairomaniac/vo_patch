@@ -48,8 +48,11 @@ The layout is not a grid. `0x6bcd48` in the executable holds 12 bytes per
 block - flag, width, height, in cells - and the map is those blocks end to
 end. The roll's own text blocks are three cells tall, though the height is
 read per block; a block of width 0 is a blank spacer.
-`0x448e86` centres each on 51 cells, and `0x44908e` reveals the next one
-every eight ticks per row, so the roll's length is the sum of the heights.
+The flag picks the placement: `0x448e5c` sends anything below zero to
+`0x448e86`, which centres the block on the 51 cells, and `0x63` to
+`0x448f54`, which pushes it flush right. The roll's own text carries `0x63`.
+`0x44908e` reveals the next block every eight ticks per row, so the roll's
+length is the sum of the heights.
 
 Adding a line means all three: an entry in the block list, its cells in
 `scrstfmp.bin`, and its tiles on the end of `scrstfcg.bin`, plus the two byte

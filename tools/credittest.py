@@ -70,6 +70,20 @@ def wanted_pixels(vp):
     return out
 
 
+def place(flag, width):
+    """The column the renderer starts this block at.
+
+    Two rules, chosen by the flag at 0x448e5c: below zero centres the block
+    on the 51 cells, 0x63 pushes it flush right. Getting this wrong puts a
+    block five cells off and still reads back perfectly, so it is worth
+    modelling rather than assuming."""
+    if flag & 0x80000000:
+        return (0x33 - width) >> 1
+    if flag == 0x63:
+        return 0x33 - width
+    return 0
+
+
 def got_pixels(cells, sheet, width, vp):
     """Expand one block's cells back into lit (x, y) through the sheet."""
     lit = set()
@@ -166,6 +180,13 @@ def main(folder):
                     return 1
                 got = got_pixels(cells[at:at + width * height], sheet,
                                  width, vp)
+                # Screen column the text ends at, so a block placed by the
+                # wrong rule cannot pass by matching its own bitmap.
+                ends = place(_flag, width) * 8 + max(x for x, _y in got) + 1
+                if ends != vp.CREDIT_RIGHT:
+                    print('block %d ends at pixel %d, the title at %d'
+                          % (i, ends, vp.CREDIT_RIGHT))
+                    return 1
                 if got != exp_lit:
                     bad += 1
                     print('block %d: %d pixels differ'

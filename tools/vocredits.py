@@ -30,7 +30,9 @@ import sys
 LINES = (('Patch by pairo', 42, 3, 24),
          ('GITHUB.COM/PAIROMANIAC/VO_PATCH', 42, 2, 11))
 
-# The renderer centres a block of w cells at (51 - w) >> 1. Lines are
+# The renderer places a block by its flag: below zero centres it at
+# (51 - w) >> 1, 0x63 pushes it flush right at 51 - w. These lines use the
+# centring flag, the title's own. Lines are
 # right-aligned on where the title's lettering actually ends, which is not
 # where its block ends - VIRTUAL-ON stops a couple of pixels short of the
 # 42nd cell, and aligning to the cell instead leaves everything below it
