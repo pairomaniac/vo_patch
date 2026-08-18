@@ -93,15 +93,12 @@ side of the fighting:
     - the initials screen after the credits takes those same buttons, as well
       as the weapon trigger
 
-    Both are 1P's, so 2P still enters initials with **RT**.
-
-**ABOUT**, the last section, holds the version, a link back here, and
 **Show the version, and credit the patch in the ending roll**, on by default:
 the patcher's version in the bottom right of the title screen, and two lines
-under the title at the top of the ending credits, both in the game's own
-lettering. The credit lines rewrite `scrstfcg.bin` and `scrstfmp.bin`, backing
-both up; **Restore original** puts them back. If either file is missing the
-whole box is skipped, version included, and the rest still applies.
+under the title at the top of the ending credits. The credit lines rewrite
+`scrstfcg.bin` and `scrstfmp.bin`, backing both up; **Restore original**
+puts them back. If either file is missing the whole box is skipped, version
+included, and the rest still applies.
 
 Under the same list, **Resolution and windowing** is not a patch but a button:
 it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
