@@ -241,7 +241,7 @@ on the same terms:
 | --- | --- | --- | --- | --- |
 | credits skip | `0x23cad0`-`0x23cb6c` | 156 | 99 | 57 |
 | HOLD TO SKIP overlay | `0x1f74e0`-`0x1f7588` | 168 | 142 | 26 |
-| title screen version | `0x223198`-`0x223240` | 168 | 85 | 83 |
+| title screen version | `0x223198`-`0x223240` | 168 | 109 | 59 |
 
 The last two are the pair the three checks below warn about, and the last
 runs of that size. Picking a new cave means finding a run of zeros and
@@ -675,10 +675,15 @@ The game's own tile font, the one the menu items on that screen are set in:
 `0x4cd8c3` puts the cursor at a cell and `0x4ceeeb` prints through it, the
 pair `0x44b757` uses with the table at `0x6537c0`. The map is 81 cells wide;
 the copyright line is 59 of them from column 1 at row 44, which is what the
-column and row here are measured against. `0x4ceeeb` picks the glyph set out
-of the four at `0x600ec8` by scanning the string for lower case, so this one
-can be mixed case, and that set is half width - one cell a character where
-the menu items take two.
+row here is measured against. `0x4ceeeb` picks the glyph set out of the four
+at `0x600ec8` by scanning the string for lower case, so this one can be mixed
+case.
+
+The column is worked out from the string's length rather than fixed, so the
+line sits against the right edge whatever the version is. It has to be: a
+character is two cells and nothing wraps the column, so a fixed column that
+suits a tag reading `0.8.7` runs a commit build's longer SHA past the end of
+the row and into the start of the next one.
 
 Not GDI. `0x5c991c` takes an index into the two fonts the game builds at
 `0x5c8cd7`, `century` and `modern` bold at 24px, rather than a handle, so
