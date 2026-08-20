@@ -227,9 +227,10 @@ spare bytes went on the Credits button, and the run of zeros continuing past
 `0x1f4400` is not more cave - `0x5f5000` is a `qword` 0.0 that `0x401ce4`
 compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
 at the first of them and `build.py` checks it. This is why CD audio got a
-section of its own rather than another cave. The `.rdata` one holds the F11
-dialog template, the keyboard page fixes and the intro-movie message wait,
-and is now nearly full too. Anything else of any
+section of its own rather than another cave. The `.rdata` one holds the
+Extras box's strings and tables, the keyboard page fixes and the intro-movie
+message wait, and is now nearly full too - the dialog template itself is in
+the `.rsrc` cave. Anything else of any
 size wants its own section, the way `vocd.asm` has one.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
@@ -449,7 +450,7 @@ Sixteen pad inputs, described once:
 
 From that list it packs the condition table the tick reads, the bind list the
 F7 page offers, and the strings both point at, computing the pointers between
-them. The three profile names sit in the same string blob, so the device list
+them. The four profile names sit in the same string blob, so the device list
 is built from it too.
 
 An input's id is `0xe0` plus its position in the list, which is also its index

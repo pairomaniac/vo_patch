@@ -7,7 +7,7 @@ between them are computed rather than counted by hand:
     INPUTS  ->  the condition table the tick reads, at COND
                 the bind list the F7 page offers, at BINDS
                 the names both of them point at, at NAMES
-    NAMES   ->  the device list's three profile names, at DEVLIST
+    NAMES   ->  the device list's four profile names, at DEVLIST
 
 An input's id is 0xe0 plus its position in INPUTS, so the order of that list
 is the order of the condition table and cannot be shuffled without moving
