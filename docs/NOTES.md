@@ -34,11 +34,15 @@ skipped. The CD audio and gamepad patches install assembled machine code
 rather than editing bytes, and the sources and a longer account of both are
 in [asm/](../asm/).
 
-**Sample rate.** This is the DirectSound buffer format, not the samples, which
+### Sample rate
+
+This is the DirectSound buffer format, not the samples, which
 are 8-bit at 7500 or 11025 Hz either way. VO_Patch set only `nSamplesPerSec`,
 leaving `nAvgBytesPerSec` inconsistent; both are set here.
 
-**No disc, music from files.** A helper returns -1 when no disc is found and the
+### No disc, music from files
+
+A helper returns -1 when no disc is found and the
 caller loops on a message box; removing the branch into that loop falls
 through to the success path. The scan itself is untouched, so a mounted image
 is still found.
@@ -57,7 +61,9 @@ executable gets a section of its own and grows by about 3 KB, and the entry
 point is repointed at the setup thunk, which chains to whatever it was before
 - hence this patch running after all the others.
 
-**Getting called.** The obvious way in is the import table: overwrite the
+#### Getting called
+
+The obvious way in is the import table: overwrite the
 entry the loader fills with the address of `mciSendCommandA` and every call
 lands on the routine instead. That is what this patch did until 0.7.3, and it
 is one slot of memory any loaded DLL can overwrite - a wrapper that hooks the
@@ -70,12 +76,16 @@ bytes, nothing moves, nothing written later can undo it. The routine still
 forwards through the import slot as it finds it, so a wrapper that does own it
 keeps working underneath. A count that is not exactly 37 aborts the patch.
 
-**Processor check.** `ProcessorCheck=Off` does not switch the check off, it
+### Processor check
+
+`ProcessorCheck=Off` does not switch the check off, it
 stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and
 vendor branches all read; nopping it leaves the flag clear whatever the ini
 says.
 
-**Frame rate.** Three things kept the game off 60 fps, and the patch does all
+### Frame rate
+
+Three things kept the game off 60 fps, and the patch does all
 three.
 
 Each frame is gated on `timeGetTime`, and the game advances only once a budget
@@ -101,7 +111,9 @@ It is the last resource in the file and ends on the section's virtual size
 with mapped padding after it, so it can; the size in the resource directory is
 updated and the *Fast* radio widened to fit.
 
-**Ini defaults.** One routine reads `v_on.ini`; every key is the same block,
+### Ini defaults
+
+One routine reads `v_on.ini`; every key is the same block,
 look the string up and write a hardcoded value if it is absent. Several of
 those default to the worse setting - Sky off, every texture off, Field
 Graphic Normal. A four-byte edit each.
@@ -115,7 +127,9 @@ block and the fifteen bytes padded out.
 low resolution, the 320x240 mode F4 toggles. A default of 0 is Screen Large at
 640x480.
 
-**Lose-a-round crash.** Ten continue-screen routines read through a pointer
+### Lose-a-round crash
+
+Ten continue-screen routines read through a pointer
 that is really a float constant:
 
 ```asm
@@ -127,11 +141,15 @@ That address was readable on Windows 9x and is not now. Each block only undoes
 a translation the routine has already reset, so `nop` is safe. The ten are
 similar but not identical, hence listed out one by one.
 
-**Alt-tab.** The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and
+### Alt-tab
+
+The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and
 never re-acquires it after losing focus. `DISCL_BACKGROUND` removes the
 condition.
 
-**Gamepad.** The game predates XInput and reads pads through the Windows 95
+### Gamepad
+
+The game predates XInput and reads pads through the Windows 95
 joystick API, which on a modern controller reports a partial view: one trigger
 unreachable, axis order inconsistent between Windows and Wine. So it is not
 read through it at all. A routine in a run of zeros inside `.rdata` calls
@@ -140,7 +158,7 @@ Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
 mirror, so both sides are the same routine with a different parameter block.
 
-### The device tables
+#### The device tables
 
 The device number keys three tables, not one, and all three had to move
 together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
@@ -168,7 +186,7 @@ device numbers underneath stay what the executable and v_on.ini always
 used, and `asm/devorder.asm` maps list positions and devices into each
 other at the page's preselect and its OK translate.
 
-### The four profiles
+#### The four profiles
 
 The gamepad profile takes *Keyboard only(Simple)*'s slot, the only F7 page
 that binds all twelve actions.
@@ -204,7 +222,7 @@ squeezed inward - so they share the words movement writes to, and neither
 came out while moving. A second routine after each tick sorts that out, and
 only when a pad was read, so the keyboard path is untouched.
 
-### The shared bind page
+#### The shared bind page
 
 Simple and the gamepad share one bind page, told apart by device:
 `asm/bindlist.asm` and `asm/bindmap.asm` pick the input list - the game's
@@ -239,7 +257,7 @@ through the bind page.
 One relaxation narrows: 2P may reuse 1P's key only while 1P is on a pad
 profile, since device 3 makes 1P's keys live again.
 
-### Saving and loading
+#### Saving and loading
 
 Persistence needed its own channel: the structure's blocks reach
 `v_on.ini` as one "Assign" line per player through a per-device dispatch
@@ -268,7 +286,7 @@ devices, `asm/iniall.asm` runs the same loader for both players at the
 load loop's exit, so an inactive profile's saved set survives restarts
 spent on other devices.
 
-### Pad buttons outside the binds
+#### Pad buttons outside the binds
 
 The win and lose screens read the camera key rather than the accept key, so
 Select skipped them and A did not. The tick writes the camera slot for A as
@@ -283,7 +301,9 @@ blocked in `GetMessageA`, on the branch the pump stub is not on, so that call
 is hooked as well. Space, Enter and Escape all skip the movie, so A does; F3
 is ignored while it plays, so Start does not.
 
-**F11 dialog.** No dialog resource ever existed, so one is built at runtime
+### F11 dialog
+
+No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
 straight to the main window and **Quit** is just the *Exit Game* command; the
@@ -301,7 +321,9 @@ Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying
 its ID, `GetDlgItem` hands back nothing to talk to.
 
-**Intro movie.** The movie is not drawn through DirectDraw. The game opens
+### Intro movie
+
+The movie is not drawn through DirectDraw. The game opens
 `von.avi` with `MCI_ANIM_OPEN_WS` and `MCI_ANIM_OPEN_PARENT`, so mciavi makes
 a `WS_CHILD` window of the main window and everything after that is plain
 Win32. The game then moves that window itself, to an offset it reads from two
@@ -327,7 +349,9 @@ the result is what the game did before. mciavi does not follow the window, so
 a `MCI_PUT` destination rect goes with the resize; the game never sends one
 of its own.
 
-**Ending screens.** There are two credit sequences. The one the **Credits**
+### Ending screens
+
+There are two credit sequences. The one the **Credits**
 button reaches is sub-state `0x20` of the title machine `0x1ae3690`, whose
 handler at `0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the
 ending cutscene and the mission complete screen, 2 is the roll, and anything
@@ -370,7 +394,9 @@ into it would climb the screen. It goes on the frame about to be shown, so
 the hook is the call five bytes before the surface flip at `0x5c650d`, with
 the primary-surface global pointed at the back buffer across the call.
 
-**Version on the title screen.** Not GDI, unlike the overlay above it, but
+### Version on the title screen
+
+Not GDI, unlike the overlay above it, but
 the game's own tile font: `0x4cd8c3` sets the cursor to a cell and `0x4ceeeb`
 prints through it, as `0x44b757` does for the menu items on the same screen.
 `0x5c991c` takes an index into the two fonts built at `0x5c8cd7`, `century`
@@ -388,7 +414,9 @@ the patcher writes it into a field of zeros on the end after the rest of the
 patch is applied. That keeps `EXPECTED_ALL` in `selftest.py` one digest
 rather than one per release.
 
-**Prompt text.** Two prompts name a key the pad covers, so they change with
+### Prompt text
+
+Two prompts name a key the pad covers, so they change with
 the gamepad patch and not on their own: the pause screen's and the
 scoreboard's. The title and scoreboard banner is a third case and not text at
 all. All three are set out in [TEXT.md](TEXT.md).
