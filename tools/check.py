@@ -5,12 +5,11 @@
     python3 tools/check.py /path/to/VIRTUAL-ON   # and the ones that do
     VO_GAME=/path/to/VIRTUAL-ON python3 tools/check.py
 
-The game is not in the repository, so CI can only run the first form. Two
-checks need a real copy - selftest.py, which is the only thing that catches a
-wrong offset, and bannertest.py, which is the only thing that proves the
-title prompt reads back as it was written. Both are skipped rather than
-failed when no game is given, and both are why the manual step before tagging
-still exists.
+The game is not in the repository, so CI can only run the first form. The
+checks that need a real copy are skipped rather than failed when no game is
+given: selftest.py, the only thing that catches a wrong offset, and the
+banner and credit tests, the only proof that those read back as written.
+They are why the manual step before tagging still exists.
 
 Each check stays a script of its own; this only decides what to run and
 reports the result. --list prints them without running anything.

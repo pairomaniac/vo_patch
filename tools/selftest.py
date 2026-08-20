@@ -4,7 +4,7 @@
     python3 tools/selftest.py /path/to/v_on.exe
 
 CI cannot do this - the game is not in the repository - so run it by hand
-before tagging. It checks four things nothing else can:
+before tagging. It checks what nothing else can:
 
   * every 'original' byte string in the tables is really in the file
   * no blob has outgrown its cave and run onto data the game reads

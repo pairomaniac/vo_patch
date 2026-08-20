@@ -291,7 +291,7 @@ DLL that is loaded.
 that prefix, or run `cnc-ddraw config.exe` once. Without it Wine keeps using
 its own DirectDraw and nothing changes.
 
-A fresh `ddraw.ini` is cnc-ddraw's own file with seven settings changed:
+A fresh `ddraw.ini` is cnc-ddraw's own file with a few settings changed:
 `fullscreen`, `windowed`, `maintas`, `noactivateapp`, `toggle_borderless`,
 `devmode` and `game_handles_close` are all set to `true`, giving a borderless
 window at 4:3 that does not trap the cursor. Everything else,
@@ -396,7 +396,7 @@ and run `python3 net/build.py`, which compiles it with mingw and bakes it back
 into `vo-patch.py`.
 
 `python3 tools/check.py` runs every check in the project - give it your game
-folder and it runs the two that need one.
+folder and it runs the ones that need one.
 [docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
 ---

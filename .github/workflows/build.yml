@@ -36,7 +36,7 @@ jobs:
       - run: pip install pyflakes
 
       # One runner, the same one used locally, so the two cannot drift.
-      # It skips the two checks that need a copy of the game and says so.
+      # It skips the checks that need a copy of the game and says so.
       #
       # tables   patch tables, blobs and the banner bitmap: lengths, bounds,
       #          cross-patch collisions, the intra-patch overlap the XInput
@@ -72,14 +72,15 @@ jobs:
             && { echo "still linked against DirectPlay"; exit 1; }
           echo "ok"
 
-      # What this job cannot do is touch a real copy of the game, so two of
-      # the seven checks are skipped here. Run them by hand before tagging:
+      # What this job cannot do is touch a real copy of the game, so the
+      # checks that need one are skipped here. Run them by hand before tagging:
       #
       #     python3 tools/check.py /path/to/VIRTUAL-ON
       #
       # offsets  the only check that catches a wrong offset
       # banner   the only check that proves the title prompt reads back as
       #          it was written, since escrgame.bin is not here either
+      # credit   the same proof for the credit line in the ending roll
 
   # Builds on every push to main, on a tag, and on demand from the Actions
   # tab. Pull requests are left out: the push that follows the merge builds

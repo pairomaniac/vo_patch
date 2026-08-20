@@ -52,7 +52,7 @@ chmod +x .git/hooks/pre-push
 python3 asm/build.py              # only if you touched asm/ - regenerates the hex
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
 
-python3 tools/check.py            # the five checks CI runs, in two seconds
+python3 tools/check.py            # the checks CI runs, in two seconds
 python3 vo-patch.py               # does the window still open?
 ```
 
@@ -69,8 +69,8 @@ still a script of its own; the runner only decides what to run, so CI and you
 cannot drift apart.
 
 ```bash
-python3 tools/check.py                        # the five CI can run
-python3 tools/check.py /path/to/VIRTUAL-ON    # and the two that need the game
+python3 tools/check.py                        # the ones CI can run
+python3 tools/check.py /path/to/VIRTUAL-ON    # and the ones that need the game
 python3 tools/check.py --list                 # what they are
 python3 tools/check.py --only asm,net         # just those
 ```
@@ -86,11 +86,11 @@ inside one will do.
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
-| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, 350-odd combinations applied, and the fully patched MD5 |
+| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, hundreds of patch combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
 
-The last two need a copy of the game, which is not in the repository, so CI
-skips them and says so. They are the manual step before tagging.
+Some need a copy of the game, which is not in the repository, so CI skips
+them and says so. They are the manual step before tagging.
 
 If a patch legitimately changed and the MD5 moved, update `EXPECTED_ALL` at
 the top of `tools/selftest.py`, deliberately.
@@ -170,7 +170,7 @@ for everyone, so it is written after the patch table rather than from it and
 
 ```bash
 git pull
-python3 tools/check.py /path/to/VIRTUAL-ON     # all eight, nothing skipped
+python3 tools/check.py /path/to/VIRTUAL-ON     # everything, nothing skipped
 
 git tag v0.8.4
 git push && git push --tags
