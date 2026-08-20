@@ -136,12 +136,22 @@ joystick API, which on a modern controller reports a partial view: one trigger
 unreachable, axis order inconsistent between Windows and Wine. So it is not
 read through it at all. A routine in a run of zeros inside `.rdata` calls
 `XInputGetState` and folds the result into the game's own action tables.
+Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
+scancode space, which the game does not otherwise use. Player 2 is a full
+mirror, so both sides are the same routine with a different parameter block.
+
+### The device tables
 
 The device number keys three tables, not one, and all three had to move
 together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
 picks the F7 page, and `0x495e0f` validates the device saved in `v_on.ini`
 at startup. The picker skips device slots whose name pointer is null, so
-hiding the legacy profiles is zeroing the rest.
+hiding the legacy profiles is zeroing the rest. Two validation entries skip
+the joystick-presence check now, not one: a keyboard in device 3 must not
+have its saved selection reset for lack of a stick. A last common check
+also demanded the DirectInput joystick subsystem whenever either player's
+saved device was 3 or 7, forcing both to the gamepad and skipping the whole
+ini load when a controller was off at boot - it is 7-only now.
 
 The F7 page has a check of its own, and twin-stick failed it. Before reading
 the two combo boxes, the OK handler at `0x49716e` counts the joysticks
@@ -153,77 +163,112 @@ XInput - and a pad plugged in after launch was never enumerated, which is
 why a restart appeared to fix it. Its case now goes straight to the check,
 where the keyboard and gamepad selections already arrive.
 
+The F7 list shows the profiles as gamepad, twin-stick, Simple, Real; the
+device numbers underneath stay what the executable and v_on.ini always
+used, and `asm/devorder.asm` maps list positions and devices into each
+other at the page's preselect and its OK translate.
+
+### The four profiles
+
 The gamepad profile takes *Keyboard only(Simple)*'s slot, the only F7 page
-that binds all twelve actions. Bindings are one byte per action, so pad
-entries occupy `0xE0`-`0xEF` in the scancode space, which the game does not
-otherwise use. Player 2 is a full mirror, so both sides are the same routine
-with a different parameter block.
+that binds all twelve actions.
 
 *Keyboard (Simple)* itself returns in slot 3, the hidden *2 Joysticks*
 profile's: its handler stubs still exist and the slot's page, validation and
-joystick-spend table entries only needed repointing. Two validation entries
-skip the joystick-presence check now, not one: a keyboard in device 3 must
-not have its saved selection reset for lack of a stick. The shared bind
-page is told apart by device: `asm/bindlist.asm` and `asm/bindmap.asm` pick
-the input list - the game's 33 named keys or the 16 pad inputs - and
-`asm/bindblock.asm` (and `asm/blockcur.asm` for the store, whose call site
-passes a fused player-and-slot index) picks the saved block, `+0x08` for
-the gamepad and
-`+0x38`, the slot's own, for Simple. The device consulted is the structure's own `+0x00` dword,
-the pending pick the F7 screen edits, not the committed copy at
-`0x3651540`: the bind page and the live-table apply both run before OK
-commits, and against the committed device they would serve the profile
-being switched away from. The letter and digit sections are generated,
-not listed, and belong to Simple alone: `asm/pagesec.asm` and
-`asm/pagesel.asm` skip them for the gamepad in the fill, the store and
-the preselect together, since combo indices are positional. The gamepad
-page lists exactly its sixteen pad inputs, starting at index zero. Startup fills `+0x38` through the call
-that used to write 2 Joysticks defaults there, redirected to the tail of
-`asm/bindmap.asm`. The F7 list shows the profiles as gamepad, twin-stick,
-Simple, Real; the device numbers underneath stay what the executable and
-v_on.ini always used, and `asm/devorder.asm` maps list positions and
-devices into each other at the page's preselect and its OK translate.
+joystick-spend table entries only needed repointing. Startup fills its
+block through the call that used to write 2 Joysticks defaults there,
+redirected to the tail of `asm/bindmap.asm`.
+
+*Keyboard (Real)* is the game's other keyboard profile, untouched except for
+where it keeps its binds. It shared one twenty-four byte block with Simple,
+which the gamepad now owns, so it moves to the block belonging to the hidden
+*Joystick + Keyboard* profile: eleven sites, each changing a `+0x08` to a
+`+0x20` or an address by the same amount. Its page, defaults and live table
+were always its own, and the *Joy+Key Assign* v_on.ini line keeps the block
+persistent. Two consequences. The startup defaults run every profile's set
+in turn and *Joystick + Keyboard* writes that block after *Real* does, so
+its call is dropped - it is unreachable anyway. And **Default** on the
+keyboard page passed a hardcoded player 0, resetting 1P's binds from the 2P
+side; the other two pages pass the current player, so this one is corrected
+to match.
+
+*Twin-stick* adds no logic at all. The tick is a bind -> condition -> lever
+mask engine, and the arcade scheme is just a different set of binds and
+masks: each of the twelve slots drives one lever direction or button instead
+of a named action, so the thumbsticks land straight in the two lever words.
+It is mostly tables. It binds nothing, so it takes the page-table entry
+that opens no dialog, which also disposes of the `0x3651554 == 1` check
+that made **Next** refuse without a joystick attached. Jump and guard are
+lever gestures rather than buttons - both levers spread outward, both
+squeezed inward - so they share the words movement writes to, and neither
+came out while moving. A second routine after each tick sorts that out, and
+only when a pad was read, so the keyboard path is untouched.
+
+### The shared bind page
+
+Simple and the gamepad share one bind page, told apart by device:
+`asm/bindlist.asm` and `asm/bindmap.asm` pick the input list - the game's
+33 named keys or the 16 pad inputs - and `asm/bindblock.asm` (and
+`asm/blockcur.asm` for the store, whose call site passes a fused
+player-and-slot index) picks the saved block, `+0x08` for the gamepad and
+`+0x38`, the slot's own, for Simple. The device consulted is the
+structure's own `+0x00` dword, the pending pick the F7 screen edits, not
+the committed copy at `0x3651540`: the bind page and the live-table apply
+both run before OK commits, and against the committed device they would
+serve the profile being switched away from.
+
+The letter and digit sections are generated, not listed, and belong to
+Simple alone: `asm/pagesec.asm` and `asm/pagesel.asm` skip them for the
+gamepad in the fill, the store and the preselect together, since combo
+indices are positional. The gamepad page lists exactly its sixteen pad
+inputs, starting at index zero. The Default button's source table follows
+the same pending-device pick, or the keyboard page would be handed pad ids
+that match nothing it lists.
+
+The page seeds its block from the live table at open - and with two
+profiles sharing one live table, an unconditional seed would copy the
+active profile's binds into the other's block, so `asm/blockcur.asm`'s
+wrapper runs it only when the page's device is the committed one. The same
+sharing is why the device page's plain OK needs help: stock, it commits
+the device number and writes the "NP Device No." lines only, since every
+original device family kept its own live table. `asm/commitdev.asm` wraps
+that commit and reseeds the live table from the new device's block when it
+is one of the keyboard-page pair, so a switch takes effect without a trip
+through the bind page.
+
+One relaxation narrows: 2P may reuse 1P's key only while 1P is on a pad
+profile, since device 3 makes 1P's keys live again.
+
+### Saving and loading
 
 Persistence needed its own channel: the structure's blocks reach
 `v_on.ini` as one "Assign" line per player through a per-device dispatch
 at `0x496e4f`, and the slot Simple took over had none - a second copy of
-that defaults call re-filled `+0x38` with legacy joystick data on every
-launch. On OK, devices 1 and 3 both route through `asm/inisave.asm`, which
-writes "NP Simple Assign" as hex pairs and falls into the stock device 1
-case, so "NP Keyboard Assign" always carries the gamepad's set and neither
-profile loses its binds while the other is selected. The hex text is built
-in the dialog frame's own line buffer: the caves live in .rdata, which the
-patch marks executable but the loader still maps read-only, so cave code
-must never write to static addresses in that section. On launch, the
-loader routes each player by saved device, and slot 3's route was "load
-nothing" - right for 2 Joysticks, whose data was re-derived from the pad
-type, wrong for a profile with saved binds; one index byte routes it
-through the section below instead, and `asm/iniall.asm` runs the same
-loader for both players at the load loop's exit whatever the saved
-devices, so an inactive profile's saved set survives restarts spent on
-other devices. A last common check also demanded the
-DirectInput joystick subsystem whenever either player's saved device was
-3 or 7, forcing both to the gamepad and skipping the whole load when a
-controller was off at boot - it is 7-only now. There, the
-re-fill call runs `asm/iniload.asm`, parsing each block's own line
-back through `asm/iniparse.asm`: "NP Simple Assign" into `+0x38`, and "NP
-Keyboard Assign" into `+0x08` too, which the stock loader only parses into
-the live table. A missing line keeps the shipped set. When the saved
-device is Simple, the live table is then seeded from `+0x38`, overriding
-the seed the Keyboard Assign line left for the gamepad. The bind page's
-own seed of its block from the live table (`asm/blockcur.asm`'s wrapper)
-runs only when the page's device is the committed one - with two profiles
-sharing one live table, an unconditional seed would copy the active
-profile's binds into the other's block. The same sharing is why the
-device page's plain OK needs help: stock, it commits the device number
-and writes the "NP Device No." lines only, since every original device
-family kept its own live table. `asm/commitdev.asm` wraps that commit and
-reseeds the live table from the new device's block when it is one of the
-keyboard-page pair, so a switch takes effect without a trip through the
-bind page. The Default button's source table follows the
-same pending-device pick, or the keyboard page would be handed pad ids
-that match nothing it lists. One relaxation narrows: 2P may reuse 1P's key only while
-1P is on a pad profile, since device 3 makes 1P's keys live again.
+the startup defaults call re-filled `+0x38` with legacy joystick data on
+every launch. On OK, devices 1 and 3 both route through `asm/inisave.asm`,
+which writes "NP Simple Assign" as hex pairs and falls into the stock
+device 1 case, so "NP Keyboard Assign" always carries the gamepad's set
+and neither profile loses its binds while the other is selected. The hex
+text is built in the dialog frame's own line buffer: the caves live in
+.rdata, which the patch marks executable but the loader still maps
+read-only, so cave code must never write to static addresses in that
+section.
+
+On launch, the loader routes each player by saved device, and slot 3's
+route was "load nothing" - right for 2 Joysticks, whose data was re-derived
+from the pad type, wrong for a profile with saved binds. One index byte
+routes it through the padtype section instead, where the old re-fill call
+now runs `asm/iniload.asm`: each block's own line is parsed back through
+`asm/iniparse.asm`, "NP Simple Assign" into `+0x38` and "NP Keyboard
+Assign" into `+0x08` too, which the stock loader only parses into the live
+table. A missing line keeps the shipped set. When the saved device is
+Simple, the live table is then seeded from `+0x38`, overriding the seed
+the Keyboard Assign line left for the gamepad. And whatever the saved
+devices, `asm/iniall.asm` runs the same loader for both players at the
+load loop's exit, so an inactive profile's saved set survives restarts
+spent on other devices.
+
+### Pad buttons outside the binds
 
 The win and lose screens read the camera key rather than the accept key, so
 Select skipped them and A did not. The tick writes the camera slot for A as
@@ -237,33 +282,6 @@ The intro movie is a third case: it plays asynchronously and leaves the game
 blocked in `GetMessageA`, on the branch the pump stub is not on, so that call
 is hooked as well. Space, Enter and Escape all skip the movie, so A does; F3
 is ignored while it plays, so Start does not.
-
-*Keyboard (Real)* is the game's other keyboard profile, untouched except for
-where it keeps its binds. It shared one twenty-four byte block with Simple,
-which the gamepad now owns, so it moves to the block belonging to the hidden
-*Joystick + Keyboard* profile: eleven sites, each changing a `+0x08` to a
-`+0x20` or an address by the same amount. Its page, defaults and live table
-were always its own. The block sits inside the structure written to
-`v_on.ini`, so it persists without any new storage.
-
-Two consequences. The startup defaults run every profile's set in turn and
-*Joystick + Keyboard* writes that block after *Real* does, so its call is
-dropped - it is unreachable anyway. And **Default** on the keyboard page
-passed a hardcoded player 0, resetting 1P's binds from the 2P side; the other
-two pages pass the current player, so this one is corrected to match.
-
-*Twin-stick* adds no logic at all. The tick is a bind -> condition -> lever
-mask engine, and the arcade scheme is just a different set of binds and
-masks: each of the twelve slots drives one lever direction or button instead
-of a named action, so the thumbsticks land straight in the two lever words.
-It is mostly tables. It binds nothing, so it takes the
-page-table entry that opens no dialog, which also disposes of the
-`0x3651554 == 1` check that made **Next** refuse without a joystick attached.
-
-Jump and guard are lever gestures rather than buttons - both levers spread
-outward, both squeezed inward - so they share the words movement writes to,
-and neither came out while moving. A second routine after each tick sorts that
-out, and only when a pad was read, so the keyboard path is untouched.
 
 **F11 dialog.** No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same

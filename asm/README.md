@@ -15,6 +15,19 @@ editing this directory does.
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
 | `kbpage.asm` | gamepad: two fixes to the keyboard bind page |
+| `bindlist.asm` | gamepad: the shared bind page's list, picked by device |
+| `bindmap.asm` | gamepad: the same pick for the page's preselect, and the startup defaults |
+| `bindblock.asm` | gamepad: which block owns the shared page's binds, and the Default source |
+| `blockcur.asm` | gamepad: the same block pick for the store's fused index |
+| `pagesec.asm` | gamepad: keeps the letter and digit sections off the gamepad page |
+| `pagesel.asm` | gamepad: the preselect half of `pagesec.asm` |
+| `inisave.asm` | gamepad: writes Keyboard (Simple)'s own v_on.ini line on OK |
+| `iniload.asm` | gamepad: loads both keyboard-page blocks from their lines at launch |
+| `iniparse.asm` | gamepad: the line parser `iniload.asm` runs twice |
+| `iniall.asm` | gamepad: runs the loader for both players whatever the saved devices |
+| `commitdev.asm` | gamepad: reseeds the live table when OK commits a device switch |
+| `devorder.asm` | gamepad: maps the F7 list's display order to the fixed device numbers |
+| `f11pause.asm` | F11 Extras: pauses the game and music around the dialog |
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
 | `credits.asm` | ending screens: ends the credits once the button has been held a second |
 | `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
@@ -28,8 +41,9 @@ editing this directory does.
 
 The prefix is the patch each file ships in, which is not always the obvious
 one: `camskip.asm` goes out with **XInput gamepad support** because the tick
-is what calls it, while the other three ending-screen files go out with
-**Intro, loading and ending screens**.
+is what calls it, `f11pause.asm` with **Disable menu bar** because the F11
+hook is what runs it, while the other three ending-screen files go out
+with **Intro, loading and ending screens**.
 
 ## How the assembly gets into the patcher
 
@@ -65,6 +79,11 @@ One region per blob, and `build.py` fails if a pair is missing:
 # KBPAGE BLOB BEGIN      <- KBPAGE_CODE
 # KBPAGE BLOB END
 
+# BINDLIST BLOB BEGIN    <- BINDLIST_CODE, and one pair each for BINDMAP,
+# BINDLIST BLOB END         BINDBLOCK, BLOCKCUR, PAGESEC, PAGESEL, INISAVE,
+                            INILOAD, INIPARSE, INIALL, COMMITDEV, DEVORDER
+                            and F11PAUSE, all single _CODE blobs
+
 # MOVIE BLOB BEGIN       <- MOVIE_CODE
 # MOVIE BLOB END
 
@@ -90,8 +109,8 @@ it points at.
 
 Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
 `introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm`, `credits.asm`,
-`nameentry.asm`, `camskip.asm`, `overlay.asm`, `titlever.asm` and
-`timer.asm`. Their stubs
+`nameentry.asm`, `camskip.asm`, `overlay.asm`, `titlever.asm`, `timer.asm`
+and every bind-page and ini file above. Their stubs
 jump to fixed addresses and their parameter blocks point at tables in the
 same blob, so the code only works where it was assembled to sit. The `.py`
 modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
@@ -100,7 +119,9 @@ blobs.
 
 So the source names a place as a virtual address and the patch table names
 the same place as a file offset. `build.py` checks the two agree, reading the
-offsets out of the patch table rather than keeping a second copy here.
+offsets out of the patch table rather than keeping a second copy here, and
+it resolves every call the patch table writes into a cave against the
+assembled labels, so a mistyped rel32 fails the build instead of the game.
 Nothing downstream would notice a mismatch: the bytes would be written, and
 every address into them would be a few bytes out.
 
