@@ -186,6 +186,8 @@ def check_org(at, wanted, padding=()):
 CEILINGS = {
     'DEBUGBOX_PROC': (0x005f5000, 'a qword 0.0 that 0x401ce4 compares '
                                   'depth against'),
+    'INISAVE_CODE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
+                                 'what scans as a longer run'),
     'OVERLAY_CODE': (0x005f8188, 'a live address 18 sites point at'),
     'TITLEVER_CODE': (0x00623e40, 'a qword 480.0 that 18 sites load'),
 }
@@ -366,7 +368,8 @@ def main(check=False):
                      'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_SIMPLEDEF',
                      'EXTRAS_TPL',
                      'EXTRAS_DATA'))
-    check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'OVERLAY_CODE': overlay,
+    check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'INISAVE_CODE': inisave,
+                        'OVERLAY_CODE': overlay,
                         'TITLEVER_CODE': titlever})
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
                    'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),

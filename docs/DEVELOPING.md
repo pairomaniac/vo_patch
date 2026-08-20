@@ -81,7 +81,7 @@ inside one will do.
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, and no blob has grown past a cave ceiling in `CEILINGS` |
+| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes into a cave lands on an assembled label |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |

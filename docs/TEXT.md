@@ -29,6 +29,8 @@ nothing: the phrase is stored as 126 tile indices, and the letterforms are
 | `Connecting...` | link play | `0x2c7644` | GDI |
 | ` PRESS SPACE BAR` | scoreboard | `0x285e04` | tile font, 16 cells. Blanked by overwriting with the 16 spaces at `0x285df0`, so a replacement must be the same width |
 | `HOLD TO SKIP` | ending credits | in the patch | GDI. Not the game's - it is carried in `overlay.asm` and drawn at 320, 440, halved with everything else in low resolution |
+| `Bindings - %dP side` | bind page title | `0x26c88c` | C string the page's `SetWindowTextA` formats; replaces the stock title so both sides are told apart |
+| `1P side` → `Actions` | bind page label | `0x60b34e` | UTF-16, inside the dialog template in `.rsrc`. Baked-in text the stock game showed on the 2P pass too; the replacement must stay seven characters |
 
 The tile font table around `0x285df0` also holds `INSERT COIN(S)`,
 `TO BE CONTINUED ...`, `MOVE  FORWARD`, `DASH  BUTTON`, the mech names and

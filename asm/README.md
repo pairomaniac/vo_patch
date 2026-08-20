@@ -152,7 +152,7 @@ runner you would run locally:
 | Check | Catches |
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
-| `asm` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing |
+| `asm` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing; a blob grown past a `CEILINGS` pin; a call the site table writes into a cave landing on no assembled label |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -208,7 +208,9 @@ each go to one site inside the XInput patch table, at `0x00207460`,
 from the blob, so a routine can change size without the run of `00` beside it
 needing a manual edit - but it
 has to stay inside its cave, and the last two carry an `org`, so growing them
-past the cave is a source edit and not just a rebuild.
+past the cave is a source edit and not just a rebuild. The thirteen keyboard
+profile and F11 files in the cave table above work the same way: one site
+each, length read from the blob, an `org` naming the cave.
 
 ## Space left in the executable
 
@@ -254,6 +256,33 @@ The last two of the first seven are the `.rdata` padding from the table
 above, so they appear twice. The last row is shared: `camskip.asm` ships with
 the gamepad patch and `nameentry.asm` with the ending screens, so either can
 be present without the other.
+
+The keyboard profile work sits in thirteen more runs on the same terms, one
+file per run - which is why there are so many small files: the free zero
+runs of any size are scattered, and a routine only works at the address it
+was assembled for. Grouping is by concern in the sections at the end of
+this file, not by address:
+
+| Cave | File range | Size | Used | Free |
+| --- | --- | --- | --- | --- |
+| `bindlist.asm` | `0x1fcbe4`-`0x1fcc58` | 116 | 103 | 13 |
+| `bindmap.asm` | `0x1fcd04`-`0x1fcd78` | 116 | 114 | **2** |
+| `bindblock.asm` | `0x1fe64c`-`0x1fe6c0` | 116 | 94 | 22 |
+| `blockcur.asm` | `0x1fcc64`-`0x1fccb8` | 84 | 71 | 13 |
+| `commitdev.asm` | `0x1fcb4c`-`0x1fcb98` | 76 | 57 | 19 |
+| `iniall.asm` | `0x1fa544`-`0x1fa5a0` | 92 | 25 | 67 |
+| `iniparse.asm` | `0x200f0c`-`0x200f6c` | 96 | 57 | 39 |
+| `pagesec.asm` | `0x200f70`-`0x200fd0` | 96 | 60 | 36 |
+| `pagesel.asm` | `0x200fd4`-`0x201034` | 96 | 49 | 47 |
+| `inisave.asm` | `0x201038`-`0x201098` | 96 | 86 | **10** |
+| `iniload.asm` | `0x20642c`-`0x2064a0` | 116 | 79 | 37 |
+| `devorder.asm` | `0x203b34`-`0x203b90` | 92 | 54 | 38 |
+| `f11pause.asm` | `0x23b324`-`0x23b37c` | 88 | 42 | 46 |
+
+`inisave.asm`'s cave ends early: `0x601c98` is a live address `0x4cf61b`
+reads, inside what scans as a longer run - the trap the second check below
+describes. `bindmap.asm` and `inisave.asm` are the tight ones; growing
+either past its cave is a rehoming job.
 
 The ending screens and the credit use three more runs of zeros in `.rdata`,
 on the same terms:
@@ -561,6 +590,54 @@ pages both pass `ds:0xbf6bac`; this one is the odd one out.
 The two slots are a fixed 32 bytes apart, padded with `nop`, because the
 second one's site names its address. Let the first grow and the second moves,
 and nothing downstream would notice.
+
+## The bind page files, what they do
+
+Six files, one concern: the bind page Simple and the gamepad share, told
+apart by the pending device. `bindlist.asm` picks the (name, id) input
+list the fill and store walk - the game's 33 named keys or the 16 pad
+inputs. `bindmap.asm` is the same pick for the preselect that maps a saved
+bind back to a combo index, and carries the startup defaults writer for
+Simple's block in its tail. `bindblock.asm` picks which saved block a
+route touches, `+0x08` or `+0x38`, and the Default button's source table;
+`blockcur.asm` is the same pick for the store, whose call site passes a
+fused player-and-slot index the shared check cannot use. `pagesec.asm`
+and `pagesel.asm` keep the letter and digit sections off the gamepad
+page - fill and store in the first, preselect in the second, split only
+because no free run held both. The mechanism is in NOTES.md under *The
+shared bind page*.
+
+## The ini files, what they do
+
+Four files, one concern: Keyboard (Simple)'s binds surviving a restart,
+which the stock game never had to do for that slot. `inisave.asm` writes
+the "NP Simple Assign" line when OK commits, then falls into the stock
+serializer. `iniload.asm` runs at launch in place of the call that used
+to overwrite the block with joystick defaults, parsing each keyboard-page
+block's line back through `iniparse.asm`, the 48-hex-character parser it
+runs twice. `iniall.asm` is a trampoline at the ini loader's exit that
+runs the same loader for both players whatever the saved devices, since
+the stock loader runs one device-picked section per player and would skip
+it otherwise. The full story is in NOTES.md under *Saving and loading*.
+
+## commitdev.asm and devorder.asm, what they do
+
+Both serve the F7 device page. `commitdev.asm` wraps the plain-OK commit
+and reseeds the shared live table from the new device's block, so a
+switch between Simple and the gamepad takes effect without a trip through
+the bind page - the stock commit only stored the device number, because
+no two stock devices shared a live table. `devorder.asm` maps the list's
+display order (gamepad, twin-stick, Simple, Real) to the fixed device
+numbers and back, at the page's preselect and its OK translate; the
+numbers themselves stay what the executable and `v_on.ini` always used.
+
+## f11pause.asm, what it does
+
+The F11 Extras dialog's runner. The built-in F-key dialogs pause the game
+and the music around their DialogBox call and resume after; the F11 hook
+in `debugbox.asm` had no room left in its cave for the same calls, so the
+whole DialogBox block moved here and gained them. Ships with **Disable
+menu bar**, not the gamepad patch.
 
 ## movie.asm, what it does
 
