@@ -24,7 +24,7 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-EXPECTED_ALL = '1b93909a49f535acf879aa6d287b7ea5'
+EXPECTED_ALL = '4bdbe56f0c42f749d8268a71f3b75858'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHER = os.path.join(os.path.dirname(HERE), 'vo-patch.py')

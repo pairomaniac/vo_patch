@@ -9,6 +9,13 @@ readable description.
     python3 asm/build.py            # assemble and write
     python3 asm/build.py --check    # verify only, writes nothing
 
+Besides matching the blobs, the check pass validates the hand-computed
+parts of the site table: each source's org against the site that writes it
+(check_org), blob growth against pinned ceilings (check_ceilings), and
+every call or jump a site writes whose target lands inside a cave against
+the assembled labels (check_calls) - a slipped rel32 is caught here rather
+than in the game.
+
 vo-patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
 in when the assembly changes, and --check catches assembly edited without them
@@ -77,16 +84,44 @@ def includes(tmp):
 
 
 def assemble(source, tmp):
-    """nasm -f bin, against the .inc files written by includes()."""
+    """nasm -f bin, against the .inc files written by includes(). Label
+    offsets from the listing are collected into LABELS for check_calls."""
     if not shutil.which('nasm'):
         raise SystemExit('nasm not found. Install it: dnf install nasm, '
                          'apt install nasm.')
     args = ['nasm', '-f', 'bin', '-I', tmp + os.sep]
     out = os.path.join(tmp, os.path.basename(source) + '.bin')
-    args += ['-o', out, os.path.join(HERE, source)]
+    lst = out + '.lst'
+    args += ['-o', out, '-l', lst, os.path.join(HERE, source)]
     subprocess.check_call(args)
+    org = None
+    with open(os.path.join(HERE, source), encoding='utf-8') as fh:
+        m = re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read())
+        org = int(m.group(1), 16) if m else None
+    if org is not None:
+        offset = None
+        with open(lst, encoding='utf-8') as fh:
+            for line in fh:
+                m = re.match(r'\s*\d+ ([0-9A-F]{8}) ', line)
+                if m:
+                    offset = int(m.group(1), 16)
+                m = re.match(r'\s*\d+\s+([a-z_][a-z0-9_]*):\s*(?:;.*)?$', line)
+                if m:
+                    # a label line carries no address; the next coded line
+                    # does, so remember the name until one arrives
+                    LABELS.setdefault(source, {})[m.group(1)] = None
+                elif offset is not None:
+                    for name, at in LABELS.get(source, {}).items():
+                        if at is None:
+                            LABELS[source][name] = org + offset
+        LABELS.setdefault(source, {})
+        ORGS[source] = org
     with open(out, 'rb') as fh:
         return fh.read()
+
+
+LABELS = {}     # source -> {label: VA}, filled by assemble()
+ORGS = {}       # source -> org VA
 
 
 def replace(text, name, body):
@@ -197,6 +232,34 @@ def check_addr(at, wanted):
                                             at[blob] + delta))
 
 
+def check_calls(blobs):
+    """Every call or jump a site writes whose target lands inside one of
+    the caves must land exactly on an assembled label. The rel32s in the
+    site table are computed by hand, and a slip lands mid-cave or in
+    unrelated data with nothing else to notice - the class of mistake this
+    exists to catch. Targets outside every cave are the executable's own
+    code and not judged here."""
+    ranges = [(ORGS[src], ORGS[src] + len(blob), src)
+              for src, blob in blobs.items() if src in ORGS]
+    labels = set(ORGS.values())         # the org is always an entry point
+    for per in LABELS.values():
+        labels.update(va for va in per.values() if va is not None)
+    with open(TARGET, encoding='utf-8') as fh:
+        text = fh.read()
+    for m in re.finditer(r"\(0x([0-9a-f]{8}),\s*'[0-9a-f]*',\s*"
+                         r"'((?:e8|e9)[0-9a-f]{8})[0-9a-f]*'\)", text):
+        off = int(m.group(1), 16)
+        va = off + (0x400c00 if off < 0x23de00 else 0x401200)
+        rel = int.from_bytes(bytes.fromhex(m.group(2)[2:]), 'little', signed=True)
+        target = (va + 5 + rel) & 0xffffffff
+        for lo, hi, src in ranges:
+            if lo <= target < hi and target not in labels:
+                raise SystemExit(
+                    'the site at 0x%08x calls 0x%08x, inside %s but on no '
+                    'label - a hand-computed rel32 gone wrong'
+                    % (off, target, src))
+
+
 def main(check=False):
     with tempfile.TemporaryDirectory() as tmp:
         includes(tmp)
@@ -208,6 +271,19 @@ def main(check=False):
         twin = assemble('twinstick.asm', tmp)
         introwait = assemble('introwait.asm', tmp)
         kbpage = assemble('kbpage.asm', tmp)
+        bindlist = assemble('bindlist.asm', tmp)
+        bindmap = assemble('bindmap.asm', tmp)
+        bindblock = assemble('bindblock.asm', tmp)
+        inisave = assemble('inisave.asm', tmp)
+        iniload = assemble('iniload.asm', tmp)
+        blockcur = assemble('blockcur.asm', tmp)
+        iniparse = assemble('iniparse.asm', tmp)
+        pagesec = assemble('pagesec.asm', tmp)
+        pagesel = assemble('pagesel.asm', tmp)
+        commitdev = assemble('commitdev.asm', tmp)
+        iniall = assemble('iniall.asm', tmp)
+        devorder = assemble('devorder.asm', tmp)
+        f11pause = assemble('f11pause.asm', tmp)
         movie = assemble('movie.asm', tmp)
         credits = assemble('credits.asm', tmp)
         nameentry = assemble('nameentry.asm', tmp)
@@ -215,7 +291,8 @@ def main(check=False):
         overlay = assemble('overlay.asm', tmp)
         titlever = assemble('titlever.asm', tmp)
     _inc, data = layout.build()
-    _inc, cond, pbinds, pnames, devlist = padtables.build()
+    (_inc, cond, pbinds, pnames, devlist, sdef,
+     inikeys) = padtables.build()
     _inc, extras_tpl, extras_data = dialogs.build_extras()
 
     # One run in the source, two sites in the patcher. The byte between them
@@ -244,6 +321,19 @@ def main(check=False):
     new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
     new = replace(new, 'INTROWAIT', hexblob('INTROWAIT_CODE', introwait))
     new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
+    new = replace(new, 'BINDLIST', hexblob('BINDLIST_CODE', bindlist))
+    new = replace(new, 'BINDMAP', hexblob('BINDMAP_CODE', bindmap))
+    new = replace(new, 'BINDBLOCK', hexblob('BINDBLOCK_CODE', bindblock))
+    new = replace(new, 'INISAVE', hexblob('INISAVE_CODE', inisave))
+    new = replace(new, 'INILOAD', hexblob('INILOAD_CODE', iniload))
+    new = replace(new, 'BLOCKCUR', hexblob('BLOCKCUR_CODE', blockcur))
+    new = replace(new, 'INIPARSE', hexblob('INIPARSE_CODE', iniparse))
+    new = replace(new, 'PAGESEC', hexblob('PAGESEC_CODE', pagesec))
+    new = replace(new, 'PAGESEL', hexblob('PAGESEL_CODE', pagesel))
+    new = replace(new, 'COMMITDEV', hexblob('COMMITDEV_CODE', commitdev))
+    new = replace(new, 'INIALL', hexblob('INIALL_CODE', iniall))
+    new = replace(new, 'DEVORDER', hexblob('DEVORDER_CODE', devorder))
+    new = replace(new, 'F11PAUSE', hexblob('F11PAUSE_CODE', f11pause))
     new = replace(new, 'MOVIE', hexblob('MOVIE_CODE', movie))
     new = replace(new, 'CREDITS', hexblob('CREDITS_CODE', credits))
     new = replace(new, 'NAMEENTRY', hexblob('NAMEENTRY_CODE', nameentry))
@@ -255,7 +345,9 @@ def main(check=False):
                   hexblob('PAD_COND', cond) + '\n'
                   + hexblob('PAD_BINDS', pbinds) + '\n'
                   + hexblob('PAD_NAMES', pnames) + '\n'
-                  + hexblob('PAD_DEVLIST', devlist))
+                  + hexblob('PAD_DEVLIST', devlist) + '\n'
+                  + hexblob('PAD_SIMPLEDEF', sdef) + '\n'
+                  + hexblob('PAD_INIKEYS', inikeys))
     new = replace(new, 'DIALOGS',
                   hexblob('EXTRAS_TPL', extras_tpl) + '\n'
                   + hexblob('EXTRAS_DATA', extras_data) + '\n'
@@ -269,7 +361,10 @@ def main(check=False):
                      'TWIN_CODE', 'INTROWAIT_CODE', 'KBPAGE_CODE',
                      'MOVIE_CODE', 'CREDITS_CODE', 'NAMEENTRY_CODE',
                      'CAMSKIP_CODE', 'OVERLAY_CODE', 'TITLEVER_CODE',
-                     'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'EXTRAS_TPL',
+                     'BINDLIST_CODE', 'BINDMAP_CODE', 'BINDBLOCK_CODE',
+                     'INISAVE_CODE', 'INILOAD_CODE', 'BLOCKCUR_CODE', 'INIPARSE_CODE', 'PAGESEC_CODE', 'PAGESEL_CODE', 'COMMITDEV_CODE', 'INIALL_CODE', 'DEVORDER_CODE', 'F11PAUSE_CODE', 'PAD_INIKEYS',
+                     'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_SIMPLEDEF',
+                     'EXTRAS_TPL',
                      'EXTRAS_DATA'))
     check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'OVERLAY_CODE': overlay,
                         'TITLEVER_CODE': titlever})
@@ -279,6 +374,19 @@ def main(check=False):
                    'twinstick.asm': ('TWIN_CODE', VA_DELTA),
                    'introwait.asm': ('INTROWAIT_CODE', VA_DELTA),
                    'kbpage.asm': ('KBPAGE_CODE', VA_DELTA),
+                   'bindlist.asm': ('BINDLIST_CODE', VA_DELTA),
+                   'bindmap.asm': ('BINDMAP_CODE', VA_DELTA),
+                   'bindblock.asm': ('BINDBLOCK_CODE', VA_DELTA),
+                   'inisave.asm': ('INISAVE_CODE', VA_DELTA),
+                   'iniload.asm': ('INILOAD_CODE', VA_DELTA),
+                   'blockcur.asm': ('BLOCKCUR_CODE', VA_DELTA),
+                   'iniparse.asm': ('INIPARSE_CODE', VA_DELTA),
+                   'pagesec.asm': ('PAGESEC_CODE', VA_DELTA),
+                   'pagesel.asm': ('PAGESEL_CODE', VA_DELTA),
+                   'commitdev.asm': ('COMMITDEV_CODE', VA_DELTA),
+                   'iniall.asm': ('INIALL_CODE', VA_DELTA),
+                   'devorder.asm': ('DEVORDER_CODE', VA_DELTA),
+                   'f11pause.asm': ('F11PAUSE_CODE', VA_DELTA),
                    'movie.asm': ('MOVIE_CODE', VA_DELTA_RSRC),
                    'credits.asm': ('CREDITS_CODE', VA_DELTA),
                    'nameentry.asm': ('NAMEENTRY_CODE', VA_DELTA),
@@ -294,9 +402,27 @@ def main(check=False):
         'padtables.COND': (padtables.COND, 'PAD_COND', VA_DELTA),
         'padtables.BINDS': (padtables.BINDS, 'PAD_BINDS', VA_DELTA),
         'padtables.NAMES': (padtables.NAMES, 'PAD_NAMES', VA_DELTA),
+        'padtables.SIMPLEDEF_AT':
+            (padtables.SIMPLEDEF_AT, 'PAD_SIMPLEDEF', VA_DELTA),
+        'padtables.INIKEYS_AT':
+            (padtables.INIKEYS_AT, 'PAD_INIKEYS', VA_DELTA),
         'dialogs.DATA': (dialogs.DATA, 'EXTRAS_DATA', VA_DELTA),
         'dialogs.TEMPLATE': (dialogs.TEMPLATE, 'EXTRAS_TPL', VA_DELTA_RSRC),
     })
+    check_calls({'debugbox.asm': dbgbox, 'padxinput.asm': padx,
+                 'levers.asm': levers, 'twinstick.asm': twin,
+                 'introwait.asm': introwait, 'kbpage.asm': kbpage,
+                 'bindlist.asm': bindlist, 'bindmap.asm': bindmap,
+                 'bindblock.asm': bindblock, 'inisave.asm': inisave,
+                 'iniload.asm': iniload, 'blockcur.asm': blockcur,
+                 'iniparse.asm': iniparse, 'pagesec.asm': pagesec,
+                 'pagesel.asm': pagesel, 'commitdev.asm': commitdev,
+                 'iniall.asm': iniall, 'devorder.asm': devorder,
+                 'f11pause.asm': f11pause, 'movie.asm': movie,
+                 'credits.asm': credits, 'nameentry.asm': nameentry,
+                 'camskip.asm': camskip, 'overlay.asm': overlay,
+                 'titlever.asm': titlever, 'timer.asm': timer,
+                 'vocd.asm': code})
 
     sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
              'levers %d, twinstick %d, introwait %d, kbpage %d, movie %d, '

@@ -154,10 +154,76 @@ why a restart appeared to fix it. Its case now goes straight to the check,
 where the keyboard and gamepad selections already arrive.
 
 The gamepad profile takes *Keyboard only(Simple)*'s slot, the only F7 page
-that binds all twelve actions, with its input list swapped for pad inputs.
-Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
-scancode space, which the game does not otherwise use. Player 2 is a full
-mirror, so both sides are the same routine with a different parameter block.
+that binds all twelve actions. Bindings are one byte per action, so pad
+entries occupy `0xE0`-`0xEF` in the scancode space, which the game does not
+otherwise use. Player 2 is a full mirror, so both sides are the same routine
+with a different parameter block.
+
+*Keyboard (Simple)* itself returns in slot 3, the hidden *2 Joysticks*
+profile's: its handler stubs still exist and the slot's page, validation and
+joystick-spend table entries only needed repointing. Two validation entries
+skip the joystick-presence check now, not one: a keyboard in device 3 must
+not have its saved selection reset for lack of a stick. The shared bind
+page is told apart by device: `asm/bindlist.asm` and `asm/bindmap.asm` pick
+the input list - the game's 33 named keys or the 16 pad inputs - and
+`asm/bindblock.asm` (and `asm/blockcur.asm` for the store, whose call site
+passes a fused player-and-slot index) picks the saved block, `+0x08` for
+the gamepad and
+`+0x38`, the slot's own, for Simple. The device consulted is the structure's own `+0x00` dword,
+the pending pick the F7 screen edits, not the committed copy at
+`0x3651540`: the bind page and the live-table apply both run before OK
+commits, and against the committed device they would serve the profile
+being switched away from. The letter and digit sections are generated,
+not listed, and belong to Simple alone: `asm/pagesec.asm` and
+`asm/pagesel.asm` skip them for the gamepad in the fill, the store and
+the preselect together, since combo indices are positional. The gamepad
+page lists exactly its sixteen pad inputs, starting at index zero. Startup fills `+0x38` through the call
+that used to write 2 Joysticks defaults there, redirected to the tail of
+`asm/bindmap.asm`. The F7 list shows the profiles as gamepad, twin-stick,
+Simple, Real; the device numbers underneath stay what the executable and
+v_on.ini always used, and `asm/devorder.asm` maps list positions and
+devices into each other at the page's preselect and its OK translate.
+
+Persistence needed its own channel: the structure's blocks reach
+`v_on.ini` as one "Assign" line per player through a per-device dispatch
+at `0x496e4f`, and the slot Simple took over had none - a second copy of
+that defaults call re-filled `+0x38` with legacy joystick data on every
+launch. On OK, devices 1 and 3 both route through `asm/inisave.asm`, which
+writes "NP Simple Assign" as hex pairs and falls into the stock device 1
+case, so "NP Keyboard Assign" always carries the gamepad's set and neither
+profile loses its binds while the other is selected. The hex text is built
+in the dialog frame's own line buffer: the caves live in .rdata, which the
+patch marks executable but the loader still maps read-only, so cave code
+must never write to static addresses in that section. On launch, the
+loader routes each player by saved device, and slot 3's route was "load
+nothing" - right for 2 Joysticks, whose data was re-derived from the pad
+type, wrong for a profile with saved binds; one index byte routes it
+through the section below instead, and `asm/iniall.asm` runs the same
+loader for both players at the load loop's exit whatever the saved
+devices, so an inactive profile's saved set survives restarts spent on
+other devices. A last common check also demanded the
+DirectInput joystick subsystem whenever either player's saved device was
+3 or 7, forcing both to the gamepad and skipping the whole load when a
+controller was off at boot - it is 7-only now. There, the
+re-fill call runs `asm/iniload.asm`, parsing each block's own line
+back through `asm/iniparse.asm`: "NP Simple Assign" into `+0x38`, and "NP
+Keyboard Assign" into `+0x08` too, which the stock loader only parses into
+the live table. A missing line keeps the shipped set. When the saved
+device is Simple, the live table is then seeded from `+0x38`, overriding
+the seed the Keyboard Assign line left for the gamepad. The bind page's
+own seed of its block from the live table (`asm/blockcur.asm`'s wrapper)
+runs only when the page's device is the committed one - with two profiles
+sharing one live table, an unconditional seed would copy the active
+profile's binds into the other's block. The same sharing is why the
+device page's plain OK needs help: stock, it commits the device number
+and writes the "NP Device No." lines only, since every original device
+family kept its own live table. `asm/commitdev.asm` wraps that commit and
+reseeds the live table from the new device's block when it is one of the
+keyboard-page pair, so a switch takes effect without a trip through the
+bind page. The Default button's source table follows the
+same pending-device pick, or the keyboard page would be handed pad ids
+that match nothing it lists. One relaxation narrows: 2P may reuse 1P's key only while
+1P is on a pad profile, since device 3 makes 1P's keys live again.
 
 The win and lose screens read the camera key rather than the accept key, so
 Select skipped them and A did not. The tick writes the camera slot for A as
@@ -208,7 +274,10 @@ menu item behind it, so the dialog procedure writes the sub-state itself -
 the title machine's, so it shows that sequence rather than the one a finished
 game runs. It is in the *Debug* box with the rest all the same, since what it
 does to a running match is the same kind of thing. F11 because F9
-disconnects a network game and F10 is a Windows system key.
+disconnects a network game and F10 is a Windows system key. The dialog
+runs through `asm/f11pause.asm`, which wraps it in the same pause and
+resume calls the built-in F-key dialogs use, so the game and the music
+stop and restart around it identically.
 
 Motion is not among them any more, the F5 page having taken it over. The
 handler that filled the box stays and does nothing: with no control carrying

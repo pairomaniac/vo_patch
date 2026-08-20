@@ -168,13 +168,24 @@ PAD_BINDS = bytes.fromhex(
 PAD_NAMES = bytes.fromhex(
     '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
     '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
-    '005253204c656674005253205269676874004b6579626f61726420285265616c'
-    '290047616d65706164202858496e70757429005477696e2d737469636b202858'
-    '496e7075742900'
+    '005253204c6566740052532052696768740047616d65706164202858496e7075'
+    '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
+    '2853696d706c6529004b6579626f61726420285265616c2900'
 )
 
 PAD_DEVLIST = bytes.fromhex(
-    'ed4b6200fd4b62000e4c62000000000000000000000000000000000000000000'
+    'ed4b6200fe4b6200124c6200244c620000000000000000000000000000000000'
+)
+
+PAD_SIMPLEDEF = bytes.fromhex(
+    '11001f001e002000100012002e0022002d0013002f002100c700cf00d300d100'
+    'd200c900520051004f004c0053005000'
+)
+
+PAD_INIKEYS = bytes.fromhex(
+    '31502053696d706c652041737369676e0032502053696d706c65204173736967'
+    '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
+    '2041737369676e00'
 )
 # PADTABLES BLOB END
 
@@ -256,9 +267,9 @@ TIMER_CODE = bytes.fromhex(
 
 # DEBUGBOX BLOB BEGIN
 DEBUGBOX_HOOK = bytes.fromhex(
-    '558bec53817d0c000100007547817d107a000000753e68e8e86300ff1504d565'
-    '0368f3e8630050ff1508d5650385c0741c8bd86a0068d84e5f00ff750868b0fa'
-    '65036a00ff15a0d4650350ffd333c05b5dc210005b5de98019fdff'
+    '558bec53817d0c000100007532817d107a000000752968e8e86300ff1504d565'
+    '0368f3e8630050ff1508d5650385c074078bd8e87070040033c05b5dc210005b'
+    '5de99519fdff000000000000000000000000000000000000000000'
 )
 
 DEBUGBOX_PROC = bytes.fromhex(
@@ -277,10 +288,108 @@ DEBUGBOX_PROC = bytes.fromhex(
 
 # KBPAGE BLOB BEGIN
 KBPAGE_CODE = bytes.fromhex(
-    '833dac6bbf0001750e833d40156503007505e91f8ee5ffe9728ee5ff90909090'
+    '833dac6bbf00017510a1401565034883f8017605e91d8ee5ffe9708ee5ff9090'
     '6a01ff35ac6bbf00e8aa8fe5ff83c408e92d8fe5ff'
 )
 # KBPAGE BLOB END
+
+# BINDLIST BLOB BEGIN
+BINDLIST_CODE = bytes.fromhex(
+    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
+    '7df810eb04837df8217c0883c404e9e0a4e9ffc390909090e8c3ffffff74088b'
+    '04c543486200c38b04c538d46600c390e8abffffff74088a04c547486200c38a'
+    '04c53cd46600c3'
+)
+# BINDLIST BLOB END
+
+# BINDMAP BLOB BEGIN
+BINDMAP_CODE = bytes.fromhex(
+    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
+    '7df410eb04837df4217c0883c404e9a2a7e9ffc390909090e8c3ffffff740839'
+    '0cc547486200c3390cc53cd46600c3908b4424046bc87081c17068bf006bc018'
+    '05884762006a185051e8be86feff83c40cc3'
+)
+# BINDMAP BLOB END
+
+# BINDBLOCK BLOB BEGIN
+BINDBLOCK_CODE = bytes.fromhex(
+    '83b83868bf00037406054068bf00c3057068bf00c39090906bd07083ba3868bf'
+    '00036bc01874060500d66600c30588476200c39083b93868bf000374088a8441'
+    '4068bf00c38a84417068bf00c3909090240f3c0a720204270430880747c3'
+)
+# BINDBLOCK BLOB END
+
+# INISAVE BLOB BEGIN
+INISAVE_CODE = bytes.fromhex(
+    '5356578b9d38ffffff6bf3708db67068bf008bbd34ffffff31c98a040e88c2c0'
+    'e804e83dd6ffff88d0e836d6ffff4183f9187ce6c607006bc31105e04a6200ff'
+    'b534ffffff50e8b0fbfaff83c4085f5e5be9954ee9ff'
+)
+# INISAVE BLOB END
+
+# INILOAD BLOB BEGIN
+INILOAD_CODE = bytes.fromhex(
+    '5356578b5c24106bfb708dbf7068bf006bc31105e04a6200e8c3aaffff83ef30'
+    '6bc3138d80024b6200e8b2aaffff833c9d401565030375138d77306bfb188dbf'
+    '70146503b906000000f3a55f5e5bc3'
+)
+# INILOAD BLOB END
+
+# BLOCKCUR BLOB BEGIN
+BLOCKCUR_CODE = bytes.fromhex(
+    '518b0dac6bbf006bc97083b93868bf00035974078d804068bf00c38d807068bf'
+    '00c390909090909050518b45086bc8708b04854015650339813868bf00595875'
+    '05e98687feffc3'
+)
+# BLOCKCUR BLOB END
+
+# INIPARSE BLOB BEGIN
+INIPARSE_CODE = bytes.fromhex(
+    '50e85ffdfaff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
+    '08d088040f4183f9187ce6c30fb606462c303c0976022c27c3'
+)
+# INIPARSE BLOB END
+
+# PAGESEC BLOB BEGIN
+PAGESEC_CODE = bytes.fromhex(
+    'e86fbcffff750f837df81a7d01c383c404e9ea60e9ff83c404e92261e9ffe851'
+    'bcffff750f837dec1a7d01c383c404e9d062e9ff83c404e9ed62e9ff'
+)
+# PAGESEC BLOB END
+
+# PAGESEL BLOB BEGIN
+PAGESEL_CODE = bytes.fromhex(
+    'e80bbcffff750f837df41a7d01c383c404e96f64e9ff83c404e9ab64e9ffe8ed'
+    'bbffff75048345f42483c404e9d464e9ff'
+)
+# PAGESEL BLOB END
+
+# COMMITDEV BLOB BEGIN
+COMMITDEV_CODE = bytes.fromhex(
+    '89048d4015650383f801740583f80375275657516bf1708db64068bf0083f803'
+    '750383c6306bf9188dbf70146503b906000000f3a5595f5ec3'
+)
+# COMMITDEV BLOB END
+
+# INIALL BLOB BEGIN
+INIALL_CODE = bytes.fromhex(
+    '6a016a00e8dfbe000083c4086a016a01e8d3be000083c408c3'
+)
+# INIALL BLOB END
+
+# DEVORDER BLOB BEGIN
+DEVORDER_CODE = bytes.fromhex(
+    '030001020405060701020300040506078b803868bf0083f80777070fb6803447'
+    '6000c38b45f483f80777070fb6803c4760008b4decc3'
+)
+# DEVORDER BLOB END
+
+# F11PAUSE BLOB BEGIN
+F11PAUSE_CODE = bytes.fromhex(
+    '6a00e89aa8f8ff83c4046a0068d84e5f00ff750868b0fa65036a00ff15a0d465'
+    '0350ffd3e8bea8f8ffc3'
+)
+# F11PAUSE BLOB END
 
 # MOVIE BLOB BEGIN
 MOVIE_CODE = bytes.fromhex(
@@ -699,11 +808,9 @@ FEATURES = [
      '\tthe game\'s own lettering.\n'
      'Ending roll\tTwo lines under the CYBER TROOPERS VIRTUAL-ON title\n'
      '\tat the top of the credits, in the roll\'s lettering.\n'
-     'Files\tThe roll is a tile sheet and a list of blocks, both\n'
-     '\tbeside the game, so scrstfcg.bin and scrstfmp.bin are\n'
+     'Files\tscrstfcg.bin and scrstfmp.bin beside the game are\n'
      '\trewritten and backed up. Restore original puts them back.\n'
-     'If they are missing\tNothing is written, the version included.\n'
-     '\tThe roll\'s two halves only make sense together.', [
+     'If they are missing\tNothing is written, the version included.', [
          # The loader takes both byte counts from here rather than from
          # the files, so these have to grow with them or the tail of each
          # never loads: the new tiles would be past the count, and the walk
@@ -813,8 +920,7 @@ FEATURES = [
      'Music\tRead from music\\trackNN.wav beside the game. Rip them in\n'
      '\tthe CD MUSIC section below; with none there, the game\n'
      '\treads the drive.\n'
-     'File size\tThe music needs a section of its own, so the file grows\n'
-     '\tby about 3 KB.', [
+     'File size\tThe file grows by about 3 KB.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -874,6 +980,9 @@ FEATURES = [
          (0x001c4d4b, '65000000', '00000000'),
          (0x001c4d7e, '57685c00', '7c4e5f00'),
          (0x001f427c, '00' * len(DEBUGBOX_HOOK), DEBUGBOX_HOOK.hex()),
+         # the pause-and-resume wrapper the hook runs the dialog through,
+         # matching the built-in F-key dialogs; see asm/f11pause.asm
+         (0x0023b324, '00' * len(F11PAUSE_CODE), F11PAUSE_CODE.hex()),
          (0x001f42d8, '00' * len(DEBUGBOX_PROC), DEBUGBOX_PROC.hex()),
          (0x0023dce8, '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex()),
          # over the menu resource this patch has just orphaned
@@ -919,14 +1028,15 @@ FEATURES = [
           '90' * 42)]),
 
     ('padxinput', 'XInput gamepad support',
-     'Three profiles on the F7 screen, any of them for either player.\n'
+     'Four profiles on the F7 screen, any of them for either player.\n'
      '\n'
-     'Keyboard (Real)\tthe game\'s two-lever keyboard scheme\n'
      'Gamepad (XInput)\ttwelve named actions, bind them yourself\n'
      'Twin-stick (XInput)\tthe arcade levers, nothing to bind\n'
+     'Keyboard (Simple)\tevery action on a bindable key\n'
+     'Keyboard (Real)\tthe two-lever keyboard scheme\n'
      '\n'
-     'Keyboard only(Simple) is the one they replace: it is the only page that\n'
-     'binds all twelve actions, so the gamepad has to take it.\n'
+     'Simple and the gamepad share one bind page, but each sees only its\n'
+     'own inputs. Their bind sets are separate and both are saved.\n'
      '\n'
      'A accepts, Select is the camera, Start pauses, and the D-pad works the\n'
      'menus. Either of the first two skips the win and lose screens between\n'
@@ -936,33 +1046,55 @@ FEATURES = [
      'bound, as long as 1P is on a pad and not using it. And Default resets\n'
      'whichever side you are editing, instead of always 1P.\n'
      '\n'
-     'v_on.ini and escrgame.bin are moved aside and rewritten: binds saved\n'
-     'by the unpatched game do not fit the new device list, and the title\n'
-     'prompt is redrawn. Restore original puts both back.', [
-         # F7 page: drop the letter, digit and named-key sections
-         (0x00097042, '1a', '00'),
-         (0x00097082, '0a', '00'),
-         (0x000970c2, '21', '10'),
-         (0x000970d8, '38d46600', '43486200'),
-         # same boundaries when a selection is stored
-         (0x0009725a, '1a', '00'),
-         (0x00097277, '1a', '00'),
-         (0x0009727b, '0a', '00'),
-         (0x00097298, '0a', '00'),
-         (0x0009729f, '3cd46600', '47486200'),
-         # and when one is restored - three index rebases, all or none
-         (0x0009742b, '1a', '00'),
-         (0x0009746b, '0a', '00'),
-         (0x0009748d, '1a', '00'),
-         (0x000974ce, '24', '00'),
-         (0x000974af, '21', '10'),
-         (0x000974c1, '3cd46600', '47486200'),
-         # window title
+     'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
+     'original puts both back.', [
+         # The bind page serves the gamepad and Keyboard (Simple) both, so
+         # its list length and address go through asm/bindlist.asm and
+         # asm/bindmap.asm, which pick them by device. The letter and
+         # digit sections are Simple's alone; asm/pagesec.asm and
+         # asm/pagesel.asm skip them for the gamepad.
+         (0x000970bf, '837df8210f8d2e000000', 'e8385b16009090909090'),
+         (0x000970d5, '8b04c538d46600', 'e8425b16009090'),
+         (0x0009729c, '8a04c53cd46600', 'e8935916009090'),
+         (0x000974ac, '837df4210f8d23000000', 'e86b5816009090909090'),
+         (0x000974be, '390cc53cd46600', 'e8795816009090'),
+         (0x001fcbe4, '00' * len(BINDLIST_CODE), BINDLIST_CODE.hex()),
+         (0x001fcd04, '00' * len(BINDMAP_CODE), BINDMAP_CODE.hex()),
+         # Which saved block that page reads and writes is picked the same
+         # way: +0x08 for the gamepad, +0x38 - the hidden 2 Joysticks
+         # profile's, inside the structure v_on.ini keeps - for Simple.
+         # See asm/bindblock.asm; the player comes from the maths in
+         # flight, not 0xbf6bac, because the Default copier also runs at
+         # startup for both sides.
+         (0x00095f35, '053868bf0083c008', 'e812871600909090'),
+         (0x0009724c, '053868bf0083c008', 'e8135a1600909090'),
+         (0x0009736d, '053868bf0083c008', 'e8da721600909090'),
+         # the Default button's shipped set comes from the same pick:
+         # the gamepad's table or SIMPLEDEF, by the pending device
+         (0x00097355, '8d04408d04c500d66600', 'e80a7316009090909090'),
+         (0x00097397, '053868bf0083c008', 'e8b0721600909090'),
+         (0x00097531, '053868bf0083c008', 'e816711600909090'),
+         (0x0009740f, '8a84414068bf00', 'e86c7216009090'),
+         (0x001fe64c, '00' * len(BINDBLOCK_CODE), BINDBLOCK_CODE.hex()),
+         (0x00201038, '00' * len(INISAVE_CODE), INISAVE_CODE.hex()),
+         (0x0020642c, '00' * len(INILOAD_CODE), INILOAD_CODE.hex()),
+         (0x001fcc64, '00' * len(BLOCKCUR_CODE), BLOCKCUR_CODE.hex()),
+         (0x00200f0c, '00' * len(INIPARSE_CODE), INIPARSE_CODE.hex()),
+         (0x00200f70, '00' * len(PAGESEC_CODE), PAGESEC_CODE.hex()),
+         (0x00200fd4, '00' * len(PAGESEL_CODE), PAGESEL_CODE.hex()),
+         (0x001fcb4c, '00' * len(COMMITDEV_CODE), COMMITDEV_CODE.hex()),
+         (0x001fa544, '00' * len(INIALL_CODE), INIALL_CODE.hex()),
+         (0x00203b34, '00' * len(DEVORDER_CODE), DEVORDER_CODE.hex()),
+         (0x00223ee0, '00' * len(PAD_INIKEYS), PAD_INIKEYS.hex()),
+         # window title, shared by both pages now
          (0x0026c88c, '4b6579626f617264206f6e6c79202853696d706c652074797065202d2025645020736964652900',
-                      '47616d65706164202858496e70757429202d202564502073696465000000000000000000000000'),
-         # default binds, 1P and 2P, twelve slots of stride 2
+                      '42696e64696e6773202d20256450207369646500000000000000000000000000000000000000'
+                      '00'),
+         # the gamepad's default binds, 1P and 2P, twelve slots of stride
+         # 2. Keyboard (Simple)'s shipped set moves to PAD_SIMPLEDEF.
          (0x0026c400, '11001f001e002000100012002e0022002d0013002f002100', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
          (0x0026c418, 'c700cf00d300d100d200c900520051004f004c0053005000', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
+         (0x00223b88, '00' * len(PAD_SIMPLEDEF), PAD_SIMPLEDEF.hex()),
          # each player's profile 1 dispatches to the routine
          (0x000422a8, '502e4400', '60806000'),
          (0x001bc13b, 'e3cc5b00', '72806000'),
@@ -971,18 +1103,22 @@ FEATURES = [
          (0x001c530e, 'ff1590d56503', 'e88521040090'),
          # two pads are separate devices, so 2P may reuse 1P's inputs
          (0x000971bd, '0f8558000000', 'e95900000090'),
-         # device list: Keyboard (Real), Gamepad (XInput), Twin-stick
+         # device list: Keyboard (Real), Gamepad (XInput), Twin-stick,
+         # Keyboard (Simple)
          (0x0026c218, 'ecd36600d4d36600c0d36600b4d3660090d3660080d3660068d3660058d36600',
           PAD_DEVLIST.hex()),
-         # profile switch, both players: slot 2 gets the twin-stick stubs.
-         # Slot 1 is the gamepad, repointed above; slot 0 is the game's own
-         # keyboard handler and is left alone.
+         # profile switch, both players: slot 2 gets the twin-stick stubs
+         # and slot 3 the stubs Keyboard (Simple) always had, back from
+         # slot 1. Slot 1 is the gamepad, repointed above; slot 0 is the
+         # game's own keyboard handler and is left alone.
          (0x000422ac, '5a2e4400', 'c4496200'),
          (0x001bc13f, 'edcc5b00', 'd6496200'),
+         (0x000422b0, '6b2e4400', '502e4400'),
+         (0x001bc143, 'fecc5b00', 'e3cc5b00'),
          # The keyboard profile shared its twenty-four bind slots with
          # Simple, and the gamepad took those. Move it to the block owned by
-         # the hidden Joystick + Keyboard profile, which is inside the
-         # structure saved to v_on.ini, so it persists for free.
+         # the hidden Joystick + Keyboard profile, whose "Joy+Key Assign"
+         # v_on.ini line keeps it persistent.
          (0x00095e46, '83c008', '83c020'),
          (0x00095ec7, '4068bf00', '5868bf00'),
          (0x00096d37, '83c008', '83c020'),
@@ -1008,20 +1144,79 @@ FEATURES = [
          # Keyboard writes that block after the keyboard profile does. It is
          # hidden, so drop its call; the pushes around it stay balanced.
          (0x00094ea0, 'e8592b0000', '9090909090'),
+         # The call after it filled +0x38 with 2 Joysticks defaults; that
+         # block is Keyboard (Simple)'s now, so it goes to the writer at
+         # the end of asm/bindmap.asm instead.
+         (0x00094eaf, 'ca330000', 'a17e1600'),
          # Startup validates the device saved in v_on.ini through a table
          # at 0x495e0f indexed by device - 2, so this entry is device 4,
          # a legacy joystick profile. It is hidden and unreachable, and
          # this only spares it a check it would fail.
          (0x00095217, '415d4900', '235e4900'),
+         # and this one is device 3, Keyboard (Simple) now: a keyboard must
+         # not fail the joystick-presence check, or the saved device resets
+         # at every launch.
+         (0x00095213, '185d4900', '235e4900'),
          # The device page's OK handler counts the joysticks enumerated at
          # startup and spends one per selection, refusing the page if a
          # counter goes negative. Twin-stick reads the pad through XInput
          # and spends nothing, so send its case straight to that check,
          # where the keyboard and gamepad selections already arrive.
          (0x00096731, 'e0724900', '49734900'),
+         # and device 3, Keyboard (Simple), spends nothing either
+         (0x00096735, '06734900', '49734900'),
          # F7 page table: twin-stick binds nothing, so it takes the case
          # that opens no dialog and reports success.
          (0x00095bdc, '28674900', 'a9674900'),
+         # and slot 3 opens the twelve-bind page the gamepad shares
+         (0x00095be0, 'a9674900', 'e9664900'),
+         # The apply-and-serialize switch behind OK: devices 1 and 3 both
+         # run asm/inisave.asm, which writes "NP Simple Assign" from +0x38
+         # and falls into the stock device 1 case - so both profiles'
+         # lines are always written, whichever is selected.
+         (0x00096253, '236b4900', '381c6000'),
+         (0x0009625b, '2b6e4900', '381c6000'),
+         # And the startup call that refilled +0x38 with legacy joystick
+         # defaults every launch parses that line back instead. See
+         # asm/iniload.asm.
+         (0x00095604, 'e8742c0000', 'e8230e1700'),
+         # The ini loader routes each player by saved device, and slot 3's
+         # route was "load nothing" - right for 2 Joysticks, whose data was
+         # re-derived, wrong for Simple. Route it through the section that
+         # runs asm/iniload.asm instead.
+         (0x000958a1, '03', '02'),
+         # And whatever the saved devices, both keyboard-page blocks load
+         # their lines at the loop's exit; see asm/iniall.asm.
+         (0x000958aa, 'e900000000', 'e8954c1600'),
+         # A last common check demanded the DirectInput joystick subsystem
+         # whenever either player's saved device was 3 or 7, or it forced
+         # both to Gamepad and skipped the whole ini load. Simple needs no
+         # joystick; the check is 7-only now.
+         (0x0009522e, '03', '7f'),
+         (0x00095248, '03', '7f'),
+         # The list shows gamepad, twin-stick, Simple, Real; positions and
+         # device numbers are mapped both ways by asm/devorder.asm.
+         (0x0009651a, '8b803868bf00', 'e825d6160090'),
+         (0x00096784, '8b45f48b4dec', 'e8ced3160090'),
+         # The device page's plain OK only commits the device number; the
+         # shared live table must be reseeded for the new device too. See
+         # asm/commitdev.asm.
+         (0x000959f7, '89048d40156503', 'e8507116009090'),
+         # The shared page's template labels its list "1P side" - baked-in
+         # text the original also showed on the 2P pass. Neutral now that
+         # the window title carries the side.
+         (0x0060b34e, '3100500020007300690064006500', '41006300740069006f006e007300'),
+         # The bind page's seed of its block from the live table is only
+         # right when the page's device is the committed one; see
+         # asm/blockcur.asm.
+         # The letter and digit sections belong to the keyboard profile;
+         # the gamepad page lists only its pad inputs. Fill, store and
+         # preselect skip them together: asm/pagesec.asm, asm/pagesel.asm.
+         (0x0009703f, '837df81a0f8d27000000', 'e82c9f16009090909090'),
+         (0x00097257, '837dec1a0f8d13000000', 'e8329d16009090909090'),
+         (0x00097428, '837df41a0f8d27000000', 'e8a79b16009090909090'),
+         (0x000974cb, '8345f424e905000000', 'e8229b160090909090'),
+         (0x0009753a, 'e8f1de1400', 'e84d571600'),
          (0x00223dc4, '00' * len(TWIN_CODE), TWIN_CODE.hex()),
          # the intro movie blocks the message loop in GetMessageA, where the
          # pump stub does not run. Poll from the call itself instead, so a
@@ -3346,9 +3541,7 @@ NO_FILE = 'No file selected'
 
 # Shown on the checkbox itself. Only for patches that take something away:
 # the tip explains, but nobody opens the tip before ticking.
-SIDE_EFFECTS = {
-    'padxinput': '  - replaces Keyboard only(Simple)',
-}
+SIDE_EFFECTS = {}
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'

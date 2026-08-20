@@ -17,6 +17,10 @@ everyone's saved binds.
 import struct
 
 COND = 0x00624d1b       # condition table, 16 entries of 8 bytes
+SIMPLEDEF_AT = 0x00624788  # Keyboard (Simple)'s shipped binds
+INIKEYS_AT = 0x00624ae0    # ini key strings: Simple Assign for both
+                           # players (17 bytes each), then Keyboard Assign
+                           # (19 bytes each) for the block load at launch
 BINDS = 0x00624843      # bind list, 16 entries of (name, id)
 NAMES = 0x00624b9b      # the strings both tables point at
 FIRST_ID = 0xe0         # a bind byte this or over is a pad input
@@ -62,11 +66,20 @@ INPUTS = [
     ('RS Right',  ABOVE,   RX,  DEADZONE),
 ]
 
-# The F7 device list, in slot order. Slot 0 is the game's own keyboard
-# handler; the other two are this patch's.
-PROFILES = ['Keyboard (Real)', 'Gamepad (XInput)', 'Twin-stick (XInput)']
+# The F7 device list, in display order; asm/devorder.asm maps positions
+# to the fixed device numbers (0 Real, 1 gamepad, 2 twin-stick, 3 Simple).
+PROFILES = ['Gamepad (XInput)', 'Twin-stick (XInput)', 'Keyboard (Simple)',
+            'Keyboard (Real)']
 
 DEVLIST_LEN = 32        # the run the device list is written into
+
+# Keyboard (Simple)'s shipped binds, 1P then 2P: the two runs the executable
+# holds for the block it originally shared with Keyboard (Real). The gamepad
+# defaults replaced them in place, so its returning profile brings its own
+# copy, written to the +0x38 block by the startup call kbpage.asm redirects.
+SIMPLEDEF = bytes.fromhex(
+    '11001f001e002000100012002e0022002d0013002f002100'    # 1P
+    'c700cf00d300d100d200c900520051004f004c0053005000')   # 2P
 
 
 def build():
@@ -84,11 +97,19 @@ def build():
     devlist = b''.join(struct.pack('<I', at[p]) for p in PROFILES)
     devlist += b'\0' * (DEVLIST_LEN - len(devlist))
 
-    inc = '%%define COND 0x%08x\n' % COND
-    return inc, bytes(cond), bytes(binds), bytes(names), devlist
+    inikeys = (b'1P Simple Assign\0' + b'2P Simple Assign\0'
+               + b'1P Keyboard Assign\0' + b'2P Keyboard Assign\0')
+
+    inc = ('%%define COND 0x%08x\n' % COND
+           + '%%define SIMPLEDEF 0x%08x\n' % SIMPLEDEF_AT
+           + '%%define INIKEYS 0x%08x\n' % INIKEYS_AT)
+    return (inc, bytes(cond), bytes(binds), bytes(names), devlist,
+            SIMPLEDEF, inikeys)
 
 
 if __name__ == '__main__':
-    _inc, cond, binds, names, devlist = build()
-    print('condition table %d, bind list %d, names %d, device list %d'
-          % (len(cond), len(binds), len(names), len(devlist)))
+    _inc, cond, binds, names, devlist, sdef, keys = build()
+    print('condition table %d, bind list %d, names %d, device list %d, '
+          'simple defaults %d, ini keys %d'
+          % (len(cond), len(binds), len(names), len(devlist), len(sdef),
+             len(keys)))

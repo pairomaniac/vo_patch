@@ -24,9 +24,11 @@ RESUME      equ 0x0049789a      ; what the Default button does next
 dupkey:
     cmp     dword [CURPLAYER], 1
     jne     .accept             ; configuring 1P: never cross checked
-    cmp     dword [DEVICE1P], 0
-    jne     .accept             ; 1P is on a pad, so its keys are dormant
-    jmp     CROSSCHECK
+    mov     eax, [DEVICE1P]
+    dec     eax
+    cmp     eax, 1
+    jbe     .accept             ; 1P is on a pad, so its keys are dormant
+    jmp     CROSSCHECK          ; devices 0 and 3 are both keyboards
 .accept:
     jmp     ACCEPT
 

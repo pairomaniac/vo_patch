@@ -57,8 +57,8 @@ opening an F-key dialog kills the keyboard for the rest of the session.
 ### Extra
 
 - **XInput gamepad support** - twelve bindable actions on a modern
-controller, plus the arcade twin-stick scheme, for both players. Costs the
-*Keyboard only(Simple)* profile. See [Gamepad](#gamepad).
+controller, plus the arcade twin-stick scheme, for both players. See
+[Gamepad](#gamepad).
 - **No disc required** - removes the disc check and reads the soundtrack from
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
@@ -107,21 +107,25 @@ beside the game.
 ## Gamepad
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
-profiles are hidden and three remain, for both players - pad 1 drives 1P,
+profiles are hidden and four remain, for both players - pad 1 drives 1P,
 pad 2 drives 2P.
 
-<img width="350" alt="F7 device list with the three profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
+<img width="350" alt="F7 device list with the profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
 <img width="350" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
 | Profile | What it is |
 | --- | --- |
-| **Keyboard (Real)** | the game's own two-lever keyboard scheme, bindable |
 | **Gamepad (XInput)** | twelve named actions, bound from the F7 screen |
 | **Twin-stick (XInput)** | the arcade levers, nothing to bind |
+| **Keyboard (Simple)** | every action on a bindable key |
+| **Keyboard (Real)** | the game's own two-lever keyboard scheme, bindable |
 
-*Keyboard only(Simple)* is gone for now: it is the only F7 page that binds
-all twelve actions, so the gamepad profile takes it. *Real* keeps its own
-page.
+Simple and the gamepad share one bind page, but each sees only its own
+inputs: the pad's sixteen on the gamepad page, the keyboard's letters,
+digits and named keys on Simple's. The two profiles keep separate bind
+sets, and both are saved to `v_on.ini`. *Real* keeps its own
+page. One trade: with two keyboard profiles, 2P may only take a key 1P
+has bound while 1P is on a pad profile.
 
 Four buttons work on every profile, Start on the pause screen included:
 
@@ -166,6 +170,12 @@ bindable.
 | Sticks together | crouch, which is the guard |
 | **LT**, **RT** | left and right weapon; both at once is the centre weapon |
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
+
+### Keyboard (Simple)
+
+The game's original all-keys profile. It shares the bind page with the
+gamepad, but each profile sees only its own inputs and keeps its own saved
+set, so switching between them costs nothing.
 
 ### Keyboard (Real)
 

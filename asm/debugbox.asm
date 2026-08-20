@@ -44,6 +44,7 @@ WM_KEYDOWN  equ 0x0100
 WM_INITDLG  equ 0x0110
 WM_COMMAND  equ 0x0111
 VK_F11      equ 0x7a
+F11WRAP     equ 0x0063bf24      ; asm/f11pause.asm
 CB_ADDSTRING equ 0x143
 CB_GETCURSEL equ 0x147
 CB_SETCURSEL equ 0x14e
@@ -78,16 +79,8 @@ hook:
     test    eax, eax
     je      .done
     db      0x8b, 0xd8                  ; mov ebx, eax
-
-    push    0                           ; dwInitParam
-    push    dlgproc
-    push    dword [ebp + 8]             ; hWndParent
-    push    TEMPLATE
-    push    0
-    call    [GETMODULE]
-    push    eax                         ; hInstance
-    call    ebx
-.done:
+    call    F11WRAP                     ; asm/f11pause.asm: pause the game
+.done:                                  ; and music, run the dialog, resume
     db      0x33, 0xc0                  ; xor eax, eax
     pop     ebx
     pop     ebp
