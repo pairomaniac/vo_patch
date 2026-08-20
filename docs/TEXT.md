@@ -72,8 +72,9 @@ bold. Drawn widths come from the 24px capital at 11/17 - 13px wide there is
 8 here, 15 is 9 or 10, 17 is 11 - and edges step a column every three rows.
 
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
-through GDI. `0x4cd8c3(col, row)` sets the tile cursor and `0x4ce573(str)`
-prints through it.
+through GDI. `0x4cd8c3(col, row)` sets the tile cursor and two printers draw
+through it: `0x4ce573(str)`, and `0x4ceeeb(str)`, which also picks among the
+four glyph sets at `0x600ec8` and is what the version line uses.
 
 `0x5c991c` paints on whichever surface `0x1ae5f40` names, and returns without
 drawing if that is null. The pause screen is not flipping, so it wants the
