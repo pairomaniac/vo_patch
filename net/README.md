@@ -12,7 +12,7 @@ build.py    compiles it and bakes the result into vo-patch.py
 ## Why
 
 `v_on.exe` does no networking of its own. It imports six functions from
-`DPCTRL.DLL`, and that DLL uses DirectPlay 1 - `DirectPlayCreate` and
+`DPCTRL.DLL` - every export but `CloseProvider` - and that DLL uses DirectPlay 1 - `DirectPlayCreate` and
 `DirectPlayEnumerate`, ordinals 1 and 2, nothing else.
 
 That API has nowhere to put an address. Compound addresses and
