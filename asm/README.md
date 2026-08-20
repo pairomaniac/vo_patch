@@ -218,18 +218,19 @@ Sites written into section padding, and what is still free after them:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
-| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 450 | **0** |
-| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 272 | **8** |
+| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 327 | 123 |
+| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 252 | 28 |
 | `.rsrc` past VirtualSize | `0x60c25c`-`0x60c400` | 420 | 396 | **24** |
 
-The `.text` cave holds `timer.asm` and `debugbox.asm` and is full. Its 24
-spare bytes went on the Credits button, and the run of zeros continuing past
+The `.text` cave holds `timer.asm` and `debugbox.asm`. It was full until the
+dead frame-rate combo code came out of the dialog procedure; the run of zeros
+continuing past
 `0x1f4400` is not more cave - `0x5f5000` is a `qword` 0.0 that `0x401ce4`
 compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
 at the first of them and `build.py` checks it. This is why CD audio got a
 section of its own rather than another cave. The `.rdata` one holds the
 Extras box's strings and tables, the keyboard page fixes and the intro-movie
-message wait, and is now nearly full too - the dialog template itself is in
+message wait - the dialog template itself is in
 the `.rsrc` cave. Anything else of any
 size wants its own section, the way `vocd.asm` has one.
 
@@ -415,7 +416,7 @@ export is not worth it - and opens the template that the same patch writes
 into the `.rsrc` cave.
 
 **The dialog procedure** ticks each check box from the game's own flag on
-`WM_INITDIALOG`, fills the frame rate list, and forwards clicks. Every
+`WM_INITDIALOG` and forwards clicks. Every
 control's id is the game's own command id, so a click is posted straight to
 the main window as `WM_COMMAND` and needs no lookup table. Quit is the one
 special case: the dialog is closed first, because the game tears the window

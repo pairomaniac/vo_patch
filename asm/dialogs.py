@@ -65,8 +65,6 @@ ITEMS = [
     ('Close',      IDCANCEL, 146, 90,  50, 14, PUSH,     None),
 ]
 
-RATES = ['1/1', '1/2', '1/3', '1/4', '1/5']
-
 # The F5 page's frame rate radios. Sega labelled them for what the setting
 # did to the animation; they name the frame rate now, which is what the
 # player is choosing. The wider one is the first, and everything after it
@@ -114,15 +112,10 @@ def build_extras():
     for _label, iid, _x, _y, _cx, _cy, _style, flag in ITEMS:
         if flag is not None:
             data += struct.pack('<II', flag, iid)
-    rates = DATA + len(data)
-    for text in RATES:
-        data += text.encode('ascii') + b'\0'
-
     inc = ''.join('%%define %-11s 0x%08x\n' % (name, value) for name, value in (
         ('USER32', names['USER32.DLL']),
         ('DLGBOXPROC', names['DialogBoxIndirectParamA']),
         ('CHECKS', checks),
-        ('RATES', rates),
         ('TEMPLATE', TEMPLATE),
         ('CMD_QUIT', dict((name, i) for name, i, *_r in ITEMS)['Quit']),
         ('CMD_CREDITS', CMD_CREDITS),

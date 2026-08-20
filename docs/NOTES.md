@@ -317,9 +317,7 @@ runs through `asm/f11pause.asm`, which wraps it in the same pause and
 resume calls the built-in F-key dialogs use, so the game and the music
 stop and restart around it identically.
 
-Motion is not among them any more, the F5 page having taken it over. The
-handler that filled the box stays and does nothing: with no control carrying
-its ID, `GetDlgItem` hands back nothing to talk to.
+Motion is not among them any more, the F5 page having taken it over.
 
 ### Intro movie
 
