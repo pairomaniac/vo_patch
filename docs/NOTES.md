@@ -21,7 +21,7 @@ they are built see [asm/](../asm/).
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **XInput gamepad support** | `0x1c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, `0x096731`, `0x23d1a0`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, thirteen `.rdata` caves, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
-| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23b324`, `0x23dce8`, `0x6036b0` | dialog built in unused section padding and over the dead menu, run through the same pause and resume as the built-in F-key dialogs |
+| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23b324`, `0x23dce8`, appended `.voxt` section | dialog built in unused section padding, its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
 | **Show the version, and credit the patch in the ending roll** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `0x223198`, `0x1c4`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
 | **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23d1c4`, `0x1c58e7`, `0x1f74e0`, `0x1c4` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
 
@@ -286,6 +286,19 @@ devices, `asm/iniall.asm` runs the same loader for both players at the
 load loop's exit, so an inactive profile's saved set survives restarts
 spent on other devices.
 
+The stick deadzones load on the same exit: 40% per player unless that
+player's `1P Deadzone=` or `2P Deadzone=` line says otherwise - two
+digits, 05 to 95, anything else keeps the default; an entry the F11 box
+rejects is re-seeded to the percent in force, so it neither lingers nor
+blanks. The key strings ride
+in the names blob rather than beside the Assign keys, whose run turns
+out to end within nine bytes of them. The thresholds the
+tick compares against - per player, indexed by the parameter block's
+own index - are the percent of 32767, and the condition table's axis
+values only pick the side of zero now. The F11 dialog writes both
+lines back through the game's own line writer when it closes; the
+lines are also hand-editable.
+
 #### Pad buttons outside the binds
 
 The win and lose screens read the camera key rather than the accept key, so
@@ -306,7 +319,7 @@ is ignored while it plays, so Start does not.
 No dialog resource ever existed, so one is built at runtime
 from a template written into unused space - over the old menu, which this same
 patch unhooks. Every control carries the game's own command ID, so clicks go
-straight to the main window and **Quit** is just the *Exit Game* command; the
+straight to the main window; the
 check boxes read the game's own flags. **Credits** is the one control with no
 menu item behind it, so the dialog procedure writes the sub-state itself -
 the title machine's, so it shows that sequence rather than the one a finished
@@ -318,6 +331,30 @@ resume calls the built-in F-key dialogs use, so the game and the music
 stop and restart around it identically.
 
 Motion is not among them any more, the F5 page having taken it over.
+
+The dialog also carries each player's stick deadzone as a two-digit
+percent, read back and written to that player's v_on.ini line when the
+box closes - a Deadzone group of its own, `1P [40] %  2P [40] %`. The
+template lives in a small read-only section the patch appends, the way
+CD MUSIC's code does: the dead menu resource it used to squeeze into
+caps it at 460 bytes, which had been pricing every label, and is left
+as it came now. `asm/f11pause.asm` carries a placeholder where the
+template's address belongs, filled at apply time once the section
+exists. The section carries code at its tail too: the dialog's long
+paths - the close-time read, the ini save, the Defaults button that
+seeds both players back to 40 with the dialog still open, and Quit,
+which is back and still closes the dialog before posting, the game
+tearing the window down under it - live in `asm/voxt.asm`, position
+independent, reached
+through a rel32 placeholder in the dialog procedure. The check-box init
+stayed in `asm/f11pause.asm`'s tail. The values and their digits
+live in the
+gamepad patch's `.data` scratch, and the ini write-back in its
+`asm/iniparse.asm` cave, so the close path calls it behind a test of
+that cave's first byte: zero is the stock run, nothing to call. With
+the gamepad patch out the boxes show empty and their values land in
+scratch nothing reads, which is harmless either way, since the
+addresses are free in the stock executable whatever is installed.
 
 ### Intro movie
 

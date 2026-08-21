@@ -63,9 +63,11 @@ controller, plus the arcade twin-stick scheme, for both players. See
 `music\trackNN.wav` beside the game instead. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - removes the menu bar and puts
 the Debug options on F11 instead: No shot, SE, CD, Kill 1P, Kill 2P,
-Scorekeeping and **Quit**. **Credits** is new - it jumps to the credit roll
+Scorekeeping and Quit Game. **Credits** is new - it jumps to the credit roll
 from any match, so you can see it without finishing the game. Motion is
-not there; it has moved to F5. Every other menu was already on a key:
+not there; it has moved to F5. With the gamepad patch in, the dialog
+also sets each player's [stick deadzone](#stick-deadzone). Every other
+menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -170,6 +172,22 @@ bindable.
 | Sticks together | crouch, which is the guard |
 | **LT**, **RT** | left and right weapon; both at once is the centre weapon |
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
+
+### Stick deadzone
+
+How far a stick has to move before it counts, 40% out of the box. Set it
+per player in the *Stick Deadzone % [ XInput ]* box of the F11 Extras
+dialog (with **Disable menu bar** installed); the box's **Defaults**
+button puts both back to 40. Closing the dialog saves each to its own `v_on.ini` line,
+which can also be edited by hand:
+
+```ini
+1P Deadzone=25
+2P Deadzone=40
+```
+
+Two digits, `05` to `95` - lower is more sensitive, higher rides out a
+worn stick's drift.
 
 ### Keyboard (Simple)
 

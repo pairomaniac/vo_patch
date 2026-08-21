@@ -85,7 +85,8 @@ SIMPLEDEF = bytes.fromhex(
 def build():
     """-> inc text, condition table, bind list, name blob, device list."""
     names, at = bytearray(), {}
-    for text in [name for name, _k, _w, _v in INPUTS] + PROFILES:
+    for text in ([name for name, _k, _w, _v in INPUTS] + PROFILES
+                 + ['1P Deadzone', '2P Deadzone']):
         at[text] = NAMES + len(names)
         names += text.encode('ascii') + b'\0'
 
@@ -100,9 +101,15 @@ def build():
     inikeys = (b'1P Simple Assign\0' + b'2P Simple Assign\0'
                + b'1P Keyboard Assign\0' + b'2P Keyboard Assign\0')
 
+    # The deadzone keys ride in the names blob: the INIKEYS run turned out
+    # to end within nine bytes of the four Assign keys - the real file has
+    # live data past it, which the offsets check caught - and the names
+    # cave has room to spare.
+
     inc = ('%%define COND 0x%08x\n' % COND
            + '%%define SIMPLEDEF 0x%08x\n' % SIMPLEDEF_AT
-           + '%%define INIKEYS 0x%08x\n' % INIKEYS_AT)
+           + '%%define INIKEYS 0x%08x\n' % INIKEYS_AT
+           + '%%define DZKEYS  0x%08x\n' % at['1P Deadzone'])
     return (inc, bytes(cond), bytes(binds), bytes(names), devlist,
             SIMPLEDEF, inikeys)
 

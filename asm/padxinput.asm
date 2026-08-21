@@ -27,6 +27,11 @@ PSTATE      equ 0x0365cb70      ; the pump's own XINPUT_STATE, so the two
 PBTN        equ 0x0365cb74      ; pollers cannot tread on each other
 PREV        equ 0x0365cb84      ; last polled buttons, one word per pad,
                                 ; stride 4
+DZTHR1      equ 0x0365cb8c      ; stick thresholds out of 32767, 1P then
+                                ; 2P, indexed by the block's player. Written
+                                ; by asm/iniall.asm at launch and the F11
+                                ; box after it; the condition table's axis
+                                ; values only say which side of zero now.
 
 %include "padtables.inc"    ; COND, the condition table asm/padtables.py
                             ; builds and the bind bytes index into
@@ -257,13 +262,14 @@ tick:
     ja      .fire
     jmp     .nextslot
 .less:
-    movsx   eax, word [edx + BTN]   ; axis, signed
-    cmp     eax, ecx
-    jl      .fire
-    jmp     .nextslot
+    movsx   eax, word [edx + BTN]   ; axis, signed; fires past -[DZTHR],
+    neg     eax                     ; folded onto .greater by the neg
+    jmp     .thr
 .greater:
     movsx   eax, word [edx + BTN]
-    cmp     eax, ecx
+.thr:
+    mov     ecx, [ebx]          ; the player; the table value is spent
+    cmp     eax, [ecx*4 + DZTHR1]
     jg      .fire
     jmp     .nextslot
 .mask:

@@ -79,25 +79,25 @@ DISC_IMAGES = {
 PADX_CODE = bytes.fromhex(
     '6822836000e8ef00000083c404e952aee3ff684a836000e8dd00000083c404e9'
     'd34cfbff0000000000000000000000000000000000000000e807000000ff2590'
-    'd5650300609ce80a02000083f801767431f683fe02736d6870cb650356ff1540'
+    'd5650300609ce80f02000083f801767431f683fe02736d6870cb650356ff1540'
     'cb650385c0755a0fb71d74cb65038d14b584cb65030fb72a66891a31ff83ff02'
     '733f8d0cbd278160000fb70189da21c221e839c27428b80001000085d2750b80'
     '7903007419b8010100006a000fb651025250ff35585fae01ff156cd5650347eb'
     'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
     '000000000000000000000000000000000000000000000000005589e583ec0453'
-    '56578b5d08c745fc00000000e84401000083f80174416844cb6503ff33ffd085'
+    '56578b5d08c745fc00000000e84901000083f80174416844cb6503ff33ffd085'
     'c07534c745fc010000000fb70548cb6503a900100000740b8b5318c60280e8fd'
     '5b03000fb70548cb6503a92000000074068b5324c602808b4320ffd0837dfc00'
-    '0f843c01000031f683fe0c0f839c000000833d9435ae01047512833d9036ae01'
-    '087c09833d9036ae010c7e0f83fe04747683fe05747183fe077f728b53040fb6'
-    '04722de0000000725e83f81073598d3cc51b4d62000fb6070fb757028b4f0483'
-    'f800741783f801741f83f80274270fb68248cb650339c87729eb2c0fbf8248cb'
-    '650339c87c1ceb1f0fbf8248cb650339c87f0feb120fb70548cb650385c87502'
-    'eb05e82500000046e95bffffff31f683fe040f838a0000000fb70548cb65030f'
-    'a3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb70221c8668902'
-    '8b53140fb60c32f7d18b530c0fb70221c8668902c3a140cb650385c075385631'
-    'f683fe0373258b04b50783600050ff1504d5650385c0750346ebe66813836000'
-    '50ff1508d5650385c07505b801000000a340cb65035ec3000000000000000000'
+    '0f843c01000031f683fe0c0f83a1000000833d9435ae01047512833d9036ae01'
+    '087c09833d9036ae010c7e0f83fe04747b83fe05747683fe077f778b53040fb6'
+    '04722de0000000726383f810735e8d3cc51b4d62000fb6070fb757028b4f0483'
+    'f800741783f801741d83f802742c0fb68248cb650339c8772eeb310fbf8248cb'
+    '6503f7d8eb070fbf8248cb65038b0b3b048d8ccb65037f0feb120fb70548cb65'
+    '0385c87502eb05e82500000046e956ffffff31f683fe040f83850000000fb705'
+    '48cb65030fa3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb702'
+    '21c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a140cb650385'
+    'c075385631f683fe0373258b04b50783600050ff1504d5650385c0750346ebe6'
+    '681383600050ff1508d5650385c07505b801000000a340cb65035ec300000000'
     '00005f5e5bc9c372836000808360008e83600058496e70757447657453746174'
     '65000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb'
     '6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb'
@@ -170,7 +170,8 @@ PAD_NAMES = bytes.fromhex(
     '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
     '005253204c6566740052532052696768740047616d65706164202858496e7075'
     '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
-    '2853696d706c6529004b6579626f61726420285265616c2900'
+    '2853696d706c6529004b6579626f61726420285265616c290031502044656164'
+    '7a6f6e6500325020446561647a6f6e6500'
 )
 
 PAD_DEVLIST = bytes.fromhex(
@@ -191,7 +192,7 @@ PAD_INIKEYS = bytes.fromhex(
 
 # DIALOGS BLOB BEGIN
 EXTRAS_TPL = bytes.fromhex(
-    'c000c880000000000a0000000000d40070000000000045007800740072006100'
+    'c000c88000000000130000000000d400a0000000000045007800740072006100'
     '7300000008004d0053002000530061006e007300200053006500720069006600'
     '0000000007000050000000000a000400c0004e00ffffffff8000440065006200'
     '750067000000000003000150000000001000120038000c00479cffff80004e00'
@@ -202,10 +203,31 @@ EXTRAS_TPL = bytes.fromhex(
     '4600280032000e00629cffff80004b0069006c006c0020003200500000000000'
     '00000150000000007c00280032000e005100ffff800043007200650064006900'
     '7400730000000000000001500000000010003e0048000e00679cffff80005300'
-    '63006f00720065006b0065006500700069006e00670000000000000000000150'
-    '0000000010005a0032000e00419cffff80005100750069007400000000000000'
-    '000001500000000092005a0032000e000200ffff800043006c006f0073006500'
-    '000000000000000000000000'
+    '63006f00720065006b0065006500700069006e00670000000000000007000050'
+    '000000000a005600c0002e00ffffffff800053007400690063006b0020004400'
+    '6500610064007a006f006e0065002000250020005b002000580049006e007000'
+    '7500740020005d00000000000000005000000000120064000c000a00ffffffff'
+    '82003100500000000000000000208150000000002000620016000c005200ffff'
+    '810000000000000000000050000000003900640008000a00ffffffff82002500'
+    '0000000000000050000000004a0064000c000a00ffffffff8200320050000000'
+    '0000000000208150000000005800620016000c005300ffff8100000000000000'
+    '00000050000000007100640008000a00ffffffff820025000000000000000150'
+    '000000008c00610036000e005400ffff8000440065006600610075006c007400'
+    '730000000000000000000050000000001200740064000a00ffffffff82006d00'
+    '69006e002000300035002c0020006d0061007800200039003500000000000000'
+    '00000150000000000a008c003c000e00419cffff800051007500690074002000'
+    '470061006d00650000000000000001500000000098008c0032000e000200ffff'
+    '800043006c006f007300650000000000'
+)
+
+VOXT_CODE = bytes.fromhex(
+    '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff154cd565'
+    '038d34bd94cb6503566a036a0d50ff152cd565030fb60683e83083f80977190f'
+    'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba081c60'
+    '00803a0074085389c18bdfffd25b4f79a5b8481b60008038007402ffd06a0053'
+    'ff1538d5650331c0c3ba081c6000803a0074336a015f536a28598bdfffd25b4f'
+    '79f46a015f8d47525053ff154cd565038d14bd94cb6503526a006a0c50ff152c'
+    'd565034f79df31c0c36a0053ff1538d5650368419c0000596a0158c3'
 )
 
 EXTRAS_DATA = bytes.fromhex(
@@ -272,12 +294,12 @@ DEBUGBOX_HOOK = bytes.fromhex(
 )
 
 DEBUGBOX_PROC = bytes.fromhex(
-    '558bec5356578b450c3d10010000752bbe0ce96300bf030000008b068b0033c9'
-    '83f8010f94c151ff7604ff7508ff1544d5650383c6084f75e1eb313d11010000'
-    '75310fb74d1083f90275316a00ff7508ff1538d56503eb146a00516811010000'
-    'ff35585fae01ff156cd56503b801000000eb0233c05f5e5b5dc2100081f9419c'
-    '0000751189cb6a00ff7508ff1538d5650389d9ebc383f95175f9833d9435ae01'
-    '0475086a1f8f059036ae01ebbf'
+    '558bec5356578b450c3d100100007532ff7508e86070040031ff8d475250ff75'
+    '08ff154cd565038d14bd94cb6503526a006a0c50ff152cd565034783ff0272da'
+    'eb453d1101000075450fb74d108d51ae83fa01763283f902740d83f954740881'
+    'f9419c000075308b5508e8eaeaeaea85c074146a00516811010000ff35585fae'
+    '01ff156cd56503b801000000eb0233c05f5e5b5dc2100083f9517513833d9435'
+    'ae010475086a1f8f059036ae01ebd8ebc2'
 )
 # DEBUGBOX BLOB END
 
@@ -341,7 +363,8 @@ BLOCKCUR_CODE = bytes.fromhex(
 # INIPARSE BLOB BEGIN
 INIPARSE_CODE = bytes.fromhex(
     '50e85ffdfaff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
-    '08d088040f4183f9187ce6c30fb606462c303c0976022c27c3'
+    '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
+    '04b594cb6503506bc60c05344c620050e8d2fcfaff83c4084e79e4c3'
 )
 # INIPARSE BLOB END
 
@@ -355,7 +378,8 @@ PAGESEC_CODE = bytes.fromhex(
 # PAGESEL BLOB BEGIN
 PAGESEL_CODE = bytes.fromhex(
     'e80bbcffff750f837df41a7d01c383c404e96f64e9ff83c404e9ab64e9ffe8ed'
-    'bbffff75048345f42483c404e9d464e9ff'
+    'bbffff75048345f42483c404e9d464e9ff00000069c14701000089049d8ccb65'
+    '03880c9d97cb650388c8d40a6605303086c46689049d94cb6503c3'
 )
 # PAGESEL BLOB END
 
@@ -368,7 +392,9 @@ COMMITDEV_CODE = bytes.fromhex(
 
 # INIALL BLOB BEGIN
 INIALL_CODE = bytes.fromhex(
-    '6a016a00e8dfbe000083c4086a016a01e8d3be000083c408c3'
+    '6a016a00e8dfbe000083c4086a016a01e8d3be000083c408536a015b6bc30c05'
+    '344c620050e80367fbff5a6a285985c0741f668b00662d30303c09771480fc09'
+    '770f86c4d50a3c5f77073c0572030fb6c8e86e6a00004b79c35bc3'
 )
 # INIALL BLOB END
 
@@ -381,8 +407,9 @@ DEVORDER_CODE = bytes.fromhex(
 
 # F11PAUSE BLOB BEGIN
 F11PAUSE_CODE = bytes.fromhex(
-    '6a00e89aa8f8ff83c4046a0068d84e5f00ff750868b0fa65036a00ff15a0d465'
-    '0350ffd3e8bea8f8ffc3'
+    '6a00e89aa8f8ff83c4046a0068d84e5f00ff750868e7e7e7e76a00ff15a0d465'
+    '0350ffd3e8bea8f8ffc30000be0ce963006a035f8b068b0031c983f8010f94c1'
+    '51ff7604ff74240cff1544d5650383c6084f75e0c20400'
 )
 # F11PAUSE BLOB END
 
@@ -574,15 +601,15 @@ CREDIT2_BITS = bytes.fromhex(
     '0000000003c13fe409027f0078078202027f0304ff01e0808304090601e00480'
     '20f0001fc0c1ff07820400000000042102040902408084084306024084848082'
     '10c1848609090210048021080010212010084204000000000811020409024081'
-    '0210228a04408484808408a28485090904080880220400102120101022040000'
+    '0210228a04408484808408a28485090904080840420400102120101022040000'
     '000010090204090240820120128a04408484808804a284850909080408404402'
     '00102120102012040000000010010204090240820020128a08408844810804a2'
-    '8844891088001040440200102210102002040000000010f90207f9027f020020'
-    '1252087f0844fe08049488448910880010404402001fc210102003fc00000000'
-    '1009020409024082002012521040084481080494884449108800202084020010'
+    '8844891088001020840200102210102002040000000010f90207f9027f020020'
+    '1252087f0844fe08049488448910880010208402001fc210102003fc00000000'
+    '1009020409024082002012521040084481080494884449108800201104020010'
     '0210102002040000000010090204090240820120125210400fc4808804948fc4'
-    '491f880420208402001003f01020120400000000081102040902408102102222'
-    '2040102480840888902429204408401102040010040810102204000000000421'
+    '491f880420110402001003f01020120400000000081102040902408102102222'
+    '2040102480840888902429204408400a02040010040810102204000000000421'
     '020408844080840842222040102480821088902429204210400a010800100408'
     '100842040000000003c1020408787f10780782224040102480c1e08890241920'
     '41e0800400f00010040810078204000000000000000000000000000000000000'
@@ -955,8 +982,13 @@ FEATURES = [
 
     ('debugbox', 'Disable menu bar (Extras menu on F11)',
      'Removes the menu bar. F11 opens a dialog with the Debug options in its\n'
-     'place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping and Quit.\n'
-     'Motion is not among them; it has moved to F5.\n'
+     'place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping, Credits\n'
+     'and Quit Game. Motion is not among them; it has moved to F5.\n'
+     '\n'
+     'With the gamepad patch in, the dialog also takes each player\'s\n'
+     'stick deadzone as a percent, saved to their own "1P Deadzone" and\n'
+     '"2P Deadzone" v_on.ini lines when the dialog closes; Defaults\n'
+     'puts both back to 40.\n'
      '\n'
      'Credits is not one of the game\'s own. It runs the ending from\n'
      'wherever you are in a match, and does nothing outside one.\n'
@@ -979,25 +1011,7 @@ FEATURES = [
          # matching the built-in F-key dialogs; see asm/f11pause.asm
          (0x0023b324, '00' * len(F11PAUSE_CODE), F11PAUSE_CODE.hex()),
          (0x001f42d8, '00' * len(DEBUGBOX_PROC), DEBUGBOX_PROC.hex()),
-         (0x0023dce8, '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex()),
-         # over the menu resource this patch has just orphaned
-         (0x006036b0, '0000000010002600470061006d00650000000000439c26005200650073'
-                      '0074006100720074002000470061006d006500090041006c0074002b00'
-                      '4600320000000000449c2600500061007500730065002000470061006d'
-                      '00650009004600330000000000469c44006900730063006f006e006e00'
-                      '650063007400200026004e006500740077006f0072006b000900460039'
-                      '0000000000679c260042006f006f006b004b0065006500700069006e00'
-                      '670020002e002e002e0000000000000000008000419c45002600780069'
-                      '0074002000470061006d006500090041006c0074002b00460034000000'
-                      '1000260044006500620075006700000010004400690073007000260046'
-                      '006c006f006f00720000000000499c26004600690065006c0064000000'
-                      '00004a9c260057006100740065007200000000004b9c260053006b0079'
-                      '00000000004c9c26004f00750074005300690064006500000080004d9c'
-                      '460069006c006c002600420047000000100026004d006f00740069006f'
-                      '006e0000000000559c31002f002600310000000000569c31002f002600'
-                      '320000000000579c31002f002600330000000000589c31002f00260034'
-                      '0000008000599c31002f00260035000000100026004b006900',
-          EXTRAS_TPL.hex())]),
+         (0x0023dce8, '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex())]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
@@ -1036,6 +1050,10 @@ FEATURES = [
      'A accepts, Select is the camera, Start pauses, and the D-pad works the\n'
      'menus. Either of the first two skips the win and lose screens between\n'
      'rounds. On-screen prompts that named a key now name the button.\n'
+     '\n'
+     'Stick deadzone\t40% per player, set from the F11 Extras dialog\n'
+     'and kept in "1P Deadzone" and "2P Deadzone" v_on.ini lines\n'
+     '(05 to 95).\n'
      '\n'
      'The keyboard page gets two fixes as well. 2P can use a key 1P has\n'
      'bound, as long as 1P is on a pad and not using it. And Default resets\n'
@@ -1288,7 +1306,10 @@ ABOUT = ('credits',)
 
 def apply_order():
     """Display order, except that nodisc has to be last: it appends a
-    section and chains the entry point, so it must see every other edit."""
+    section and chains the entry point, so it must see every other edit.
+    The menu bar patch appends a section too - the F11 template's - but
+    earlier is fine: each append places itself from the headers as they
+    are, so the two stack in whatever combination is ticked."""
     keys = [k for k in ESSENTIAL + EXTRA + ABOUT if k != 'nodisc']
     return keys + ['nodisc']
 
@@ -2645,6 +2666,54 @@ def install_ddraw_in_background(gamedir, progress, done):
 # apply_cdaudio fills in once it has read the executable. VOCD_DATA is the
 # string table and the scratch space.
 
+# The F11 dialog template and the dialog's long code paths (asm/voxt.asm)
+# ride in their own appended section: the dead menu resource the template
+# used to squeeze into caps it at 460 bytes, and the dialog procedure's
+# cave is nearly full. f11pause.asm pushes MAGIC_TEMPLATE where the
+# template's address belongs, and debugbox.asm calls through ANNEXREL, a
+# rel32 to the code at the template's tail; apply_extras_template() below
+# fills both once the section exists, the way apply_cdaudio() fills
+# .vocd's.
+MAGIC_TEMPLATE = 0xE7E7E7E7
+MAGIC_ANNEXREL = 0xEAEAEAEA
+F11PAUSE_AT = 0x0023b324        # where the debugbox patch sites the blob
+DBGPROC_AT = 0x001f42d8         # and the dialog procedure
+DBGPROC_VA = 0x005f4ed8
+
+
+def apply_extras_template(buf):
+    """Append the template-and-annex section, point f11pause at the
+    template and the dialog procedure's call at the annex."""
+    pe = _PE(buf)
+    gap = (-len(EXTRAS_TPL)) % 16
+    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + VOXT_CODE,
+                         chars=0x60000040)
+
+    pattern = struct.pack('<I', MAGIC_TEMPLATE)
+    if F11PAUSE_CODE.count(pattern) != 1:
+        raise ValueError('the TEMPLATE placeholder should appear exactly '
+                         'once in the f11pause blob')
+    at = F11PAUSE_AT + F11PAUSE_CODE.index(pattern)
+    if pe.d[at:at + 4] != pattern:
+        raise ValueError('the TEMPLATE placeholder is not where the '
+                         'f11pause site put it')
+    struct.pack_into('<I', pe.d, at, pe.base + rva)
+
+    pattern = struct.pack('<I', MAGIC_ANNEXREL)
+    if DEBUGBOX_PROC.count(pattern) != 1:
+        raise ValueError('the ANNEXREL placeholder should appear exactly '
+                         'once in the dialog procedure blob')
+    idx = DEBUGBOX_PROC.index(pattern)
+    at = DBGPROC_AT + idx
+    if pe.d[at:at + 4] != pattern:
+        raise ValueError('the ANNEXREL placeholder is not where the '
+                         'dialog procedure site put it')
+    annex = pe.base + rva + len(EXTRAS_TPL) + gap
+    struct.pack_into('<i', pe.d, at,
+                     annex - (DBGPROC_VA + idx + 4))
+    return pe.d
+
+
 # VOCD BLOB BEGIN
 VOCD_MAGICS = {
     'MAGIC_ORIGENTRY': 0xE1E1E1E1,     # VA of the entry point we chain to
@@ -2993,6 +3062,8 @@ def apply_selected(buf, wanted):
                 apply_feature(buf, sites)
             else:
                 apply_dinput(buf)
+            if key == 'debugbox':        # bytes first, then the template
+                buf = apply_extras_template(buf)
             if key == 'nodisc':          # bytes first, then the section
                 buf = apply_cdaudio(buf)
         except ValueError as exc:

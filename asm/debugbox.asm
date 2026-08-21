@@ -2,7 +2,7 @@ bits 32
 org 0x005f4e7c          ; the .text cave the F11 dialog patch drops this into
 BASE        equ 0x005f4e7c      ; the org again, for the pins below
 ; The F11 Extras dialog: a window-procedure hook, the dialog procedure, and
-; the Quit Program case that did not fit before the end of the second cave.
+; the Credits case that did not fit before the end of the second cave.
 ;
 ; Two addresses in here are named from outside this file and cannot move:
 ;
@@ -21,8 +21,8 @@ BOXLEN      equ 388             ; the cave from here to 0x5f5000. The zeros
                                 ; that three sites read. Zero is not free.
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
-; TEMPLATE, the dialog itself; and CMD_QUIT and IDCANCEL, two of the
-; control ids.
+; TEMPLATE, the dialog itself; and CMD_QUIT, IDCANCEL and ID_DZ, three of
+; the control ids.
 %include "dialogs.inc"
 
 MODE        equ 0x01ae3594      ; game state; 4 is a match in progress
@@ -33,13 +33,30 @@ ORIGWNDPROC equ 0x005c6857      ; the handler the hook falls through to
 LOADLIB     equ 0x0365d504      ; LoadLibraryA
 GETPROC     equ 0x0365d508      ; GetProcAddress
 GETMODULE   equ 0x0365d4a0      ; GetModuleHandleA
-ENDDIALOG   equ 0x0365d538      ; EndDialog
+SENDMSG     equ 0x0365d52c      ; SendMessageA
+GETDLGITEM  equ 0x0365d54c      ; GetDlgItem
 CHECKDLGBTN equ 0x0365d544      ; CheckDlgButton
 POSTMSG     equ 0x0365d56c      ; PostMessageA
 
 WM_KEYDOWN  equ 0x0100
+WM_SETTEXT  equ 0x000c
 WM_INITDLG  equ 0x0110
 WM_COMMAND  equ 0x0111
+
+; The deadzone quads in asm/padxinput.asm's .data scratch: thresholds then
+; digit pairs, 1P then 2P, both strides 4 so the loops below index them.
+; iniall.asm seeds all four at launch when the gamepad patch is in; without
+; it the boxes show empty and their values land in scratch nothing reads,
+; which is harmless - the addresses are free in the stock executable
+; whatever is installed.
+DZTHR1      equ 0x0365cb8c
+DZSTR1      equ 0x0365cb94
+
+F11CHECKS   equ 0x0063bf50      ; asm/f11pause.asm's tail: the check boxes
+ANNEXREL    equ 0xEAEAEAEA      ; a placeholder: the rel32 to asm/voxt.asm's
+                                ; annex at the end of the .voxt section,
+                                ; whose address only exists at apply time -
+                                ; vo-patch.py computes and fills it
 VK_F11      equ 0x7a
 F11WRAP     equ 0x0063bf24      ; asm/f11pause.asm
 
@@ -93,35 +110,55 @@ dlgproc:
     cmp     eax, WM_INITDLG
     jne     .command
 
-    ; Tick each box from the flag it reflects.
-    mov     esi, CHECKS
-    mov     edi, 3
-.checks:
-    mov     eax, dword [esi]
-    mov     eax, dword [eax]
-    db      0x33, 0xc9                  ; xor ecx, ecx
-    cmp     eax, 1
-    sete    cl
-    push    ecx
-    push    dword [esi + 4]
+    ; The check boxes are ticked in asm/f11pause.asm's tail, where the loop
+    ; moved when the second deadzone box needed this cave's room.
     push    dword [ebp + 8]
-    call    [CHECKDLGBTN]
-    add     esi, 8
-    dec     edi
-    jne     .checks
+    call    F11CHECKS
+
+    ; Show both deadzone percents - the digit pairs iniall.asm keeps beside
+    ; the thresholds, empty when the gamepad patch is out.
+    xor     edi, edi
+.dz:
+    lea     eax, [edi + ID_DZ1]
+    push    eax
+    push    dword [ebp + 8]
+    call    [GETDLGITEM]
+    lea     edx, [edi*4 + DZSTR1]
+    push    edx
+    push    0
+    push    WM_SETTEXT
+    push    eax
+    call    [SENDMSG]
+    inc     edi
+    cmp     edi, 2
+    jb      .dz
     jmp     .handled
 
 .command:
     cmp     eax, WM_COMMAND
     jne     .ignore
     movzx   ecx, word [ebp + 0x10]      ; control id, the low word
+    lea     edx, [ecx - ID_DZ1]         ; the edits' notifications are the
+    cmp     edx, 1                      ; dialog's own; do not post them
+    jbe     .handled
     cmp     ecx, IDCANCEL
-    jne     quit
-    push    0
-    push    dword [ebp + 8]
-    call    [ENDDIALOG]
-    jmp     .handled
-
+    je      .tail
+    cmp     ecx, ID_DZDEF
+    je      .tail
+    cmp     ecx, CMD_QUIT
+    jne     credits
+.tail:
+    ; Close and Quit are the long paths - the deadzone read, the ini save,
+    ; the teardown order - and live in asm/voxt.asm at the end of the
+    ; template's section, this cave being six bytes from full when they
+    ; grew. The annex says what to do with its answer.
+    mov     edx, dword [ebp + 8]
+    db      0xe8                        ; call rel32; nasm would subtract the
+    dd      ANNEXREL                    ; site from a plain call, and the
+                                        ; placeholder has to survive verbatim
+    test    eax, eax
+    je      .handled                    ; else fall through: ecx is the
+                                        ; command to post
 .post:
     push    0
     push    ecx
@@ -140,26 +177,14 @@ dlgproc:
     pop     ebp
     ret     0x10
 
-; ---------------------------------------------------------------- 0x5f4f54
-; Quit Program closes the dialog before the command is posted, because the
-; game tears the window down under it. Out of line from when the dialog
-; procedure ran to the end of its cave; not worth re-rolling now.
-quit:
-    cmp     ecx, CMD_QUIT
-    jne     .credits
-    db      0x89, 0xcb                  ; mov ebx, ecx
-    push    0
-    push    dword [ebp + 8]
-    call    [ENDDIALOG]
-    db      0x89, 0xd9                  ; mov ecx, ebx
-.fwd:
-    jmp     dlgproc.post
-
 ; Credits is the one button with no menu item behind it, so it is handled
-; here rather than posted. 0x1f is the state that sets the ending up and
-; steps to the credits itself; it only means that during a match, so
-; pressing this anywhere else does nothing.
-.credits:
+; here rather than posted; everything else is forwarded as the menu item
+; it replaces. Out of line from when the dialog procedure ran to the end
+; of its cave. 0x1f is the state that sets the ending up and steps to the
+; credits itself; it only means that during a match, so pressing this
+; anywhere else does nothing. The Quit case that lived above this is
+; gone with its button - the window X quits the game the same way.
+credits:
     cmp     ecx, CMD_CREDITS
     jne     .fwd
     cmp     dword [MODE], 4
@@ -168,6 +193,8 @@ quit:
     pop     dword [SUBMODE]
 .done:
     jmp     dlgproc.handled
+.fwd:
+    jmp     dlgproc.post
 
 %if ($ - $$) > BOXLEN
 %error the dialog procedure has grown past the end of the cave

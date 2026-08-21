@@ -20,14 +20,15 @@ editing this directory does.
 | `bindblock.asm` | gamepad: which block owns the shared page's binds, and the Default source |
 | `blockcur.asm` | gamepad: the same block pick for the store's fused index |
 | `pagesec.asm` | gamepad: keeps the letter and digit sections off the gamepad page |
-| `pagesel.asm` | gamepad: the preselect half of `pagesec.asm` |
+| `pagesel.asm` | gamepad: the preselect half of `pagesec.asm`, and the deadzone seed |
 | `inisave.asm` | gamepad: writes Keyboard (Simple)'s own v_on.ini line on OK |
 | `iniload.asm` | gamepad: loads both keyboard-page blocks from their lines at launch |
-| `iniparse.asm` | gamepad: the line parser `iniload.asm` runs twice |
-| `iniall.asm` | gamepad: runs the loader for both players whatever the saved devices |
+| `iniparse.asm` | gamepad: the line parser `iniload.asm` runs twice, and the deadzone write-back |
+| `iniall.asm` | gamepad: runs the loader for both players, and seeds the deadzone |
 | `commitdev.asm` | gamepad: reseeds the live table when OK commits a device switch |
 | `devorder.asm` | gamepad: maps the F7 list's display order to the fixed device numbers |
-| `f11pause.asm` | F11 Extras: pauses the game and music around the dialog |
+| `f11pause.asm` | F11 Extras: pauses the game and music around the dialog, and ticks its check boxes |
+| `voxt.asm` | F11 Extras: the dialog's long paths - deadzone read, ini save, Defaults, Quit - at the end of the `.voxt` section |
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
 | `credits.asm` | ending screens: ends the credits once the button has been held a second |
 | `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
@@ -196,8 +197,8 @@ relative, so the section can go anywhere.
 
 **`padtables.py`** fills the condition table, the bind list and the strings
 both point at, and the device list in `.data`. **`dialogs.py`** fills the
-`.rdata` cave the Extras box reads, the `.rsrc` run the dead menu resource
-left behind, and the tail of the F5
+`.rdata` cave the Extras box reads, the template payload for the `.voxt`
+section the patch appends, and the tail of the F5
 resource that the frame rate labels live in. That last one is the only site
 whose `original` column is generated too: the stock labels packed by the same
 code, which is the check that this packing matches the resource compiler's.
@@ -218,12 +219,15 @@ Sites written into section padding, and what is still free after them:
 
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
-| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 327 | 123 |
+| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 328 | 122 |
 | `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 252 | 28 |
 | `.rsrc` past VirtualSize | `0x60c25c`-`0x60c400` | 420 | 396 | **24** |
 
-The `.text` cave holds `timer.asm` and `debugbox.asm`. It was full until the
-dead frame-rate combo code came out of the dialog procedure; the run of zeros
+The `.text` cave holds `timer.asm` and `debugbox.asm`, and has room again:
+the dialog procedure is a dispatcher now, its long paths - the deadzone
+read, the ini save, Quit's teardown order - living in `voxt.asm` at the
+end of the template's section, reached through a rel32 the patcher fills;
+the run of zeros
 continuing past
 `0x1f4400` is not more cave - `0x5f5000` is a `qword` 0.0 that `0x401ce4`
 compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
@@ -246,7 +250,7 @@ execute bit:
 | Cave | File range | Size | Used | Free |
 | --- | --- | --- | --- | --- |
 | routine and lever cleanup | `0x207460`-`0x2077e0` | 896 | 881 | **15** |
-| input names and profile names | `0x223f9b`-`0x224058` | 189 | 135 | 54 |
+| input names, profile names and deadzone keys | `0x223f9b`-`0x224058` | 189 | 177 | 12 |
 | bind list table | `0x223c43`-`0x223d00` | 189 | 128 | 61 |
 | condition table | `0x22411b`-`0x2241cb` | 176 | 128 | 48 |
 | twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
@@ -272,14 +276,14 @@ this file, not by address:
 | `bindblock.asm` | `0x1fe64c`-`0x1fe6c0` | 116 | 94 | 22 |
 | `blockcur.asm` | `0x1fcc64`-`0x1fccb8` | 84 | 71 | 13 |
 | `commitdev.asm` | `0x1fcb4c`-`0x1fcb98` | 76 | 57 | 19 |
-| `iniall.asm` | `0x1fa544`-`0x1fa5a0` | 92 | 25 | 67 |
-| `iniparse.asm` | `0x200f0c`-`0x200f6c` | 96 | 57 | 39 |
+| `iniall.asm` | `0x1fa544`-`0x1fa5a0` | 92 | 91 | **1** |
+| `iniparse.asm` | `0x200f0c`-`0x200f6c` | 96 | 92 | **4** |
 | `pagesec.asm` | `0x200f70`-`0x200fd0` | 96 | 60 | 36 |
-| `pagesel.asm` | `0x200fd4`-`0x201034` | 96 | 49 | 47 |
+| `pagesel.asm` | `0x200fd4`-`0x201034` | 96 | 91 | **5** |
 | `inisave.asm` | `0x201038`-`0x201098` | 96 | 86 | **10** |
 | `iniload.asm` | `0x20642c`-`0x2064a0` | 116 | 79 | 37 |
 | `devorder.asm` | `0x203b34`-`0x203b90` | 92 | 54 | 38 |
-| `f11pause.asm` | `0x23b324`-`0x23b37c` | 88 | 42 | 46 |
+| `f11pause.asm` | `0x23b324`-`0x23b37c` | 88 | 87 | **1** |
 
 `inisave.asm`'s cave ends early: `0x601c98` is a live address `0x4cf61b`
 reads, inside what scans as a longer run - the trap the second check below
@@ -412,16 +416,24 @@ there is nothing to open them with. This builds a dialog instead.
 for F11 and passes everything else to the handler that was there before. On
 F11 it fetches `DialogBoxIndirectParamA` through `LoadLibraryA` and
 `GetProcAddress` - the import table has no room and rebuilding it for one
-export is not worth it - and opens the template that the same patch writes
-into the `.rsrc` cave.
+export is not worth it - and opens the template from the `.voxt` section
+the same patch appends; `f11pause.asm` holds a placeholder for its address,
+filled at apply time.
 
 **The dialog procedure** ticks each check box from the game's own flag on
-`WM_INITDIALOG` and forwards clicks. Every
+`WM_INITDIALOG` (through the loop in `f11pause.asm`'s tail), shows both
+players' deadzone digits, and forwards clicks. Close, Defaults and Quit go
+to the annex in `voxt.asm`, which reads the boxes back on close - two
+digits clamped to 5-95 each, into the thresholds the tick compares per
+player and out to their v_on.ini lines through `iniparse.asm`'s tail, a
+rejected entry re-seeded to the percent in force - seeds 40s on Defaults,
+and says whether to post. Every
 control's id is the game's own command id, so a click is posted straight to
-the main window as `WM_COMMAND` and needs no lookup table. Quit is the one
-special case: the dialog is closed first, because the game tears the window
-down under it, and it sits under the *Debug* box with Close rather than in
-it, being the dialog's own button and not something done to the match.
+the main window as `WM_COMMAND` and needs no lookup table; the deadzone
+edits are the exception, their notifications being the dialog's own.
+Closing writes the boxes back and, when the gamepad patch's `iniparse.asm`
+cave is patched - its first byte says - calls the write-back in its tail,
+so the values land in their v_on.ini lines.
 
 Credits is the exception to the rule. There is no menu item behind it, so the
 procedure acts on it rather than posting it: `0x1f` into the sub-state at
@@ -460,7 +472,11 @@ into the condition table. Reordering the list moves everyone's saved binds.
 `DEADZONE` is what a stick axis has to pass to count as pushed, out of 32767.
 It is per axis rather than radial, so a 45 degree push puts 23170 on each and
 diagonals have room to spare. 13000 is about 40%, above Microsoft's own 7849
-and 8689, which are loose enough to pick up drift on a worn stick.
+and 8689, which are loose enough to pick up drift on a worn stick. Since the
+threshold went runtime - `asm/iniall.asm` seeds it, the F11 boxes change it
+per player, and the tick indexes the pair by the parameter block's player -
+the table's axis values only pick the side of zero, and this constant is the
+shipped default's ancestor rather than what the tick compares.
 
 ## dialogs.py, what it does
 
@@ -470,7 +486,15 @@ The Extras box is built outright, and the ids in it are the game's own command
 ids, so the dialog procedure can post a click to the main window with no
 lookup table. The same list carries the flag each check box reflects, which
 becomes the table `debugbox.asm` walks on `WM_INITDIALOG`. `dialogs.inc` gives
-the assembly the addresses of both.
+the assembly the addresses of both. The template goes to the `.voxt` section
+the patch appends, so nothing prices the labels any more: the font block is
+back, the buttons carry their full names, and the deadzone group -
+*Stick Deadzone % [ XInput ]* - holds `1P`, `2P` and `%` labels around the
+two digits-only edits, its own Defaults button, and the min/max hint below
+in the dialog's one font, templates carrying a single font block. The bottom
+row keeps the dangerous away from the habitual: Quit Game at the left, Close
+alone at the right where the closing hand goes. The
+dead menu resource the template used to squeeze into is left as it came.
 
 The F5 frame rate labels are the other case: an edit to a resource the game
 already has. Sega's *Fast* and *Smooth* read **30 FPS** and **60 FPS** now.
@@ -638,8 +662,9 @@ numbers themselves stay what the executable and `v_on.ini` always used.
 The F11 Extras dialog's runner. The built-in F-key dialogs pause the game
 and the music around their DialogBox call and resume after; the F11 hook
 in `debugbox.asm` had no room left in its cave for the same calls, so the
-whole DialogBox block moved here and gained them. Ships with **Disable
-menu bar**, not the gamepad patch.
+whole DialogBox block moved here and gained them. The tail is the dialog's
+check-box init, evicted from the same cave when the second deadzone box
+needed the room. Ships with **Disable menu bar**, not the gamepad patch.
 
 ## movie.asm, what it does
 

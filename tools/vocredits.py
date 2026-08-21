@@ -13,6 +13,13 @@ Only the slash and the underscore are drawn here rather than harvested;
 neither appears anywhere in the roll. They follow the same metrics as the
 rest: 2px stems, caps spanning rows 0..16, descenders to 21.
 
+One harvested glyph is overridden after the fact: the small V's strokes
+ease inward (3,3,2,1,1 rows per step) in the title artwork, which reads
+rounder than the linear A and the drawn slash beside it. The committed
+bitmap carries a straightened V - two mirrored slashes, 2,2,2,2,2,1 -
+edited in place; a future --write will resurrect the eased one, so
+re-apply it if the line is ever rebuilt.
+
 Needs scrstfcg.bin, scrstfmp.bin and v_on.exe. None is in the repository, so
 this is a by-hand tool - the bitmaps it writes are committed.
 """

@@ -17,23 +17,35 @@ debugbox.asm walks; both come from ITEMS below.
 
 import struct
 
-TEMPLATE = 0x0365fab0   # the F11 template, in the .rsrc cave
-TPL_LEN = 460           # the dead menu resource it is written over
+TEMPLATE = 0xE7E7E7E7   # a placeholder: the template lives in its own
+                        # appended section, whose address only exists at
+                        # apply time - vo-patch.py fills it in the way it
+                        # fills .vocd's, at apply_extras_template()
 DATA = 0x0063e8e8       # its strings and tables, in the .rdata cave
 
 # Window styles. WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME |
-# DS_SETFONT, which is what the game's own dialogs use.
+# DS_SETFONT, which is what the game's own dialogs use. The font block is
+# back: the template no longer squeezes into the 460-byte menu resource,
+# so nothing has to pay for anything.
 DLGSTYLE = 0x80C800C0
 BUTTON = 0x0080         # the button class atom
 STATIC = 0x0082
+EDIT = 0x0081
 CHECKBOX = 0x50010003   # WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX
 PUSH = 0x50010000       # the same, BS_PUSHBUTTON
 RADIO = 0x50010009      # BS_AUTORADIOBUTTON
 RADIO1 = 0x50030009     # and the first of a group, WS_GROUP
+LABEL = 0x50000000      # WS_CHILD|WS_VISIBLE, a static
+NUMBOX = 0x50812000     # the same + TABSTOP, WS_BORDER and ES_NUMBER,
+                        # so the edit takes digits and nothing else
 
 IDCANCEL = 2
+ID_DZ1 = 0x52           # the deadzone boxes, 1P then 2P - adjacent so the
+ID_DZ2 = 0x53           # dialog procedure can loop; like CMD_CREDITS,
+                        # nowhere near the game's own 0x9cxx ids
+ID_DZDEF = 0x54         # the Defaults button, handled in asm/voxt.asm
 
-# (label, command id, x, y, w, h, style, the flag it shows or None).
+# (label, command id, x, y, w, h, style, class, the flag it shows or None).
 #
 # Three are check boxes, and the dialog procedure ticks each from the game's
 # own flag when the box opens, so what it shows is what is on. The rest are
@@ -46,23 +58,36 @@ CMD_CREDITS = 0x0051
 
 # The group box holds everything that acts on the running game, Credits
 # included - it jumps to the ending from wherever you are, which is a debug
-# button whoever wrote it. Quit and Close are the dialog's own and sit under
-# it. The box comes first because a group box drawn after the controls it
-# frames paints over them.
+# button whoever wrote it. Quit and the Deadzone row are under it, the
+# dialog's own. The box comes first because a group box drawn after the
+# controls it frames paints over them.
 #
-# The template has no room to spare - it goes over a 460-byte menu resource
-# and fills it exactly - so this is a layout, not a place to add a button.
+# Everything at full size, Quit included: the template lives in its own
+# section now, and the 460-byte menu resource it used to squeeze into no
+# longer prices the labels. The min/max hint is the dialog's one font -
+# templates carry a single font block, so there is no smaller one to use.
 ITEMS = [
-    ('Debug',        0xffff,  10,  4, 192, 78, GROUP,   None),
-    ('No shot',      0x9c47,  16, 18,  56, 12, CHECKBOX, 0x00652fd8),
-    ('SE',           0x9c5b,  80, 18,  36, 12, CHECKBOX, 0x006bcc4c),
-    ('CD',           0x9c5c, 124, 18,  36, 12, CHECKBOX, 0x0063f430),
-    ('Kill 1P',      0x9c61,  16, 40,  50, 14, PUSH,     None),
-    ('Kill 2P',      0x9c62,  70, 40,  50, 14, PUSH,     None),
-    ('Credits', CMD_CREDITS, 124, 40,  50, 14, PUSH,     None),
-    ('Scorekeeping', 0x9c67,  16, 62,  72, 14, PUSH,     None),
-    ('Quit',         0x9c41,  16, 90,  50, 14, PUSH,     None),
-    ('Close',      IDCANCEL, 146, 90,  50, 14, PUSH,     None),
+    ('Debug',        0xffff,  10,  4, 192, 78, GROUP,    BUTTON, None),
+    ('No shot',      0x9c47,  16, 18,  56, 12, CHECKBOX, BUTTON, 0x00652fd8),
+    ('SE',           0x9c5b,  80, 18,  36, 12, CHECKBOX, BUTTON, 0x006bcc4c),
+    ('CD',           0x9c5c, 124, 18,  36, 12, CHECKBOX, BUTTON, 0x0063f430),
+    ('Kill 1P',      0x9c61,  16, 40,  50, 14, PUSH,     BUTTON, None),
+    ('Kill 2P',      0x9c62,  70, 40,  50, 14, PUSH,     BUTTON, None),
+    ('Credits', CMD_CREDITS, 124, 40,  50, 14, PUSH,     BUTTON, None),
+    ('Scorekeeping', 0x9c67,  16, 62,  72, 14, PUSH,     BUTTON, None),
+    ('Stick Deadzone % [ XInput ]', 0xffff,
+                              10, 86, 192, 46, GROUP,    BUTTON, None),
+    ('1P',           0xffff,  18, 100, 12, 10, LABEL,    STATIC, None),
+    ('',             ID_DZ1,  32, 98,  22, 12, NUMBOX,   EDIT,   None),
+    ('%',            0xffff,  57, 100,  8, 10, LABEL,    STATIC, None),
+    ('2P',           0xffff,  74, 100, 12, 10, LABEL,    STATIC, None),
+    ('',             ID_DZ2,  88, 98,  22, 12, NUMBOX,   EDIT,   None),
+    ('%',            0xffff, 113, 100,  8, 10, LABEL,    STATIC, None),
+    ('Defaults',   ID_DZDEF, 140, 97,  54, 14, PUSH,     BUTTON, None),
+    ('min 05, max 95', 0xffff,
+                              18, 116, 100, 10, LABEL,   STATIC, None),
+    ('Quit Game',    0x9c41,  10, 140, 60, 14, PUSH,     BUTTON, None),
+    ('Close',      IDCANCEL, 152, 140, 50, 14, PUSH,     BUTTON, None),
 ]
 
 # The F5 page's frame rate radios. Sega labelled them for what the setting
@@ -91,15 +116,11 @@ def item(style, x, y, cx, cy, iid, cls, text):
 def build_extras():
     """-> inc text, the dialog template, the strings and tables."""
     tpl = struct.pack('<II', DLGSTYLE, 0)
-    tpl += struct.pack('<5H', len(ITEMS), 0, 0, 212, 112)
+    tpl += struct.pack('<5H', len(ITEMS), 0, 0, 212, 160)
     tpl += struct.pack('<HH', 0, 0)             # no menu, default class
     tpl += wstr('Extras') + struct.pack('<H', 8) + wstr('MS Sans Serif')
-    for label, iid, x, y, cx, cy, style, _flag in ITEMS:
-        tpl = align4(tpl) + item(style, x, y, cx, cy, iid, BUTTON, label)
-    if len(tpl) > TPL_LEN:
-        raise SystemExit('the Extras template is %d bytes, and the resource '
-                         'it is written over is %d' % (len(tpl), TPL_LEN))
-    tpl += b'\0' * (TPL_LEN - len(tpl))
+    for label, iid, x, y, cx, cy, style, cls, _flag in ITEMS:
+        tpl = align4(tpl) + item(style, x, y, cx, cy, iid, cls, label)
 
     names = {}
     data = bytearray()
@@ -109,7 +130,7 @@ def build_extras():
     data += b'\0' * (-len(data) % 4)
 
     checks = DATA + len(data)
-    for _label, iid, _x, _y, _cx, _cy, _style, flag in ITEMS:
+    for _label, iid, _x, _y, _cx, _cy, _style, _cls, flag in ITEMS:
         if flag is not None:
             data += struct.pack('<II', flag, iid)
     inc = ''.join('%%define %-11s 0x%08x\n' % (name, value) for name, value in (
@@ -117,9 +138,11 @@ def build_extras():
         ('DLGBOXPROC', names['DialogBoxIndirectParamA']),
         ('CHECKS', checks),
         ('TEMPLATE', TEMPLATE),
-        ('CMD_QUIT', dict((name, i) for name, i, *_r in ITEMS)['Quit']),
+        ('CMD_QUIT', dict((name, i) for name, i, *_r in ITEMS)['Quit Game']),
         ('CMD_CREDITS', CMD_CREDITS),
         ('IDCANCEL', IDCANCEL),
+        ('ID_DZ1', ID_DZ1),
+        ('ID_DZDEF', ID_DZDEF),
     ))
     return inc, bytes(tpl), bytes(data)
 

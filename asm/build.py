@@ -30,6 +30,7 @@ import importlib.util
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -188,6 +189,12 @@ CEILINGS = {
                                   'depth against'),
     'INISAVE_CODE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
                                  'what scans as a longer run'),
+    'INIALL_CODE': (0x005fb1a0, 'the end of its run; the deadzone seed '
+                                'took most of the slack'),
+    'F11PAUSE_CODE': (0x0063bf7c, 'the end of its run; the check-box loop '
+                                  'took nearly all of it'),
+    'INIPARSE_CODE': (0x00601b6c, 'the end of its run; the deadzone '
+                                  'write-back sits in its tail'),
     'OVERLAY_CODE': (0x005f8188, 'a live address 18 sites point at'),
     'TITLEVER_CODE': (0x00623e40, 'a qword 480.0 that 18 sites load'),
 }
@@ -286,6 +293,7 @@ def main(check=False):
         iniall = assemble('iniall.asm', tmp)
         devorder = assemble('devorder.asm', tmp)
         f11pause = assemble('f11pause.asm', tmp)
+        voxt = assemble('voxt.asm', tmp)
         movie = assemble('movie.asm', tmp)
         credits = assemble('credits.asm', tmp)
         nameentry = assemble('nameentry.asm', tmp)
@@ -352,6 +360,7 @@ def main(check=False):
                   + hexblob('PAD_INIKEYS', inikeys))
     new = replace(new, 'DIALOGS',
                   hexblob('EXTRAS_TPL', extras_tpl) + '\n'
+                  + hexblob('VOXT_CODE', voxt) + '\n'
                   + hexblob('EXTRAS_DATA', extras_data) + '\n'
                   + hexblob('F5_STOCK', dialogs.build_f5(dialogs.F5_STOCK))
                   + '\n'
@@ -366,9 +375,10 @@ def main(check=False):
                      'BINDLIST_CODE', 'BINDMAP_CODE', 'BINDBLOCK_CODE',
                      'INISAVE_CODE', 'INILOAD_CODE', 'BLOCKCUR_CODE', 'INIPARSE_CODE', 'PAGESEC_CODE', 'PAGESEL_CODE', 'COMMITDEV_CODE', 'INIALL_CODE', 'DEVORDER_CODE', 'F11PAUSE_CODE', 'PAD_INIKEYS',
                      'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_SIMPLEDEF',
-                     'EXTRAS_TPL',
                      'EXTRAS_DATA'))
     check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'INISAVE_CODE': inisave,
+                        'INIALL_CODE': iniall, 'F11PAUSE_CODE': f11pause,
+                        'INIPARSE_CODE': iniparse,
                         'OVERLAY_CODE': overlay,
                         'TITLEVER_CODE': titlever})
     check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
@@ -410,8 +420,26 @@ def main(check=False):
         'padtables.INIKEYS_AT':
             (padtables.INIKEYS_AT, 'PAD_INIKEYS', VA_DELTA),
         'dialogs.DATA': (dialogs.DATA, 'EXTRAS_DATA', VA_DELTA),
-        'dialogs.TEMPLATE': (dialogs.TEMPLATE, 'EXTRAS_TPL', VA_DELTA_RSRC),
     })
+    # The template is not sited: it rides in its own section and f11pause
+    # carries a placeholder for its address, filled at apply time. The
+    # placeholder must appear exactly once, and only there.
+    magic = struct.pack('<I', dialogs.TEMPLATE)
+    if f11pause.count(magic) != 1:
+        raise SystemExit('the TEMPLATE placeholder should appear exactly '
+                         'once in f11pause.asm')
+    for other in (dbgbox, padx, extras_tpl, extras_data, voxt):
+        if magic in other:
+            raise SystemExit('the TEMPLATE placeholder pattern occurs '
+                             'outside f11pause.asm')
+    rel = struct.pack('<I', 0xEAEAEAEA)
+    if dbgbox.count(rel) != 1:
+        raise SystemExit('the ANNEXREL placeholder should appear exactly '
+                         'once in debugbox.asm')
+    for other in (f11pause, padx, extras_tpl, extras_data, voxt):
+        if rel in other:
+            raise SystemExit('the ANNEXREL placeholder pattern occurs '
+                             'outside debugbox.asm')
     check_calls({'debugbox.asm': dbgbox, 'padxinput.asm': padx,
                  'levers.asm': levers, 'twinstick.asm': twin,
                  'introwait.asm': introwait, 'kbpage.asm': kbpage,

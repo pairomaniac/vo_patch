@@ -4,10 +4,19 @@ bits 32
 ; "Keyboard Assign" and "Simple Assign" use - into a 24-byte bind block.
 ; The block is left alone when the line is missing. In: eax = key string,
 ; edi = block. Preserves edi; clobbers eax, ecx, edx, esi.
+;
+; The tail is the deadzone write-back: both players' digit pairs out to
+; their "1P Deadzone" and "2P Deadzone" lines, through the game's own
+; line writer. The F11 dialog calls it when it closes, behind a byte
+; test that proves this cave is patched at all.
 
 org 0x00601b0c          ; a run of zeros in .rdata
 
+%include "padtables.inc"    ; DZKEYS
+
 FINDLINE    equ 0x005b1871      ; (key) -> value text, 0 if absent
+WRITELINE   equ 0x005b1833      ; (key, value): one v_on.ini line
+DZSTR1      equ 0x0365cb94      ; the digit pairs; see asm/padxinput.asm
 
 parse12:
     push    eax
@@ -38,4 +47,20 @@ nibble:                         ; hex char at [esi++] -> al
     jbe     .ok
     sub     al, 'a' - '0' - 10
 .ok:
+    ret
+
+    times   (0x00601b48 - 0x00601b0c) - ($ - $$) db 0
+dzsave:
+    push    1                   ; 2P first; the order is free
+    pop     esi
+.s:
+    lea     eax, [esi*4 + DZSTR1]
+    push    eax
+    imul    eax, esi, 12        ; the two key strings, 12 bytes apiece
+    add     eax, DZKEYS
+    push    eax
+    call    WRITELINE
+    add     esp, 8
+    dec     esi
+    jns     .s
     ret
