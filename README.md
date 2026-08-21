@@ -82,8 +82,8 @@ menu was already on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Better defaults with no v_on.ini** - what the game falls back on for any
-setting `v_on.ini` does not have, which on a first run is all of them: Sky on,
+- **Better defaults with no v_on.ini** - sets what the game falls back on for
+any setting `v_on.ini` does not have, which on a first run is all of them: Sky on,
 all three Texture boxes on, Field Graphic Rich, Screen Large.
 - **Sound fixes** - three small ones: the built-in delay before each sound
 effect is removed, output goes from 22050 to 44100 Hz, and an enemy Fei-Yen
@@ -130,8 +130,8 @@ Simple and the gamepad share one bind page, but each sees only its own
 inputs: the pad's sixteen on the gamepad page, the keyboard's letters,
 digits and named keys on Simple's. The two profiles keep separate bind
 sets, and both are saved to `v_on.ini`. *Real* keeps its own
-page. One trade: with two keyboard profiles, 2P may only take a key 1P
-has bound while 1P is on a pad profile.
+page. One consequence of two keyboard profiles: a key 1P has bound is
+free for 2P only while 1P is on a pad.
 
 Four buttons work on every profile, Start on the pause screen included:
 
@@ -186,8 +186,8 @@ bindable.
 How far a stick has to move before it counts, 40% out of the box. Set it
 per player in the *Stick Deadzone % [ XInput ]* box of the F11 Extras
 dialog (with **Disable menu bar** installed); the box's **Defaults**
-button puts both back to 40. Closing the dialog saves each to its own `v_on.ini` line,
-which can also be edited by hand:
+button puts both back to 40. Closing the dialog saves each to its own
+`v_on.ini` line, which can also be edited by hand:
 
 ```ini
 1P Deadzone=25
@@ -226,7 +226,7 @@ reads it from WAV files beside the game instead. No drive, no extra DLL.
 Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it
 knows where the files go, put a cue sheet or a drive in **Source**, then
 press **Rip tracks**. Closing the window mid-rip cancels it and discards the
-part track.
+partial track.
 
 <img height="300" alt="633243801-7754628c-028f-4471-8a33-59264e930e41(1)" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
 
@@ -283,9 +283,10 @@ back on LAN-and-VPN play.
 
 ### Playing
 
-- **Both players need this, and the same patches.** The two machines run
-  one simulation in step with each other. If they disagree about the rules,
-  they will disagree about the match.
+- **Both sides need the add-on; matching patches are the safe bet.** Each
+  machine runs its own copy of the game on both players' inputs, so a
+  difference that changes behaviour - rules, timing - can make the copies
+  drift apart. Looks and sounds do not matter.
 - **The host forwards UDP 47624.** Whoever joins needs nothing.
 - The host picks *Host a game* and reads out their address. The dialog
   shows the local one, and will ask the internet for the public one if you
@@ -371,8 +372,6 @@ them to another would write into unrelated code.
 | --- | --- | --- | --- |
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
-
-The OEM release is a different build of the same game and is not supported.
 
 If your file is neither of these, the patcher shows both checksums side by
 side and says which one it got.

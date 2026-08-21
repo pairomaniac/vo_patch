@@ -112,6 +112,6 @@ every question about NAT need two machines and a real link.
 Touch `vo-net.log` beside the game to log the latency probe and the
 resulting frame delay. Delete it to stop.
 
-Both players need the same DLL *and* the same patches. The two machines run
-one simulation in lockstep; if they disagree about the rules they will
-disagree about the match.
+Both sides need the same DLL, and gameplay-affecting patches should match:
+each machine runs its own copy of the game on both players' inputs, and a
+behavioural difference can make the copies drift apart.
