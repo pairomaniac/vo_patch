@@ -2,9 +2,9 @@
 
 Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
-both players, and reads the soundtrack from files instead of the disc.
+both players, reads the soundtrack from files instead of the disc...
 
-Generally, gives you all sorts of modern goodies.
+In a nutshell - the patch makes the game <i>just work ™️</i>
 
 <img height="700" alt="Screenshot_20260821_215954" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
 
@@ -117,6 +117,7 @@ pad 2 drives 2P.
 <img width="350" alt="F7 device list with the profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
 &nbsp;
 <img width="350" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
+<br /><br />
 
 | Profile | What it is |
 | --- | --- |
@@ -150,7 +151,7 @@ ignores F3 while the movie plays.
 <img height="220" alt="633451310-7008db66-3297-4aae-8952-b1d56855df44(1)" src="https://github.com/user-attachments/assets/6f6443ba-1ea2-45f3-a012-88df008d7e39" />
 &nbsp;
 <img height="220" alt="633451303-1524c516-9252-4f57-83fe-0a47fdc7ad11(1)" src="https://github.com/user-attachments/assets/dd50a0dd-a98e-4054-8ec1-96d6160b4f07" />
-
+<br /><br />
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
@@ -179,7 +180,8 @@ bindable.
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
 
 ### Stick deadzone
-<img height="270" alt="639662983-a9c40d5a-3a4c-41af-80cb-7bbae2730c72(1)" src="https://github.com/user-attachments/assets/37fdf367-e3c7-4186-81c1-886ee1a47184" />
+<img height="270" alt="639673305-37fdf367-e3c7-4186-81c1-886ee1a47184(1)" src="https://github.com/user-attachments/assets/a2482765-37bc-46d3-8763-4923c8e5449b" />
+<br /><br />
 
 How far a stick has to move before it counts, 40% out of the box. Set it
 per player in the *Stick Deadzone % [ XInput ]* box of the F11 Extras
@@ -226,8 +228,7 @@ knows where the files go, put a cue sheet or a drive in **Source**, then
 press **Rip tracks**. Closing the window mid-rip cancels it and discards the
 part track.
 
-<img height="320" alt="633243801-7754628c-028f-4471-8a33-59264e930e41(1)" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
-
+<img height="300" alt="633243801-7754628c-028f-4471-8a33-59264e930e41(1)" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
 
 Or from a terminal:
 
@@ -266,6 +267,7 @@ broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
 LAN.
 
 <img height="240" alt="633304459-4a27320d-0f12-4161-8c83-19c8d6f0a119(1)" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
+<br /><br />
 
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
 player hosts, the other types an address, and the match runs the same as it
@@ -302,6 +304,7 @@ framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
 something between the game and the graphics driver.
 
 <img height="360" alt="633246330-28c65fbf-99ed-4b11-b2a4-01fde3bf3d16(1)" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
+<br /><br />
 
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
 the game renders through, adding windowed and borderless modes, correct aspect
@@ -360,9 +363,9 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset, and those offsets belong to that build alone - applying
 them to another would write into unrelated code.
 
-<kbd><img height="200" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+<kbd><img height="185" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
 &nbsp;
-<kbd><img height="200" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
+<kbd><img height="185" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
