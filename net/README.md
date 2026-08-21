@@ -41,7 +41,7 @@ byte 2..   payload
 ```
 
 Type 1 is a frame. Control packets are 1 or 8 bytes: 2 asks for a frame to
-be sent again, 5 announces the input delay, 6 and 0x16 are a ping and its
+be sent again, 5 announces the input delay, 0x16 is a ping and 6 its
 reply, 7 is a poll, 0x18 relays a `WM_COMMAND` so a menu opens on both
 machines at once. Types above 0x80 are ours and did not exist in the
 original: hello, hello-ack and goodbye.
