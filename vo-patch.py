@@ -1052,8 +1052,8 @@ FEATURES = [
      'rounds. On-screen prompts that named a key now name the button.\n'
      '\n'
      'Stick deadzone\t40% per player, set from the F11 Extras dialog\n'
-     'and kept in "1P Deadzone" and "2P Deadzone" v_on.ini lines\n'
-     '(05 to 95).\n'
+     '\tand kept in "1P Deadzone" and "2P Deadzone" v_on.ini lines\n'
+     '\t(05 to 95).\n'
      '\n'
      'The keyboard page gets two fixes as well. 2P can use a key 1P has\n'
      'bound, as long as 1P is on a pad and not using it. And Default resets\n'
@@ -3184,8 +3184,8 @@ class Patcher:
             return False, ['Could not read the executable: %s' % exc]
 
         if wanted.get('credits'):
-            ready, why = self._credits_ready()
-            if not ready:
+            ready, why = self._credit_files()
+            if ready is None:
                 # Dropped rather than fatal: it is the one patch that fixes
                 # nothing, so it should never cost somebody the rest.
                 wanted = dict(wanted, credits=False)
@@ -3246,9 +3246,8 @@ class Patcher:
                 'Nothing written.']
         log += ['  %s' % BY_KEY[key][0] for key in applied]
         log.append('Wrote %s' % self.exe_path)
-        if wanted.get('padxinput'):
-            self._retire_ini(log)
         if 'padxinput' in applied:
+            self._retire_ini(log)
             self._write_banner(log)
         if 'credits' in applied:
             self._write_credits(log)
@@ -3286,7 +3285,19 @@ class Patcher:
                     os.replace(path, path + '.patched')
                     log.append('Kept the patched %s as %s.patched'
                                % (name, name))
-                shutil.copy(bak, path)
+                # Copied beside and renamed over, as apply does, so a
+                # failure mid-copy leaves the patched file rather than
+                # half of one.
+                temp = path + '.new'
+                try:
+                    shutil.copy(bak, temp)
+                    os.replace(temp, path)
+                except OSError:
+                    try:
+                        os.remove(temp)
+                    except OSError:
+                        pass
+                    raise
                 log.append('Restored %s' % name)
             except OSError as exc:
                 log.append('Could not restore %s: %s' % (name, exc))
@@ -3382,13 +3393,18 @@ class Patcher:
                            % (ESCRGAME, ESCRGAME, digest, ESCRGAME_MD5))
         return True, ''
 
-    def _credit_assets(self, log):
-        """Read both roll files, or explain why not. None means skip.
+    def _credit_files(self):
+        """Read both roll files. Returns ([(path, data, stock)], why).
 
-        Checked before anything is written, unlike the banner: a table in
-        the executable that names blocks the map has no tiles for would send
-        the renderer off the end of the map, where the banner's worst case
-        is only the old artwork under a new table."""
+        The list is None when the line cannot go in. Asked before the
+        executable is written: the block list goes in the executable and
+        the cells and tiles go in these two, and a list naming blocks the
+        map has no cells for walks the renderer off the end of it - so if
+        they are not both here and known, the whole patch stands down.
+
+        A copy that is already ours, with a stock .bak beside it, is
+        accepted with stock=False: that is a re-run, and the line is
+        already in it."""
         folder = os.path.dirname(self.exe_path)
         out = []
         for name, size, want in ((SCRSTFCG, SCRSTFCG_SIZE, SCRSTFCG_MD5),
@@ -3398,52 +3414,25 @@ class Patcher:
                 with open(path, 'rb') as fh:
                     data = fh.read()
             except OSError as exc:
-                log.append('Could not read %s: %s' % (name, exc))
-                return None
-            if len(data) != size:
-                log.append('%s is %d bytes, expected %d' % (name, len(data),
-                                                            size))
-                return None
-            if hashlib.md5(data).hexdigest() != want:
-                log.append('%s is not the one this patch was built against'
-                           % name)
-                return None
-            out.append((path, bytearray(data)))
-        return out
-
-    def _credits_ready(self):
-        """Can both roll files take the line? Returns (ok, why not).
-
-        Asked before the executable is written, not after. The block list
-        goes in the executable and the cells and tiles go in these two, and
-        a list naming blocks the map has no cells for walks the renderer off
-        the end of it - so if they are not both here and unmodified, the
-        whole patch has to stand down before anything is written.
-
-        A copy that is already ours, with a .bak beside it, is fine: that is
-        a re-run, and restore puts the original back either way."""
-        folder = os.path.dirname(self.exe_path)
-        for name, size, want in ((SCRSTFCG, SCRSTFCG_SIZE, SCRSTFCG_MD5),
-                                 (SCRSTFMP, SCRSTFMP_SIZE, SCRSTFMP_MD5)):
-            path = os.path.join(folder, name)
-            try:
-                with open(path, 'rb') as fh:
-                    data = fh.read()
-            except OSError as exc:
-                return False, 'Could not read %s: %s' % (name, exc)
+                return None, 'Could not read %s: %s' % (name, exc)
             if hashlib.md5(data).hexdigest() == want:
+                out.append((path, bytearray(data), True))
                 continue
             bak = path + '.bak'
-            if (os.path.exists(bak)
-                    and hashlib.md5(open(bak, 'rb').read()).hexdigest()
-                    == want):
-                continue                 # ours from a previous run
+            try:
+                with open(bak, 'rb') as fh:
+                    ours = hashlib.md5(fh.read()).hexdigest() == want
+            except OSError:
+                ours = False
+            if ours:
+                out.append((path, bytearray(data), False))
+                continue
             if len(data) != size:
-                return False, ('%s is %d bytes, expected %d.'
-                               % (name, len(data), size))
-            return False, ('%s is not the file this patch was built '
-                           'against.' % name)
-        return True, ''
+                return None, ('%s is %d bytes, expected %d.'
+                              % (name, len(data), size))
+            return None, ('%s is not the file this patch was built '
+                          'against.' % name)
+        return out, ''
 
     def _write_credits(self, log):
         """Append the new tiles and splice the new cells into the map.
@@ -3451,11 +3440,14 @@ class Patcher:
         Both files grow. They load to a fixed address with everything before
         them, so the room for that is finite - 580424 bytes are used of the
         594072 before .idata, and this adds 14756."""
-        found = self._credit_assets(log)
-        if found is None:
-            log.append('Credit line skipped - the executable is unchanged')
+        found, why = self._credit_files()
+        if found is None:            # checked before apply, so unlikely
+            log.append('%s Credit line skipped' % why)
             return False
-        (cg_path, cg), (mp_path, mp) = found
+        if not all(stock for _p, _d, stock in found):
+            log.append('Credit line already in place')
+            return True
+        (cg_path, cg, _s), (mp_path, mp, _s) = found
         for path in (cg_path, mp_path):
             if not self._backup(path, log):
                 log.append('Credit line skipped')
@@ -3605,9 +3597,6 @@ INTRO = 'Select an unmodified v_on.exe.'
 MIN_CONTENT = 520               # px; narrower and the hints wrap badly
 NO_FILE = 'No file selected'
 
-# Shown on the checkbox itself. Only for patches that take something away:
-# the tip explains, but nobody opens the tip before ticking.
-SIDE_EFFECTS = {}
 ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
                   'on unless you have a reason not to.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
@@ -3621,8 +3610,8 @@ ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'them here.')
 
 # Not a patch and not bundled: a separate download that does the things a
-# byte edit cannot, so it sits under the list rather than in it.
-EXTRA_LINK = ('Resolution and windowing', 'cnc-ddraw',
+# byte edit cannot, so it sits under ADD-ONS with the netplay DLL.
+DDRAW_LINK = ('Resolution and windowing', 'cnc-ddraw',
               'https://github.com/FunkyFr3sh/cnc-ddraw',
               'Windowed and borderless modes, and 640x480 scaled to your '
               'monitor without stretching. Install downloads it and puts '
@@ -4464,7 +4453,7 @@ def run_tk():
             Apply and Restore do not touch either of these; each row
             installs and removes itself."""
             _hint(parent, ADDONS_HINT, self.dim, self.small, pady=(0, 4))
-            self._link_row(parent, *EXTRA_LINK)
+            self._link_row(parent, *DDRAW_LINK)
             self._netplay_row(parent)
 
         def _netplay_row(self, parent):
@@ -4607,10 +4596,7 @@ def run_tk():
                 row = ttk.Frame(parent, style='Card.TFrame')
                 row.pack(fill='x', pady=3)
                 var = tk.BooleanVar(value=state[key])
-                # Said on the row rather than in the tip, because the tip is
-                # a click away and this one surprises people after the fact.
-                text = label + SIDE_EFFECTS.get(key, '')
-                check = ttk.Checkbutton(row, text=text, variable=var,
+                check = ttk.Checkbutton(row, text=label, variable=var,
                                         style='Card.TCheckbutton')
                 check.state(['disabled'])
                 check.pack(side='left')
