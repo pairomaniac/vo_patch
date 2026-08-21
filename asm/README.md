@@ -97,8 +97,12 @@ One region per blob, and `build.py` fails if a pair is missing:
 # PADTABLES BLOB BEGIN   <- PAD_COND, PAD_BINDS, PAD_NAMES, PAD_DEVLIST
 # PADTABLES BLOB END
 
-# DIALOGS BLOB BEGIN     <- EXTRAS_TPL, EXTRAS_DATA, F5_STOCK, F5_FPS
-# DIALOGS BLOB END
+# DIALOGS BLOB BEGIN     <- EXTRAS_TPL, EXTRAS_DATA, F5_STOCK, F5_FPS,
+# DIALOGS BLOB END          VOXT_CODE
+
+# CREDITS BLOB BEGIN     <- CREDITS_CODE, and one pair each for NAMEENTRY,
+# CREDITS BLOB END          CAMSKIP, OVERLAY and TITLEVER, all single _CODE
+                            blobs
 ```
 
 The three `.py` modules also emit an `.inc` file each, which the assembly

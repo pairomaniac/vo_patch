@@ -334,27 +334,29 @@ Motion is not among them any more, the F5 page having taken it over.
 
 The dialog also carries each player's stick deadzone as a two-digit
 percent, read back and written to that player's v_on.ini line when the
-box closes - a Deadzone group of its own, `1P [40] %  2P [40] %`. The
-template lives in a small read-only section the patch appends, the way
-CD MUSIC's code does: the dead menu resource it used to squeeze into
-caps it at 460 bytes, which had been pricing every label, and is left
+box closes - a Deadzone group of its own, `1P [40] %  2P [40] %`.
+
+The template lives in a small read-only section the patch appends, the
+way CD MUSIC's code does. The dead menu resource it used to squeeze into
+capped it at 460 bytes, which had been pricing every label; that is left
 as it came now. `asm/f11pause.asm` carries a placeholder where the
-template's address belongs, filled at apply time once the section
-exists. The section carries code at its tail too: the dialog's long
-paths - the close-time read, the ini save, the Defaults button that
-seeds both players back to 40 with the dialog still open, and Quit,
-which is back and still closes the dialog before posting, the game
-tearing the window down under it - live in `asm/voxt.asm`, position
-independent, reached
-through a rel32 placeholder in the dialog procedure. The check-box init
-stayed in `asm/f11pause.asm`'s tail. The values and their digits
-live in the
-gamepad patch's `.data` scratch, and the ini write-back in its
-`asm/iniparse.asm` cave, so the close path calls it behind a test of
-that cave's first byte: zero is the stock run, nothing to call. With
-the gamepad patch out the boxes show empty and their values land in
-scratch nothing reads, which is harmless either way, since the
-addresses are free in the stock executable whatever is installed.
+template's address belongs, filled at apply time once the section exists.
+
+The section carries code at its tail too. The dialog's long paths live in
+`asm/voxt.asm`, position independent, reached through a rel32 placeholder
+in the dialog procedure: the close-time read, the ini save, the Defaults
+button that seeds both players back to 40 with the dialog still open, and
+Quit, which is back and still closes the dialog before posting, the game
+tearing the window down under it. The check-box init stayed in
+`asm/f11pause.asm`'s tail.
+
+The values and their digits live in the gamepad patch's `.data` scratch,
+and the ini write-back in its `asm/iniparse.asm` cave, so the close path
+calls it behind a test of that cave's first byte: zero is the stock run,
+nothing to call. With the gamepad patch out the boxes show empty and
+their values land in scratch nothing reads, which is harmless either way,
+since the addresses are free in the stock executable whatever is
+installed.
 
 ### Intro movie
 

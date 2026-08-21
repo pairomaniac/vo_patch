@@ -6,7 +6,7 @@ both players, reads the soundtrack from files instead of the disc...
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 
-<img height="700" alt="Screenshot_20260821_215954" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
+<img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
 
 ## Download
 
@@ -97,15 +97,16 @@ side of the fighting:
     - the initials screen after the credits takes those same buttons, as well
       as the weapon trigger
 
-**Show the version, and credit the patch in the ending roll**, on by default:
+**Show the version, and credit the patch in the ending roll**, under ABOUT
+and on by default:
 the patcher's version in the bottom right of the title screen, and two lines
 under the title at the top of the ending credits. The credit lines rewrite
 `scrstfcg.bin` and `scrstfmp.bin`, backing both up; **Restore original**
 puts them back. If either file is missing the whole box is skipped, version
 included, and the rest still applies.
 
-Under the same list, **Resolution and windowing** is not a patch but a button:
-it downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
+**Resolution and windowing**, under ADD-ONS, is not a patch but a button: it
+downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
 beside the game.
 
 ## Gamepad
@@ -145,12 +146,16 @@ Four buttons work on every profile, Start on the pause screen included:
 The D-pad is not bindable. It is wired to the same four directions as the
 movement binds, which is what the menus read.
 
+Applying the patch moves `v_on.ini` aside, because binds saved by the
+unpatched game do not fit the new device list. See
+[What gets written](#what-gets-written).
+
 **A** skips the intro movie, the same as Space. **Start** does not - the game
 ignores F3 while the movie plays.
 
-<img height="220" alt="633451310-7008db66-3297-4aae-8952-b1d56855df44(1)" src="https://github.com/user-attachments/assets/6f6443ba-1ea2-45f3-a012-88df008d7e39" />
+<img height="220" alt="Pause screen prompt" src="https://github.com/user-attachments/assets/6f6443ba-1ea2-45f3-a012-88df008d7e39" />
 &nbsp;
-<img height="220" alt="633451303-1524c516-9252-4f57-83fe-0a47fdc7ad11(1)" src="https://github.com/user-attachments/assets/dd50a0dd-a98e-4054-8ec1-96d6160b4f07" />
+<img height="220" alt="Title screen prompt" src="https://github.com/user-attachments/assets/dd50a0dd-a98e-4054-8ec1-96d6160b4f07" />
 <br /><br />
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
@@ -180,7 +185,7 @@ bindable.
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
 
 ### Stick deadzone
-<img height="270" alt="639673305-37fdf367-e3c7-4186-81c1-886ee1a47184(1)" src="https://github.com/user-attachments/assets/a2482765-37bc-46d3-8763-4923c8e5449b" />
+<img height="270" alt="F11 Extras dialog" src="https://github.com/user-attachments/assets/a2482765-37bc-46d3-8763-4923c8e5449b" />
 <br /><br />
 
 How far a stick has to move before it counts, 40% out of the box. Set it
@@ -209,17 +214,13 @@ Two keyboard players cannot share a key - if 2P wants one 1P already has,
 rebind 1P first. If 1P is on a pad, 2P can take 1P's keys, since nothing is
 using them. **Default** resets whichever side you are editing.
 
-Applying the patch clears `v_on.ini`, because binds saved by the unpatched
-game do not fit the new device list. See
-[What gets written](#what-gets-written).
-
 ## Music
 
 The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game instead. No drive, no extra DLL.
 
-<img height="360" alt="633243345-8d98b4ea-8092-4399-8794-81d858a0f5a5(1)" src="https://github.com/user-attachments/assets/69d7501f-b16c-4394-a9ef-a5120c224775" />
+<img height="360" alt="CD MUSIC section" src="https://github.com/user-attachments/assets/69d7501f-b16c-4394-a9ef-a5120c224775" />
 
 ### Ripping the tracks
 
@@ -228,7 +229,7 @@ knows where the files go, put a cue sheet or a drive in **Source**, then
 press **Rip tracks**. Closing the window mid-rip cancels it and discards the
 partial track.
 
-<img height="300" alt="633243801-7754628c-028f-4471-8a33-59264e930e41(1)" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
+<img height="300" alt="Ripping in progress" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
 
 Or from a terminal:
 
@@ -266,7 +267,7 @@ LAN: the game finds opponents by broadcasting, and no router forwards a
 broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
 LAN.
 
-<img height="240" alt="633304459-4a27320d-0f12-4161-8c83-19c8d6f0a119(1)" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
+<img height="240" alt="Internet play dialog" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
 <br /><br />
 
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
@@ -304,7 +305,7 @@ display, which on a modern panel usually means a stretched picture. The 4:3
 framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
 something between the game and the graphics driver.
 
-<img height="360" alt="633246330-28c65fbf-99ed-4b11-b2a4-01fde3bf3d16(1)" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
+<img height="360" alt="cnc-ddraw row under ADD-ONS" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
 <br /><br />
 
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
@@ -364,9 +365,9 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset, and those offsets belong to that build alone - applying
 them to another would write into unrelated code.
 
-<kbd><img height="150" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+<kbd><img height="150" alt="Rejected executable, side by side checksums" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
 &nbsp;
-<kbd><img height="150" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
+<kbd><img height="150" alt="Accepted executable" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |

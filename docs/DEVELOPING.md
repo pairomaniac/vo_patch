@@ -21,9 +21,9 @@ that put them there.
 **Never edit a blob by hand.** The next build run silently discards it.
 
 Two more generated things are checked in rather than rebuilt, so a build will
-not notice if they go stale: `tools/vonbanner.py` writes the title banner's
-bitmap, and `tools/vocredits.py` writes the credit line's. Change how either
-one draws and you have to rerun it by hand. See [TEXT.md](TEXT.md).
+not notice if they go stale: `BANNER_BITS`, the title banner's bitmap, and
+the credit line's bitmaps, which `tools/vocredits.py` writes. Change how
+either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 
 ## Setup, once
 
@@ -101,7 +101,9 @@ Neither runs in CI: both need the game's files, which are not in the
 repository. Their output is committed.
 
 **`tools/vonbanner.py`** redraws the title screen prompt. It rasterises text
-into the banner's 42x3 cells and writes the bitmap into `vo-patch.py`.
+into the banner's 42x3 cells and, with `--write`, writes the game's own
+`v_on.exe` and `escrgame.bin`. It does not touch `vo-patch.py`: to ship a new
+wording, replace `BANNER_BITS` there with the bitmap it produces.
 
 ```bash
 python3 tools/vonbanner.py DIR --text 'Press Start'    # preview
@@ -303,5 +305,6 @@ python3 tools/vonbanner.py DIR     # redraw the title prompt
 python3 tools/vocredits.py DIR     # redraw the credit line
 ```
 
-`DIR` is the game folder. Both of those write into `vo-patch.py` with
-`--write`; without it they only preview.
+`DIR` is the game folder. Without `--write` both only preview; with it
+`vocredits.py` writes into `vo-patch.py` and `vonbanner.py` writes the game's
+files.
