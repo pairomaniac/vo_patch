@@ -364,9 +364,9 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset, and those offsets belong to that build alone - applying
 them to another would write into unrelated code.
 
-<kbd><img height="175" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+<kbd><img height="150" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
 &nbsp;
-<kbd><img height="175" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
+<kbd><img height="150" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
