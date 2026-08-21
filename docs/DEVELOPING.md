@@ -133,18 +133,29 @@ Edit `LINES` at the top to change what it says. The result goes between the
 `net/dpctrl.c` is the only part with no automated coverage at all. CI compiles
 it and checks the exports are still there; nothing runs it.
 
-`tools/vo-loopback.sh` puts two local instances against each other. It needs
-two installs with two prefixes - both write `v_on.ini` and save state, and
-sharing either produces failures that look like netcode bugs and are not.
-Configure it in `~/.vo-loopback`, which is yours and is not in the repository:
+Two scripts under `tools/` build the DLL and put it in a game folder. Both
+read `~/.vo-test`, which is yours and is not in the repository:
 
 ```bash
-# ~/.vo-loopback
-VO_GAME_A=/path/to/VIRTUAL-ON
+# ~/.vo-test
+VO_GAME=/path/to/VIRTUAL-ON           # vo-dll.sh
+VO_GAME_A=/path/to/VIRTUAL-ON         # vo-loopback.sh
 VO_GAME_B=/path/to/VIRTUAL-ON-P2
 VO_PFX_A=$HOME/prefixes/virtual-on
 VO_PFX_B=$HOME/prefixes/virtual-on-p2
 ```
+
+`tools/vo-dll.sh` is for testing against another machine:
+
+```bash
+tools/vo-dll.sh build
+tools/vo-dll.sh install               # or install /other/folder
+tools/vo-dll.sh restore
+```
+
+`tools/vo-loopback.sh` puts two local instances against each other. It needs
+two installs with two prefixes - both write `v_on.ini` and save state, and
+sharing either produces failures that look like netcode bugs and are not.
 
 ```bash
 tools/vo-loopback.sh build install

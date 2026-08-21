@@ -17,7 +17,7 @@
 # so the whole delay path runs at its minimum and is never exercised. Shape
 # the loopback with tc to test that, and read net/README.md first.
 #
-# Configure with environment variables, or a ~/.vo-loopback file that sets
+# Configure with environment variables, or a ~/.vo-test file that sets
 # them - it is sourced if present:
 #
 #   VO_GAME_A  VO_GAME_B    the two game folders          (required)
@@ -33,7 +33,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(dirname "$HERE")
 
 # shellcheck source=/dev/null
-[ -f ~/.vo-loopback ] && . ~/.vo-loopback
+[ -f ~/.vo-test ] && . ~/.vo-test
 
 GAME_A=${VO_GAME_A:-}
 GAME_B=${VO_GAME_B:-}
@@ -52,9 +52,9 @@ need_config() {
     [ -n "$PFX_A" ]  || missing="$missing VO_PFX_A"
     [ -n "$PFX_B" ]  || missing="$missing VO_PFX_B"
     [ -z "$missing" ] || die "set these first, in the environment or
-~/.vo-loopback:$missing
+~/.vo-test:$missing
 
-    # ~/.vo-loopback
+    # ~/.vo-test
     VO_GAME_A=/games/VIRTUAL-ON
     VO_GAME_B='/games/VIRTUAL-ON P2'
     VO_PFX_A=\$HOME/prefixes/virtual-on
