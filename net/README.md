@@ -4,9 +4,10 @@ A replacement for the game's `DPCTRL.DLL`. Same seven exports, same calling
 conventions, plain UDP where the original used DirectPlay.
 
 ```
-dpctrl.c    the implementation
-dpctrl.def  export names, undecorated, as the game imports them
-build.py    compiles it and bakes the result into vo-patch.py
+dpctrl.c       the implementation
+dpctrl.def     export names, undecorated, as the game imports them
+build.py       compiles it and bakes the result into vo-patch.py
+rendezvous.py  the matchcode server, runs on any machine with a public address
 ```
 
 ## Why
@@ -73,6 +74,51 @@ again every second and hold on for the full thirty, as the original did.
 Silence means the peer is gone, so a 250ms heartbeat runs both ways and
 three seconds of nothing at all is a dead link. The original had no need
 for this - DirectPlay watched the connection and told the game.
+
+## Matchcodes
+
+Direct play needs the host to forward a UDP port. The matchcode path does
+not. Both sides send to a rendezvous server from the socket they will play
+on, the server sees the public address and port each NAT assigned, and
+hands each side the other's. Both then send to each other - the host a
+`P_PUNCH`, the guest its normal hello - and each outgoing packet opens its
+own NAT for the reply. From the ack onward nothing is different and the
+server is out of the loop.
+
+If nothing has got through after `PUNCH_MS` (four seconds), both sides
+switch to sending through the server, which forwards each datagram to the
+other side. Whichever side gives up first drags the other along: a relayed
+packet arriving is the signal to follow. This covers symmetric NAT and
+carrier-grade NAT, where the port the server saw is not one the peer can
+reach. It costs the detour through the server in latency, so direct is
+always tried first.
+
+The server (`rendezvous.py`, standard library only) keeps a table of open
+codes and nothing else. Hosts refresh their entry every second; relayed
+matches refresh it with their own traffic; thirty seconds of silence
+expires it, so nothing needs cleaning up.
+
+```
+client -> server    C                create, reply K <code>
+                    H <code>         host keepalive, reply P <peer> once there is one
+                    J <code>         join, reply P <host>, and P <guest> to the host
+                    R <code> <data>  forward to the other side as D <data>
+server -> client    N                unknown code, or already taken
+```
+
+Datagrams start with `VOR1` so they can never be mistaken for a game packet.
+
+Codes are shown as `E-ABCDE` or `U-ABCDE`: the letter is the server the
+host registered with, so the guest needs nothing but the code. Hostnames
+are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`, port 47625.
+
+Running one:
+
+```bash
+python3 net/rendezvous.py          # udp/47625, open it in the firewall
+```
+
+`rendezvous.service` is a systemd unit for it.
 
 ## Two deliberate differences
 

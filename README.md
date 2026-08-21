@@ -288,11 +288,16 @@ back on LAN-and-VPN play.
   machine runs its own copy of the game on both players' inputs, so a
   difference that changes behaviour - rules, timing - can make the copies
   drift apart. Looks and sounds do not matter.
-- **The host forwards UDP 47624.** Whoever joins needs nothing.
-- The host picks *Host a game* and reads out their address. The dialog
-  shows the local one, and will ask the internet for the public one if you
-  press the button. The other player picks *Join a game* and types it in;
-  host names work as well as addresses.
+- **Matchcode is the default and nobody forwards anything.** The host
+  picks a region, presses OK and reads out the code the dialog shows, like
+  `E-ABCDE`; the other player types it in. The two machines talk directly
+  where the routers allow it, and through the server where they do not, so
+  it works from anywhere with UDP. Pick the region nearer the host.
+- **Direct IP is for LAN play, or when you would rather not depend on the
+  server.** The host forwards UDP 47624, picks *Host a game* and reads out
+  their address; the dialog shows the local one and will look up the
+  public one on request. The other player types it in. Whoever joins needs
+  nothing forwarded.
 
 The joining side keeps trying until you cancel, so there is no rush to
 press things at the same moment. Once a match is running, a player who

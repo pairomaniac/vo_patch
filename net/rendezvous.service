@@ -1,0 +1,16 @@
+# systemd unit for the matchcode server.
+#   cp net/rendezvous.py /opt/vo/rendezvous.py
+#   cp net/rendezvous.service /etc/systemd/system/
+#   systemctl enable --now rendezvous
+[Unit]
+Description=Virtual-On netplay rendezvous
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/vo/rendezvous.py 47625
+DynamicUser=yes
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
