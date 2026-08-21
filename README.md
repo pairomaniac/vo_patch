@@ -4,7 +4,9 @@ Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
 both players, and reads the soundtrack from files instead of the disc.
 
-<img height="700" alt="image" src="https://github.com/user-attachments/assets/187c8a52-e2f8-4121-a88e-f66993cfd9c9" />
+Generally, gives you all sorts of modern goodies.
+
+<img height="700" alt="Screenshot_20260821_215954" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
 
 ## Download
 
@@ -113,6 +115,7 @@ profiles are hidden and four remain, for both players - pad 1 drives 1P,
 pad 2 drives 2P.
 
 <img width="350" alt="F7 device list with the profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
+&nbsp;
 <img width="350" alt="F7 bind page for Gamepad (XInput)" src="https://github.com/user-attachments/assets/9fac5899-0465-4fbe-990f-65f978352632" />
 
 | Profile | What it is |
@@ -144,8 +147,10 @@ movement binds, which is what the menus read.
 **A** skips the intro movie, the same as Space. **Start** does not - the game
 ignores F3 while the movie plays.
 
-<img height="200" alt="image" src="https://github.com/user-attachments/assets/1524c516-9252-4f57-83fe-0a47fdc7ad11" />
-<img height="200" alt="image" src="https://github.com/user-attachments/assets/7008db66-3297-4aae-8952-b1d56855df44" />
+<img height="220" alt="633451310-7008db66-3297-4aae-8952-b1d56855df44(1)" src="https://github.com/user-attachments/assets/6f6443ba-1ea2-45f3-a012-88df008d7e39" />
+&nbsp;
+<img height="220" alt="633451303-1524c516-9252-4f57-83fe-0a47fdc7ad11(1)" src="https://github.com/user-attachments/assets/dd50a0dd-a98e-4054-8ec1-96d6160b4f07" />
+
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
@@ -174,6 +179,7 @@ bindable.
 | **LB**, **RB** | the turbo buttons - dash in the direction you are moving |
 
 ### Stick deadzone
+<img height="270" alt="639662983-a9c40d5a-3a4c-41af-80cb-7bbae2730c72(1)" src="https://github.com/user-attachments/assets/37fdf367-e3c7-4186-81c1-886ee1a47184" />
 
 How far a stick has to move before it counts, 40% out of the box. Set it
 per player in the *Stick Deadzone % [ XInput ]* box of the F11 Extras
@@ -211,7 +217,7 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game instead. No drive, no extra DLL.
 
-<img height="280" alt="image" src="https://github.com/user-attachments/assets/8d98b4ea-8092-4399-8794-81d858a0f5a5" />
+<img height="360" alt="633243345-8d98b4ea-8092-4399-8794-81d858a0f5a5(1)" src="https://github.com/user-attachments/assets/69d7501f-b16c-4394-a9ef-a5120c224775" />
 
 ### Ripping the tracks
 
@@ -220,7 +226,8 @@ knows where the files go, put a cue sheet or a drive in **Source**, then
 press **Rip tracks**. Closing the window mid-rip cancels it and discards the
 part track.
 
-<img height="280" alt="image" src="https://github.com/user-attachments/assets/7754628c-028f-4471-8a33-59264e930e41" />
+<img height="320" alt="633243801-7754628c-028f-4471-8a33-59264e930e41(1)" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
+
 
 Or from a terminal:
 
@@ -258,7 +265,7 @@ LAN: the game finds opponents by broadcasting, and no router forwards a
 broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
 LAN.
 
-<img height="250" alt="image" src="https://github.com/user-attachments/assets/4a27320d-0f12-4161-8c83-19c8d6f0a119" />
+<img height="240" alt="633304459-4a27320d-0f12-4161-8c83-19c8d6f0a119(1)" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
 
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
 player hosts, the other types an address, and the match runs the same as it
@@ -294,7 +301,7 @@ display, which on a modern panel usually means a stretched picture. The 4:3
 framebuffer is baked into the rasteriser, so no byte edit fixes it - it needs
 something between the game and the graphics driver.
 
-<img height="360" alt="image" src="https://github.com/user-attachments/assets/28c65fbf-99ed-4b11-b2a4-01fde3bf3d16" />
+<img height="360" alt="633246330-28c65fbf-99ed-4b11-b2a4-01fde3bf3d16(1)" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
 
 [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) replaces the DirectDraw
 the game renders through, adding windowed and borderless modes, correct aspect
@@ -353,9 +360,9 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset, and those offsets belong to that build alone - applying
 them to another would write into unrelated code.
 
-<img height="175" alt="image" src="https://github.com/user-attachments/assets/cefb985b-b8ee-4b40-ae35-ab7431fde607" />
-<img height="175" alt="image" src="https://github.com/user-attachments/assets/5c3acc21-0bf5-4961-acce-ae1990061c4f" />
-
+<kbd><img height="200" alt="633241420-5c3acc21-0bf5-4961-acce-ae1990061c4f(1)(1)" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+&nbsp;
+<kbd><img height="200" alt="633241387-cefb985b-b8ee-4b40-ae35-ab7431fde607(1)(2)" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
