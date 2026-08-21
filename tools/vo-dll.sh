@@ -38,6 +38,7 @@ build() {
 install_dll() {
     local d=$1
     [ -f "$DLL" ] || die "build it first"
+    [ "$DLL" -nt "$REPO/net/dpctrl.c" ] || die "dpctrl.dll is older than dpctrl.c; build first"
     # snapshot the stock DLL once, the way the patcher does
     [ -f "$d/dpctrl.dll.stock" ] || cp -a "$d/dpctrl.dll" "$d/dpctrl.dll.stock"
     cp -f "$DLL" "$d/dpctrl.dll"
