@@ -173,20 +173,45 @@ label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
 ## Netplay
 
 `net/dpctrl.c` is the only part with no automated coverage at all. CI compiles
-it and checks the exports are still there; nothing runs it.
+it and checks the exports are still there; nothing runs it. The server side,
+`net/rendezvous.py`, is plain Python and at least gets pyflakes.
 
-`tools/vo-loopback.sh` puts two local instances against each other. It needs
-two installs with two prefixes - both write `v_on.ini` and save state, and
-sharing either produces failures that look like netcode bugs and are not.
-Configure it in `~/.vo-loopback`, which is yours and is not in the repository:
+The match runs in lockstep: each machine simulates from both players' input
+frames, so the two must step the simulation identically. The handshake tag's
+last byte is a fingerprint of the patches that change how the game plays,
+read straight from the running exe by `sync_fingerprint()`, and a mismatch is
+refused at connect. If you add a patch that changes the simulation - a rule,
+a timing, a physics value, anything that alters what the game computes from a
+given input - add its site beside `FP_DIVISOR_VA` and `FP_CONTINUE_VA`
+there, and the same site and its key to `SYNC_SITES` and `SYNC_KEYS` in
+`vo-patch.py`, which is what warns at Apply and at netplay install. Miss one
+and two builds with and without it desync instead of refusing to link. A
+patch that only changes what a machine shows or how it reads its own controls
+stays out of the fingerprint: those are each player's own business.
+
+Two scripts under `tools/` build the DLL and put it in a game folder. Both
+read `~/.vo-test`, which is yours and is not in the repository:
 
 ```bash
-# ~/.vo-loopback
-VO_GAME_A=/path/to/VIRTUAL-ON
+# ~/.vo-test
+VO_GAME=/path/to/VIRTUAL-ON           # vo-dll.sh
+VO_GAME_A=/path/to/VIRTUAL-ON         # vo-loopback.sh
 VO_GAME_B=/path/to/VIRTUAL-ON-P2
 VO_PFX_A=$HOME/prefixes/virtual-on
 VO_PFX_B=$HOME/prefixes/virtual-on-p2
 ```
+
+`tools/vo-dll.sh` is for testing against another machine:
+
+```bash
+tools/vo-dll.sh build
+tools/vo-dll.sh install               # or install /other/folder
+tools/vo-dll.sh restore
+```
+
+`tools/vo-loopback.sh` puts two local instances against each other. It needs
+two installs with two prefixes - both write `v_on.ini` and save state, and
+sharing either produces failures that look like netcode bugs and are not.
 
 ```bash
 tools/vo-loopback.sh build install
@@ -199,6 +224,31 @@ What it proves is the ABI, the ring handling and the copy-out. What it does
 not: at 0 ms round trip the delay negotiation computes 1 every time, so that
 path never runs at anything but its minimum. Shape the loopback with `tc` for
 that, and read [net/README.md](../net/README.md) first.
+
+Loopback cannot test matchcodes: both instances sit behind the same address.
+That needs two machines on two networks - a laptop on a phone hotspot against
+a desktop on ethernet is the cheap rig. Create an empty `vo-net.log` beside
+each `v_on.exe` first and look for `linked directly` or `linked through the
+relay` afterwards. `relay=1` under `[net]` in `vo-net.ini` on one side forces
+the relay. The server logs the same outcome per code;
+`tools/rendezvous-install.sh status` tallies them.
+
+`tools/rendezvous-install.sh` installs the server from `net/rendezvous.service`
+on a machine that should keep one up.
+
+`tools/rvload.py` probes a running server, or two side by side, so a box
+that has drifted from the source shows up:
+
+```bash
+python3 tools/rvload.py segaonline.net us.segaonline.net
+```
+
+Each probe targets one thing the server does: the create round trip, a full
+handshake, a 512 vs 513-byte relay, a non-alphabet code, and a burst of
+creates from one address against the per-IP cap. `--flood` adds an
+unknown-code storm to watch the guess-ban engage - own servers only, and not
+during a match. It creates only codes it lets expire, so it is safe to point
+at a live server, the flood aside.
 
 ## Releasing
 
@@ -247,6 +297,8 @@ Patch a clean copy and walk these once:
 - a match to the win screen, and the replay after it
 - the F5, F7 and F11 dialogs, and a deadzone edit that survives a restart
 - the ending credits and the initials screen after them
+- one matchcode match against a second machine, direct and forced through
+  the relay, since the netplay DLL ships in the same build
 
 Ten minutes, and it covers the state machines no check reaches.
 
@@ -282,6 +334,7 @@ gh release delete v0.8.4 --yes     # if a release was created
 | a blob moved without its hook | `asm` | CI, every push |
 | a table that is well-formed and wrong | nothing | only playing the game |
 | the netplay DLL misbehaving on a real link | nothing | only two machines |
+| the matchcode punch or relay failing | nothing | two machines on two networks |
 
 ## Troubleshooting
 

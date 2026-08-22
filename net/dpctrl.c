@@ -3,11 +3,18 @@
  *
  * The original routes the game's netplay through DirectPlay 1 (DirectPlayCreate),
  * which has no address mechanism, so host discovery is a LAN broadcast. This
- * replacement speaks plain UDP to one peer: host binds a port, guest dials it.
+ * replacement speaks plain UDP to one peer. By default the two find each
+ * other through a matchcode: the host gets a five-letter code from a
+ * rendezvous server, the guest types it, and the server introduces the two
+ * so their NATs open with nothing forwarded, falling back to relaying the
+ * match through the server if they will not. Direct IP, host binds a port
+ * and guest dials it, is still there for a LAN or a forwarded port.
  *
  * The seven exports, their stdcall signatures and their observable behaviour
  * match the original. The on-wire packet layout is kept identical too, since
- * the game can see it through SendDirectPlay/ReceiveDirectPlay.
+ * the game can see it through SendDirectPlay/ReceiveDirectPlay. The one
+ * addition the game cannot see is the handshake, which also checks that
+ * both sides carry the same simulation-affecting patches.
  *
  * Build (32-bit, mingw-w64):
  *   i686-w64-mingw32-gcc -O2 -s -shared -o dpctrl.dll dpctrl.c dpctrl.def \
@@ -42,6 +49,24 @@
 #define NEGOTIATE_MS     10000
 #define PING_ROUNDS      9
 
+/* Matchcode rendezvous (net/rendezvous.py). The host gets a code from the
+   server, the guest types it, and the server hands each side the other's
+   public endpoint so both NATs open without a forwarded port. If nothing
+   gets through within PUNCH_MS, game traffic goes through the server. */
+#define MATCH_SERVER_EU  "segaonline.net"
+#define MATCH_SERVER_US  "us.segaonline.net"
+#define MATCH_INI        ".\\vo-net.ini"   /* Custom server; relay=1 for tests */
+#define MATCH_PORT       47625
+#define MATCH_MAGIC      "VOR1"
+#define MATCH_RETRY_MS   1000
+#define MATCH_WAIT_MS    10000   /* give up on a silent server */
+#define PUNCH_MS         4000
+#define CODE_LEN         5
+#define REGION_EU        0
+#define REGION_US        1
+#define REGION_OTHER     2
+#define RELAY_HDR        (5 + CODE_LEN)   /* "VOR1" 'R' code */
+
 /* packet types. 1..0x18 are the original's; 0x80+ are ours. */
 #define P_DATA   0x01   /* [type][seq][payload]              */
 #define P_RESEND 0x02   /* [type][..][u32 seq]               */
@@ -53,6 +78,7 @@
 #define P_HELLO  0x80   /* [type][16-byte session tag]       */
 #define P_ACK    0x81   /* [type][16-byte session tag]       */
 #define P_QUIT   0x82   /* [type]                            */
+#define P_PUNCH  0x83   /* [type]  opens our NAT mapping, ignored on receipt */
 
 /* handle_packet return codes */
 #define R_NONE     0
@@ -101,11 +127,12 @@ static struct {
     int    msg_head, msg_tail, msg_used;
     int    msg_dropped;
 
-    unsigned char pkt[MAXPKT];    /* last datagram received      */
+    unsigned char pkt[MAXPKT + RELAY_HDR];   /* last datagram received */
     int    pktlen;
 
     /* handshake dialog state */
     int    hs_done, hs_failed;
+    const char *fail;      /* why the handshake gave up                  */
     DWORD  hs_last;
 
     DWORD  last_rx;        /* last packet accepted from the peer */
@@ -117,6 +144,17 @@ static struct {
     char   lan[192];       /* this machine's LAN addresses               */
     char   pub[64];        /* public address, only looked up on request  */
     int    pub_shown;
+
+    /* matchcode */
+    int    match;          /* go through the rendezvous server           */
+    int    region;         /* REGION_EU, REGION_US, REGION_OTHER          */
+    char   server[128];    /* host[:port] when the region is Custom       */
+    struct sockaddr_in rv; /* the server                                 */
+    char   code[CODE_LEN + 1];
+    int    rv_peer;        /* server has told us the peer's endpoint     */
+    int    relay;          /* direct path failed, server forwards for us */
+    int    force_relay;    /* relay=1 in vo-net.ini: skip the punch, for testing */
+    DWORD  rv_last, rv_start, punch_start;
 } g;
 
 /* ------------------------------------------------------------------ */
@@ -153,11 +191,37 @@ static void sock_close(void)
 
 static void send_raw(const void *buf, int len)
 {
-    if (g.up) {
+    if (!g.up)
+        return;
+    if (g.relay) {
+        unsigned char b[MAXPKT + RELAY_HDR];
+        memcpy(b, MATCH_MAGIC, 4);
+        b[4] = 'R';
+        memcpy(b + 5, g.code, CODE_LEN);
+        memcpy(b + RELAY_HDR, buf, len);
+        sendto(g.sock, (const char *)b, RELAY_HDR + len, 0,
+               (struct sockaddr *)&g.rv, sizeof(g.rv));
+    } else {
         sendto(g.sock, (const char *)buf, len, 0,
                (struct sockaddr *)&g.peer, sizeof(g.peer));
-        g.last_tx = timeGetTime();
     }
+    g.last_tx = timeGetTime();
+}
+
+static int from_server(const struct sockaddr_in *a)
+{
+    return a->sin_addr.s_addr == g.rv.sin_addr.s_addr &&
+           a->sin_port == g.rv.sin_port;
+}
+
+/* A relayed datagram is "VOR1" 'D' payload. Strips the wrapper in place
+   and returns the payload length, or -1 if this was not one. */
+static int unwrap_relay(unsigned char *p, int n)
+{
+    if (n < 5 || memcmp(p, MATCH_MAGIC, 4) || p[4] != 'D')
+        return -1;
+    memmove(p, p + 5, n - 5);
+    return n - 5;
 }
 
 static void send_ctl(unsigned char type, DWORD arg)
@@ -214,9 +278,13 @@ static int poll_recv(void)
         return -1;
     }
 
-    /* Ignore anything that is not our peer. */
-    if (g.linked && from.sin_addr.s_addr != g.peer.sin_addr.s_addr)
+    /* Ignore anything that is not our peer, or the server when relaying. */
+    if (g.relay) {
+        if (!from_server(&from) || (n = unwrap_relay(g.pkt, n)) <= 0)
+            return 0;
+    } else if (g.linked && from.sin_addr.s_addr != g.peer.sin_addr.s_addr) {
         return 0;
+    }
 
     g.pktlen = n;
     g.last_rx = timeGetTime();
@@ -277,7 +345,10 @@ static int handle_packet(void)
         return R_DATA;
     }
     case P_RESEND: {
-        int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
+        int seq;
+        if (g.pktlen < 8)
+            return R_NONE;       /* the original sends 8; a short one is noise */
+        seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
         slot = g.tx + seq * MAXPKT;
         if (slot[0] == P_DATA)
             send_raw(slot, g.framelen);
@@ -294,7 +365,10 @@ static int handle_packet(void)
     case P_DELAY:
         return R_DELAY;
     case P_CMD:
-        return R_CMD;
+        /* The peer posts a WM_COMMAND into our window, which is how the
+           original keeps both menus in step. It is trusted because the
+           peer already is: a malicious one can do worse with frames. */
+        return g.pktlen >= 8 ? R_CMD : R_NONE;
     /* Our own types are length-checked as well as value-checked. The game
        sends 21-byte messages of an unknown type through SendDirectPlay, and
        one of those must never be mistaken for ours and swallowed. */
@@ -318,7 +392,13 @@ static int handle_packet(void)
         if (g.pktlen == 1 + (int)sizeof(g.tag))
             return R_NONE;
         goto queue;
+    case P_PUNCH:
+        if (g.pktlen == 1)
+            return R_NONE;
+        goto queue;
     default:
+        if (g.pktlen >= 5 && !memcmp(g.pkt, MATCH_MAGIC, 4))
+            return R_NONE;   /* a late rendezvous reply */
     queue:
         /* Anything else is a game message, queued for ReceiveDirectPlay.
            The length goes in one byte, and a full ring is dropped rather
@@ -351,11 +431,23 @@ static int handle_packet(void)
 #define ID_HOST    0x3EA    /* radio: host a game */
 #define ID_JOIN    0x3EB    /* radio: join a game */
 #define ID_STATUS  0x3EC
+#define ID_CODE    0x3FB    /* the code on its own, so it can be copied */
+#define ID_CODEBTN 0x3FC
 #define ID_LOCAL   0x3ED    /* shows this machine's address when hosting */
 #define ID_IPLABEL 0x3EE
 #define ID_PUBBTN  0x3EF    /* toggles the public address on and off */
 #define ID_PUBTEXT 0x3F0
 #define ID_COPYBTN 0x3F1
+#define ID_MATCH   0x3F2    /* radio: matchcode            */
+#define ID_DIRECT  0x3F3    /* radio: direct IP            */
+#define ID_EU      0x3F4    /* radio: region               */
+#define ID_US      0x3F5
+#define ID_REGLBL  0x3F6
+#define ID_CUSTOM  0x3F8    /* radio: a server of your own */
+#define ID_HINT    0x3FA
+#define ID_SERVER  0x3F9
+#define ID_PORTLBL 0x3F7
+#define ID_HOWTO   0x3FD    /* the host how-to, shown only in matchcode+host */
 
 #define STUN_HOST1 "stun.l.google.com"
 #define STUN_HOST2 "stun1.l.google.com"
@@ -584,18 +676,133 @@ static void local_addresses(char *out, int outsz)
     }
 }
 
-static void set_mode(HWND dlg, int hosting)
-{
-    int sw = hosting ? SW_SHOW : SW_HIDE;
+/* Show and enable only what the current mode needs. */
+static int parse_code(const char *text, int *region, char *code);
 
-    EnableWindow(GetDlgItem(dlg, ID_IP), !hosting);
+static void set_mode(HWND dlg)
+{
+    int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
+    int match   = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
+    int addr_sw = (hosting && !match) ? SW_SHOW : SW_HIDE;
+    int custom;
+
+    /* Region is the host's choice; the guest's code carries it. The
+       address field follows the radio while hosting and the typed code
+       while joining, since a CUST code names no server. */
+    if (hosting) {
+        custom = IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED;
+    } else {
+        char buf[32], code[CODE_LEN + 1];
+        int region;
+        GetDlgItemTextA(dlg, ID_IP, buf, sizeof(buf));
+        custom = parse_code(buf, &region, code) && region == REGION_OTHER;
+    }
+
+    EnableWindow(GetDlgItem(dlg, ID_REGLBL), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_EU), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_US), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_CUSTOM), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_SERVER), match && custom);
+    EnableWindow(GetDlgItem(dlg, ID_HINT), match);
+    EnableWindow(GetDlgItem(dlg, ID_PORTLBL), !match);
+    EnableWindow(GetDlgItem(dlg, ID_PORT), !match);
+
+    ShowWindow(GetDlgItem(dlg, ID_LOCAL), addr_sw);
+    ShowWindow(GetDlgItem(dlg, ID_PUBBTN), addr_sw);
+    ShowWindow(GetDlgItem(dlg, ID_PUBTEXT), addr_sw);
+    ShowWindow(GetDlgItem(dlg, ID_COPYBTN), addr_sw);
+    ShowWindow(GetDlgItem(dlg, ID_HOWTO),
+               (match && hosting) ? SW_SHOW : SW_HIDE);
+
+    SetDlgItemTextA(dlg, ID_IPLABEL, match ? "Code:" : "Host address:");
     EnableWindow(GetDlgItem(dlg, ID_IPLABEL), !hosting);
-    ShowWindow(GetDlgItem(dlg, ID_LOCAL), sw);
-    ShowWindow(GetDlgItem(dlg, ID_PUBBTN), sw);
-    ShowWindow(GetDlgItem(dlg, ID_PUBTEXT), sw);
-    ShowWindow(GetDlgItem(dlg, ID_COPYBTN), sw);
+    EnableWindow(GetDlgItem(dlg, ID_IP), !hosting);
     if (!hosting)
         SetFocus(GetDlgItem(dlg, ID_IP));
+}
+
+/* The tag a code carries, so the guest reaches the same server. CUST says
+   only that it is not one of ours; the guest fills in the address by hand. */
+static const char *code_tag(int region)
+{
+    return region == REGION_US ? "US"
+         : region == REGION_OTHER ? "CUST" : "EU";
+}
+
+/* Region to endpoint. Custom is "host" or "host:port". 0 if it will not
+   resolve. */
+static int resolve_server(int region, const char *other,
+                          struct sockaddr_in *out)
+{
+    char host[128];
+    char *colon;
+    int port = MATCH_PORT;
+    unsigned long addr;
+    struct hostent *he;
+
+    if (region == REGION_OTHER)
+        lstrcpynA(host, other, sizeof(host));
+    else
+        lstrcpynA(host, region == REGION_US ? MATCH_SERVER_US
+                                            : MATCH_SERVER_EU, sizeof(host));
+    colon = strchr(host, ':');
+    if (colon) {
+        *colon = 0;
+        port = atoi(colon + 1);
+    }
+    if (!host[0] || port <= 0 || port > 65535)
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+    addr = inet_addr(host);
+    if (addr == INADDR_NONE) {
+        he = gethostbyname(host);
+        if (!he)
+            return 0;
+        memcpy(&addr, he->h_addr, sizeof(addr));
+    }
+    out->sin_family = AF_INET;
+    out->sin_addr.s_addr = addr;
+    out->sin_port = htons((u_short)port);
+    return 1;
+}
+
+/* "EU-ABCDE", "cust abcde" -> region and bare code. 0 if it is
+   not a code. */
+static const struct { const char *tag; int region; } tags[] = {
+    { "CUST", REGION_OTHER },
+    { "EU",   REGION_EU },
+    { "US",   REGION_US },
+};
+
+static int parse_code(const char *text, int *region, char *code)
+{
+    char t[32];
+    int i, n = 0;
+
+    for (i = 0; text[i] && n < (int)sizeof(t) - 1; i++) {
+        char c = text[i];
+        if (c == ' ' || c == '-')
+            continue;
+        if (c >= 'a' && c <= 'z')
+            c -= 'a' - 'A';
+        t[n++] = c;
+    }
+    t[n] = 0;
+
+    /* Longest tag first, so US does not swallow a code beginning with S.
+       No one-letter forms: a code typed one character short would then
+       parse as a different, valid-looking one. */
+    for (i = 0; i < (int)(sizeof(tags) / sizeof(tags[0])); i++) {
+        int len = lstrlenA(tags[i].tag);
+        if (n == len + CODE_LEN && !memcmp(t, tags[i].tag, len)) {
+            *region = tags[i].region;
+            memcpy(code, t + len, CODE_LEN);
+            code[CODE_LEN] = 0;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
@@ -619,17 +826,33 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
         g.pub_shown = 0;
 
+        GetPrivateProfileStringA("net", "server", "", g.server,
+                                 sizeof(g.server), MATCH_INI);
+        SetDlgItemTextA(dlg, ID_SERVER, g.server);
+        g.region = GetPrivateProfileIntA("net", "region", REGION_EU,
+                                         MATCH_INI);
+        g.force_relay = GetPrivateProfileIntA("net", "relay", 0, MATCH_INI);
+        if (g.region < REGION_EU || g.region > REGION_OTHER)
+            g.region = REGION_EU;
+
+        CheckRadioButton(dlg, ID_MATCH, ID_DIRECT, ID_MATCH);
+        CheckRadioButton(dlg, ID_EU, ID_CUSTOM,
+                         g.region == REGION_US ? ID_US :
+                         g.region == REGION_OTHER ? ID_CUSTOM : ID_EU);
         CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
-        set_mode(dlg, 1);
-        return TRUE;
+        set_mode(dlg);
+        SetFocus(GetDlgItem(dlg, IDOK));
+        return FALSE;   /* focus set here, so do not put it on the first radio */
 
     case WM_COMMAND:
         switch (LOWORD(wp)) {
-        case ID_HOST:
-            set_mode(dlg, 1);
+        case ID_HOST: case ID_JOIN: case ID_MATCH: case ID_DIRECT:
+        case ID_EU: case ID_US: case ID_CUSTOM:
+            set_mode(dlg);
             return TRUE;
-        case ID_JOIN:
-            set_mode(dlg, 0);
+        case ID_IP:
+            if (HIWORD(wp) == EN_CHANGE)
+                set_mode(dlg);   /* a CUST code needs the address field */
             return TRUE;
 
         /* Off by default, and one click hides it again: the public address
@@ -662,6 +885,12 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 
         case IDOK: {
             int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
+            g.match  = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
+            g.region = IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED ? REGION_US
+                     : IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED
+                       ? REGION_OTHER : REGION_EU;
+            GetDlgItemTextA(dlg, ID_SERVER, g.server, sizeof(g.server));
+
             GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
             g.port = atoi(buf);
             if (g.port <= 0 || g.port > 65535) {
@@ -670,16 +899,40 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                 SetFocus(GetDlgItem(dlg, ID_PORT));
                 return TRUE;
             }
+            g.ip[0] = 0;
             if (!hosting) {
                 GetDlgItemTextA(dlg, ID_IP, g.ip, sizeof(g.ip));
                 if (g.ip[0] == 0) {
-                    MessageBoxA(dlg, "Enter the host's address.",
+                    MessageBoxA(dlg, g.match ? "Enter the host's code."
+                                             : "Enter the host's address.",
                                 "Message", 0);
                     SetFocus(GetDlgItem(dlg, ID_IP));
                     return TRUE;
                 }
-            } else {
-                g.ip[0] = 0;
+                if (g.match && !parse_code(g.ip, &g.region, g.code)) {
+                    MessageBoxA(dlg, "A code looks like EU-ABCDE.",
+                                "Message", 0);
+                    SetFocus(GetDlgItem(dlg, ID_IP));
+                    return TRUE;
+                }
+            }
+            if (g.match && g.region == REGION_OTHER && !g.server[0]) {
+                MessageBoxA(dlg, "Enter the address of the custom server.",
+                            "Message", 0);
+                SetFocus(GetDlgItem(dlg, ID_SERVER));
+                return TRUE;
+            }
+            if (g.match && !resolve_server(g.region, g.server, &g.rv)) {
+                MessageBoxA(dlg, "Could not reach the matchcode server.",
+                            "Message", 0);
+                return TRUE;
+            }
+            if (g.match) {
+                char r[8];
+                wsprintfA(r, "%d", g.region);
+                WritePrivateProfileStringA("net", "server", g.server,
+                                           MATCH_INI);
+                WritePrivateProfileStringA("net", "region", r, MATCH_INI);
             }
             EndDialog(dlg, hosting ? 1 : 2);
             return TRUE;
@@ -696,56 +949,201 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 
 static int ask_connection(HINSTANCE inst)
 {
-    WORD buf[768], *p;
+    WORD buf[1024], *p;
 
-    p = tpl_head(buf, DLG_STYLE, 214, 142, 12, "Virtual-On Netplay");
+    /* Radio groups run from one WS_GROUP to the next, so the two mode
+       radios are created together and the statics that follow close each
+       group; creation order is not layout order. The count in the header
+       must match the controls below, or the tail of the dialog is dropped
+       without a word. */
+    p = tpl_head(buf, DLG_STYLE, 270, 268, 23, "Virtual-On Netplay");
 
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                8, 6, 254, 112, 0xFFFF, CLS_BUTTON, "Connection");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 10, 8, 90, 12,
+                BS_AUTORADIOBUTTON, 18, 20, 150, 12,
+                ID_MATCH, CLS_BUTTON, "Matchcode (no forwarding)");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                18, 84, 150, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 38, 36, 9,
+                ID_REGLBL, CLS_STATIC, "Region:");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
+                BS_AUTORADIOBUTTON, 66, 36, 46, 12,
+                ID_EU, CLS_BUTTON, "Europe");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                116, 36, 50, 12, ID_US, CLS_BUTTON, "America");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                170, 36, 46, 12, ID_CUSTOM, CLS_BUTTON, "Custom:");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                66, 52, 188, 12, ID_SERVER, CLS_EDIT, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 68, 222, 9,
+                ID_HINT, CLS_STATIC,
+                "Europe and America are hosted by segaonline.net.");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 102, 34, 9,
+                ID_PORTLBL, CLS_STATIC, "Port:");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                66, 100, 56, 12, ID_PORT, CLS_EDIT, "");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+                8, 126, 254, 112, 0xFFFF, CLS_BUTTON, "Match");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
+                BS_AUTORADIOBUTTON, 18, 140, 120, 12,
                 ID_HOST, CLS_BUTTON, "Host a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 22, 23, 182, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 158, 218, 9,
                 ID_LOCAL, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 30, 158, 224, 28,
+                ID_HOWTO, CLS_STATIC,
+                "Press OK, then send the code it shows to the person you "
+                "want to play. When they type it in, the match starts.");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                22, 34, 78, 12, ID_PUBBTN, CLS_BUTTON, "Show public address");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 104, 37, 68, 9,
+                32, 172, 90, 13, ID_PUBBTN, CLS_BUTTON, "Show public address");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 128, 175, 80, 9,
                 ID_PUBTEXT, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                176, 34, 28, 12, ID_COPYBTN, CLS_BUTTON, "Copy");
-
+                214, 172, 36, 13, ID_COPYBTN, CLS_BUTTON, "Copy");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                10, 54, 90, 12, ID_JOIN, CLS_BUTTON, "Join a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 22, 70, 52, 9,
-                ID_IPLABEL, CLS_STATIC, "Host address:");
+                18, 196, 120, 12, ID_JOIN, CLS_BUTTON, "Join a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 32, 216, 52, 9,
+                ID_IPLABEL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                78, 68, 126, 12, ID_IP, CLS_EDIT, "");
+                88, 214, 162, 12, ID_IP, CLS_EDIT, "");
 
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 10, 94, 24, 9,
-                0xFFFF, CLS_STATIC, "Port:");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                40, 92, 46, 12, ID_PORT, CLS_EDIT, "");
-
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                92, 116, 54, 14, IDOK, CLS_BUTTON, "OK");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
+                BS_DEFPUSHBUTTON, 150, 246, 52, 14, IDOK, CLS_BUTTON, "OK");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                152, 116, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                206, 246, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, connect_proc, 0);
 }
 
+static void rv_send(const char *op, const char *code)
+{
+    char b[5 + CODE_LEN];
+    int n = 5;
+
+    memcpy(b, MATCH_MAGIC, 4);
+    b[4] = op[0];
+    if (code) {
+        memcpy(b + 5, code, CODE_LEN);
+        n += CODE_LEN;
+    }
+    sendto(g.sock, b, n, 0, (struct sockaddr *)&g.rv, sizeof(g.rv));
+}
+
+/* A reply from the rendezvous server. Returns 1 if it was one. */
+static int rv_handle(const unsigned char *p, int n, HWND dlg)
+{
+    if (n < 5 || memcmp(p, MATCH_MAGIC, 4))
+        return 0;
+
+    switch (p[4]) {
+    case 'K':                              /* our code */
+        if (n >= 5 + CODE_LEN && g.host && !g.code[0]) {
+            char buf[32];
+            memcpy(g.code, p + 5, CODE_LEN);
+            g.code[CODE_LEN] = 0;
+            wsprintfA(buf, "Code:  %s-%s", code_tag(g.region), g.code);
+            SetDlgItemTextA(dlg, ID_CODE, buf);
+            ShowWindow(GetDlgItem(dlg, ID_CODE), SW_SHOW);
+            ShowWindow(GetDlgItem(dlg, ID_CODEBTN), SW_SHOW);
+            SetDlgItemTextA(dlg, ID_STATUS, "Waiting for the other player...");
+            netlog("matchcode %s", g.code);
+        }
+        break;
+    case 'P':                              /* the peer's endpoint */
+        if (n >= 11 && !g.rv_peer) {
+            memset(&g.peer, 0, sizeof(g.peer));
+            g.peer.sin_family = AF_INET;
+            memcpy(&g.peer.sin_addr, p + 5, 4);
+            g.peer.sin_port = htons((u_short)((p[9] << 8) | p[10]));
+            g.rv_peer = 1;
+            g.punch_start = timeGetTime();
+            if (g.force_relay) {
+                g.punch_start -= PUNCH_MS;   /* the timeout fires at once */
+                netlog("relay forced by vo-net.ini");
+            }
+            netlog("peer via rendezvous: %s:%d", inet_ntoa(g.peer.sin_addr),
+                   ntohs(g.peer.sin_port));
+            SetDlgItemTextA(dlg, ID_STATUS, "Connecting...");
+        }
+        break;
+    case 'N':
+        if (g.host) {
+            g.code[0] = 0;                 /* server forgot us: ask again */
+        } else {
+            g.fail = "No game with that code.";
+            g.hs_failed = 1;
+            netlog("server does not know code %s", g.code);
+        }
+        break;
+    }
+    return 1;
+}
+
+/* The handshake is done. One line saying which path won, so a log from a
+   player who could not connect says whether the punch worked. */
+static void link_up(void)
+{
+    g.hs_done = 1;
+    netlog("linked %s to %s:%d after %lu ms",
+           g.relay ? "through the relay" : "directly",
+           inet_ntoa(g.peer.sin_addr), ntohs(g.peer.sin_port),
+           (unsigned long)(timeGetTime() - g.rv_start));
+}
+
+#define MISMATCH_MSG \
+    "The other player has a different set of gameplay patches. Both sides " \
+    "need the same Fix frame rate and Fix crash on round loss settings."
+
 /* One tick of the handshake, driven by the wait dialog's timer. */
-static void handshake_tick(void)
+static void handshake_tick(HWND dlg)
 {
     unsigned char b[1 + sizeof(g.tag)];
     DWORD now = timeGetTime();
 
-    if (!g.host && now - g.hs_last >= 500) {
-        b[0] = P_HELLO;
-        memcpy(b + 1, g.tag, sizeof(g.tag));
-        send_raw(b, sizeof(b));
+    /* Matchcode: talk to the server until it has given us a peer. Until
+       then there is nowhere to send a hello. */
+    if (g.match && now - g.rv_last >= MATCH_RETRY_MS) {
+        if (g.host)
+            rv_send(g.code[0] ? "H" : "C", g.code[0] ? g.code : NULL);
+        else
+            rv_send("J", g.code);
+        g.rv_last = now;
+    }
+    /* Nothing from the server at all: a wrong address, or it is down. */
+    if (g.match && !g.code[0] && !g.rv_peer &&
+        now - g.rv_start >= MATCH_WAIT_MS) {
+        g.fail = "No answer from the matchcode server.";
+        g.hs_failed = 1;
+        netlog("no reply from the server in %d ms", MATCH_WAIT_MS);
+        return;
+    }
+    if (g.match && !g.rv_peer)
+        goto recv;
+
+    /* The direct path had its chance. Send through the server from here. */
+    if (g.match && !g.relay && now - g.punch_start >= PUNCH_MS) {
+        g.relay = 1;
+        netlog("no direct path, relaying");
+        SetDlgItemTextA(dlg, ID_STATUS, "Connecting through the relay...");
+    }
+
+    if (now - g.hs_last >= 500) {
+        if (!g.host) {
+            b[0] = P_HELLO;
+            memcpy(b + 1, g.tag, sizeof(g.tag));
+            send_raw(b, sizeof(b));
+        } else if (g.match) {
+            b[0] = P_PUNCH;                /* opens our side of the NAT */
+            send_raw(b, 1);
+        }
         g.hs_last = now;
     }
 
+recv:
     for (;;) {
         struct sockaddr_in from;
         int fromlen = sizeof(from);
@@ -754,19 +1152,55 @@ static void handshake_tick(void)
         if (n <= 0)
             break;
 
-        if (g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_HELLO &&
-            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            g.peer = from;                       /* learn the guest's address */
-            b[0] = P_ACK;
-            memcpy(b + 1, g.tag, sizeof(g.tag));
-            send_raw(b, sizeof(b));
-            g.hs_done = 1;
-            return;
+        if (g.match && from_server(&from)) {
+            int m = unwrap_relay(g.pkt, n);
+            if (m < 0) {
+                rv_handle(g.pkt, n, dlg);
+                continue;
+            }
+            /* The peer gave up on direct; follow it. */
+            if (!g.relay) {
+                g.relay = 1;
+                netlog("peer is relaying, following");
+            }
+            n = m;
+            from = g.peer;
+        } else if (g.relay) {
+            continue;   /* late direct packet, the relay is the link now */
         }
-        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
-            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            g.hs_done = 1;
-            return;
+
+        if (g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_HELLO) {
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                g.peer = from;                   /* learn the guest's address */
+                b[0] = P_ACK;
+                memcpy(b + 1, g.tag, sizeof(g.tag));
+                send_raw(b, sizeof(b));
+                link_up();
+                return;
+            }
+            /* Same game and session, different last byte: the other side has
+               a different set of the patches that affect the simulation, so
+               the two copies would drift. Say so instead of hanging. */
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag) - 1)) {
+                g.fail = MISMATCH_MSG;
+                g.hs_failed = 1;
+                netlog("patch mismatch: peer tag byte %02x, ours %02x",
+                       g.pkt[sizeof(g.tag)], (unsigned char)g.tag[15]);
+                return;
+            }
+        }
+        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK) {
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                link_up();
+                return;
+            }
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag) - 1)) {
+                g.fail = MISMATCH_MSG;
+                g.hs_failed = 1;
+                netlog("patch mismatch: peer tag byte %02x, ours %02x",
+                       g.pkt[sizeof(g.tag)], (unsigned char)g.tag[15]);
+                return;
+            }
         }
     }
 
@@ -776,16 +1210,28 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
     case WM_INITDIALOG:
+        if (g.match)
+            netlog("matchcode: %s server %s:%d",
+                   g.region == REGION_US ? "US" :
+                   g.region == REGION_OTHER ? "custom" : "EU",
+                   inet_ntoa(g.rv.sin_addr), ntohs(g.rv.sin_port));
         SetDlgItemTextA(dlg, ID_STATUS,
-                        g.host ? "Waiting for the other player..."
-                               : "Connecting...");
+                        g.match ? "Asking the matchcode server..."
+                        : g.host ? "Waiting for the other player..."
+                                 : "Connecting...");
         g.hs_last = timeGetTime();
+        g.rv_start = g.hs_last;
+        g.rv_last = g.hs_last - MATCH_RETRY_MS;   /* ask the server at once */
         g.hs_done = g.hs_failed = 0;
+        g.fail = NULL;
+        SetDlgItemTextA(dlg, ID_CODE, "");
+        ShowWindow(GetDlgItem(dlg, ID_CODE), SW_HIDE);
+        ShowWindow(GetDlgItem(dlg, ID_CODEBTN), SW_HIDE);
         SetTimer(dlg, 1, 50, NULL);
         return TRUE;
 
     case WM_TIMER:
-        handshake_tick();
+        handshake_tick(dlg);
         if (g.hs_done || g.hs_failed) {
             KillTimer(dlg, 1);
             EndDialog(dlg, g.hs_done ? 1 : 0);
@@ -793,6 +1239,12 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         return TRUE;
 
     case WM_COMMAND:
+        if (LOWORD(wp) == ID_CODEBTN) {
+            char buf[16];
+            wsprintfA(buf, "%s-%s", code_tag(g.region), g.code);
+            copy_to_clipboard(dlg, buf);
+            return TRUE;
+        }
         if (LOWORD(wp) == IDCANCEL) {
             KillTimer(dlg, 1);
             EndDialog(dlg, 0);
@@ -807,11 +1259,15 @@ static int wait_for_peer(HINSTANCE inst)
 {
     WORD buf[256], *p;
 
-    p = tpl_head(buf, DLG_STYLE, 180, 60, 2, "Virtual-On Netplay");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 10, 14, 160, 10,
+    p = tpl_head(buf, DLG_STYLE, 220, 78, 4, "Virtual-On Netplay");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 12, 12, 196, 10,
                 ID_STATUS, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 12, 30, 120, 12,
+                ID_CODE, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                64, 36, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                136, 28, 34, 13, ID_CODEBTN, CLS_BUTTON, "Copy");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                84, 54, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, wait_proc, 0);
@@ -904,6 +1360,46 @@ static int negotiate_delay(void)
 /* exports                                                             */
 /* ------------------------------------------------------------------ */
 
+/* A byte of the tag that both sides must match, folded from the state of
+   the patches that change the simulation. Two machines running the game
+   from the same inputs must step it the same way, or their copies drift
+   apart with no way back - looks and sounds may differ, rules and timing
+   may not.
+
+   These are read from our own process image, so the byte reflects what is
+   actually patched in, not what a config file claims. Today two sites carry
+   every simulation-affecting difference the patch set has:
+
+     - the frame divisor immediate the framerate patch writes (3 -> 1): a
+       machine drawing every frame against one drawing every third steps
+       the match at a different rate.
+     - the first opcode of the round-loss handler the continuefix patch
+       NOPs (0x8b -> 0x90): unpatched it still runs, and either crashes that
+       machine alone or computes a step the patched side does not.
+
+   A visual-only or input-reading patch (sound, movie, defaults, XInput)
+   does not appear here on purpose: those may differ between the two sides.
+   If a future patch changes the simulation, add its site to this list. */
+#define FP_DIVISOR_VA  0x0050bbc4u   /* framerate: 03 vs 01               */
+#define FP_CONTINUE_VA 0x00478b5au   /* continuefix: 8b vs 90             */
+
+static unsigned char sync_fingerprint(void)
+{
+    /* GetModuleHandle(NULL) is the exe's load base. The game has no
+       relocation table and always loads at 0x400000, so the absolute VAs
+       above are already correct; the base is read only to confirm the exe
+       is where we expect before dereferencing, and to fold in the slide in
+       the event a future build does relocate. */
+    unsigned char *base = (unsigned char *)GetModuleHandleA(NULL);
+
+    if (!base)
+        return 0;
+    /* base + (VA - preferred base) is the byte at VA wherever the image
+       loaded, relocation or not. */
+    return (unsigned char)(*(base + (FP_DIVISOR_VA - 0x00400000u)) * 31
+                         + *(base + (FP_CONTINUE_VA - 0x00400000u)));
+}
+
 int __stdcall InitialDirectPlay(VO_NETINIT *init)
 {
     WSADATA wsa;
@@ -925,9 +1421,14 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     if (g.framelen < 3 || g.framelen > MAXPKT)
         return 0;
 
-    /* Session identity: the game's eight bytes plus the original's marker. */
+    /* Session identity: the game's eight bytes, then a seven-byte marker,
+       then one byte fingerprinting the simulation-affecting patches. Two
+       builds that differ there will not agree on the tag and the handshake
+       refuses the match rather than letting the copies drift. */
     memcpy(g.tag, init->session, 8);
-    memcpy(g.tag + 8, "SEGA PC ", 8);
+    memcpy(g.tag + 8, "SEGAPC", 6);
+    g.tag[14] = 'N';
+    g.tag[15] = (char)sync_fingerprint();
 
     /* Winsock comes up first: the dialog asks it for our own addresses. */
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -962,7 +1463,7 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     g.peer.sin_family = AF_INET;
     g.peer.sin_port = htons((u_short)g.port);
 
-    if (!g.host) {
+    if (!g.host && !g.match) {
         unsigned long addr = inet_addr(g.ip);
         if (addr == INADDR_NONE) {
             struct hostent *he = gethostbyname(g.ip);
@@ -977,6 +1478,8 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     }
 
     if (!wait_for_peer(inst)) {
+        if (g.hs_failed)
+            notice(g.fail ? g.fail : "The other player did not answer.");
         sock_close();
         return 0;
     }
