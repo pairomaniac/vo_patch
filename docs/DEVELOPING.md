@@ -110,6 +110,28 @@ python3 tools/vonbanner.py DIR --text 'Press Start'    # preview
 python3 tools/vonbanner.py DIR --text 'Press Start' --write
 ```
 
+**`tools/freespace.py`** answers where a blob of a given length can go.
+
+```bash
+python3 tools/freespace.py DIR 91
+```
+
+It reads the runs of zeros in `.rdata` and `.rsrc`'s padding, drops what
+patch sites already use, and sorts the rest: clean, ones with something
+pointing just before them, and ones something reads inside. `.data` is left
+out entirely - it is full of arrays the game fills at runtime, and each one
+scans as a perfectly good cave.
+
+Both the original and a fully patched copy are read. The original says what
+the game points at; the patched copy says what the patches point at, and a
+blob's scratch addresses and entry points appear in no original file. Hits
+only the patched copy has are marked `from a patch`.
+
+The middle list is the one to read. A run of zeros with a pointer just
+before it may be the tail of a structure, and that is how `iniall.asm` came
+to sit on the attract loop's scoreboard template: 84 bytes of zeros copied
+into a record every time the demo match ended.
+
 **`tools/vocredits.py`** builds the credit lines out of the roll's own
 letters. The roll is pre-rendered text chopped into cells rather than a font,
 so a new line cannot be typed - but the columns of each block separate into
@@ -127,6 +149,26 @@ python3 tools/vocredits.py DIR --write     # into vo-patch.py
 Edit `LINES` at the top to change what it says. The result goes between the
 `CREDITLINE BLOB` markers - not the `CREDITS BLOB` ones, which belong to
 `asm/credits.asm` and are a different thing entirely.
+
+## Placing a blob
+
+Nothing downstream checks that a cave is really free, so this is done by
+hand, once, per blob:
+
+1. `python3 tools/freespace.py DIR <length>` and take a clean candidate.
+   The address has to be a multiple of four - `build.py` refuses otherwise,
+   because a run starting off a boundary starts inside the field before it.
+2. If nothing clean is long enough, read the game at the address the
+   middle list names before using one of those. What lives there has to be
+   shorter than the gap.
+3. Put the address in the source's `org`, the file offset in the site that
+   writes it, and the cave's last usable byte in `CEILINGS` in
+   `asm/build.py`.
+
+Moving one is the same work plus its hooks: `grep` the old address across
+`vo-patch.py` and `asm/`, because every rel32 in the site table is computed
+by hand. `check_calls` catches a call that lands outside `.text` on no
+label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
 
 ## Netplay
 
@@ -216,6 +258,23 @@ gh release edit v0.8.4 --notes-file notes.md
 
 Keep the notes to what a player would notice. Internal changes go in the diff.
 
+### Play it first
+
+The checks prove the files are consistent with each other. They cannot
+prove the game still runs, and both v0.10.2 bugs passed everything green.
+Patch a clean copy and walk these once:
+
+- **the attract loop**: skip the intro movie, then leave it alone through
+  the demo match and the scoreboards until the title screen comes back.
+  This is the path nobody plays and the one the v0.10.2 crash lived on
+- a match to the win screen, and the replay after it
+- the F5, F7 and F11 dialogs, and a deadzone edit that survives a restart
+- the ending credits and the initials screen after them
+- one matchcode match against a second machine, direct and forced through
+  the relay, since the netplay DLL ships in the same build
+
+Ten minutes, and it covers the state machines no check reaches.
+
 ### Bad tag
 
 ```bash
@@ -243,6 +302,8 @@ gh release delete v0.8.4 --yes     # if a release was created
 | hand-edited a generated blob | nothing | next build eats it |
 | a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
 | a cave that was live data to begin with | `offsets`, as a note to read | before tagging |
+| picked a cave that was never free | `freespace.py` | only when placing a blob |
+| a state machine left in a state nothing handles | nothing | only playing the game |
 | a blob moved without its hook | `asm` | CI, every push |
 | a table that is well-formed and wrong | nothing | only playing the game |
 | the netplay DLL misbehaving on a real link | nothing | only two machines |
