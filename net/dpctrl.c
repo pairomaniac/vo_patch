@@ -792,7 +792,8 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                          g.region == REGION_OTHER ? ID_OTHER : ID_EU);
         CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
         set_mode(dlg);
-        return TRUE;
+        SetFocus(GetDlgItem(dlg, IDOK));
+        return FALSE;   /* focus set here, so do not put it on the first radio */
 
     case WM_COMMAND:
         switch (LOWORD(wp)) {
@@ -897,61 +898,62 @@ static int ask_connection(HINSTANCE inst)
 {
     WORD buf[1024], *p;
 
-    /* Radio groups run from one WS_GROUP to the next, so each group is
-       closed by the static that follows it. The count in the header must
-       match the number of controls below: a short count silently drops
-       the tail of the dialog. */
-    p = tpl_head(buf, DLG_STYLE, 250, 206, 21, "Virtual-On Netplay");
+    /* Radio groups run from one WS_GROUP to the next, so the two mode
+       radios are created together and the statics that follow close each
+       group. Creation order is therefore not layout order. The count in
+       the header must match the controls below: a short count silently
+       drops the tail of the dialog. */
+    p = tpl_head(buf, DLG_STYLE, 270, 254, 21, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                6, 4, 238, 62, 0xFFFF, CLS_BUTTON, "Connection");
+                8, 6, 254, 98, 0xFFFF, CLS_BUTTON, "Connection");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 14, 16, 110, 12,
+                BS_AUTORADIOBUTTON, 18, 20, 150, 12,
                 ID_MATCH, CLS_BUTTON, "Matchcode (no forwarding)");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                14, 48, 110, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
+                18, 70, 150, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
 
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 122, 18, 34, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 38, 36, 9,
                 ID_REGLBL, CLS_STATIC, "Region:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 158, 16, 40, 12,
+                BS_AUTORADIOBUTTON, 66, 36, 46, 12,
                 ID_EU, CLS_BUTTON, "Europe");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                198, 16, 44, 12, ID_US, CLS_BUTTON, "America");
+                116, 36, 50, 12, ID_US, CLS_BUTTON, "America");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                24, 32, 44, 12, ID_OTHER, CLS_BUTTON, "Other:");
+                170, 36, 46, 12, ID_OTHER, CLS_BUTTON, "Other:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                70, 32, 172, 12, ID_SERVER, CLS_EDIT, "");
+                66, 52, 188, 12, ID_SERVER, CLS_EDIT, "");
 
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 126, 50, 28, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 88, 34, 9,
                 ID_PORTLBL, CLS_STATIC, "Port:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                158, 48, 46, 12, ID_PORT, CLS_EDIT, "");
+                66, 86, 56, 12, ID_PORT, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                6, 72, 238, 104, 0xFFFF, CLS_BUTTON, "Match");
+                8, 112, 254, 112, 0xFFFF, CLS_BUTTON, "Match");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 14, 86, 100, 12,
+                BS_AUTORADIOBUTTON, 18, 126, 120, 12,
                 ID_HOST, CLS_BUTTON, "Host a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 24, 102, 210, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 144, 218, 9,
                 ID_LOCAL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                24, 114, 86, 12, ID_PUBBTN, CLS_BUTTON, "Show public address");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 116, 116, 70, 9,
+                32, 158, 90, 13, ID_PUBBTN, CLS_BUTTON, "Show public address");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 128, 161, 80, 9,
                 ID_PUBTEXT, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                192, 114, 28, 12, ID_COPYBTN, CLS_BUTTON, "Copy");
+                214, 158, 36, 13, ID_COPYBTN, CLS_BUTTON, "Copy");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                14, 136, 100, 12, ID_JOIN, CLS_BUTTON, "Join a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 24, 152, 50, 9,
+                18, 182, 120, 12, ID_JOIN, CLS_BUTTON, "Join a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 32, 202, 52, 9,
                 ID_IPLABEL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                78, 150, 156, 12, ID_IP, CLS_EDIT, "");
+                88, 200, 162, 12, ID_IP, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_DEFPUSHBUTTON, 134, 184, 52, 14, IDOK, CLS_BUTTON, "OK");
+                BS_DEFPUSHBUTTON, 150, 232, 52, 14, IDOK, CLS_BUTTON, "OK");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                190, 184, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                206, 232, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, connect_proc, 0);
