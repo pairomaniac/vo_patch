@@ -52,6 +52,7 @@
 #define MATCH_PORT       47625
 #define MATCH_MAGIC      "VOR1"
 #define MATCH_RETRY_MS   1000
+#define MATCH_WAIT_MS    10000   /* give up on a silent server */
 #define PUNCH_MS         4000
 #define CODE_LEN         5
 #define REGION_EU        0
@@ -124,6 +125,7 @@ static struct {
 
     /* handshake dialog state */
     int    hs_done, hs_failed;
+    const char *fail;      /* why the handshake gave up                  */
     DWORD  hs_last;
 
     DWORD  last_rx;        /* last packet accepted from the peer */
@@ -144,7 +146,7 @@ static struct {
     char   code[CODE_LEN + 1];
     int    rv_peer;        /* server has told us the peer's endpoint     */
     int    relay;          /* direct path failed, server forwards for us */
-    DWORD  rv_last, punch_start;
+    DWORD  rv_last, rv_start, punch_start;
 } g;
 
 /* ------------------------------------------------------------------ */
@@ -425,7 +427,8 @@ static int handle_packet(void)
 #define ID_EU      0x3F4    /* radio: region               */
 #define ID_US      0x3F5
 #define ID_REGLBL  0x3F6
-#define ID_OTHER   0x3F8    /* radio: a server of your own */
+#define ID_CUSTOM  0x3F8    /* radio: a server of your own */
+#define ID_HINT    0x3FA
 #define ID_SERVER  0x3F9
 #define ID_PORTLBL 0x3F7
 
@@ -669,8 +672,9 @@ static void set_mode(HWND dlg)
     EnableWindow(GetDlgItem(dlg, ID_REGLBL), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_EU), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_US), match && hosting);
-    EnableWindow(GetDlgItem(dlg, ID_OTHER), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_CUSTOM), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_SERVER), match);
+    EnableWindow(GetDlgItem(dlg, ID_HINT), match);
     EnableWindow(GetDlgItem(dlg, ID_PORTLBL), !match);
     EnableWindow(GetDlgItem(dlg, ID_PORT), !match);
 
@@ -787,9 +791,9 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
             g.region = REGION_EU;
 
         CheckRadioButton(dlg, ID_MATCH, ID_DIRECT, ID_MATCH);
-        CheckRadioButton(dlg, ID_EU, ID_OTHER,
+        CheckRadioButton(dlg, ID_EU, ID_CUSTOM,
                          g.region == REGION_US ? ID_US :
-                         g.region == REGION_OTHER ? ID_OTHER : ID_EU);
+                         g.region == REGION_OTHER ? ID_CUSTOM : ID_EU);
         CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
         set_mode(dlg);
         SetFocus(GetDlgItem(dlg, IDOK));
@@ -798,7 +802,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case ID_HOST: case ID_JOIN: case ID_MATCH: case ID_DIRECT:
-        case ID_EU: case ID_US: case ID_OTHER:
+        case ID_EU: case ID_US: case ID_CUSTOM:
             set_mode(dlg);
             return TRUE;
 
@@ -834,7 +838,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
             int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
             g.match  = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
             g.region = IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED ? REGION_US
-                     : IsDlgButtonChecked(dlg, ID_OTHER) == BST_CHECKED
+                     : IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED
                        ? REGION_OTHER : REGION_EU;
             GetDlgItemTextA(dlg, ID_SERVER, g.server, sizeof(g.server));
 
@@ -864,7 +868,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                 }
             }
             if (g.match && g.region == REGION_OTHER && !g.server[0]) {
-                MessageBoxA(dlg, "Enter the address of the other server.",
+                MessageBoxA(dlg, "Enter the address of the custom server.",
                             "Message", 0);
                 SetFocus(GetDlgItem(dlg, ID_SERVER));
                 return TRUE;
@@ -903,15 +907,15 @@ static int ask_connection(HINSTANCE inst)
        group. Creation order is therefore not layout order. The count in
        the header must match the controls below: a short count silently
        drops the tail of the dialog. */
-    p = tpl_head(buf, DLG_STYLE, 270, 254, 21, "Virtual-On Netplay");
+    p = tpl_head(buf, DLG_STYLE, 270, 268, 22, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                8, 6, 254, 98, 0xFFFF, CLS_BUTTON, "Connection");
+                8, 6, 254, 112, 0xFFFF, CLS_BUTTON, "Connection");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
                 BS_AUTORADIOBUTTON, 18, 20, 150, 12,
                 ID_MATCH, CLS_BUTTON, "Matchcode (no forwarding)");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                18, 70, 150, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
+                18, 84, 150, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 38, 36, 9,
                 ID_REGLBL, CLS_STATIC, "Region:");
@@ -921,39 +925,42 @@ static int ask_connection(HINSTANCE inst)
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
                 116, 36, 50, 12, ID_US, CLS_BUTTON, "America");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                170, 36, 46, 12, ID_OTHER, CLS_BUTTON, "Other:");
+                170, 36, 46, 12, ID_CUSTOM, CLS_BUTTON, "Custom:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
                 66, 52, 188, 12, ID_SERVER, CLS_EDIT, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 68, 222, 9,
+                ID_HINT, CLS_STATIC,
+                "Europe and America hosted by segaonline.net");
 
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 88, 34, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 102, 34, 9,
                 ID_PORTLBL, CLS_STATIC, "Port:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                66, 86, 56, 12, ID_PORT, CLS_EDIT, "");
+                66, 100, 56, 12, ID_PORT, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                8, 112, 254, 112, 0xFFFF, CLS_BUTTON, "Match");
+                8, 126, 254, 112, 0xFFFF, CLS_BUTTON, "Match");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 18, 126, 120, 12,
+                BS_AUTORADIOBUTTON, 18, 140, 120, 12,
                 ID_HOST, CLS_BUTTON, "Host a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 144, 218, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 158, 218, 9,
                 ID_LOCAL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                32, 158, 90, 13, ID_PUBBTN, CLS_BUTTON, "Show public address");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 128, 161, 80, 9,
+                32, 172, 90, 13, ID_PUBBTN, CLS_BUTTON, "Show public address");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 128, 175, 80, 9,
                 ID_PUBTEXT, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                214, 158, 36, 13, ID_COPYBTN, CLS_BUTTON, "Copy");
+                214, 172, 36, 13, ID_COPYBTN, CLS_BUTTON, "Copy");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                18, 182, 120, 12, ID_JOIN, CLS_BUTTON, "Join a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 32, 202, 52, 9,
+                18, 196, 120, 12, ID_JOIN, CLS_BUTTON, "Join a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 32, 216, 52, 9,
                 ID_IPLABEL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                88, 200, 162, 12, ID_IP, CLS_EDIT, "");
+                88, 214, 162, 12, ID_IP, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_DEFPUSHBUTTON, 150, 232, 52, 14, IDOK, CLS_BUTTON, "OK");
+                BS_DEFPUSHBUTTON, 150, 246, 52, 14, IDOK, CLS_BUTTON, "OK");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                206, 232, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                206, 246, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, connect_proc, 0);
@@ -1005,10 +1012,12 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
         }
         break;
     case 'N':
-        if (g.host)
+        if (g.host) {
             g.code[0] = 0;                 /* server forgot us: ask again */
-        else
-            g.hs_failed = 1;               /* no such code */
+        } else {
+            g.fail = "No game with that code.";
+            g.hs_failed = 1;
+        }
         break;
     }
     return 1;
@@ -1028,6 +1037,13 @@ static void handshake_tick(HWND dlg)
         else
             rv_send("J", g.code);
         g.rv_last = now;
+    }
+    /* Nothing from the server at all: a wrong address, or it is down. */
+    if (g.match && !g.code[0] && !g.rv_peer &&
+        now - g.rv_start >= MATCH_WAIT_MS) {
+        g.fail = "No answer from the matchcode server.";
+        g.hs_failed = 1;
+        return;
     }
     if (g.match && !g.rv_peer)
         goto recv;
@@ -1100,11 +1116,14 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
     switch (msg) {
     case WM_INITDIALOG:
         SetDlgItemTextA(dlg, ID_STATUS,
-                        g.host ? "Waiting for the other player..."
-                               : "Connecting...");
+                        g.match ? "Asking the matchcode server..."
+                        : g.host ? "Waiting for the other player..."
+                                 : "Connecting...");
         g.hs_last = timeGetTime();
+        g.rv_start = g.hs_last;
         g.rv_last = g.hs_last - MATCH_RETRY_MS;   /* ask the server at once */
         g.hs_done = g.hs_failed = 0;
+        g.fail = NULL;
         SetTimer(dlg, 1, 50, NULL);
         return TRUE;
 
@@ -1302,7 +1321,7 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
 
     if (!wait_for_peer(inst)) {
         if (g.hs_failed)
-            notice("No game with that code.");
+            notice(g.fail ? g.fail : "The other player did not answer.");
         sock_close();
         return 0;
     }

@@ -108,11 +108,14 @@ server -> client    N                unknown code, or already taken
 
 Datagrams start with `VOR1` so they can never be mistaken for a game packet.
 
+A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
+and says so, rather than sitting on "waiting for the other player".
+
 Codes are shown as `E-ABCDE` or `U-ABCDE`: the letter is the server the
 host registered with, so the guest needs nothing but the code. Hostnames
 are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`, port 47625.
 
-*Other* points both sides at a server of their own, `host` or `host:port`.
+*Custom* points both sides at a server of their own, `host` or `host:port`.
 Those codes are `X-ABCDE`, and the letter cannot say where to go, so the
 guest fills in the same address. The choice and the address are kept in
 `vo-net.ini` next to the game, so it is typed once:
