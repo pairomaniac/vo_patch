@@ -1,16 +1,37 @@
-# systemd unit for the matchcode server.
-#   cp net/rendezvous.py /opt/vo/rendezvous.py
-#   cp net/rendezvous.service /etc/systemd/system/
-#   systemctl enable --now rendezvous
+# systemd unit for the matchcode server. tools/rendezvous-install.sh puts this
+# in place; see net/README.md to do it by hand.
+#
+# The service needs no home directory, writes nothing and keeps no state, so it
+# runs as a DynamicUser with a read-only filesystem. The memory and task caps
+# are there because it takes unauthenticated UDP from anywhere.
 [Unit]
-Description=Virtual-On netplay rendezvous
+Description=Virtual-On matchcode rendezvous - UDP 47625
 After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
+Type=simple
 ExecStart=/usr/bin/python3 /opt/vo/rendezvous.py 47625
-DynamicUser=yes
+
 Restart=always
-RestartSec=2
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+DynamicUser=yes
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET
+RestrictSUIDSGID=true
+MemoryMax=128M
+TasksMax=16
 
 [Install]
 WantedBy=multi-user.target
