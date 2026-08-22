@@ -24,7 +24,7 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-EXPECTED_ALL = '5b0d37085aae0297f3310f839d76fa3f'
+EXPECTED_ALL = 'a589a24fbebec9d67eaedec5ac9637b4'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHER = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
@@ -81,6 +81,10 @@ def to_va(secs, off):
     return None
 
 
+LOOKBACK = 0x60         # how far before a cave a table may start and still
+                        # reach into it
+
+
 def cave_writes(vp):
     """Every site that fills a run of zeros, as (key, offset, length).
 
@@ -120,7 +124,10 @@ def check_caves(vp, original):
         va = to_va(secs, off)
         if va is not None:
             spans.append((key, va, length))
-    lo = min(va for _k, va, _n in spans)
+    # Reach back past each cave as well: an address just before one is a
+    # table that may run into it, which is the case a scan of the cave
+    # itself cannot see.
+    lo = min(va for _k, va, _n in spans) - LOOKBACK
     hi = max(va + n for _k, va, n in spans)
 
     operands, bare = {}, {}
@@ -129,14 +136,23 @@ def check_caves(vp, original):
         if not lo <= va < hi:
             continue
         # mod 00, r/m 101 is the disp32 form, so the four bytes are the
-        # absolute address of an operand rather than data that looks like one.
-        table = operands if original[i - 1] & 0xC7 == 0x05 else bare
+        # absolute address of an operand rather than data that looks like
+        # one. mov reg, imm32 and push imm32 carry an address the same way,
+        # and are how a table is handed to rep movsd - which is what put a
+        # blob on top of the attract scoreboard's template in v0.10.0.
+        prev = original[i - 1]
+        if prev & 0xC7 == 0x05 or 0xB8 <= prev <= 0xBF or prev == 0x68:
+            table = operands
+        else:
+            table = bare
         table.setdefault(va, []).append(i)
 
     bad, loose = 0, 0
     for key, va, length in spans:
         span = range(va, va + length)
         hit = [(a, r) for a in span for r in operands.get(a, ())]
+        near = sorted({a for a in range(va - LOOKBACK, va)
+                       if operands.get(a)}, reverse=True)[:1]
         loose += sum(len(bare.get(a, ())) for a in span)
         if hit:
             bad += 1
@@ -145,6 +161,10 @@ def check_caves(vp, original):
             for addr, ref in hit:
                 print('    VA 0x%06x is a disp32 operand, modrm at VA 0x%06x'
                       % (addr, to_va(secs, ref - 1)))
+        for addr in near:
+            print('note: %s starts at 0x%06x, %d bytes past 0x%06x, which '
+                  'something points at - check that what lives there is '
+                  'shorter than the gap' % (key, va, va - addr, addr))
     print('cave check: %d write(s) into a run of zeros, %d overrun, '
           '%d bare dword(s) in range and ignored'
           % (len(spans), bad, loose))

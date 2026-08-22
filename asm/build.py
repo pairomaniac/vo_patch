@@ -189,7 +189,7 @@ CEILINGS = {
                                   'depth against'),
     'INISAVE_CODE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
                                  'what scans as a longer run'),
-    'INIALL_CODE': (0x005fb1a0, 'the end of its run; the deadzone seed '
+    'INIALL_CODE': (0x0063c64c, 'the end of its run; the deadzone seed '
                                 'took most of the slack'),
     'F11PAUSE_CODE': (0x0063bf7c, 'the end of its run; the check-box loop '
                                   'took nearly all of it'),
