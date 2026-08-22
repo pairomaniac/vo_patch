@@ -16,7 +16,8 @@ bits 32
 ; the lines back when the dialog closes, through asm/iniparse.asm's
 ; tail.
 
-org 0x005fb144          ; a run of zeros in .rdata
+org 0x0063c5f4          ; a run of zeros in .rdata with nothing pointing
+                        ; into it and no table ending against it
 
 LOADSIMPLE  equ 0x0060702c      ; asm/iniload.asm, cdecl (player, flag)
 FINDLINE    equ 0x005b1871      ; (key) -> value text, 0 if absent
@@ -25,14 +26,13 @@ DZSEED      equ 0x00601c08      ; asm/pagesel.asm's tail: (cl, ebx)
 %include "padtables.inc"    ; DZKEYS
 
 iniall:
-    push    1
-    push    0
+    push    1                  ; cdecl leaves the arguments, so both calls
+    push    0                  ; are made before either is cleaned up
     call    LOADSIMPLE
-    add     esp, 8
     push    1
     push    1
     call    LOADSIMPLE
-    add     esp, 8
+    add     esp, 16
 
     push    ebx                 ; callee-saved: the hooked function's
     push    1                   ; caller may hold it live. 2P first; the

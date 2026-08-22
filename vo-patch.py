@@ -392,9 +392,9 @@ COMMITDEV_CODE = bytes.fromhex(
 
 # INIALL BLOB BEGIN
 INIALL_CODE = bytes.fromhex(
-    '6a016a00e8dfbe000083c4086a016a01e8d3be000083c408536a015b6bc30c05'
-    '344c620050e80367fbff5a6a285985c0741f668b00662d30303c09771480fc09'
-    '770f86c4d50a3c5f77073c0572030fb6c8e86e6a00004b79c35bc3'
+    '6a016a00e82faafcff6a016a01e826aafcff83c410536a015b6bc30c05344c62'
+    '0050e85652f7ff5a6a285985c0741f668b00662d30303c09771480fc09770f86'
+    'c4d50a3c5f77073c0572030fb6c8e8c155fcff4b79c35bc3'
 )
 # INIALL BLOB END
 
@@ -1096,7 +1096,7 @@ FEATURES = [
          (0x00200f70, '00' * len(PAGESEC_CODE), PAGESEC_CODE.hex()),
          (0x00200fd4, '00' * len(PAGESEL_CODE), PAGESEL_CODE.hex()),
          (0x001fcb4c, '00' * len(COMMITDEV_CODE), COMMITDEV_CODE.hex()),
-         (0x001fa544, '00' * len(INIALL_CODE), INIALL_CODE.hex()),
+         (0x0023b9f4, '00' * len(INIALL_CODE), INIALL_CODE.hex()),
          (0x00203b34, '00' * len(DEVORDER_CODE), DEVORDER_CODE.hex()),
          (0x00223ee0, '00' * len(PAD_INIKEYS), PAD_INIKEYS.hex()),
          # window title, shared by both pages now
@@ -1200,7 +1200,7 @@ FEATURES = [
          (0x000958a1, '03', '02'),
          # And whatever the saved devices, both keyboard-page blocks load
          # their lines at the loop's exit; see asm/iniall.asm.
-         (0x000958aa, 'e900000000', 'e8954c1600'),
+         (0x000958aa, 'e900000000', 'e845611a00'),
          # A last common check demanded the DirectInput joystick subsystem
          # whenever either player's saved device was 3 or 7, or it forced
          # both to Gamepad and skipped the whole ini load. Simple needs no

@@ -122,6 +122,10 @@ def assemble(source, tmp):
 
 
 LABELS = {}     # source -> {label: VA}, filled by assemble()
+TEXT_END = 0x005f4e3e   # where the executable's own code stops; past this
+                        # is .rdata and the caves, so a call landing there
+                        # is a call into ours
+
 ORGS = {}       # source -> org VA
 
 
@@ -189,7 +193,7 @@ CEILINGS = {
                                   'depth against'),
     'INISAVE_CODE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
                                  'what scans as a longer run'),
-    'INIALL_CODE': (0x005fb1a0, 'the end of its run; the deadzone seed '
+    'INIALL_CODE': (0x0063c64c, 'the end of its run; the deadzone seed '
                                 'took most of the slack'),
     'F11PAUSE_CODE': (0x0063bf7c, 'the end of its run; the check-box loop '
                                   'took nearly all of it'),
@@ -251,6 +255,9 @@ def check_calls(blobs):
     ranges = [(ORGS[src], ORGS[src] + len(blob), src)
               for src, blob in blobs.items() if src in ORGS]
     labels = set(ORGS.values())         # the org is always an entry point
+    # levers.asm carries no org of its own: it is appended to padxinput and
+    # entered at the byte after it, so every blob's end is an entry too.
+    labels.update(hi for _lo, hi, _src in ranges)
     for per in LABELS.values():
         labels.update(va for va in per.values() if va is not None)
     with open(TARGET, encoding='utf-8') as fh:
@@ -267,6 +274,18 @@ def check_calls(blobs):
                     'the site at 0x%08x calls 0x%08x, inside %s but on no '
                     'label - a hand-computed rel32 gone wrong'
                     % (off, target, src))
+        # The game's own code is all in .text. A call that leaves it is a
+        # call into one of ours, so it has to land on a label: a blob that
+        # moves leaves its hook behind otherwise, and the target is then
+        # neither in a cave nor anywhere this loop was looking.
+        if (target >= TEXT_END and target not in labels
+                and len(m.group(0)) - len(m.group(2)) < 60):   # a hook, not a
+                                                               # blob that
+                                                               # opens with e8
+            raise SystemExit(
+                'the site at 0x%08x calls 0x%08x, which is outside .text '
+                'and on no label - a blob that moved without its hook?'
+                % (off, target))
 
 
 def main(check=False):
