@@ -13,7 +13,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/vo/rendezvous.py 47625
+ExecStart=/usr/bin/python3 /opt/vo-netplay/rendezvous.py 47625
 
 Restart=always
 RestartSec=10

@@ -159,12 +159,12 @@ python3 net/rendezvous.py          # udp/47625, open it in the firewall
 ```
 
 For a machine that should keep it up, `tools/rendezvous-install.sh install`
-copies the script to `/opt/vo`, puts `rendezvous.service` in place and starts
-it. `update` reinstalls from the checkout after a `git pull`, `remove` undoes
-it, and `status` counts how the last day's matches ended. The unit runs as a
-`DynamicUser` with a read-only filesystem, since the server writes nothing.
-Opening the port is left to you; the script prints the command for whichever
-firewall it finds.
+copies the script to `/opt/vo-netplay`, puts it in place as
+`vo-rendezvous.service` and starts it. `update` reinstalls from the checkout
+after a `git pull`, `remove` undoes it, and `status` counts how the last
+day's matches ended. The unit runs as a `DynamicUser` with a read-only
+filesystem, since the server writes nothing. Opening the port is left to
+you; the script prints the command for whichever firewall it finds.
 
 ## Two deliberate differences
 

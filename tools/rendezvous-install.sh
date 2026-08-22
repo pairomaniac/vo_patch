@@ -6,16 +6,17 @@
 #   sudo tools/rendezvous-install.sh remove
 #          tools/rendezvous-install.sh status
 #
-# Installs to /opt/vo, or PREFIX if set. Needs systemd and python3; the
+# Installs to /opt/vo-netplay as vo-rendezvous.service, or PREFIX if set.
+# Needs systemd and python3; the
 # firewall is left alone and the command to open the port is printed.
 
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(dirname "$HERE")
-PREFIX=${PREFIX:-/opt/vo}
-UNIT=/etc/systemd/system/rendezvous.service
-NAME=rendezvous
+PREFIX=${PREFIX:-/opt/vo-netplay}
+NAME=vo-rendezvous
+UNIT=/etc/systemd/system/$NAME.service
 
 die() { echo "$*" >&2; exit 1; }
 
@@ -33,7 +34,7 @@ install_files() {
     local port=$1
     install -d -m 755 "$PREFIX"
     install -m 644 "$REPO/net/rendezvous.py" "$PREFIX/rendezvous.py"
-    sed -e "s|/opt/vo/rendezvous.py 47625|$PREFIX/rendezvous.py $port|" \
+    sed -e "s|/opt/vo-netplay/rendezvous.py 47625|$PREFIX/rendezvous.py $port|" \
         -e "s|UDP 47625|UDP $port|" \
         "$REPO/net/rendezvous.service" > "$UNIT"
     systemctl daemon-reload
