@@ -1200,7 +1200,7 @@ FEATURES = [
          (0x000958a1, '03', '02'),
          # And whatever the saved devices, both keyboard-page blocks load
          # their lines at the loop's exit; see asm/iniall.asm.
-         (0x000958aa, 'e900000000', 'e8954c1600'),
+         (0x000958aa, 'e900000000', 'e845611a00'),
          # A last common check demanded the DirectInput joystick subsystem
          # whenever either player's saved device was 3 or 7, or it forced
          # both to Gamepad and skipped the whole ini load. Simple needs no
