@@ -30,7 +30,7 @@ costs a second, not the match. Relayed matches keep the entry alive by
 their own heartbeat.
 """
 
-import random
+import secrets
 import socket
 import sys
 import time
@@ -39,7 +39,9 @@ MAGIC = b'VOR1'
 ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 CODE_LEN = 5
 EXPIRE_S = 30
-MAX_CODES = 1000
+MAX_CODES = 20000    # an entry is a few hundred bytes; this is a few MB
+PER_IP = 8           # open codes one address may hold; players need one
+MAX_RELAY = 512      # the game's largest packet, so this is not a tunnel
 MISS_LIMIT = 10      # unknown codes from one address per MISS_WINDOW_S ...
 MISS_WINDOW_S = 60
 BAN_S = 600          # ... and it is ignored for this long
@@ -53,10 +55,21 @@ def endpoint_bytes(addr):
 
 
 def new_code():
+    """secrets, not random: the default generator can be predicted from a
+    few hundred codes seen, and a predicted code can be joined first."""
     while True:
-        c = ''.join(random.choice(ALPHABET) for _ in range(CODE_LEN))
+        c = ''.join(secrets.choice(ALPHABET) for _ in range(CODE_LEN))
         if c not in codes:
             return c
+
+
+def valid_code(raw):
+    """The five bytes after the opcode, or None if they could not be a
+    code. Anything else is neither looked up nor logged."""
+    if len(raw) != CODE_LEN:
+        return None
+    code = raw.decode('ascii', 'replace').upper()
+    return code if all(ch in ALPHABET for ch in code) else None
 
 
 def banned(ip, now):
@@ -103,10 +116,14 @@ def handle(sock, data, addr, now):
     if len(data) < 5 or data[:4] != MAGIC:
         return
     op = data[4:5]
-    code = data[5:5 + CODE_LEN].decode('ascii', 'replace').upper()
+    code = valid_code(data[5:5 + CODE_LEN])
+    if op != b'C' and code is None:
+        return
 
     if op == b'C':
         if len(codes) >= MAX_CODES:
+            return
+        if sum(1 for e in codes.values() if e['host'][0] == addr[0]) >= PER_IP:
             return
         c = new_code()
         codes[c] = {'host': addr, 'guest': None, 'seen': now}
@@ -142,6 +159,8 @@ def handle(sock, data, addr, now):
         sock.sendto(MAGIC + b'P' + endpoint_bytes(addr), e['host'])
 
     elif op == b'R':
+        if len(data) > 5 + CODE_LEN + MAX_RELAY:
+            return
         e = codes.get(code)
         if not e or not e['guest']:
             return
@@ -164,17 +183,22 @@ def main():
     sock.bind(('', port))
     sock.settimeout(1.0)
     print('listening on udp/%d' % port, flush=True)
+    swept = 0
     while True:
         now = time.monotonic()
         try:
-            data, addr = sock.recvfrom(600)
+            # one byte over the largest legal datagram, so an oversize one
+            # is seen whole and dropped rather than cut to fit and forwarded
+            data, addr = sock.recvfrom(5 + CODE_LEN + MAX_RELAY + 1)
         except socket.timeout:
-            expire(now)
-            continue
+            data = None
         except ConnectionResetError:
             continue
-        handle(sock, data, addr, now)
-        expire(now)
+        if data:
+            handle(sock, data, addr, now)
+        if now - swept >= 1:                  # not per packet: it walks every entry
+            expire(now)
+            swept = now
 
 
 if __name__ == '__main__':

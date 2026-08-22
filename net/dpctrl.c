@@ -338,7 +338,10 @@ static int handle_packet(void)
         return R_DATA;
     }
     case P_RESEND: {
-        int seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
+        int seq;
+        if (g.pktlen < 8)
+            return R_NONE;       /* the original sends 8; a short one is noise */
+        seq = (int)(*(DWORD *)(g.pkt + 4)) & RING_MASK;
         slot = g.tx + seq * MAXPKT;
         if (slot[0] == P_DATA)
             send_raw(slot, g.framelen);
@@ -355,7 +358,10 @@ static int handle_packet(void)
     case P_DELAY:
         return R_DELAY;
     case P_CMD:
-        return R_CMD;
+        /* The peer posts a WM_COMMAND into our window, which is how the
+           original keeps both menus in step. It is trusted because the
+           peer already is: a malicious one can do worse with frames. */
+        return g.pktlen >= 8 ? R_CMD : R_NONE;
     /* Our own types are length-checked as well as value-checked. The game
        sends 21-byte messages of an unknown type through SendDirectPlay, and
        one of those must never be mistaken for ours and swallowed. */

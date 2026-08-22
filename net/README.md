@@ -137,6 +137,26 @@ Ten unknown codes from one address inside a minute and its joins are ignored
 for ten minutes, so the code space cannot be swept. Joins only, since one
 address may be a whole carrier NAT.
 
+What else the server refuses, and why: a code with a character outside the
+alphabet, since it would only ever be a guess or a log line; a ninth open
+code from one address, so one machine cannot fill the table; a relayed
+datagram over 512 bytes, the game's largest, so the relay is not a tunnel.
+Codes come from `secrets`, because the default generator can be predicted
+from a few hundred codes seen and a predicted code can be joined first.
+
+What it trusts, and knows it: addresses. UDP carries no proof of where a
+datagram came from, so a keepalive or relay packet is believed to be from
+whichever side's address it carries. Someone who has a code *and* both
+endpoints can inject into a relayed match; that is the same someone who
+could send to the players directly, so nothing is lost that was ever held.
+
+The client trusts its peer the same way the original did. A `P_CMD` posts a
+`WM_COMMAND` into the game window and frames are played as received; a
+hostile opponent can open menus or desync the match, and could always have.
+The session tag in the handshake is a constant, not a secret. What the
+matchcode path adds is that a host's address is never published: only the
+holder of the code learns it.
+
 Running one:
 
 ```bash
