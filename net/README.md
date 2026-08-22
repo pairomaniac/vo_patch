@@ -128,6 +128,11 @@ and the fallback carried it - a symmetric NAT or CGNAT somewhere. The server
 says the same from its side, one line per code when it expires: `punched`,
 `relayed` or `never joined`.
 
+`relay=1` under `[net]` in `vo-net.ini` skips the punch and goes straight to
+the relay. It exists so the fallback can be exercised from two machines that
+would otherwise connect directly; there is no other way to reach that path
+on demand. Remove it afterwards - a forced relay is a slower match.
+
 A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
 and says so, rather than sitting on "waiting for the other player".
 

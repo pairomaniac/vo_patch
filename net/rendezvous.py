@@ -23,7 +23,9 @@ Wire format, one UDP datagram each, all starting with the magic "VOR1":
         D <data>          relayed from the other side
 
 Codes are 5 characters, no 0/O/1/I. Entries expire after 30 s without
-traffic. Both sides keep asking until they have a P, so a lost datagram
+traffic. A source that sends more than a few unknown codes a minute has
+its joins ignored for a while, so the space cannot be swept; it can still
+host, since one address may be many players behind a carrier NAT. Both sides keep asking until they have a P, so a lost datagram
 costs a second, not the match. Relayed matches keep the entry alive by
 their own heartbeat.
 """
@@ -38,8 +40,12 @@ ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 CODE_LEN = 5
 EXPIRE_S = 30
 MAX_CODES = 1000
+MISS_LIMIT = 10      # unknown codes from one address per MISS_WINDOW_S ...
+MISS_WINDOW_S = 60
+BAN_S = 600          # ... and it is ignored for this long
 
 codes = {}   # code -> {'host': (ip, port), 'guest': (ip, port) or None, 'seen': t}
+misses = {}  # ip -> [first_miss_t, count] or [until_t, None] while banned
 
 
 def endpoint_bytes(addr):
@@ -53,7 +59,40 @@ def new_code():
             return c
 
 
+def banned(ip, now):
+    m = misses.get(ip)
+    if not m:
+        return False
+    if m[1] is None:                      # banned
+        if now < m[0]:
+            return True
+        del misses[ip]
+        return False
+    if now - m[0] > MISS_WINDOW_S:        # window rolled over
+        del misses[ip]
+    return False
+
+
+def miss(ip, now):
+    """A guess at a code that does not exist. Enough of them and joins from
+    the address are dropped on the floor, no reply, for BAN_S. Hosting,
+    keepalives and relay still work, because one address can be a whole
+    carrier-grade NAT and the other players behind it did nothing."""
+    m = misses.setdefault(ip, [now, 0])
+    if m[1] is None:
+        return
+    m[1] += 1
+    if m[1] >= MISS_LIMIT:
+        misses[ip] = [now + BAN_S, None]
+        print('%s banned for %ds: %d unknown codes in %ds'
+              % (ip, BAN_S, m[1], MISS_WINDOW_S), flush=True)
+
+
 def expire(now):
+    for ip in [ip for ip, m in misses.items()
+               if (m[1] is None and now >= m[0]) or
+                  (m[1] is not None and now - m[0] > MISS_WINDOW_S)]:
+        del misses[ip]
     for c in [c for c, e in codes.items() if now - e['seen'] > EXPIRE_S]:
         e = codes.pop(c)
         print('%s expired, %s' % (c, 'relayed' if e.get('relayed')
@@ -85,8 +124,11 @@ def handle(sock, data, addr, now):
             sock.sendto(MAGIC + b'P' + endpoint_bytes(e['guest']), addr)
 
     elif op == b'J':
+        if banned(addr[0], now):
+            return                        # only joins are refused, see miss()
         e = codes.get(code)
         if not e:
+            miss(addr[0], now)
             sock.sendto(MAGIC + b'N', addr)
             return
         if e['guest'] is None:

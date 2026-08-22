@@ -146,6 +146,7 @@ static struct {
     char   code[CODE_LEN + 1];
     int    rv_peer;        /* server has told us the peer's endpoint     */
     int    relay;          /* direct path failed, server forwards for us */
+    int    force_relay;    /* relay=1 in vo-net.ini: skip the punch, for testing */
     DWORD  rv_last, rv_start, punch_start;
 } g;
 
@@ -815,6 +816,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         SetDlgItemTextA(dlg, ID_SERVER, g.server);
         g.region = GetPrivateProfileIntA("net", "region", REGION_EU,
                                          MATCH_INI);
+        g.force_relay = GetPrivateProfileIntA("net", "relay", 0, MATCH_INI);
         if (g.region < REGION_EU || g.region > REGION_OTHER)
             g.region = REGION_EU;
 
@@ -1040,6 +1042,10 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
             g.peer.sin_port = htons((u_short)((p[9] << 8) | p[10]));
             g.rv_peer = 1;
             g.punch_start = timeGetTime();
+            if (g.force_relay) {
+                g.punch_start -= PUNCH_MS;   /* the timeout fires at once */
+                netlog("relay forced by vo-net.ini");
+            }
             netlog("peer via rendezvous: %s:%d", inet_ntoa(g.peer.sin_addr),
                    ntohs(g.peer.sin_port));
             SetDlgItemTextA(dlg, ID_STATUS, "Connecting...");
