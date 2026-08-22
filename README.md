@@ -292,7 +292,9 @@ back on LAN-and-VPN play.
   picks a region, presses OK and reads out the code the dialog shows, like
   `E-ABCDE`; the other player types it in. The two machines talk directly
   where the routers allow it, and through the server where they do not, so
-  it works from anywhere with UDP. Pick the region nearer the host.
+  it works from anywhere with UDP. Pick the region nearer the host, or
+  *Other* to use a server that is not one of ours - both players enter the
+  same address, and the code then starts with `X`.
 - **Direct IP is for LAN play, or when you would rather not depend on the
   server.** The host forwards UDP 47624, picks *Host a game* and reads out
   their address; the dialog shows the local one and will look up the

@@ -46,13 +46,17 @@
    server, the guest types it, and the server hands each side the other's
    public endpoint so both NATs open without a forwarded port. If nothing
    gets through within PUNCH_MS, game traffic goes through the server. */
-#define MATCH_SERVER_EU  "eu.segaonline.net"
+#define MATCH_SERVER_EU  "segaonline.net"
 #define MATCH_SERVER_US  "us.segaonline.net"
+#define MATCH_INI        ".\\vo-net.ini"   /* remembers the Other server */
 #define MATCH_PORT       47625
 #define MATCH_MAGIC      "VOR1"
 #define MATCH_RETRY_MS   1000
 #define PUNCH_MS         4000
 #define CODE_LEN         5
+#define REGION_EU        0
+#define REGION_US        1
+#define REGION_OTHER     2
 #define RELAY_HDR        (5 + CODE_LEN)   /* "VOR1" 'R' code */
 
 /* packet types. 1..0x18 are the original's; 0x80+ are ours. */
@@ -134,7 +138,8 @@ static struct {
 
     /* matchcode */
     int    match;          /* go through the rendezvous server           */
-    int    region;         /* 0 = EU, 1 = US                             */
+    int    region;         /* REGION_EU, REGION_US, REGION_OTHER          */
+    char   server[128];    /* host[:port] when the region is Other        */
     struct sockaddr_in rv; /* the server                                 */
     char   code[CODE_LEN + 1];
     int    rv_peer;        /* server has told us the peer's endpoint     */
@@ -420,6 +425,8 @@ static int handle_packet(void)
 #define ID_EU      0x3F4    /* radio: region               */
 #define ID_US      0x3F5
 #define ID_REGLBL  0x3F6
+#define ID_OTHER   0x3F8    /* radio: a server of your own */
+#define ID_SERVER  0x3F9
 #define ID_PORTLBL 0x3F7
 
 #define STUN_HOST1 "stun.l.google.com"
@@ -656,10 +663,14 @@ static void set_mode(HWND dlg)
     int match   = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
     int addr_sw = (hosting && !match) ? SW_SHOW : SW_HIDE;
 
-    /* Region is the host's choice; the guest's code carries it. */
+    /* Region is the host's choice; the guest's code carries it. The Other
+       address stays live either way, because an X code does not say where
+       to go and the guest has to type it in as well. */
     EnableWindow(GetDlgItem(dlg, ID_REGLBL), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_EU), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_US), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_OTHER), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_SERVER), match);
     EnableWindow(GetDlgItem(dlg, ID_PORTLBL), !match);
     EnableWindow(GetDlgItem(dlg, ID_PORT), !match);
 
@@ -675,17 +686,48 @@ static void set_mode(HWND dlg)
         SetFocus(GetDlgItem(dlg, ID_IP));
 }
 
-static int resolve_server(int region, struct sockaddr_in *out)
+/* The letter a code carries, so the guest reaches the same server. X means
+   the guest has to fill in the same Other address by hand. */
+static char code_letter(int region)
 {
-    const char *host = region ? MATCH_SERVER_US : MATCH_SERVER_EU;
-    struct hostent *he = gethostbyname(host);
+    return region == REGION_US ? 'U' : region == REGION_OTHER ? 'X' : 'E';
+}
 
-    if (!he)
+/* Region to endpoint. Other is "host" or "host:port". 0 if it will not
+   resolve. */
+static int resolve_server(int region, const char *other,
+                          struct sockaddr_in *out)
+{
+    char host[128];
+    char *colon;
+    int port = MATCH_PORT;
+    unsigned long addr;
+    struct hostent *he;
+
+    if (region == REGION_OTHER)
+        lstrcpynA(host, other, sizeof(host));
+    else
+        lstrcpynA(host, region == REGION_US ? MATCH_SERVER_US
+                                            : MATCH_SERVER_EU, sizeof(host));
+    colon = strchr(host, ':');
+    if (colon) {
+        *colon = 0;
+        port = atoi(colon + 1);
+    }
+    if (!host[0] || port <= 0 || port > 65535)
         return 0;
+
     memset(out, 0, sizeof(*out));
+    addr = inet_addr(host);
+    if (addr == INADDR_NONE) {
+        he = gethostbyname(host);
+        if (!he)
+            return 0;
+        memcpy(&addr, he->h_addr, sizeof(addr));
+    }
     out->sin_family = AF_INET;
-    memcpy(&out->sin_addr, he->h_addr, sizeof(out->sin_addr));
-    out->sin_port = htons((u_short)MATCH_PORT);
+    out->sin_addr.s_addr = addr;
+    out->sin_port = htons((u_short)port);
     return 1;
 }
 
@@ -704,9 +746,12 @@ static int parse_code(const char *text, int *region, char *code)
         t[n++] = c;
     }
     t[n] = 0;
-    if (n != CODE_LEN + 1 || (t[0] != 'E' && t[0] != 'U'))
+    if (n != CODE_LEN + 1)
         return 0;
-    *region = (t[0] == 'U');
+    if (t[0] == 'E')       *region = REGION_EU;
+    else if (t[0] == 'U')  *region = REGION_US;
+    else if (t[0] == 'X')  *region = REGION_OTHER;
+    else                   return 0;
     memcpy(code, t + 1, CODE_LEN);
     code[CODE_LEN] = 0;
     return 1;
@@ -733,8 +778,18 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         SetDlgItemTextA(dlg, ID_PUBBTN, "Show public address");
         g.pub_shown = 0;
 
+        GetPrivateProfileStringA("net", "server", "", g.server,
+                                 sizeof(g.server), MATCH_INI);
+        SetDlgItemTextA(dlg, ID_SERVER, g.server);
+        g.region = GetPrivateProfileIntA("net", "region", REGION_EU,
+                                         MATCH_INI);
+        if (g.region < REGION_EU || g.region > REGION_OTHER)
+            g.region = REGION_EU;
+
         CheckRadioButton(dlg, ID_MATCH, ID_DIRECT, ID_MATCH);
-        CheckRadioButton(dlg, ID_EU, ID_US, ID_EU);
+        CheckRadioButton(dlg, ID_EU, ID_OTHER,
+                         g.region == REGION_US ? ID_US :
+                         g.region == REGION_OTHER ? ID_OTHER : ID_EU);
         CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
         set_mode(dlg);
         return TRUE;
@@ -742,6 +797,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case ID_HOST: case ID_JOIN: case ID_MATCH: case ID_DIRECT:
+        case ID_EU: case ID_US: case ID_OTHER:
             set_mode(dlg);
             return TRUE;
 
@@ -776,7 +832,10 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         case IDOK: {
             int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
             g.match  = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
-            g.region = IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED;
+            g.region = IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED ? REGION_US
+                     : IsDlgButtonChecked(dlg, ID_OTHER) == BST_CHECKED
+                       ? REGION_OTHER : REGION_EU;
+            GetDlgItemTextA(dlg, ID_SERVER, g.server, sizeof(g.server));
 
             GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
             g.port = atoi(buf);
@@ -803,10 +862,23 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                     return TRUE;
                 }
             }
-            if (g.match && !resolve_server(g.region, &g.rv)) {
+            if (g.match && g.region == REGION_OTHER && !g.server[0]) {
+                MessageBoxA(dlg, "Enter the address of the other server.",
+                            "Message", 0);
+                SetFocus(GetDlgItem(dlg, ID_SERVER));
+                return TRUE;
+            }
+            if (g.match && !resolve_server(g.region, g.server, &g.rv)) {
                 MessageBoxA(dlg, "Could not reach the matchcode server.",
                             "Message", 0);
                 return TRUE;
+            }
+            if (g.match) {
+                char r[8];
+                wsprintfA(r, "%d", g.region);
+                WritePrivateProfileStringA("net", "server", g.server,
+                                           MATCH_INI);
+                WritePrivateProfileStringA("net", "region", r, MATCH_INI);
             }
             EndDialog(dlg, hosting ? 1 : 2);
             return TRUE;
@@ -829,51 +901,57 @@ static int ask_connection(HINSTANCE inst)
        closed by the static that follows it. The count in the header must
        match the number of controls below: a short count silently drops
        the tail of the dialog. */
-    p = tpl_head(buf, DLG_STYLE, 250, 190, 19, "Virtual-On Netplay");
+    p = tpl_head(buf, DLG_STYLE, 250, 206, 21, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                6, 4, 238, 46, 0xFFFF, CLS_BUTTON, "Connection");
+                6, 4, 238, 62, 0xFFFF, CLS_BUTTON, "Connection");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
                 BS_AUTORADIOBUTTON, 14, 16, 110, 12,
                 ID_MATCH, CLS_BUTTON, "Matchcode (no forwarding)");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                14, 30, 110, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 126, 18, 30, 9,
+                14, 48, 110, 12, ID_DIRECT, CLS_BUTTON, "Direct IP");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 122, 18, 34, 9,
                 ID_REGLBL, CLS_STATIC, "Region:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
                 BS_AUTORADIOBUTTON, 158, 16, 40, 12,
                 ID_EU, CLS_BUTTON, "Europe");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                198, 16, 42, 12, ID_US, CLS_BUTTON, "America");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 126, 32, 28, 9,
+                198, 16, 44, 12, ID_US, CLS_BUTTON, "America");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                24, 32, 44, 12, ID_OTHER, CLS_BUTTON, "Other:");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                70, 32, 172, 12, ID_SERVER, CLS_EDIT, "");
+
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 126, 50, 28, 9,
                 ID_PORTLBL, CLS_STATIC, "Port:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                158, 30, 46, 12, ID_PORT, CLS_EDIT, "");
+                158, 48, 46, 12, ID_PORT, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-                6, 56, 238, 104, 0xFFFF, CLS_BUTTON, "Match");
+                6, 72, 238, 104, 0xFFFF, CLS_BUTTON, "Match");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 14, 70, 100, 12,
+                BS_AUTORADIOBUTTON, 14, 86, 100, 12,
                 ID_HOST, CLS_BUTTON, "Host a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 24, 86, 210, 9,
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 24, 102, 210, 9,
                 ID_LOCAL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                24, 98, 86, 12, ID_PUBBTN, CLS_BUTTON, "Show public address");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 116, 100, 70, 9,
+                24, 114, 86, 12, ID_PUBBTN, CLS_BUTTON, "Show public address");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 116, 116, 70, 9,
                 ID_PUBTEXT, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                192, 98, 28, 12, ID_COPYBTN, CLS_BUTTON, "Copy");
+                192, 114, 28, 12, ID_COPYBTN, CLS_BUTTON, "Copy");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                14, 120, 100, 12, ID_JOIN, CLS_BUTTON, "Join a game");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 24, 136, 50, 9,
+                14, 136, 100, 12, ID_JOIN, CLS_BUTTON, "Join a game");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 24, 152, 50, 9,
                 ID_IPLABEL, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                78, 134, 156, 12, ID_IP, CLS_EDIT, "");
+                78, 150, 156, 12, ID_IP, CLS_EDIT, "");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_DEFPUSHBUTTON, 134, 168, 52, 14, IDOK, CLS_BUTTON, "OK");
+                BS_DEFPUSHBUTTON, 134, 184, 52, 14, IDOK, CLS_BUTTON, "OK");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                190, 168, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                190, 184, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, connect_proc, 0);
@@ -906,7 +984,7 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
             memcpy(g.code, p + 5, CODE_LEN);
             g.code[CODE_LEN] = 0;
             wsprintfA(buf, "Code: %c-%s    Waiting for the other player...",
-                      g.region ? 'U' : 'E', g.code);
+                      code_letter(g.region), g.code);
             SetDlgItemTextA(dlg, ID_STATUS, buf);
             netlog("matchcode %s", g.code);
         }
