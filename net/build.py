@@ -82,14 +82,18 @@ def render(blob, sha):
     packed = base64.b64encode(zlib.compress(blob, 9)).decode()
     lines = [packed[i:i + 72] for i in range(0, len(packed), 72)]
     body = '\n'.join("    '%s'" % line for line in lines)
+    dll_sha = hashlib.sha256(blob).hexdigest()
     return (
         "%s\n"
         "# Source: net/dpctrl.c, compiled by net/build.py.\n"
         "NETPLAY_SRC_SHA = '%s'\n"
+        "# sha256 of the compiled DLL, so the patcher can tell its own build\n"
+        "# from an older one already installed.\n"
+        "NETPLAY_DLL_SHA = '%s'\n"
         "NETPLAY_DLL_Z = (\n"
         "%s\n"
         ")\n"
-        "%s" % (BEGIN, sha, body, END))
+        "%s" % (BEGIN, sha, dll_sha, body, END))
 
 
 def splice(text, block):

@@ -440,6 +440,7 @@ static int handle_packet(void)
 #define ID_HINT    0x3FA
 #define ID_SERVER  0x3F9
 #define ID_PORTLBL 0x3F7
+#define ID_HOWTO   0x3FD    /* the host how-to, shown only in matchcode+host */
 
 #define STUN_HOST1 "stun.l.google.com"
 #define STUN_HOST2 "stun1.l.google.com"
@@ -703,6 +704,8 @@ static void set_mode(HWND dlg)
     ShowWindow(GetDlgItem(dlg, ID_PUBBTN), addr_sw);
     ShowWindow(GetDlgItem(dlg, ID_PUBTEXT), addr_sw);
     ShowWindow(GetDlgItem(dlg, ID_COPYBTN), addr_sw);
+    ShowWindow(GetDlgItem(dlg, ID_HOWTO),
+               (match && hosting) ? SW_SHOW : SW_HIDE);
 
     SetDlgItemTextA(dlg, ID_IPLABEL, match ? "Code:" : "Host address:");
     EnableWindow(GetDlgItem(dlg, ID_IPLABEL), !hosting);
@@ -946,7 +949,7 @@ static int ask_connection(HINSTANCE inst)
        group; creation order is not layout order. The count in the header
        must match the controls below, or the tail of the dialog is dropped
        without a word. */
-    p = tpl_head(buf, DLG_STYLE, 270, 268, 22, "Virtual-On Netplay");
+    p = tpl_head(buf, DLG_STYLE, 270, 268, 23, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
                 8, 6, 254, 112, 0xFFFF, CLS_BUTTON, "Connection");
@@ -983,6 +986,10 @@ static int ask_connection(HINSTANCE inst)
                 ID_HOST, CLS_BUTTON, "Host a game");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 158, 218, 9,
                 ID_LOCAL, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 30, 158, 224, 28,
+                ID_HOWTO, CLS_STATIC,
+                "Press OK, then send the code it shows to the person you "
+                "want to play. When they type it in, the match starts.");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
                 32, 172, 90, 13, ID_PUBBTN, CLS_BUTTON, "Show public address");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 128, 175, 80, 9,
