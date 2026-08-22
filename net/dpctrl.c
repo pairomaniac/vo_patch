@@ -662,20 +662,33 @@ static void local_addresses(char *out, int outsz)
 }
 
 /* Show and enable only what the current mode needs. */
+static int parse_code(const char *text, int *region, char *code);
+
 static void set_mode(HWND dlg)
 {
     int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
     int match   = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
     int addr_sw = (hosting && !match) ? SW_SHOW : SW_HIDE;
+    int custom;
 
-    /* Region is the host's choice; the guest's code carries it. The Other
-       address stays live either way, because an X code does not say where
-       to go and the guest has to type it in as well. */
+    /* Region is the host's choice; the guest's code carries it. So the
+       address field follows the radio while hosting, and follows what has
+       been typed while joining - a CUST code names no server, and the
+       guest has to fill the same one in by hand. */
+    if (hosting) {
+        custom = IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED;
+    } else {
+        char buf[32], code[CODE_LEN + 1];
+        int region;
+        GetDlgItemTextA(dlg, ID_IP, buf, sizeof(buf));
+        custom = parse_code(buf, &region, code) && region == REGION_OTHER;
+    }
+
     EnableWindow(GetDlgItem(dlg, ID_REGLBL), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_EU), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_US), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_CUSTOM), match && hosting);
-    EnableWindow(GetDlgItem(dlg, ID_SERVER), match);
+    EnableWindow(GetDlgItem(dlg, ID_SERVER), match && custom);
     EnableWindow(GetDlgItem(dlg, ID_HINT), match);
     EnableWindow(GetDlgItem(dlg, ID_PORTLBL), !match);
     EnableWindow(GetDlgItem(dlg, ID_PORT), !match);
@@ -820,6 +833,10 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         case ID_EU: case ID_US: case ID_CUSTOM:
             set_mode(dlg);
             return TRUE;
+        case ID_IP:
+            if (HIWORD(wp) == EN_CHANGE)
+                set_mode(dlg);   /* a CUST code needs the address field */
+            return TRUE;
 
         /* Off by default, and one click hides it again: the public address
            should not sit on screen while someone is streaming. */
@@ -945,7 +962,7 @@ static int ask_connection(HINSTANCE inst)
                 66, 52, 188, 12, ID_SERVER, CLS_EDIT, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 68, 222, 9,
                 ID_HINT, CLS_STATIC,
-                "Europe and America hosted by segaonline.net");
+                "Europe and America are hosted by segaonline.net.");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 102, 34, 9,
                 ID_PORTLBL, CLS_STATIC, "Port:");

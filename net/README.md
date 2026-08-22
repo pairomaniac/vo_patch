@@ -141,7 +141,9 @@ port 47625.
 
 *Custom* points both sides at a server of their own, `host` or `host:port`.
 Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
-so the guest fills in the same address. The choice and the address are kept in
+so the guest fills in the same address. The field follows the radio while
+hosting and follows the typed code while joining, since a guest cannot pick
+a region - the code has already decided. The choice and the address are kept in
 `vo-net.ini` next to the game, so it is typed once:
 
 ```ini
