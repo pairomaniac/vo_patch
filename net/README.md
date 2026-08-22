@@ -102,17 +102,13 @@ always tried first.
 
 Codes are shown as `EU-ABCDE` or `US-ABCDE`. A code only exists on the
 server that issued it, so the guest has to reach that same one, and the tag
-is how it knows which without asking the player. Hyphens, spaces and case
-are ignored on the way in, but the tag itself is required: a one-letter form
-would let a code with a character missing parse as a different, valid-looking
-one. Hostnames are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`,
-port 47625.
+is how it knows which. Hyphens, spaces and case are ignored on the way in;
+the tag itself is required. Hostnames are `MATCH_SERVER_EU` and
+`MATCH_SERVER_US` in `dpctrl.c`, port 47625.
 
 *Custom* points both sides at a server of their own, `host` or `host:port`.
 Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
-so the guest fills in the same address. The field follows the radio while
-hosting and follows the typed code while joining, since a guest cannot pick
-a region - the code has already decided. The choice and the address are kept
+so the guest fills in the same address. The choice and the address are kept
 in `vo-net.ini` next to the game, so it is typed once:
 
 ```ini
@@ -137,10 +133,9 @@ server -> client    N                unknown code, or already taken
 ```
 
 Datagrams start with `VOR1` so they can never be mistaken for a game packet.
-Ten unknown codes from one address inside a minute and that address's joins
-are ignored for ten minutes, so the code space cannot be swept. Joins only:
-it can still host, because one address may be a whole carrier NAT and the
-other players behind it did nothing.
+Ten unknown codes from one address inside a minute and its joins are ignored
+for ten minutes, so the code space cannot be swept. Joins only, since one
+address may be a whole carrier NAT.
 
 Running one:
 
@@ -173,13 +168,13 @@ and the fallback carried it - a symmetric NAT or CGNAT somewhere. The server
 says the same from its side, one line per code when it expires: `punched`,
 `relayed` or `never joined`.
 
-A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
-and says so, rather than sitting on "waiting for the other player".
+If the server does not answer within `MATCH_WAIT_MS` the client gives up
+and says so.
 
 `relay=1` under `[net]` in `vo-net.ini` skips the punch and goes straight to
-the relay. It exists so the fallback can be exercised from two machines that
-would otherwise connect directly; there is no other way to reach that path
-on demand. Remove it afterwards - a forced relay is a slower match.
+the relay, so the fallback can be tested between two machines that would
+otherwise connect directly. Remove it afterwards; a forced relay is a slower
+match.
 
 ## Two deliberate differences
 
@@ -215,9 +210,6 @@ produce identical output from identical source.
 Loopback proves the ABI and the ring handling and nothing more: no loss, no
 latency, both sides the same build. The resend path, the input delay and
 every question about NAT need two machines and a real link.
-
-Touch `vo-net.log` beside the game to log the latency probe and the
-resulting frame delay. Delete it to stop.
 
 Both sides need the same DLL, and gameplay-affecting patches should match:
 each machine runs its own copy of the game on both players' inputs, and a

@@ -170,18 +170,16 @@ not: at 0 ms round trip the delay negotiation computes 1 every time, so that
 path never runs at anything but its minimum. Shape the loopback with `tc` for
 that, and read [net/README.md](../net/README.md) first.
 
-Loopback cannot test matchcodes at all - both instances sit behind the same
-address and the punch degenerates. That needs two machines on two networks;
-a laptop on a phone hotspot against a desktop on ethernet is the cheap rig.
-Create an empty `vo-net.log` beside each `v_on.exe` first and look for
-`linked directly` or `linked through the relay` in it afterwards. To exercise
-the relay on purpose, put `relay=1` under `[net]` in `vo-net.ini` on one
-side. The servers log the same outcome per code; `tools/rendezvous-install.sh
-status` on the box tallies them.
+Loopback cannot test matchcodes: both instances sit behind the same address.
+That needs two machines on two networks - a laptop on a phone hotspot against
+a desktop on ethernet is the cheap rig. Create an empty `vo-net.log` beside
+each `v_on.exe` first and look for `linked directly` or `linked through the
+relay` afterwards. `relay=1` under `[net]` in `vo-net.ini` on one side forces
+the relay. The server logs the same outcome per code;
+`tools/rendezvous-install.sh status` tallies them.
 
-`tools/rendezvous-install.sh` is the server's installer, for a machine that
-should keep one up. It takes the unit from `net/rendezvous.service` and is
-the only thing that should write it.
+`tools/rendezvous-install.sh` installs the server from `net/rendezvous.service`
+on a machine that should keep one up.
 
 ## Releasing
 

@@ -48,7 +48,7 @@
    gets through within PUNCH_MS, game traffic goes through the server. */
 #define MATCH_SERVER_EU  "segaonline.net"
 #define MATCH_SERVER_US  "us.segaonline.net"
-#define MATCH_INI        ".\\vo-net.ini"   /* remembers the Other server */
+#define MATCH_INI        ".\\vo-net.ini"   /* remembers the Custom server */
 #define MATCH_PORT       47625
 #define MATCH_MAGIC      "VOR1"
 #define MATCH_RETRY_MS   1000
@@ -141,7 +141,7 @@ static struct {
     /* matchcode */
     int    match;          /* go through the rendezvous server           */
     int    region;         /* REGION_EU, REGION_US, REGION_OTHER          */
-    char   server[128];    /* host[:port] when the region is Other        */
+    char   server[128];    /* host[:port] when the region is Custom       */
     struct sockaddr_in rv; /* the server                                 */
     char   code[CODE_LEN + 1];
     int    rv_peer;        /* server has told us the peer's endpoint     */
@@ -672,10 +672,9 @@ static void set_mode(HWND dlg)
     int addr_sw = (hosting && !match) ? SW_SHOW : SW_HIDE;
     int custom;
 
-    /* Region is the host's choice; the guest's code carries it. So the
-       address field follows the radio while hosting, and follows what has
-       been typed while joining - a CUST code names no server, and the
-       guest has to fill the same one in by hand. */
+    /* Region is the host's choice; the guest's code carries it. The
+       address field follows the radio while hosting and the typed code
+       while joining, since a CUST code names no server. */
     if (hosting) {
         custom = IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED;
     } else {
@@ -714,7 +713,7 @@ static const char *code_tag(int region)
          : region == REGION_OTHER ? "CUST" : "EU";
 }
 
-/* Region to endpoint. Other is "host" or "host:port". 0 if it will not
+/* Region to endpoint. Custom is "host" or "host:port". 0 if it will not
    resolve. */
 static int resolve_server(int region, const char *other,
                           struct sockaddr_in *out)
@@ -752,7 +751,7 @@ static int resolve_server(int region, const char *other,
     return 1;
 }
 
-/* "EU-ABCDE", "cust abcde", "U ABCDE" -> region and bare code. 0 if it is
+/* "EU-ABCDE", "cust abcde" -> region and bare code. 0 if it is
    not a code. */
 static const struct { const char *tag; int region; } tags[] = {
     { "CUST", REGION_OTHER },
@@ -776,8 +775,8 @@ static int parse_code(const char *text, int *region, char *code)
     t[n] = 0;
 
     /* Longest tag first, so US does not swallow a code beginning with S.
-       Nothing shorter is accepted: a one-letter form would make a code with
-       a character missing parse as a different, valid-looking one. */
+       No one-letter forms: a code typed one character short would then
+       parse as a different, valid-looking one. */
     for (i = 0; i < (int)(sizeof(tags) / sizeof(tags[0])); i++) {
         int len = lstrlenA(tags[i].tag);
         if (n == len + CODE_LEN && !memcmp(t, tags[i].tag, len)) {
@@ -938,9 +937,9 @@ static int ask_connection(HINSTANCE inst)
 
     /* Radio groups run from one WS_GROUP to the next, so the two mode
        radios are created together and the statics that follow close each
-       group. Creation order is therefore not layout order. The count in
-       the header must match the controls below: a short count silently
-       drops the tail of the dialog. */
+       group; creation order is not layout order. The count in the header
+       must match the controls below, or the tail of the dialog is dropped
+       without a word. */
     p = tpl_head(buf, DLG_STYLE, 270, 268, 22, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,

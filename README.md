@@ -291,12 +291,11 @@ back on LAN-and-VPN play.
   drift apart. Looks and sounds do not matter.
 - **Matchcode is the default and nobody forwards anything.** The host
   picks a region, presses OK and reads out the code the dialog shows, like
-  `EU-ABCDE`; the other player types it in, and can paste it if the host
-  used the Copy button. The `EU` or `US` in front is the server, since a
-  code only exists on the one that issued it, so the code is the whole of
-  what the guest needs. Pick the region nearer the host. The two machines
-  talk directly where the routers allow it, and through the server where
-  they do not, so it works from anywhere with UDP.
+  `EU-ABCDE`; the other player types or pastes it in. The `EU` or `US` in
+  front is the server the code lives on, so the code is all the guest
+  needs. Pick the region nearer the host. The two machines talk directly
+  where the routers allow it, and through the server where they do not, so
+  it works from anywhere with UDP.
 - **Custom** points both players at a server that is not one of ours. Both
   enter the same address, and codes from it read `CUST-ABCDE`.
 - **Direct IP is for LAN play, or when you would rather not depend on the
