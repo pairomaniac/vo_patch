@@ -1087,6 +1087,10 @@ static void link_up(void)
            (unsigned long)(timeGetTime() - g.rv_start));
 }
 
+#define MISMATCH_MSG \
+    "The other player has a different set of gameplay patches. Both sides " \
+    "need the same Fix frame rate and Fix crash on round loss settings."
+
 /* One tick of the handshake, driven by the wait dialog's timer. */
 static void handshake_tick(HWND dlg)
 {
@@ -1158,19 +1162,38 @@ recv:
             continue;   /* late direct packet, the relay is the link now */
         }
 
-        if (g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_HELLO &&
-            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            g.peer = from;                       /* learn the guest's address */
-            b[0] = P_ACK;
-            memcpy(b + 1, g.tag, sizeof(g.tag));
-            send_raw(b, sizeof(b));
-            link_up();
-            return;
+        if (g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_HELLO) {
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                g.peer = from;                   /* learn the guest's address */
+                b[0] = P_ACK;
+                memcpy(b + 1, g.tag, sizeof(g.tag));
+                send_raw(b, sizeof(b));
+                link_up();
+                return;
+            }
+            /* Same game and session, different last byte: the other side has
+               a different set of the patches that affect the simulation, so
+               the two copies would drift. Say so instead of hanging. */
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag) - 1)) {
+                g.fail = MISMATCH_MSG;
+                g.hs_failed = 1;
+                netlog("patch mismatch: peer tag byte %02x, ours %02x",
+                       g.pkt[sizeof(g.tag)], (unsigned char)g.tag[15]);
+                return;
+            }
         }
-        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
-            !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            link_up();
-            return;
+        if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK) {
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
+                link_up();
+                return;
+            }
+            if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag) - 1)) {
+                g.fail = MISMATCH_MSG;
+                g.hs_failed = 1;
+                netlog("patch mismatch: peer tag byte %02x, ours %02x",
+                       g.pkt[sizeof(g.tag)], (unsigned char)g.tag[15]);
+                return;
+            }
         }
     }
 
@@ -1330,6 +1353,46 @@ static int negotiate_delay(void)
 /* exports                                                             */
 /* ------------------------------------------------------------------ */
 
+/* A byte of the tag that both sides must match, folded from the state of
+   the patches that change the simulation. Two machines running the game
+   from the same inputs must step it the same way, or their copies drift
+   apart with no way back - looks and sounds may differ, rules and timing
+   may not.
+
+   These are read from our own process image, so the byte reflects what is
+   actually patched in, not what a config file claims. Today two sites carry
+   every simulation-affecting difference the patch set has:
+
+     - the frame divisor immediate the framerate patch writes (3 -> 1): a
+       machine drawing every frame against one drawing every third steps
+       the match at a different rate.
+     - the first opcode of the round-loss handler the continuefix patch
+       NOPs (0x8b -> 0x90): unpatched it still runs, and either crashes that
+       machine alone or computes a step the patched side does not.
+
+   A visual-only or input-reading patch (sound, movie, defaults, XInput)
+   does not appear here on purpose: those may differ between the two sides.
+   If a future patch changes the simulation, add its site to this list. */
+#define FP_DIVISOR_VA  0x0050bbc4u   /* framerate: 03 vs 01               */
+#define FP_CONTINUE_VA 0x00478b5au   /* continuefix: 8b vs 90             */
+
+static unsigned char sync_fingerprint(void)
+{
+    /* GetModuleHandle(NULL) is the exe's load base. The game has no
+       relocation table and always loads at 0x400000, so the absolute VAs
+       above are already correct; the base is read only to confirm the exe
+       is where we expect before dereferencing, and to fold in the slide in
+       the event a future build does relocate. */
+    unsigned char *base = (unsigned char *)GetModuleHandleA(NULL);
+
+    if (!base)
+        return 0;
+    /* base + (VA - preferred base) is the byte at VA wherever the image
+       loaded, relocation or not. */
+    return (unsigned char)(*(base + (FP_DIVISOR_VA - 0x00400000u)) * 31
+                         + *(base + (FP_CONTINUE_VA - 0x00400000u)));
+}
+
 int __stdcall InitialDirectPlay(VO_NETINIT *init)
 {
     WSADATA wsa;
@@ -1351,9 +1414,14 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     if (g.framelen < 3 || g.framelen > MAXPKT)
         return 0;
 
-    /* Session identity: the game's eight bytes plus the original's marker. */
+    /* Session identity: the game's eight bytes, then a seven-byte marker,
+       then one byte fingerprinting the simulation-affecting patches. Two
+       builds that differ there will not agree on the tag and the handshake
+       refuses the match rather than letting the copies drift. */
     memcpy(g.tag, init->session, 8);
-    memcpy(g.tag + 8, "SEGA PC ", 8);
+    memcpy(g.tag + 8, "SEGAPC", 6);
+    g.tag[14] = 'N';
+    g.tag[15] = (char)sync_fingerprint();
 
     /* Winsock comes up first: the dialog asks it for our own addresses. */
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)

@@ -176,6 +176,18 @@ label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
 it and checks the exports are still there; nothing runs it. The server side,
 `net/rendezvous.py`, is plain Python and at least gets pyflakes.
 
+The match runs in lockstep: each machine simulates from both players' input
+frames, so the two must step the simulation identically. The handshake tag's
+last byte is a fingerprint of the patches that change how the game plays,
+read straight from the running exe by `sync_fingerprint()`, and a mismatch is
+refused at connect. If you add a patch that changes the simulation - a rule,
+a timing, a physics value, anything that alters what the game computes from a
+given input - add its site to `FP_DIVISOR_VA`/`FP_CONTINUE_VA`'s list there,
+and to `SYNC_SITES` in `vo-patch.py` so the patcher warns at install time,
+or two builds with and without it will desync instead of refusing to link. A
+patch that only changes what a machine shows or how it reads its own controls
+stays out of the fingerprint: those are each player's own business.
+
 Two scripts under `tools/` build the DLL and put it in a game folder. Both
 read `~/.vo-test`, which is yours and is not in the repository:
 

@@ -162,8 +162,10 @@ could send to the players directly, so nothing is lost that was ever held.
 The client trusts its peer the same way the original did. A `P_CMD` posts a
 `WM_COMMAND` into the game window and frames are played as received; a
 hostile opponent can open menus or desync the match, and could always have.
-The session tag in the handshake is a constant, not a secret. What the
-matchcode path adds is that a host's address is never published: only the
+The session tag in the handshake is not a secret: its bytes are the game's
+session name, a marker and the patch fingerprint, none of them privileged.
+What the matchcode path adds is that a host's address is never published:
+only the
 holder of the code learns it.
 
 Running one:
@@ -240,6 +242,11 @@ Loopback proves the ABI and the ring handling and nothing more: no loss, no
 latency, both sides the same build. The resend path, the input delay and
 every question about NAT need two machines and a real link.
 
-Both sides need the same DLL, and gameplay-affecting patches should match:
-each machine runs its own copy of the game on both players' inputs, and a
-behavioural difference can make the copies drift apart.
+Both sides need the same DLL, and must agree on the patches that change the
+simulation - each machine runs its own copy of the game on both players'
+inputs, so a difference there drifts the copies apart. The handshake enforces
+it: the session tag's last byte is a fingerprint of those patches (today the
+frame-rate divisor and the round-loss fix), read from the running exe, so a
+mismatch is refused at connect time rather than left to desync mid-match.
+Visual and input-only patches are deliberately outside the fingerprint and
+may differ.

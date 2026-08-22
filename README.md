@@ -134,10 +134,12 @@ back on LAN-and-VPN play.
 
 ### Playing
 
-- **Both sides need the add-on; matching patches are the safe bet.** Each
-  machine runs its own copy of the game on both players' inputs, so a
-  difference that changes behaviour - rules, timing - can make the copies
-  drift apart. Looks and sounds do not matter.
+- **Both sides need the add-on.** Each machine runs its own copy of the
+  game on both players' inputs, so the two must agree on the patches that
+  change how the game plays - the frame rate and the round-loss fix. They
+  do not have to match on anything else; sound, video and controls are each
+  machine's own business. If the gameplay patches differ, the connection is
+  refused with a note saying so, so there is nothing to check by hand.
 - **Matchcode is the default and nobody forwards anything.** The host
   picks a region, presses OK and reads out the code the dialog shows, like
   `EU-ABCDE`; the other player types or pastes it in. The `EU` or `US` in
