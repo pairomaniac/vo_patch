@@ -55,7 +55,9 @@ def new_code():
 
 def expire(now):
     for c in [c for c, e in codes.items() if now - e['seen'] > EXPIRE_S]:
-        del codes[c]
+        e = codes.pop(c)
+        print('%s expired, %s' % (c, 'relayed' if e.get('relayed')
+              else 'punched' if e['guest'] else 'never joined'), flush=True)
 
 
 def handle(sock, data, addr, now):
@@ -70,7 +72,8 @@ def handle(sock, data, addr, now):
         c = new_code()
         codes[c] = {'host': addr, 'guest': None, 'seen': now}
         sock.sendto(MAGIC + b'K' + c.encode(), addr)
-        print('%s created by %s:%d' % (c, *addr), flush=True)
+        print('%s created by %s:%d (%d open)' % (c, *addr, len(codes)),
+              flush=True)
 
     elif op == b'H':
         e = codes.get(code)

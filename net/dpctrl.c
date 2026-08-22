@@ -1017,10 +1017,22 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
         } else {
             g.fail = "No game with that code.";
             g.hs_failed = 1;
+            netlog("server does not know code %s", g.code);
         }
         break;
     }
     return 1;
+}
+
+/* The handshake is done. One line saying which path won, so a log from a
+   player who could not connect says whether the punch worked. */
+static void link_up(void)
+{
+    g.hs_done = 1;
+    netlog("linked %s to %s:%d after %lu ms",
+           g.relay ? "through the relay" : "directly",
+           inet_ntoa(g.peer.sin_addr), ntohs(g.peer.sin_port),
+           (unsigned long)(timeGetTime() - g.rv_start));
 }
 
 /* One tick of the handshake, driven by the wait dialog's timer. */
@@ -1043,6 +1055,7 @@ static void handshake_tick(HWND dlg)
         now - g.rv_start >= MATCH_WAIT_MS) {
         g.fail = "No answer from the matchcode server.";
         g.hs_failed = 1;
+        netlog("no reply from the server in %d ms", MATCH_WAIT_MS);
         return;
     }
     if (g.match && !g.rv_peer)
@@ -1099,12 +1112,12 @@ recv:
             b[0] = P_ACK;
             memcpy(b + 1, g.tag, sizeof(g.tag));
             send_raw(b, sizeof(b));
-            g.hs_done = 1;
+            link_up();
             return;
         }
         if (!g.host && n == 1 + sizeof(g.tag) && g.pkt[0] == P_ACK &&
             !memcmp(g.pkt + 1, g.tag, sizeof(g.tag))) {
-            g.hs_done = 1;
+            link_up();
             return;
         }
     }
@@ -1115,6 +1128,11 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
     case WM_INITDIALOG:
+        if (g.match)
+            netlog("matchcode: %s server %s:%d",
+                   g.region == REGION_US ? "US" :
+                   g.region == REGION_OTHER ? "custom" : "EU",
+                   inet_ntoa(g.rv.sin_addr), ntohs(g.rv.sin_port));
         SetDlgItemTextA(dlg, ID_STATUS,
                         g.match ? "Asking the matchcode server..."
                         : g.host ? "Waiting for the other player..."

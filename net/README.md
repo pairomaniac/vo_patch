@@ -108,6 +108,21 @@ server -> client    N                unknown code, or already taken
 
 Datagrams start with `VOR1` so they can never be mistaken for a game packet.
 
+`vo-net.log` beside the game, created empty, turns on client logging. A
+match that connected reads:
+
+```
+matchcode: EU server 203.0.113.9:47625
+matchcode 7B6NZ
+peer via rendezvous: 198.51.100.7:51234
+linked directly to 198.51.100.7:51234 after 1841 ms
+```
+
+`linked through the relay` in place of the last line means the punch failed
+and the fallback carried it - a symmetric NAT or CGNAT somewhere. The server
+says the same from its side, one line per code when it expires: `punched`,
+`relayed` or `never joined`.
+
 A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
 and says so, rather than sitting on "waiting for the other player".
 
