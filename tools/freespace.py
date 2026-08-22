@@ -21,6 +21,11 @@ dropped: some are bytes that only look like an address, and the rest are
 usually short structures that stop where the run begins. Read the game at
 that address before using such a cave.
 
+Both the original and a fully patched copy are scanned. The original is
+what the game reads; the patched copy is what the patches read, and their
+scratch addresses, tables and entry points are in no original file. A cave
+free in one and not the other is not free.
+
 A clean answer here is not a promise. Nothing sees a table reached by
 pointer arithmetic, and nothing here knows what the game does at runtime.
 """
@@ -52,14 +57,14 @@ def operand_addresses(data, lo, hi):
     The disp32 modrm form, mov reg, imm32 and push imm32 - the three ways
     an address reaches an instruction without a disassembler to find it.
     """
-    found = {}
+    found = set()
     for i in range(1, len(data) - 4):
         va = int.from_bytes(data[i:i + 4], 'little')
         if not lo <= va < hi:
             continue
         prev = data[i - 1]
         if prev & 0xC7 == 0x05 or 0xB8 <= prev <= 0xBF or prev == 0x68:
-            found.setdefault(va, []).append(i)
+            found.add(va)
     return found
 
 
@@ -135,18 +140,21 @@ def main(argv):
     lo = min(a for a, _b in runs) - LOOKBACK
     hi = max(b for _a, b in runs)
     ops = operand_addresses(data, lo, hi)
+    patched = selftest.apply(vp, data, list(vp.BY_KEY))
+    ours = operand_addresses(patched, lo, hi) - ops
 
     clean, check, refused = [], [], []
     for a, b in runs:
         a = (a + 3) & ~3                        # dword-aligned start
         if b - a < want:
             continue
-        inside = [p for p in range(a, b) if p in ops]
-        near = [p for p in range(a - LOOKBACK, a) if p in ops]
+        inside = [(p, p in ours) for p in range(a, b) if p in ops or p in ours]
+        near = [(p, p in ours) for p in range(a - LOOKBACK, a)
+                if p in ops or p in ours]
         if inside:
-            refused.append((a, b, inside[0]))
+            refused.append((a, b) + inside[0])
         elif near:
-            check.append((a, b, max(near)))
+            check.append((a, b) + near[-1])
         else:
             clean.append((a, b))
 
@@ -161,14 +169,15 @@ def main(argv):
         print()
         print('free, but something points just before them - read the game '
               'there first:')
-        for a, b, p in check:
-            print('  0x%08x  %5d bytes   0x%08x is %d bytes back'
-                  % (a, b - a, p, a - p))
+        for a, b, p, mine in check:
+            print('  0x%08x  %5d bytes   0x%08x is %d bytes back%s'
+                  % (a, b - a, p, a - p, ', from a patch' if mine else ''))
     if refused:
         print()
-        print('not free - the game reads inside these:')
-        for a, b, p in refused:
-            print('  0x%08x  %5d bytes   reads 0x%08x' % (a, b - a, p))
+        print('not free - something reads inside these:')
+        for a, b, p, mine in refused:
+            print('  0x%08x  %5d bytes   reads 0x%08x%s'
+                  % (a, b - a, p, ' - a patch, not the game' if mine else ''))
     return 0
 
 

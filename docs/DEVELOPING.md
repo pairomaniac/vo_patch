@@ -118,9 +118,14 @@ python3 tools/freespace.py DIR 91
 
 It reads the runs of zeros in `.rdata` and `.rsrc`'s padding, drops what
 patch sites already use, and sorts the rest: clean, ones with something
-pointing just before them, and ones the game reads inside. `.data` is left
+pointing just before them, and ones something reads inside. `.data` is left
 out entirely - it is full of arrays the game fills at runtime, and each one
 scans as a perfectly good cave.
+
+Both the original and a fully patched copy are read. The original says what
+the game points at; the patched copy says what the patches point at, and a
+blob's scratch addresses and entry points appear in no original file. Hits
+only the patched copy has are marked `from a patch`.
 
 The middle list is the one to read. A run of zeros with a pointer just
 before it may be the tail of a structure, and that is how `iniall.asm` came
