@@ -182,9 +182,10 @@ last byte is a fingerprint of the patches that change how the game plays,
 read straight from the running exe by `sync_fingerprint()`, and a mismatch is
 refused at connect. If you add a patch that changes the simulation - a rule,
 a timing, a physics value, anything that alters what the game computes from a
-given input - add its site to `FP_DIVISOR_VA`/`FP_CONTINUE_VA`'s list there,
-and to `SYNC_SITES` in `vo-patch.py` so the patcher warns at install time,
-or two builds with and without it will desync instead of refusing to link. A
+given input - add its site beside `FP_DIVISOR_VA` and `FP_CONTINUE_VA`
+there, and the same site and its key to `SYNC_SITES` and `SYNC_KEYS` in
+`vo-patch.py`, which is what warns at Apply and at netplay install. Miss one
+and two builds with and without it desync instead of refusing to link. A
 patch that only changes what a machine shows or how it reads its own controls
 stays out of the fingerprint: those are each player's own business.
 
@@ -235,8 +236,8 @@ the relay. The server logs the same outcome per code;
 `tools/rendezvous-install.sh` installs the server from `net/rendezvous.service`
 on a machine that should keep one up.
 
-`tools/rvload.py` probes a running server, or two side by side, and is how
-to tell a patched box from an unpatched one:
+`tools/rvload.py` probes a running server, or two side by side, so a box
+that has drifted from the source shows up:
 
 ```bash
 python3 tools/rvload.py segaonline.net us.segaonline.net

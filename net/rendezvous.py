@@ -22,12 +22,19 @@ Wire format, one UDP datagram each, all starting with the magic "VOR1":
         N                 no such code
         D <data>          relayed from the other side
 
-Codes are 5 characters, no 0/O/1/I. Entries expire after 30 s without
-traffic. A source that sends more than a few unknown codes a minute has
-its joins ignored for a while, so the space cannot be swept; it can still
-host, since one address may be many players behind a carrier NAT. Both sides keep asking until they have a P, so a lost datagram
-costs a second, not the match. Relayed matches keep the entry alive by
-their own heartbeat.
+Codes are 5 characters, no 0/O/1/I, drawn from `secrets`. Entries expire
+after 30 s without traffic. Both sides keep asking until they have a P, so
+a lost datagram costs a second, not the match; relayed matches keep the
+entry alive by their own traffic.
+
+What it refuses, so it stays a rendezvous and not a free service: a source
+that sends more than a few unknown codes a minute has its joins ignored for
+a while, so the space cannot be swept - joins only, since one address may be
+many players behind a carrier NAT; more than a few open codes from one
+address; a code with a character outside the alphabet; a relayed datagram
+over the game's largest packet; and more than RELAY_RATE relayed packets a
+second per code each way, which a match never reaches and a tunnel cannot
+exceed. It forwards only between the two endpoints a code registered.
 """
 
 import secrets

@@ -18,8 +18,9 @@ a game folder for testing.
 ## Why
 
 `v_on.exe` does no networking of its own. It imports six functions from
-`DPCTRL.DLL` - every export but `CloseProvider` - and that DLL uses DirectPlay 1 - `DirectPlayCreate` and
-`DirectPlayEnumerate`, ordinals 1 and 2, nothing else.
+`DPCTRL.DLL`, every export but `CloseProvider`, and that DLL in turn uses
+two from DirectPlay 1: `DirectPlayCreate` and `DirectPlayEnumerate`,
+ordinals 1 and 2, nothing else.
 
 That API has nowhere to put an address. Compound addresses and
 `InitializeConnection` arrived with `IDirectPlay3`, years later. The
@@ -49,8 +50,9 @@ byte 2..   payload
 Type 1 is a frame. Control packets are 1 or 8 bytes: 2 asks for a frame to
 be sent again, 5 announces the input delay, 0x16 is a ping and 6 its
 reply, 7 is a poll, 0x18 relays a `WM_COMMAND` so a menu opens on both
-machines at once. Types above 0x80 are ours and did not exist in the
-original: hello, hello-ack and goodbye.
+machines at once. Types from 0x80 up are ours and did not exist in the
+original: hello, hello-ack, goodbye, and the one-byte punch that opens a
+NAT during a matchcode connect.
 
 Two 64-slot rings, indexed by `seq & 0x3F`. `SWDataSendReceive` sends the
 local player's frame, blocks until the peer's frame for the current
@@ -153,22 +155,7 @@ code registered and nothing else: it forwards to the other endpoint, never
 to a third party, so it cannot be aimed at a victim it does not already
 reach.
 
-What it trusts, and knows it: addresses. UDP carries no proof of where a
-datagram came from, so a keepalive or relay packet is believed to be from
-whichever side's address it carries. Someone who has a code *and* both
-endpoints can inject into a relayed match; that is the same someone who
-could send to the players directly, so nothing is lost that was ever held.
-
-The client trusts its peer the same way the original did. A `P_CMD` posts a
-`WM_COMMAND` into the game window and frames are played as received; a
-hostile opponent can open menus or desync the match, and could always have.
-The session tag in the handshake is not a secret: its bytes are the game's
-session name, a marker and the patch fingerprint, none of them privileged.
-What the matchcode path adds is that a host's address is never published:
-only the
-holder of the code learns it.
-
-Running one:
+### Running one
 
 ```bash
 python3 net/rendezvous.py          # udp/47625, open it in the firewall
@@ -178,9 +165,26 @@ For a machine that should keep it up, `tools/rendezvous-install.sh install`
 copies the script to `/opt/vo-netplay`, puts it in place as
 `vo-rendezvous.service` and starts it. `update` reinstalls from the checkout
 after a `git pull`, `remove` undoes it, and `status` counts how the last
-day's matches ended. The unit runs as a `DynamicUser` with a read-only
-filesystem, since the server writes nothing. Opening the port is left to
-you; the script prints the command for whichever firewall it finds.
+day's matches ended. The unit runs as a `DynamicUser` on a read-only
+filesystem with a syscall filter and no capabilities, since the server
+needs none of them. Opening the port is left to you; the script prints the
+command for whichever firewall it finds.
+
+### What it trusts
+
+Addresses, and it knows it. UDP carries no proof of where a datagram came
+from, so a keepalive or relay packet is believed to be from whichever
+side's address it carries. Someone who has a code *and* both
+endpoints can inject into a relayed match; that is the same someone who
+could send to the players directly, so nothing is lost that was ever held.
+
+The client trusts its peer the same way the original did. A `P_CMD` posts a
+`WM_COMMAND` into the game window and frames are played as received; a
+hostile opponent can open menus or desync the match, and could always have.
+The session tag in the handshake is not a secret: its bytes are the game's
+session name, a marker and the patch fingerprint, none of them privileged.
+What the matchcode path adds is that a host's address is never published:
+only the holder of the code learns it.
 
 ### Seeing what happened
 

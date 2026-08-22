@@ -3,11 +3,18 @@
  *
  * The original routes the game's netplay through DirectPlay 1 (DirectPlayCreate),
  * which has no address mechanism, so host discovery is a LAN broadcast. This
- * replacement speaks plain UDP to one peer: host binds a port, guest dials it.
+ * replacement speaks plain UDP to one peer. By default the two find each
+ * other through a matchcode: the host gets a five-letter code from a
+ * rendezvous server, the guest types it, and the server introduces the two
+ * so their NATs open with nothing forwarded, falling back to relaying the
+ * match through the server if they will not. Direct IP, host binds a port
+ * and guest dials it, is still there for a LAN or a forwarded port.
  *
  * The seven exports, their stdcall signatures and their observable behaviour
  * match the original. The on-wire packet layout is kept identical too, since
- * the game can see it through SendDirectPlay/ReceiveDirectPlay.
+ * the game can see it through SendDirectPlay/ReceiveDirectPlay. The one
+ * addition the game cannot see is the handshake, which also checks that
+ * both sides carry the same simulation-affecting patches.
  *
  * Build (32-bit, mingw-w64):
  *   i686-w64-mingw32-gcc -O2 -s -shared -o dpctrl.dll dpctrl.c dpctrl.def \
@@ -48,7 +55,7 @@
    gets through within PUNCH_MS, game traffic goes through the server. */
 #define MATCH_SERVER_EU  "segaonline.net"
 #define MATCH_SERVER_US  "us.segaonline.net"
-#define MATCH_INI        ".\\vo-net.ini"   /* remembers the Custom server */
+#define MATCH_INI        ".\\vo-net.ini"   /* Custom server; relay=1 for tests */
 #define MATCH_PORT       47625
 #define MATCH_MAGIC      "VOR1"
 #define MATCH_RETRY_MS   1000
