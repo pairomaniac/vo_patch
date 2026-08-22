@@ -138,8 +138,8 @@ def check_caves(vp, original):
         # mod 00, r/m 101 is the disp32 form, so the four bytes are the
         # absolute address of an operand rather than data that looks like
         # one. mov reg, imm32 and push imm32 carry an address the same way,
-        # and are how a table is handed to rep movsd - which is what put a
-        # blob on top of the attract scoreboard's template in v0.10.0.
+        # and are how a table is handed to rep movsd - the case that had a
+        # blob sitting on the attract scoreboard's template through v0.10.1.
         prev = original[i - 1]
         if prev & 0xC7 == 0x05 or 0xB8 <= prev <= 0xBF or prev == 0x68:
             table = operands

@@ -286,15 +286,11 @@ devices, `asm/iniall.asm` runs the same loader for both players at the
 load loop's exit, so an inactive profile's saved set survives restarts
 spent on other devices.
 
-That routine sat at `0x5fb144` until v0.10.1, which is not a cave: the
-attract loop's scoreboard state copies 21 dwords from `0x5fb140` into its
-own record and reads an index and a count back out of them, so the blob's
-own bytes became the index and the state crashed on the way to the title
-screen. The zeros there were a template of zeros, not free space. It now
-lives at `0x63c5f4`, and `selftest.py` reads the run-up to every cave for
-anything that points into it. `build.py` also refuses a hook whose target
-leaves `.text` without landing on a label, which is what a blob that moves
-while its hand-computed rel32 stays behind looks like.
+It lives at `0x63c5f4`. Through v0.10.1 it sat at `0x5fb144`, which is
+zeros in the file but not free: the attract loop's scoreboard state copies
+21 dwords from `0x5fb140` into its own record and reads an index out of
+them, so with the patch in the blob's bytes were the index and the loop
+crashed on its way back to the title screen.
 
 The stick deadzones load on the same exit: 40% per player unless that
 player's `1P Deadzone=` or `2P Deadzone=` line says otherwise - two

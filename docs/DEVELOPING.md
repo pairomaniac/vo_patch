@@ -81,12 +81,12 @@ inside one will do.
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes into a cave lands on an assembled label |
+| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
-| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads, hundreds of patch combinations applied, and the fully patched MD5 |
+| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
 
 Some need a copy of the game, which is not in the repository, so CI skips
@@ -219,6 +219,8 @@ gh release delete v0.8.4 --yes     # if a release was created
 | wrong offset in the banner or its artwork | `banner` | **only if you run it** |
 | hand-edited a generated blob | nothing | next build eats it |
 | a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
+| a cave that was live data to begin with | `offsets`, as a note to read | before tagging |
+| a blob moved without its hook | `asm` | CI, every push |
 | a table that is well-formed and wrong | nothing | only playing the game |
 | the netplay DLL misbehaving on a real link | nothing | only two machines |
 
@@ -256,6 +258,14 @@ that reads it; shorten the blob or move it, then add the cave's real ceiling
 to `CEILINGS` in `asm/build.py` so CI catches the next one without a game
 file. Bare dwords in range are counted and ignored - four bytes of tile data
 can equal an address, and only an operand means the game reads it.
+
+**`offsets` prints a note about a cave** - something points at an address
+shortly before it, and a table there could run into the cave. Most are
+bytes that happen to look like an address; the rest are short structures
+that stop where the cave starts. Read the game at that address once, and
+if what lives there is shorter than the gap the note is noise. A cave
+that is zeros in the file can still be a template the game copies, and
+only this catches it.
 
 **`offsets` says "is 6653952 bytes, expected 6650880"** - that is the patched
 file. Point it at `v_on.exe.bak`.
