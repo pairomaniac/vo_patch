@@ -42,6 +42,9 @@ EXPIRE_S = 30
 MAX_CODES = 20000    # an entry is a few hundred bytes; this is a few MB
 PER_IP = 8           # open codes one address may hold; players need one
 MAX_RELAY = 512      # the game's largest packet, so this is not a tunnel
+RELAY_RATE = 250     # forwarded packets/s a code may sustain each way. A
+                     # 60 fps match relays ~60/s per side; this is headroom
+                     # for one and a wall for a tunnel (~125 KB/s per code)
 MISS_LIMIT = 10      # unknown codes from one address per MISS_WINDOW_S ...
 MISS_WINDOW_S = 60
 BAN_S = 600          # ... and it is ignored for this long
@@ -165,11 +168,22 @@ def handle(sock, data, addr, now):
         if not e or not e['guest']:
             return
         if addr == e['host']:
-            other = e['guest']
+            other, side = e['guest'], 'h'
         elif addr == e['guest']:
-            other = e['host']
+            other, side = e['host'], 'g'
         else:
             return
+        # A token bucket per code per direction. A real match spends far
+        # under it; a pair using the relay as a tunnel is held to
+        # RELAY_RATE * MAX_RELAY per second and no more, whatever they send.
+        bucket = e.setdefault('bucket', {})
+        tokens, last = bucket.get(side, (RELAY_RATE, now))
+        tokens = min(RELAY_RATE, tokens + (now - last) * RELAY_RATE)
+        if tokens < 1:
+            bucket[side] = (tokens, now)
+            e['seen'] = now
+            return                        # over rate: dropped, not forwarded
+        bucket[side] = (tokens - 1, now)
         if not e.get('relayed'):
             e['relayed'] = True
             print('%s relaying' % code, flush=True)

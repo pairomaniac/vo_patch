@@ -140,9 +140,18 @@ address may be a whole carrier NAT.
 What else the server refuses, and why: a code with a character outside the
 alphabet, since it would only ever be a guess or a log line; a ninth open
 code from one address, so one machine cannot fill the table; a relayed
-datagram over 512 bytes, the game's largest, so the relay is not a tunnel.
-Codes come from `secrets`, because the default generator can be predicted
-from a few hundred codes seen and a predicted code can be joined first.
+datagram over 512 bytes, the game's largest. Codes come from `secrets`,
+because the default generator can be predicted from a few hundred codes
+seen and a predicted code can be joined first.
+
+The relay cannot be turned into a general tunnel. Each direction of a code
+is a token bucket refilling at 250 packets a second - a 60 fps match spends
+a third of that, so it never notices, while a pair trying to push bulk
+traffic is held to that rate times the 512-byte cap, about 125 KB/s per
+code, whatever they send. It is still a relay between the two endpoints a
+code registered and nothing else: it forwards to the other endpoint, never
+to a third party, so it cannot be aimed at a victim it does not already
+reach.
 
 What it trusts, and knows it: addresses. UDP carries no proof of where a
 datagram came from, so a keepalive or relay packet is believed to be from
