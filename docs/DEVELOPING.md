@@ -223,6 +223,20 @@ the relay. The server logs the same outcome per code;
 `tools/rendezvous-install.sh` installs the server from `net/rendezvous.service`
 on a machine that should keep one up.
 
+`tools/rvload.py` probes a running server, or two side by side, and is how
+to tell a patched box from an unpatched one:
+
+```bash
+python3 tools/rvload.py segaonline.net us.segaonline.net
+```
+
+Each probe targets one thing the server does: the create round trip, a full
+handshake, a 512 vs 513-byte relay, a non-alphabet code, and a burst of
+creates from one address against the per-IP cap. `--flood` adds an
+unknown-code storm to watch the guess-ban engage - own servers only, and not
+during a match. It creates only codes it lets expire, so it is safe to point
+at a live server, the flood aside.
+
 ## Releasing
 
 The version comes from the tag and nowhere else. `VERSION = 'dev'` stays as it
