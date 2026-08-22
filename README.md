@@ -2,7 +2,8 @@
 
 Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
-both players, reads the soundtrack from files instead of the disc...
+both players, reads the soundtrack from files instead of the disc, and puts
+two-player versus back on the internet - a code to share, no port forwarding.
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 
@@ -108,6 +109,58 @@ included, and the rest still applies.
 **Resolution and windowing**, under ADD-ONS, is not a patch but a button: it
 downloads [cnc-ddraw](#resolution-and-windowing-cnc-ddraw) and installs it
 beside the game.
+
+## Internet play
+
+Link mode is two-player versus over a network, but stock it never leaves the
+LAN: the game finds opponents by broadcasting, and no router forwards a
+broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
+LAN.
+
+<img height="240" alt="Internet play dialog" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
+<br /><br />
+
+**Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
+player hosts and gets a short code, the other types it in, and the match
+runs the same as it always did - no port forwarding, no VPN. Direct IP is
+still there for a LAN.
+
+```bash
+python3 vo-patch.py --netplay path/to/game            # install
+python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
+```
+
+The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, so Remove puts you
+back on LAN-and-VPN play.
+
+### Playing
+
+- **Both sides need the add-on; matching patches are the safe bet.** Each
+  machine runs its own copy of the game on both players' inputs, so a
+  difference that changes behaviour - rules, timing - can make the copies
+  drift apart. Looks and sounds do not matter.
+- **Matchcode is the default and nobody forwards anything.** The host
+  picks a region, presses OK and reads out the code the dialog shows, like
+  `EU-ABCDE`; the other player types or pastes it in. The `EU` or `US` in
+  front is the server the code lives on, so the code is all the guest
+  needs. Pick the region nearer the host. The two machines talk directly
+  where the routers allow it, and through the server where they do not, so
+  it works from anywhere with UDP.
+- **Custom** points both players at a server that is not one of ours. Both
+  enter the same address, and codes from it read `CUST-ABCDE`.
+- **Direct IP is for LAN play, or when you would rather not depend on the
+  server.** The host forwards UDP 47624, picks *Host a game* and reads out
+  their address; the dialog shows the local one and will look up the
+  public one on request. The other player types it in. Whoever joins needs
+  nothing forwarded.
+
+The joining side keeps trying until you cancel, so there is no rush to
+press things at the same moment. Once a match is running, a player who
+quits or crashes is noticed within a few seconds.
+
+If something does not connect, create an empty `vo-net.log` beside
+`v_on.exe` and try again: the DLL writes what it did into it, and that
+file is what to send with a bug report.
 
 ## Gamepad
 
@@ -259,58 +312,6 @@ because the game asks for tracks by number.
 With `music\` missing or empty, the game reads the drive as before. With
 tracks present, they are used, disc or no disc. Under Wine they play through
 `mciwave` - no `dosdevices` entry, raw device link or cdemu instance needed.
-
-## Internet play
-
-Link mode is two-player versus over a network, but stock it never leaves the
-LAN: the game finds opponents by broadcasting, and no router forwards a
-broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
-LAN.
-
-<img height="240" alt="Internet play dialog" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
-<br /><br />
-
-**Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
-player hosts and gets a short code, the other types it in, and the match
-runs the same as it always did - no port forwarding, no VPN. Direct IP is
-still there for a LAN.
-
-```bash
-python3 vo-patch.py --netplay path/to/game            # install
-python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
-```
-
-The game's `dpctrl.dll` is kept as `dpctrl.dll.stock`, so Remove puts you
-back on LAN-and-VPN play.
-
-### Playing
-
-- **Both sides need the add-on; matching patches are the safe bet.** Each
-  machine runs its own copy of the game on both players' inputs, so a
-  difference that changes behaviour - rules, timing - can make the copies
-  drift apart. Looks and sounds do not matter.
-- **Matchcode is the default and nobody forwards anything.** The host
-  picks a region, presses OK and reads out the code the dialog shows, like
-  `EU-ABCDE`; the other player types or pastes it in. The `EU` or `US` in
-  front is the server the code lives on, so the code is all the guest
-  needs. Pick the region nearer the host. The two machines talk directly
-  where the routers allow it, and through the server where they do not, so
-  it works from anywhere with UDP.
-- **Custom** points both players at a server that is not one of ours. Both
-  enter the same address, and codes from it read `CUST-ABCDE`.
-- **Direct IP is for LAN play, or when you would rather not depend on the
-  server.** The host forwards UDP 47624, picks *Host a game* and reads out
-  their address; the dialog shows the local one and will look up the
-  public one on request. The other player types it in. Whoever joins needs
-  nothing forwarded.
-
-The joining side keeps trying until you cancel, so there is no rush to
-press things at the same moment. Once a match is running, a player who
-quits or crashes is noticed within a few seconds.
-
-If something does not connect, create an empty `vo-net.log` beside
-`v_on.exe` and try again: the DLL writes what it did into it, and that
-file is what to send with a bug report.
 
 ## Resolution and windowing (cnc-ddraw)
 
