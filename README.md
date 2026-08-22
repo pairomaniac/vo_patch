@@ -271,8 +271,9 @@ LAN.
 <br /><br />
 
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
-player hosts, the other types an address, and the match runs the same as it
-always did.
+player hosts and gets a short code, the other types it in, and the match
+runs the same as it always did - no port forwarding, no VPN. Direct IP is
+still there for a LAN.
 
 ```bash
 python3 vo-patch.py --netplay path/to/game            # install
@@ -307,6 +308,10 @@ back on LAN-and-VPN play.
 The joining side keeps trying until you cancel, so there is no rush to
 press things at the same moment. Once a match is running, a player who
 quits or crashes is noticed within a few seconds.
+
+If something does not connect, create an empty `vo-net.log` beside
+`v_on.exe` and try again: the DLL writes what it did into it, and that
+file is what to send with a bug report.
 
 ## Resolution and windowing (cnc-ddraw)
 

@@ -131,7 +131,8 @@ Edit `LINES` at the top to change what it says. The result goes between the
 ## Netplay
 
 `net/dpctrl.c` is the only part with no automated coverage at all. CI compiles
-it and checks the exports are still there; nothing runs it.
+it and checks the exports are still there; nothing runs it. The server side,
+`net/rendezvous.py`, is plain Python and at least gets pyflakes.
 
 Two scripts under `tools/` build the DLL and put it in a game folder. Both
 read `~/.vo-test`, which is yours and is not in the repository:
@@ -168,6 +169,19 @@ What it proves is the ABI, the ring handling and the copy-out. What it does
 not: at 0 ms round trip the delay negotiation computes 1 every time, so that
 path never runs at anything but its minimum. Shape the loopback with `tc` for
 that, and read [net/README.md](../net/README.md) first.
+
+Loopback cannot test matchcodes at all - both instances sit behind the same
+address and the punch degenerates. That needs two machines on two networks;
+a laptop on a phone hotspot against a desktop on ethernet is the cheap rig.
+Create an empty `vo-net.log` beside each `v_on.exe` first and look for
+`linked directly` or `linked through the relay` in it afterwards. To exercise
+the relay on purpose, put `relay=1` under `[net]` in `vo-net.ini` on one
+side. The servers log the same outcome per code; `tools/rendezvous-install.sh
+status` on the box tallies them.
+
+`tools/rendezvous-install.sh` is the server's installer, for a machine that
+should keep one up. It takes the unit from `net/rendezvous.service` and is
+the only thing that should write it.
 
 ## Releasing
 
@@ -232,6 +246,7 @@ gh release delete v0.8.4 --yes     # if a release was created
 | a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
 | a table that is well-formed and wrong | nothing | only playing the game |
 | the netplay DLL misbehaving on a real link | nothing | only two machines |
+| the matchcode punch or relay failing | nothing | two machines on two networks |
 
 ## Troubleshooting
 

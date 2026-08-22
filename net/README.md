@@ -98,10 +98,35 @@ carrier-grade NAT, where the port the server saw is not one the peer can
 reach. It costs the detour through the server in latency, so direct is
 always tried first.
 
-The server (`rendezvous.py`, standard library only) keeps a table of open
-codes and nothing else. Hosts refresh their entry every second; relayed
-matches refresh it with their own traffic; thirty seconds of silence
-expires it, so nothing needs cleaning up.
+### Codes
+
+Codes are shown as `EU-ABCDE` or `US-ABCDE`. A code only exists on the
+server that issued it, so the guest has to reach that same one, and the tag
+is how it knows which without asking the player. Hyphens, spaces and case
+are ignored on the way in, but the tag itself is required: a one-letter form
+would let a code with a character missing parse as a different, valid-looking
+one. Hostnames are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`,
+port 47625.
+
+*Custom* points both sides at a server of their own, `host` or `host:port`.
+Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
+so the guest fills in the same address. The field follows the radio while
+hosting and follows the typed code while joining, since a guest cannot pick
+a region - the code has already decided. The choice and the address are kept
+in `vo-net.ini` next to the game, so it is typed once:
+
+```ini
+[net]
+server=vo.example.org:47625
+region=2
+```
+
+### The server
+
+`rendezvous.py`, standard library only, keeps a table of open codes and
+nothing else. Hosts refresh their entry every second; relayed matches
+refresh it with their own traffic; thirty seconds of silence expires it, so
+nothing needs cleaning up.
 
 ```
 client -> server    C                create, reply K <code>
@@ -112,6 +137,26 @@ server -> client    N                unknown code, or already taken
 ```
 
 Datagrams start with `VOR1` so they can never be mistaken for a game packet.
+Ten unknown codes from one address inside a minute and that address's joins
+are ignored for ten minutes, so the code space cannot be swept. Joins only:
+it can still host, because one address may be a whole carrier NAT and the
+other players behind it did nothing.
+
+Running one:
+
+```bash
+python3 net/rendezvous.py          # udp/47625, open it in the firewall
+```
+
+For a machine that should keep it up, `tools/rendezvous-install.sh install`
+copies the script to `/opt/vo-netplay`, puts it in place as
+`vo-rendezvous.service` and starts it. `update` reinstalls from the checkout
+after a `git pull`, `remove` undoes it, and `status` counts how the last
+day's matches ended. The unit runs as a `DynamicUser` with a read-only
+filesystem, since the server writes nothing. Opening the port is left to
+you; the script prints the command for whichever firewall it finds.
+
+### Seeing what happened
 
 `vo-net.log` beside the game, created empty, turns on client logging. A
 match that connected reads:
@@ -128,48 +173,13 @@ and the fallback carried it - a symmetric NAT or CGNAT somewhere. The server
 says the same from its side, one line per code when it expires: `punched`,
 `relayed` or `never joined`.
 
+A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
+and says so, rather than sitting on "waiting for the other player".
+
 `relay=1` under `[net]` in `vo-net.ini` skips the punch and goes straight to
 the relay. It exists so the fallback can be exercised from two machines that
 would otherwise connect directly; there is no other way to reach that path
 on demand. Remove it afterwards - a forced relay is a slower match.
-
-A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
-and says so, rather than sitting on "waiting for the other player".
-
-Codes are shown as `EU-ABCDE` or `US-ABCDE`. A code only exists on the
-server that issued it, so the guest has to reach that same one, and the tag
-is how it knows which without asking the player. Hyphens, spaces and case
-are ignored on the way in, but the tag itself is required: a one-letter form
-would let a code with a character missing parse as a different, valid-looking
-one. Hostnames are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`,
-port 47625.
-
-*Custom* points both sides at a server of their own, `host` or `host:port`.
-Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
-so the guest fills in the same address. The field follows the radio while
-hosting and follows the typed code while joining, since a guest cannot pick
-a region - the code has already decided. The choice and the address are kept in
-`vo-net.ini` next to the game, so it is typed once:
-
-```ini
-[net]
-server=vo.example.org:47625
-region=2
-```
-
-Running one:
-
-```bash
-python3 net/rendezvous.py          # udp/47625, open it in the firewall
-```
-
-For a machine that should keep it up, `tools/rendezvous-install.sh install`
-copies the script to `/opt/vo-netplay`, puts it in place as
-`vo-rendezvous.service` and starts it. `update` reinstalls from the checkout
-after a `git pull`, `remove` undoes it, and `status` counts how the last
-day's matches ended. The unit runs as a `DynamicUser` with a read-only
-filesystem, since the server writes nothing. Opening the port is left to
-you; the script prints the command for whichever firewall it finds.
 
 ## Two deliberate differences
 

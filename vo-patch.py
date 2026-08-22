@@ -3699,10 +3699,10 @@ DDRAW_GONE = 'Removed. ddraw.ini was left in place.'
 NETPLAY_LABEL = 'Internet play'
 NETPLAY_NOTE = ('The stock game finds opponents by broadcasting on the '
                 'local network, which no router forwards. This replaces its '
-                'DirectPlay layer with plain UDP: the host opens a port, '
-                'the other player types the address. The original '
-                'dpctrl.dll is kept as dpctrl.dll.stock.')
-NETPLAY_PORT = 'Host forwards UDP 47624. The joining side needs nothing.'
+                'DirectPlay layer with plain UDP: the host gets a code, the '
+                'other player types it in, and nobody forwards a port. The '
+                'original dpctrl.dll is kept as dpctrl.dll.stock.')
+NETPLAY_PORT = 'Direct IP is still there for LAN play; the host forwards UDP 47624.'
 NETPLAY_NEEDS_EXE = 'Pick v_on.exe first: this replaces a file beside it.'
 NETPLAY_IN = 'Installed. Both players need this, and the same patches.'
 NETPLAY_OUT = 'Original dpctrl.dll restored.'
@@ -4889,7 +4889,7 @@ def netplay_cli(argv):
         else:
             install_netplay(gamedir)
             print('Netplay dpctrl.dll installed. Both players need it.')
-            print('Host forwards UDP 47624; the joining side needs nothing.')
+            print('Matchcode needs no forwarding; direct IP needs UDP 47624 at the host.')
     except (OSError, ValueError) as exc:
         return str(exc)
     return None
