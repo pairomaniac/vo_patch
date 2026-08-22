@@ -4,11 +4,16 @@ A replacement for the game's `DPCTRL.DLL`. Same seven exports, same calling
 conventions, plain UDP where the original used DirectPlay.
 
 ```
-dpctrl.c       the implementation
-dpctrl.def     export names, undecorated, as the game imports them
-build.py       compiles it and bakes the result into vo-patch.py
-rendezvous.py  the matchcode server, runs on any machine with a public address
+dpctrl.c            the implementation
+dpctrl.def          export names, undecorated, as the game imports them
+build.py            compiles it and bakes the result into vo-patch.py
+rendezvous.py       the matchcode server, runs anywhere with a public address
+rendezvous.service  a systemd unit for it
 ```
+
+`tools/rendezvous-install.sh` puts the last two in place on a machine that
+should keep the server up; `tools/vo-dll.sh` builds the DLL and drops it into
+a game folder for testing.
 
 ## Why
 
@@ -126,13 +131,17 @@ says the same from its side, one line per code when it expires: `punched`,
 A silent server is not a hang: the client gives up after `MATCH_WAIT_MS`
 and says so, rather than sitting on "waiting for the other player".
 
-Codes are shown as `E-ABCDE` or `U-ABCDE`: the letter is the server the
-host registered with, so the guest needs nothing but the code. Hostnames
-are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`, port 47625.
+Codes are shown as `EU-ABCDE` or `US-ABCDE`. A code only exists on the
+server that issued it, so the guest has to reach that same one, and the tag
+is how it knows which without asking the player. Hyphens, spaces and case
+are ignored on the way in, but the tag itself is required: a one-letter form
+would let a code with a character missing parse as a different, valid-looking
+one. Hostnames are `MATCH_SERVER_EU` and `MATCH_SERVER_US` in `dpctrl.c`,
+port 47625.
 
 *Custom* points both sides at a server of their own, `host` or `host:port`.
-Those codes are `X-ABCDE`, and the letter cannot say where to go, so the
-guest fills in the same address. The choice and the address are kept in
+Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
+so the guest fills in the same address. The choice and the address are kept in
 `vo-net.ini` next to the game, so it is typed once:
 
 ```ini

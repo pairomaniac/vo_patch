@@ -417,6 +417,8 @@ static int handle_packet(void)
 #define ID_HOST    0x3EA    /* radio: host a game */
 #define ID_JOIN    0x3EB    /* radio: join a game */
 #define ID_STATUS  0x3EC
+#define ID_CODE    0x3FB    /* the code on its own, so it can be copied */
+#define ID_CODEBTN 0x3FC
 #define ID_LOCAL   0x3ED    /* shows this machine's address when hosting */
 #define ID_IPLABEL 0x3EE
 #define ID_PUBBTN  0x3EF    /* toggles the public address on and off */
@@ -690,11 +692,12 @@ static void set_mode(HWND dlg)
         SetFocus(GetDlgItem(dlg, ID_IP));
 }
 
-/* The letter a code carries, so the guest reaches the same server. X means
-   the guest has to fill in the same Other address by hand. */
-static char code_letter(int region)
+/* The tag a code carries, so the guest reaches the same server. CUST says
+   only that it is not one of ours; the guest fills in the address by hand. */
+static const char *code_tag(int region)
 {
-    return region == REGION_US ? 'U' : region == REGION_OTHER ? 'X' : 'E';
+    return region == REGION_US ? "US"
+         : region == REGION_OTHER ? "CUST" : "EU";
 }
 
 /* Region to endpoint. Other is "host" or "host:port". 0 if it will not
@@ -735,7 +738,14 @@ static int resolve_server(int region, const char *other,
     return 1;
 }
 
-/* "E-ABCDE", "eabcde" -> region and bare code. 0 if malformed. */
+/* "EU-ABCDE", "cust abcde", "U ABCDE" -> region and bare code. 0 if it is
+   not a code. */
+static const struct { const char *tag; int region; } tags[] = {
+    { "CUST", REGION_OTHER },
+    { "EU",   REGION_EU },
+    { "US",   REGION_US },
+};
+
 static int parse_code(const char *text, int *region, char *code)
 {
     char t[32];
@@ -750,15 +760,20 @@ static int parse_code(const char *text, int *region, char *code)
         t[n++] = c;
     }
     t[n] = 0;
-    if (n != CODE_LEN + 1)
-        return 0;
-    if (t[0] == 'E')       *region = REGION_EU;
-    else if (t[0] == 'U')  *region = REGION_US;
-    else if (t[0] == 'X')  *region = REGION_OTHER;
-    else                   return 0;
-    memcpy(code, t + 1, CODE_LEN);
-    code[CODE_LEN] = 0;
-    return 1;
+
+    /* Longest tag first, so US does not swallow a code beginning with S.
+       Nothing shorter is accepted: a one-letter form would make a code with
+       a character missing parse as a different, valid-looking one. */
+    for (i = 0; i < (int)(sizeof(tags) / sizeof(tags[0])); i++) {
+        int len = lstrlenA(tags[i].tag);
+        if (n == len + CODE_LEN && !memcmp(t, tags[i].tag, len)) {
+            *region = tags[i].region;
+            memcpy(code, t + len, CODE_LEN);
+            code[CODE_LEN] = 0;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
@@ -861,7 +876,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
                     return TRUE;
                 }
                 if (g.match && !parse_code(g.ip, &g.region, g.code)) {
-                    MessageBoxA(dlg, "A code looks like E-ABCDE.",
+                    MessageBoxA(dlg, "A code looks like EU-ABCDE.",
                                 "Message", 0);
                     SetFocus(GetDlgItem(dlg, ID_IP));
                     return TRUE;
@@ -989,12 +1004,14 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
     switch (p[4]) {
     case 'K':                              /* our code */
         if (n >= 5 + CODE_LEN && g.host && !g.code[0]) {
-            char buf[96];
+            char buf[32];
             memcpy(g.code, p + 5, CODE_LEN);
             g.code[CODE_LEN] = 0;
-            wsprintfA(buf, "Code: %c-%s    Waiting for the other player...",
-                      code_letter(g.region), g.code);
-            SetDlgItemTextA(dlg, ID_STATUS, buf);
+            wsprintfA(buf, "Code:  %s-%s", code_tag(g.region), g.code);
+            SetDlgItemTextA(dlg, ID_CODE, buf);
+            ShowWindow(GetDlgItem(dlg, ID_CODE), SW_SHOW);
+            ShowWindow(GetDlgItem(dlg, ID_CODEBTN), SW_SHOW);
+            SetDlgItemTextA(dlg, ID_STATUS, "Waiting for the other player...");
             netlog("matchcode %s", g.code);
         }
         break;
@@ -1142,6 +1159,9 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         g.rv_last = g.hs_last - MATCH_RETRY_MS;   /* ask the server at once */
         g.hs_done = g.hs_failed = 0;
         g.fail = NULL;
+        SetDlgItemTextA(dlg, ID_CODE, "");
+        ShowWindow(GetDlgItem(dlg, ID_CODE), SW_HIDE);
+        ShowWindow(GetDlgItem(dlg, ID_CODEBTN), SW_HIDE);
         SetTimer(dlg, 1, 50, NULL);
         return TRUE;
 
@@ -1154,6 +1174,12 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         return TRUE;
 
     case WM_COMMAND:
+        if (LOWORD(wp) == ID_CODEBTN) {
+            char buf[16];
+            wsprintfA(buf, "%s-%s", code_tag(g.region), g.code);
+            copy_to_clipboard(dlg, buf);
+            return TRUE;
+        }
         if (LOWORD(wp) == IDCANCEL) {
             KillTimer(dlg, 1);
             EndDialog(dlg, 0);
@@ -1168,11 +1194,15 @@ static int wait_for_peer(HINSTANCE inst)
 {
     WORD buf[256], *p;
 
-    p = tpl_head(buf, DLG_STYLE, 220, 60, 2, "Virtual-On Netplay");
-    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 10, 14, 200, 10,
+    p = tpl_head(buf, DLG_STYLE, 220, 78, 4, "Virtual-On Netplay");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 12, 12, 196, 10,
                 ID_STATUS, CLS_STATIC, "");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 12, 30, 120, 12,
+                ID_CODE, CLS_STATIC, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-                84, 36, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
+                136, 28, 34, 13, ID_CODEBTN, CLS_BUTTON, "Copy");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                84, 54, 52, 14, IDCANCEL, CLS_BUTTON, "Cancel");
 
     return (int)DialogBoxIndirectParamA(inst, (LPCDLGTEMPLATEA)buf,
                                         g.hwnd, wait_proc, 0);
