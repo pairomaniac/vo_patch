@@ -3,7 +3,7 @@
 Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
 the crashes, the frame rate and the keyboard, adds XInput gamepad support for
 both players, reads the soundtrack from files instead of the disc, and puts
-two-player versus back on the internet - a code to share, no port forwarding.
+two-player versus on the internet - a code to share, no port forwarding.
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 
@@ -117,13 +117,12 @@ LAN: the game finds opponents by broadcasting, and no router forwards a
 broadcast. Hence the usual advice to run a VPN and pretend everyone is on one
 LAN.
 
-<img height="240" alt="Internet play dialog" src="https://github.com/user-attachments/assets/a0ec10b0-2727-41b5-8bd9-297598906d83" />
+<img height="360" alt="netplay dialog" src="https://github.com/user-attachments/assets/8b71e77f-42d9-40c0-bd1e-8222fd7c98de" />
 <br /><br />
 
 **Internet play**, under ADD-ONS, replaces that layer with plain UDP. One
-player hosts and gets a short code, the other types it in, and the match
-runs the same as it always did - no port forwarding, no VPN. Direct IP is
-still there for a LAN.
+player hosts and gets a short code, the other types it in - no port forwarding,
+no VPN. Direct IP is still there for a LAN.
 
 ```bash
 python3 vo-patch.py --netplay path/to/game            # install
