@@ -344,7 +344,7 @@ percent, read back and written to that player's v_on.ini line when the
 box closes - a Deadzone group of its own, `1P [40] %  2P [40] %`.
 
 The template lives in a small read-only section the patch appends, the
-way CD MUSIC's code does. The dead menu resource it used to squeeze into
+way the CD-audio patch's does. The dead menu resource it used to squeeze into
 capped it at 460 bytes, which had been pricing every label; that is left
 as it came now. `asm/f11pause.asm` carries a placeholder where the
 template's address belongs, filled at apply time once the section exists.

@@ -21,31 +21,126 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 ## Quick start
 
+The window is in two columns where the screen allows: getting the game in
+place on the left, patching it on the right. It is sized to fit a 1600x900
+screen at 100% scaling with everything open; on a narrower one the sections
+stack into a single column instead.
+
 1. **Download** `vo-patch-*.exe` from the
    [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
    It is unsigned, so SmartScreen calls it an unknown publisher on the first
    run. On Linux, see [Running from source](#running-from-source).
-2. **Run it and select your `v_on.exe`.** Only the unmodified disc file is
-   accepted - if yours is refused, see [Which build](#which-build).
-3. **Press Apply patches.** Everything starts ticked. Click the ⓘ beside a
-   patch to read what it does, and untick anything you do not want.
-4. **Want internet play, or a proper fullscreen picture?** Click the
-   **ADD-ONS** header to open it - the section starts collapsed - and press
-   **Install** on the row you want:
+2. **1 DISC** - put your `.cue` sheet in **Source**, choose a
+   folder in **Install to**, and press **Install game**. Already have the
+   game installed? Skip to step 4. See
+   [Installing from a disc image](#installing-from-a-disc-image).
+3. **Press Rip soundtrack** in the same section, unless you plan to keep a
+   disc in the drive. Already have the game? Pick your `v_on.exe` in step 4
+   first and the tracks go beside it - leave **Install to** empty. See
+   [Music](#music).
+4. **2 GAME FILE** - installing fills this in for you. Otherwise browse to
+   your `v_on.exe`; only the unmodified disc file is accepted, and if yours
+   is refused see [Which build](#which-build).
+5. **3 ESSENTIAL** is applied whole and has no tick boxes; **4 EXTRA**
+   starts ticked and is yours to change. Click the ⓘ beside a patch to read
+   what it does. Then **Apply patches**.
+6. **5 ADD-ONS** - the section starts collapsed. Press **Install** on the row
+   you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
     - **Resolution and windowing** - installs cnc-ddraw. See
       [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
-5. **Play.**
+7. **Play.**
 
 Changed your mind? **Restore original** puts the game back, then apply again
 with a different selection.
 
 Add-ons are separate because they write files beside the game rather than
-editing it, so Apply and Restore leave them alone. Select `v_on.exe` first
-either way - that is how the patcher knows which folder to write to.
+editing it, so Apply and Restore leave them alone.
+
+## Installing from a disc image
+
+The disc is mixed-mode, so Windows will not mount the `.cue`, WinCDEmu often
+refuses it, and the 1997 installer checks that it is running from a real
+optical drive. The patcher reads the image itself instead.
+
+Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
+the `.bin` itself - choose a folder in **Install to**, and press **Install
+game**. About 95 MB.
+
+The **Language** box appears when the disc carries more than one; it decides
+which `readme.txt` and help file are copied and nothing else. The game itself
+is the same in every region.
+
+Or from a terminal:
+
+```bash
+python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
+python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language FRENCH
+```
+
+### What it copies, and why that is the whole install
+
+The disc ships Sega's generic installer driven by `ssp.ini` in its root, so
+the copy rules are read from there rather than guessed at:
+
+| | |
+| --- | --- |
+| `SourcePath1` | the game directory, copied whole - `v_on\` on every pressing |
+| `Select1` | whether a language directory is copied too |
+| `LangExeclusive` | which one, per language section |
+| `IniFileName` | the file Sega's installer writes. The patcher does not - see below |
+
+**No `v_on.ini` is written.** Sega's installer asks a dialog and copies
+`v_on_a.ini` or `v_on_b.ini` over it, deleting both afterwards
+(`setup.exe` at `0x408acf`). Doing the same would fight the patches:
+`v_on_a.ini` carries `Motion=3`, a frame divisor the patched game obeys, so a
+freshly installed and patched copy would run at a third speed. An ini that is
+there wins over the defaults the patches set. Both files are copied as the
+disc has them, and the game writes its own `v_on.ini` on first run.
+
+Nothing else on the disc belongs beside the game: the `directx\` tree is a
+1997 redistributable, and `ssp.dll`, `wincpuid.dll`, the `von**.dll` and
+`msgv3*.dll` sets, `loader.exe` and `vouninst.exe` are the installer's own
+furniture.
+
+`setup.exe` writes nothing the game reads. Its only registry writes register
+the Indeo video codec, and they sit behind a Windows 95 check that no modern
+system passes; the `SOFTWARE\SEGA\` and Uninstall keys are `vouninst.exe`
+registering itself. The game reads two registry keys of its own, both under
+`MediaResources\Joystick`, and both are Windows' own joystick table rather
+than anything an installer puts there.
+
+### If it refuses
+
+Every refusal names what is wrong and what to do about it.
+
+| | |
+| --- | --- |
+| *That is a disc image* | you gave the `.bin`; the `.cue` beside it lists the tracks |
+| *No filesystem found* | the image is truncated, or the cue names the wrong file for track 1 |
+| *No ssp.ini in the root* | a Virtual-On disc has one, so this image is a different disc |
+| *This cue sheet has no data track* | only the audio half was ripped |
+| *CANNOT INSTALL - USA OEM build* | see [Which build](#which-build). **Rip soundtrack** still works |
+| *That folder is not empty* | a warning, not a refusal - same-named files are replaced |
+| *Not enough room* | with the numbers, checked before anything is written |
+
+Sector layout is found by looking rather than by trusting the cue sheet, so
+`MODE1/2352`, `MODE2/2352`, `MODE1/2048` and `MODE2/2336` all work, and a cue
+that names the wrong one still reads.
 
 ## What the patches do
+
+Every **Essential** patch is applied, with no tick box. Each fixes something
+broken on a modern system and none has a trade-off to weigh: without them the
+game does not start, crashes when you lose a round, runs at a third of the
+frame rate, or loses the keyboard after ALT+TAB. Two of them are also what
+internet play needs, so this removes a way to build a game that patches
+cleanly and then refuses to connect.
+
+One consequence worth knowing: keeping the keyboard alive across ALT+TAB
+means the game reads it in the background, so keys pressed in another window
+still reach it while the game is running.
 
 **Essential** fixes what is broken on modern systems; **Extra** is down to
 taste. Every patch's offsets and internals are in [NOTES.md](docs/NOTES.md).
@@ -126,8 +221,8 @@ same button reads **Remove** once installed.
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
 | **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
 
-**CD MUSIC**, further down the window, rips the soundtrack for the **No disc
-required** patch. See [Music](#music).
+The soundtrack rip lives in **1 DISC** at the top of the window, beside the
+install. See [Music](#music).
 
 ## Internet play
 
@@ -327,16 +422,16 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game. No drive, no extra DLL.
 
-<img height="360" alt="CD MUSIC section" src="https://github.com/user-attachments/assets/69d7501f-b16c-4394-a9ef-a5120c224775" />
-
 ### Ripping the tracks
 
-Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it
-knows where the files go, put a cue sheet or a drive in **Source**, then
-press **Rip tracks**. Closing the window mid-rip cancels it and discards the
-part-written track.
+Use **1 DISC**, the same **Source** box as the install: one cue sheet holds
+the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
+`music\` under **Install to**, or beside your `v_on.exe` if you did not
+install from here - the note under the buttons names the folder either way.
+Closing the window mid-rip cancels it and discards the part-written track.
 
-<img height="300" alt="Ripping in progress" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
+A CD drive works in **Source** too, for ripping only - a cdemu device is read
+like a physical one.
 
 Or from a terminal:
 
@@ -347,7 +442,6 @@ python3 vo-patch.py --rip                # list drives
 ```
 
 `bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
-A cdemu device is read like a physical one.
 
 Output is about 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
 
@@ -446,7 +540,10 @@ write into unrelated code.
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 
 If your file is neither of these, the patcher shows both checksums side by
-side and says which one it got.
+side and says which one it got - in **2 GAME FILE** for a file you picked, or
+in **1 DISC** for a disc image, where it checks the `v_on.exe`
+inside before writing 95 MB you cannot patch. Ripping the soundtrack off an
+OEM disc still works; only patching needs the retail build.
 
 ### What gets written
 
@@ -486,6 +583,7 @@ python3 vo-patch.py
 Everything the patcher does is also available without a window:
 
 ```bash
+python3 vo-patch.py --install CUE DIR  # the game, out of a disc image
 python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
 python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
 python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL

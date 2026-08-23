@@ -83,6 +83,7 @@ inside one will do.
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
+| `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
@@ -418,6 +419,7 @@ well is caught at import rather than in someone's game.
 
 ```bash
 python3 vo-patch.py --help
+python3 vo-patch.py --install CUE DIR  # install the game from a disc image
 python3 vo-patch.py --rip          # list CD drives
 python3 vo-patch.py --netplay DIR  # install the UDP netplay DLL
 python3 tools/check.py --list      # what the checks are

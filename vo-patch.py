@@ -2,6 +2,7 @@
 """Virtual-On (PC, 1997) patcher. See README.md.
 
     python3 vo-patch.py                 patch a copy of v_on.exe
+    python3 vo-patch.py --install CUE DIR   install from a disc image
     python3 vo-patch.py --rip SRC DIR   rip the soundtrack, no window needed
     python3 vo-patch.py --ddraw DIR     fetch cnc-ddraw into the game folder
     python3 vo-patch.py --netplay DIR   install the UDP netplay DLL
@@ -55,8 +56,12 @@ OTHER_BUILDS = {
 
 RETAIL_HINT = 'Reinstall from the retail disc and pick the installed copy.'
 
+# Patcher.load has no idea how many boxes are ticked, so it returns this and
+# the window swaps in a count. Anything else using load gets a plain word.
+READY_TAG = 'READY'
+
 # Handed to this window instead of the executable often enough to be worth
-# naming. The CD MUSIC section wants the cue sheet; this one wants the game.
+# naming. The DISC section wants the cue sheet; this one wants the game.
 DISC_IMAGES = {
     '.cue': 'cue sheet', '.bin': 'disc image', '.iso': 'disc image',
     '.img': 'disc image', '.mds': 'disc image', '.mdf': 'disc image',
@@ -830,9 +835,9 @@ FEATURES = [
      '\tthe game\'s own lettering.\n'
      'Ending roll\tTwo lines under the CYBER TROOPERS VIRTUAL-ON title\n'
      '\tat the top of the credits, in the roll\'s lettering.\n'
-     'Files\tscrstfcg.bin and scrstfmp.bin beside the game are\n'
-     '\trewritten and backed up. Restore original puts them back.\n'
-     'If they are missing\tNothing is written, the version included.', [
+     'Files\tscrstfcg.bin and scrstfmp.bin are rewritten and backed\n'
+     '\tup. Restore original puts them back. Missing, nothing is\n'
+     '\twritten at all, the version included.', [
          # The loader takes both byte counts from here rather than from
          # the files, so these have to grow with them or the tail of each
          # never loads: the new tiles would be past the count, and the walk
@@ -855,16 +860,15 @@ FEATURES = [
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens either side of the fighting.\n'
      '\n'
-     'Intro movie\tThe game sizes it for 640x480, so scaled up it sits\n'
-     '\tsmall in a corner. Fitted to the window instead.\n'
-     'Loading text\t"Now Loading . . ." is hidden. The load is over by the\n'
-     '\ttime you read it.\n'
+     'Intro movie\tFitted to the window. The game sizes it for 640x480,\n'
+     '\tso scaled up it sat small in a corner.\n'
+     'Loading text\t"Now Loading . . ." is hidden. The load is over\n'
+     '\tbefore you read it.\n'
      'Ending credits\tSkippable - hold A, Select or Space for a second.\n'
-     '\tStock has no way past them at all.\n'
-     'Initials\tThe screen after the credits takes those buttons too,\n'
-     '\tas well as either weapon trigger.\n'
-     '2P\tA and Select are 1P\'s, so 2P skips nothing and enters\n'
-     '\tinitials with RT.', [
+     '\tStock has no way past them.\n'
+     'Initials\tThe screen after takes those buttons too, and either\n'
+     '\tweapon trigger.\n'
+     '2P\tA and Select are 1P\'s, so 2P skips with RT.', [
          # The movie is not drawn through DirectDraw: mciavi opens it as a
          # WS_CHILD of the main window and the game places that window
          # itself, from an offset it reads from two globals. Each is a
@@ -939,28 +943,24 @@ FEATURES = [
      '\n'
      'Disc check\tNot done. The drive is still read for music, so a\n'
      '\tmounted image works.\n'
-     'Music\tRead from music\\trackNN.wav beside the game. Rip them in\n'
-     '\tthe CD MUSIC section below; with none there, the game\n'
-     '\treads the drive.\n'
-     'File size\tThe file grows by about 3 KB.', [
+     'Music\tRead from music\\trackNN.wav beside the game. Rip\n'
+     '\tthem under DISC; with none there, the game reads the\n'
+     '\tdrive.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
-     'The game will not start on a modern CPU without this. Same as\n'
-     'ProcessorCheck=Off in v_on.ini, but with no ini needed, and it removes\n'
-     'the MMX, Pentium and vendor checks too.', [
+     'The game will not start on a modern CPU without this. It removes the\n'
+     'MMX, Pentium and vendor checks as well.', [
          (0x00107930, '830dc884bf0001', '90909090909090')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
      'Timer resolution\tWithout it the game runs at about 70 per cent\n'
-     '\tspeed on Windows 2000 and later. Not needed under Wine.\n'
-     'Motion value\tMotion= in v_on.ini is a frame divisor: 1 draws every\n'
-     '\tframe, 2 draws half. The game ignored it and wrote it\n'
-     '\tback; it works now.\n'
-     'Motion Type\tThe two speed choices on F5 set that divisor, and\n'
-     '\tneither reached 60 fps. They read 30 FPS and 60 FPS now,\n'
-     '\tand set those.', [
+     '\tspeed on Windows. Not needed under Wine.\n'
+     'Frame divisor\tThe game ignored its own setting for how many\n'
+     '\tframes to draw, and wrote it back. It works now.\n'
+     'Speed choice\tThe two on F5 never reached 60 fps. They read\n'
+     '\t30 FPS and 60 FPS now, and set those.', [
          (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
          (0x000000a8, '30791e00', '3e4e1f00'),
          (0x000273c1, '833d0843be0003', '833d0843be0002'),
@@ -981,17 +981,15 @@ FEATURES = [
          (0x001c8bd3, 'c705d0846c0003000000', '90909090909090909090')]),
 
     ('debugbox', 'Disable menu bar (Extras menu on F11)',
-     'Removes the menu bar. F11 opens a dialog with the Debug options in its\n'
-     'place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping, Credits\n'
-     'and Quit Game. Motion is not among them; it has moved to F5.\n'
+     'Removes the menu bar. F11 opens a dialog with the Debug options in\n'
+     'its place: No shot, SE, CD, Kill 1P, Kill 2P, Scorekeeping, Credits\n'
+     'and Quit Game. Motion has moved to F5.\n'
      '\n'
-     'With the gamepad patch in, the dialog also takes each player\'s\n'
-     'stick deadzone as a percent, saved to their own "1P Deadzone" and\n'
-     '"2P Deadzone" v_on.ini lines when the dialog closes; Defaults\n'
-     'puts both back to 40.\n'
+     'With the gamepad patch in, the dialog sets each player\'s stick\n'
+     'deadzone too.\n'
      '\n'
-     'Credits is not one of the game\'s own. It runs the ending from\n'
-     'wherever you are in a match, and does nothing outside one.\n'
+     'Credits is not one of the game\'s own: it runs the ending roll from\n'
+     'wherever you are in a match.\n'
      '\n'
      'Every other menu was already on a key.\n'
      '\n'
@@ -1045,19 +1043,13 @@ FEATURES = [
      'Keyboard (Real)\tthe two-lever keyboard scheme\n'
      '\n'
      'Simple and the gamepad share one bind page, but each sees only its\n'
-     'own inputs. Their bind sets are separate and both are saved.\n'
+     'own inputs, and both bind sets are saved.\n'
      '\n'
-     'A accepts, Select is the camera, Start pauses, and the D-pad works the\n'
-     'menus. Either of the first two skips the win and lose screens between\n'
-     'rounds. On-screen prompts that named a key now name the button.\n'
+     'A accepts, Select is the camera, Start pauses, and the D-pad works\n'
+     'the menus. A or Select skips the win and lose screens between\n'
+     'rounds. On-screen prompts name the button rather than a key.\n'
      '\n'
-     'Stick deadzone\t40% per player, set from the F11 Extras dialog\n'
-     '\tand kept in "1P Deadzone" and "2P Deadzone" v_on.ini lines\n'
-     '\t(05 to 95).\n'
-     '\n'
-     'The keyboard page gets two fixes as well. 2P can use a key 1P has\n'
-     'bound, as long as 1P is on a pad and not using it. And Default resets\n'
-     'whichever side you are editing, instead of always 1P.\n'
+     'Stick deadzone\t40% per player, set from the F11 Extras dialog.\n'
      '\n'
      'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
      'original puts both back.', [
@@ -1283,9 +1275,10 @@ DI_FIND = re.compile(
 BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
 
 # The patches a lockstep match cannot differ on: the frame rate and the
-# round-loss fix change what the simulation computes, so unticking either
-# makes the build unplayable online. net/dpctrl.c fingerprints the same two
-# in SYNC_SITES; keep the sets in step.
+# round-loss fix change what the simulation computes. Both are Essential and
+# always applied, so this patcher cannot produce a build missing them -
+# SYNC_SITES reads them back out of a file an older release may have written
+# without, and net/dpctrl.c fingerprints the same two bytes.
 SYNC_KEYS = ('framerate', 'continuefix')
 BY_KEY['dinput'] = (
     'Fix keyboard input after ALT+TAB',
@@ -1303,6 +1296,13 @@ RDATA_EXEC_KEYS = ('padxinput', 'movie', 'credits')
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
 ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
+# Every Essential patch, shown without a tick box. Unticking any of them
+# produced a game that is broken in a way nobody was choosing on purpose:
+# no start on a modern CPU, a crash on a lost round, a third of the frame
+# rate, or dead keys after ALT+TAB. Two of them are also what internet play
+# needs, so forcing them removes a way to build a game that patches cleanly
+# and then refuses to connect.
+ALWAYS = ESSENTIAL
 EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
 # Its own group so it stays out of the patch list: it fixes nothing and
 # undoes nothing the game does, so it belongs beside the version and the
@@ -1776,25 +1776,422 @@ def rip(source, outdir, progress=None):
     return rip_device(source, outdir, progress)
 
 
-# Shown until a file is picked. The GUI highlights this one line, because a
-# user who has not picked one yet reads the CD MUSIC section first and finds
-# the Rip button does nothing.
+# Returned by music_status when it has no folder to describe. The window
+# treats it as a tag and swaps in its own prompt (INSTALL_NEEDS_TARGET), so
+# the wording here is only ever seen by code.
 MUSIC_NEEDS_EXE = 'Pick v_on.exe first: the tracks go beside it.'
 
 
 def music_status(gamedir):
-    """One line on what is in the music folder, for the GUI."""
+    """One line on the music folder, for the GUI.
+
+    It names the folder either way. Where the tracks are going is the thing
+    someone with the game already installed cannot otherwise see, because
+    that folder is worked out from their v_on.exe rather than typed in."""
     if not gamedir:
         return MUSIC_NEEDS_EXE
     out = outdir_for(gamedir)
-    if not os.path.isdir(out):
-        return 'No music folder. The game will read the drive.'
-    found = [f for f in os.listdir(out)
-             if re.match(r'track\d+\.wav$', f, re.I)]
+    found = ([f for f in os.listdir(out)
+              if re.match(r'track\d+\.wav$', f, re.I)]
+             if os.path.isdir(out) else [])
     if not found:
-        return 'Music folder is empty. The game will read the drive.'
+        return 'No tracks yet. They go to %s' % out
     mb = sum(os.path.getsize(os.path.join(out, f)) for f in found) // (1 << 20)
-    return '%d tracks in music (%d MB).' % (len(found), mb)
+    return '%d tracks in %s (%d MB)' % (len(found), out, mb)
+
+
+# --- installing from a disc image ---------------------------------------
+# The disc is read directly: no mounting, no virtual drive, no setup.exe.
+# Sega's own installer is driven by ssp.ini in the root of the disc, so the
+# copy rules are taken from there rather than guessed at, and the same code
+# handles the retail and OEM pressings, which disagree about where the help
+# files live.
+
+LOGICAL = 2048                  # user bytes in a sector, whatever its form
+
+# Sector layouts, walked in order; the one whose sector 16 holds an ISO9660
+# descriptor wins. Looking rather than trusting TRACK 01 means a cue sheet
+# that names the wrong mode still works, and the four cover every pressing.
+#   name            stride  offset of the user bytes
+SECTOR_FORMS = (
+    ('MODE1/2352', 2352, 16),
+    ('MODE2/2352', 2352, 24),
+    ('MODE1/2048', 2048, 0),
+    ('MODE2/2336', 2336, 8),
+)
+
+PRIMARY_VD = 16                 # where the descriptors start, by the standard
+
+# Sections of ssp.ini that describe the installer rather than a language.
+NOT_A_LANGUAGE = ('OPTION', 'RUNTIME', 'DIRECTX')
+
+
+class DiscError(Exception):
+    """The image cannot be read as a Virtual-On disc. The message is shown
+    to the user as it is, so it says what to do about it."""
+
+
+class DataTrack:
+    """2048-byte logical sectors out of a cue sheet's data track."""
+
+    def __init__(self, path, start=0):
+        self.path, self.start = path, start
+        self.fh = open(path, 'rb')
+        size = os.path.getsize(path)
+        for name, stride, offset in SECTOR_FORMS:
+            at = (start + PRIMARY_VD) * stride + offset
+            if at + 6 <= size:
+                self.fh.seek(at)
+                if self.fh.read(6)[1:6] == b'CD001':
+                    self.form, self.stride, self.offset = name, stride, offset
+                    return
+        self.fh.close()
+        raise DiscError('No filesystem in %s. The image is damaged, or the '
+                        'cue sheet names the wrong file for track 1.'
+                        % os.path.basename(path))
+
+    def close(self):
+        self.fh.close()
+
+    def sector(self, lba):
+        self.fh.seek((self.start + lba) * self.stride + self.offset)
+        data = self.fh.read(LOGICAL)
+        if len(data) != LOGICAL:
+            raise DiscError('The image ends early. It is truncated, or one of '
+                            'the bin files beside the cue sheet is missing.')
+        return data
+
+    def read(self, lba, length):
+        out = bytearray()
+        while len(out) < length:
+            out += self.sector(lba + len(out) // LOGICAL)
+        return bytes(out[:length])
+
+    def extract(self, lba, length, dest, progress=None, done=0, total=0):
+        """Stream one file to disk, returning the running byte count."""
+        left = length
+        with open(dest, 'wb') as out:
+            while left > 0:
+                chunk = self.sector(lba)[:min(left, LOGICAL)]
+                out.write(chunk)
+                left -= len(chunk)
+                lba += 1
+                done += len(chunk)
+                if progress:
+                    progress(done, total)
+        return done
+
+
+def _iso_records(data):
+    """Directory records in one extent. A record never straddles a sector,
+    so a zero length byte means skip to the next one, not end of list."""
+    at = 0
+    while at < len(data):
+        length = data[at]
+        if length == 0:
+            at = (at // LOGICAL + 1) * LOGICAL
+            continue
+        yield data[at:at + length]
+        at += length
+
+
+def iso_entries(track, lba, size):
+    """{lowercased name: (is_dir, lba, size)} for one directory."""
+    out = {}
+    for rec in _iso_records(track.read(lba, size)):
+        if len(rec) < 34:
+            continue
+        flags = rec[25]
+        if flags & 0x80:
+            # A file split over several extents. No Virtual-On pressing has
+            # one, and guessing at the continuation would corrupt the copy
+            # without saying so.
+            raise DiscError('This image uses multi-extent files, which the '
+                            'patcher cannot read. Install the disc the usual '
+                            'way and pick the installed v_on.exe.')
+        name_len = rec[32]
+        raw = rec[33:33 + name_len]
+        if name_len == 1 and raw in (b'\x00', b'\x01'):
+            continue                            # . and ..
+        name = raw.decode('latin-1').split(';')[0].rstrip('.')
+        out[name.lower()] = (bool(flags & 0x02),
+                             int.from_bytes(rec[2:6], 'little'),
+                             int.from_bytes(rec[10:14], 'little'))
+    return out
+
+
+def iso_root(track):
+    pvd = track.sector(PRIMARY_VD)
+    if pvd[0] != 1:
+        raise DiscError('Sector %d of this image is not a volume descriptor.'
+                        % PRIMARY_VD)
+    root = pvd[156:190]
+    return iso_entries(track, int.from_bytes(root[2:6], 'little'),
+                       int.from_bytes(root[10:14], 'little'))
+
+
+def _iso_files(track, entry, what):
+    """The files in one directory named by a root entry, sorted."""
+    if not entry or not entry[0]:
+        raise DiscError('No %s directory on this disc.' % what.upper())
+    found = iso_entries(track, entry[1], entry[2])
+    return sorted((name, lba, size) for name, (is_dir, lba, size)
+                  in found.items() if not is_dir)
+
+
+def parse_ssp(text):
+    """The disc's own install manifest. Sections upper, keys lower."""
+    out, current = {}, None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith(';'):
+            continue
+        if line.startswith('[') and line.endswith(']'):
+            current = line[1:-1].strip().upper()
+            out.setdefault(current, {})
+        elif '=' in line and current is not None:
+            key, value = line.split('=', 1)
+            out[current][key.strip().lower()] = value.strip()
+    return out
+
+
+class DiscPlan:
+    """What to copy where, read off the disc before anything is written."""
+
+    def __init__(self, track, root, ssp):
+        self.track, self.root, self.ssp = track, root, ssp
+        option = ssp.get('OPTION', {})
+        self.source_dir = (option.get('sourcepath1') or 'V_ON').lower()
+        self.ini_name = (option.get('inifilename') or 'V_ON.INI').lower()
+        # Whether a language directory is copied at all is a property of the
+        # pressing: the retail discs say so in Select1 and keep the help
+        # files in english/, the OEM disc does not and keeps them in v_on/.
+        self.wants_language = 'langexeclusive' in option.get('select1',
+                                                             '').lower()
+        self.languages = [name for name in ssp if name not in NOT_A_LANGUAGE
+                          and (not self.wants_language
+                               or ssp[name].get('langexeclusive'))]
+        self.default = (option.get('defaultsection') or '').upper()
+        if self.default not in self.languages:
+            self.default = self.languages[0] if self.languages else ''
+
+    def language_dir(self, language):
+        if not self.wants_language:
+            return None
+        section = self.ssp.get((language or self.default).upper(), {})
+        return section.get('langexeclusive', '').strip().lower() or None
+
+    def files(self, language=None):
+        """[(name, lba, size)] in the order they are written."""
+        out = _iso_files(self.track, self.root.get(self.source_dir),
+                         self.source_dir)
+        folder = self.language_dir(language)
+        if folder:
+            out += _iso_files(self.track, self.root.get(folder), folder)
+        return out
+
+
+def open_disc(cue_path):
+    """(DataTrack, DiscPlan) for a cue sheet. Raises DiscError or OSError."""
+    tracks = parse_cue(cue_path)
+    data = [t for t in tracks if 'AUDIO' not in t['mode']]
+    if not data:
+        raise DiscError('This cue sheet lists only audio tracks, so the game '
+                        'files are not in it.')
+    track = DataTrack(data[0]['bin'], data[0]['start'])
+    try:
+        root = iso_root(track)
+        entry = root.get('ssp.ini')
+        if not entry or entry[0]:
+            raise DiscError('No ssp.ini in the root of this image, so it is '
+                            'not a Virtual-On disc.')
+        ssp = parse_ssp(track.read(entry[1], entry[2]).decode('latin-1'))
+        if 'OPTION' not in ssp:
+            raise DiscError('The ssp.ini on this disc has no [option] '
+                            'section, so there is nothing to install from.')
+        return track, DiscPlan(track, root, ssp)
+    except Exception:
+        track.close()
+        raise
+
+
+def disc_build(track, plan):
+    """Identify v_on.exe on the disc without extracting anything else."""
+    for name, lba, size in plan.files():
+        if name == 'v_on.exe':
+            digest = hashlib.md5(track.read(lba, size)).hexdigest()
+            known = OTHER_BUILDS.get(digest)
+            return {
+                'size': size, 'md5': digest,
+                'supported': digest == ORIGINAL_MD5,
+                'name': ('retail disc' if digest == ORIGINAL_MD5
+                         else known[1] if known else 'unrecognised'),
+                'why': ('' if digest == ORIGINAL_MD5 else
+                        known[2] if known else
+                        'Not a v_on.exe this patcher knows - a bad rip, a '
+                        'repack, or a disc it has not seen.'),
+            }
+    raise DiscError('No v_on.exe in the %s directory of this image.'
+                    % plan.source_dir.upper())
+
+
+def probe_disc(cue_path):
+    """Everything the window needs to describe a disc, writing nothing."""
+    track, plan = open_disc(cue_path)
+    try:
+        files = plan.files(plan.default)
+        return {
+            'form': track.form,
+            'source_dir': plan.source_dir,
+            'languages': plan.languages,
+            'default_language': plan.default,
+            'wants_language': plan.wants_language,
+            'build': disc_build(track, plan),
+            'bytes': sum(size for _n, _l, size in files),
+            'count': len(files),
+        }
+    finally:
+        track.close()
+
+
+def install_disc(cue_path, dest, language=None, progress=None):
+    """Copy the game out of the image. Returns the names written."""
+    track, plan = open_disc(cue_path)
+    try:
+        files = plan.files(language)
+        total = sum(size for _n, _l, size in files)
+        os.makedirs(dest, exist_ok=True)
+        written, done = [], 0
+        for name, lba, size in files:
+            done = track.extract(lba, size, os.path.join(dest, name),
+                                 progress, done, total)
+            written.append(name)
+        # No v_on.ini is written, deliberately.
+        #
+        # Sega's installer asks a dialog and copies v_on_a.ini or v_on_b.ini
+        # over it, then deletes both (setup.exe 0x408acf). Doing the same
+        # would fight the patches: v_on_a.ini carries Motion=3, a frame
+        # divisor the patched game obeys, so a freshly installed and patched
+        # copy would run at a third speed - the opposite of what the frame
+        # rate patch is for. An ini that is there wins over the defaults the
+        # patches set.
+        #
+        # Both files are copied as the disc has them, so the settings are
+        # not lost, and the game writes its own v_on.ini on first run.
+        return written
+    finally:
+        track.close()
+
+
+def install_in_background(cue_path, dest, language, progress, done):
+    """Extract on a worker thread. Both callbacks fire off the UI thread."""
+    def work():
+        try:
+            written = install_disc(cue_path, dest, language, progress)
+        except Exception as exc:                    # any failure, one path
+            done(exc, None)
+        else:
+            done(None, written)
+
+    thread = threading.Thread(target=work, daemon=True)
+    thread.start()
+    return thread
+
+
+def why_unwritable(folder, exc, name=None, elsewhere=None):
+    """Turn a failed write into advice.
+
+    Windows is checked first, because it folds several different causes into
+    EACCES: a write-protected drive, a file another process has open, and an
+    actual permission problem all arrive as errno 13, and the answer to each
+    is different."""
+    elsewhere = elsewhere or ('Copy the game folder somewhere you own - your '
+                              'home or Documents - and patch it there.')
+    # The caller passes both, rather than this guessing from the path:
+    # splitting a Windows path on a Linux box gets it wrong, and the
+    # sentences need the folder in some cases and the file in others.
+    name = name or folder
+    win = getattr(exc, 'winerror', None)
+    if win == 32 or win == 33:              # SHARING_VIOLATION, LOCK_VIOLATION
+        return ('Something else has %s open. Close the game and any launcher '
+                'or anti-virus scanning it, then try again.' % name)
+    if win == 19:                           # WRITE_PROTECT
+        return ('%s is write protected. If the game is on a mounted disc '
+                'image, copy it to your hard drive first.' % folder)
+    if exc.errno in (errno.EACCES, errno.EPERM):
+        # Deliberately not "run as administrator": that writes files the
+        # player then cannot delete, and Program Files is the usual cause.
+        return 'No permission to write in %s. %s' % (folder, elsewhere)
+    if exc.errno == errno.EROFS:
+        return ('%s is read-only. If the game is on a mounted disc image, '
+                'copy it to your hard drive first.' % folder)
+    if exc.errno == errno.ENOSPC:
+        return 'No space left on the drive holding %s.' % folder
+    if exc.errno == errno.ENOENT:
+        return ('%s is gone. Has the folder been moved, or a drive '
+                'disconnected, since the file was selected?' % folder)
+    if exc.errno == errno.ETXTBSY:          # the same thing on Linux
+        return '%s is in use. Close the game and try again.' % name
+    # Anything else: report it and stop guessing at the cause.
+    return 'Cannot write in %s: %s.' % (folder, exc.strerror or exc)
+
+
+def writable(folder):
+    """Can a file actually be created here? Returns (ok, why not).
+
+    A real write, not os.access: on Windows os.access(W_OK) only reports the
+    read-only attribute and says nothing about ACLs, so a folder under
+    Program Files passes it and then fails on the first file. Creating and
+    deleting a probe file is the only answer that holds on both platforms,
+    and it costs nothing next to copying 95 MB.
+
+    A PyInstaller build carries a manifest, so Windows does not silently
+    redirect the write into VirtualStore: an unelevated write to a folder
+    the user does not own arrives here as EACCES rather than appearing to
+    succeed somewhere else."""
+    probe = os.path.join(folder, '.vo-patch-write-test')
+    try:
+        with open(probe, 'wb') as fh:
+            fh.write(b'x')
+        os.remove(probe)
+    except OSError as exc:
+        return False, why_unwritable(
+            folder, exc, elsewhere='Choose a folder you own - your home, '
+                                   'Documents or Games.')
+    return True, ''
+
+
+def dest_problem(path, needed):
+    """(message, level) for a destination folder, or (None, None).
+
+    Checked before the copy starts: filling a disk and then failing on the
+    last file leaves a half-installed game and no clue why."""
+    if not path:
+        return None, None
+    exists = os.path.isdir(path)
+    probe = path if exists else os.path.dirname(os.path.abspath(path)) or '.'
+    if not os.path.isdir(probe):
+        return 'There is no %s to create that folder in.' % probe, 'bad'
+    ok, why = writable(probe)
+    if not ok:
+        return why, 'bad'
+    try:
+        free = shutil.disk_usage(probe).free
+    except OSError:
+        free = None
+    if free is not None and needed and free < needed:
+        return ('Not enough room: %d MB free, %d MB needed.'
+                % (free >> 20, needed >> 20)), 'bad'
+    if exists and os.path.exists(os.path.join(path, 'v_on.exe')):
+        # Worth its own message: installing over a patched copy replaces
+        # v_on.exe with the stock one and leaves the .bak beside it no
+        # longer matching, which Restore original would then act on.
+        return ('A game is already installed there. Installing replaces it, '
+                'settings and patches included.'), 'warn'
+    if exists and os.listdir(path):
+        return ('That folder is not empty. Files with the same name are '
+                'replaced.'), 'warn'
+    return None, None
 
 
 class RipCancelled(Exception):
@@ -3236,6 +3633,19 @@ def compare_report(size, digest, why, hint, level):
     }
 
 
+def _note(text):
+    """One log line, in the log's shape: subject, colon, lower-case detail.
+
+    Every line the window writes reads `subject: what happened`, so a run
+    scans as a list of steps rather than a mix of sentences and fragments.
+    Messages built for the card above are sentences, so the first letter is
+    folded here rather than written twice."""
+    return 'patch: ' + (text[:1].lower() + text[1:] if text else text)
+
+
+NOTHING = 'patch: nothing written, the game is untouched'
+
+
 class Patcher:
     """All the file handling. Nothing in here touches Tk."""
 
@@ -3261,8 +3671,8 @@ class Patcher:
             self.compare = {
                 'rows': [],
                 'why': 'This is a %s, not the game.' % kind,
-                'hint': 'Pick v_on.exe here. To rip the soundtrack, put the '
-                        'cue sheet in Source under CD MUSIC instead.',
+                'hint': 'Pick v_on.exe here. The disc image goes in Source '
+                        'under DISC, which installs and rips from it.',
                 'level': 'warn',
                 'log': ['%s is a %s' % (os.path.basename(path), kind)],
             }
@@ -3273,7 +3683,7 @@ class Patcher:
         self.exe_path = path
         digest = hashlib.md5(data).hexdigest()
         if digest == ORIGINAL_MD5:
-            return 'READY - press Apply patches', True
+            return READY_TAG, True
 
         known = OTHER_BUILDS.get(digest)
         if known:
@@ -3315,27 +3725,27 @@ class Patcher:
                 # Dropped rather than fatal: it is the one patch that fixes
                 # nothing, so it should never cost somebody the rest.
                 wanted = dict(wanted, credits=False)
-                log.append('%s - the credit is skipped, version and all, '
-                           'everything else applies' % why)
+                log.append(_note('%s - the credit is skipped, version and '
+                                 'all, everything else applies' % why))
 
         try:
             buf, applied, skipped = apply_selected(buf, wanted)
         except PatchFailed as exc:
-            return False, [str(exc), 'Nothing written.']
+            return False, [_note(str(exc)), NOTHING]
         except Exception as exc:             # a bug in here, not a bad file
-            return False, ['Patching failed: %s' % exc, 'Nothing written.']
+            return False, ['patch: failed - %s' % exc, NOTHING]
         if 'credits' in applied:
             stamp_version(buf)
         for key, why in skipped:
-            log.append('Skipped %s: %s' % (BY_KEY[key][0], why))
+            log.append('patch: skipped %s - %s' % (BY_KEY[key][0], why))
 
         if not applied:
             if skipped:
-                log.append('%s was the only patch selected and its call site '
-                           'was not found. Nothing written.'
-                           % BY_KEY[skipped[0][0]][0])
+                log.append('patch: %s was the only one selected and its '
+                           'call site was not found' % BY_KEY[skipped[0][0]][0])
+                log.append(NOTHING)
             else:
-                log.append('No patches selected. Nothing written.')
+                log.append('patch: nothing selected, nothing written')
             return False, log
 
         # The banner's tile indices go in the executable and the tiles go in
@@ -3344,15 +3754,15 @@ class Patcher:
         # the file is there and writable before anything is written.
         writable, why = self._folder_writable()
         if not writable:
-            return False, log + [why, 'Nothing written.']
+            return False, log + [_note(why), NOTHING]
 
         if 'padxinput' in applied:
             ready, why = self._banner_ready()
             if not ready:
-                return False, log + [why, 'Nothing written.']
+                return False, log + [_note(why), NOTHING]
 
         if not self._backup(self.exe_path, log):
-            return False, log + ['Nothing written.']
+            return False, log + [NOTHING]
         # Written beside the game and renamed over it, so a full disk or a
         # pulled stick leaves the original where it was rather than half an
         # executable. Same filesystem, so the rename is atomic.
@@ -3367,11 +3777,12 @@ class Patcher:
             except OSError:
                 pass
             return False, log + [
-                self._why_unwritable(os.path.dirname(self.exe_path) or '.',
-                                     exc, os.path.basename(self.exe_path)),
-                'Nothing written.']
-        log += ['  %s' % BY_KEY[key][0] for key in applied]
-        log.append('Wrote %s' % self.exe_path)
+                _note(self._why_unwritable(
+                    os.path.dirname(self.exe_path) or '.', exc,
+                    os.path.basename(self.exe_path))),
+                NOTHING]
+        log += ['patch: applied %s' % BY_KEY[key][0] for key in applied]
+        log.append('patch: wrote %s' % self.exe_path)
         if 'padxinput' in applied:
             self._retire_ini(log)
             self._write_banner(log)
@@ -3409,7 +3820,7 @@ class Patcher:
                     # overwrite the player's binds with the copy of the
                     # original that the first restore just put there.
                     os.replace(path, path + '.patched')
-                    log.append('Kept the patched %s as %s.patched'
+                    log.append('restore: kept the patched %s as %s.patched'
                                % (name, name))
                 # Copied beside and renamed over, as apply does, so a
                 # failure mid-copy leaves the patched file rather than
@@ -3424,9 +3835,9 @@ class Patcher:
                     except OSError:
                         pass
                     raise
-                log.append('Restored %s' % name)
+                log.append('restore: put back %s' % name)
             except OSError as exc:
-                log.append('Could not restore %s: %s' % (name, exc))
+                log.append('restore: failed on %s - %s' % (name, exc))
         if not log:
             return ['Nothing to restore - no backups found']
         return log
@@ -3438,56 +3849,11 @@ class Patcher:
         The advice depends on why it failed, so the reason is read off errno
         rather than pasting the OS message into a sentence about permissions
         - "cannot write here (No such file or directory)" helps nobody."""
-        folder = os.path.dirname(self.exe_path) or '.'
-        probe = os.path.join(folder, '.vo-patch-write-test')
-        try:
-            with open(probe, 'wb') as fh:
-                fh.write(b'x')
-            os.remove(probe)
-        except OSError as exc:
-            return False, self._why_unwritable(folder, exc)
-        return True, ''
+        return writable(os.path.dirname(self.exe_path) or '.')
 
     @staticmethod
     def _why_unwritable(folder, exc, name=None):
-        """Turn a failed write into advice.
-
-        Windows is checked first, because it folds several different causes
-        into EACCES: a write-protected drive, a file another process has
-        open, and an actual permission problem all arrive as errno 13, and
-        the answer to each is different."""
-        elsewhere = ('Copy the game folder somewhere you own - your home or '
-                     'Documents - and patch it there.')
-        # The caller passes both, rather than this guessing from the path:
-        # splitting a Windows path on a Linux box gets it wrong, and the
-        # sentences need the folder in some cases and the file in others.
-        name = name or folder
-        win = getattr(exc, 'winerror', None)
-        if win == 32 or win == 33:          # SHARING_VIOLATION, LOCK_VIOLATION
-            return ('Something else has %s open. Close the game and any '
-                    'launcher or anti-virus scanning it, then try again.'
-                    % name)
-        if win == 19:                       # WRITE_PROTECT
-            return ('%s is write protected. If the game is on a mounted '
-                    'disc image, copy it to your hard drive first.' % folder)
-        if exc.errno in (errno.EACCES, errno.EPERM):
-            # Deliberately not "run as administrator": that writes a backup
-            # and a log the player then cannot delete, and Program Files is
-            # the usual cause.
-            return 'No permission to write in %s. %s' % (folder, elsewhere)
-        if exc.errno == errno.EROFS:
-            return ('%s is read-only. If the game is on a mounted disc '
-                    'image, copy it to your hard drive first.' % folder)
-        if exc.errno == errno.ENOSPC:
-            return ('No space left on the drive holding %s. About 7 MB is '
-                    'needed for the backup.' % folder)
-        if exc.errno == errno.ENOENT:
-            return ('%s is gone. Has the folder been moved, or a drive '
-                    'disconnected, since the file was selected?' % folder)
-        if exc.errno == errno.ETXTBSY:      # the same thing on Linux
-            return ('%s is in use. Close the game and try again.' % name)
-        # Anything else: report it and stop guessing at the cause.
-        return 'Cannot write in %s: %s.' % (folder, exc.strerror or exc)
+        return why_unwritable(folder, exc, name)
 
     def _banner_ready(self):
         """Can escrgame.bin take the new tiles? Returns (ok, why not).
@@ -3568,10 +3934,10 @@ class Patcher:
         594072 before .idata, and this adds 14756."""
         found, why = self._credit_files()
         if found is None:            # checked before apply, so unlikely
-            log.append('%s Credit line skipped' % why)
+            log.append('patch: credit line skipped - %s' % why)
             return False
         if not any(stock for _p, _d, stock in found):
-            log.append('Credit line already in place')
+            log.append('patch: credit line already in place')
             return True
         # Per file, not all-or-nothing: a failure between the two renames
         # below leaves one done and one not, and the next run must finish
@@ -3580,7 +3946,7 @@ class Patcher:
         (cg_path, cg, cg_stock), (mp_path, mp, mp_stock) = found
         for path, stock in ((cg_path, cg_stock), (mp_path, mp_stock)):
             if stock and not self._backup(path, log):
-                log.append('Credit line skipped')
+                log.append('patch: credit line skipped')
                 return False
         if cg_stock:
             cg += b''.join(CREDIT_NEW_TILES)
@@ -3604,14 +3970,15 @@ class Patcher:
                 pending.append((temp, path))
             for temp, path in pending:
                 os.replace(temp, path)
-                log.append('Wrote %s' % os.path.basename(path))
+                log.append('patch: wrote %s' % os.path.basename(path))
         except OSError as exc:
             for temp, _path in pending:
                 try:
                     os.remove(temp)
                 except OSError:
                     pass
-            log.append('Could not write the credit line: %s. Press Restore '
+            log.append('patch: could not write the credit line - %s. Press '
+                       'Restore '
                        'original to put the roll files back.' % exc)
             return False
         return True
@@ -3628,14 +3995,14 @@ class Patcher:
             with open(path, 'rb') as fh:
                 data = bytearray(fh.read())
         except OSError as exc:
-            log.append('Could not read %s: %s' % (ESCRGAME, exc))
+            log.append('patch: could not read %s - %s' % (ESCRGAME, exc))
             return
         if len(data) != ESCRGAME_SIZE:
-            log.append('%s is %d bytes, expected %d - left alone'
+            log.append('patch: %s is %d bytes, expected %d - left alone'
                        % (ESCRGAME, len(data), ESCRGAME_SIZE))
             return
         if not self._backup(path, log):
-            log.append('%s not patched' % ESCRGAME)
+            log.append('patch: %s left alone' % ESCRGAME)
             return
         for i, raw in enumerate(BANNER_TILES):
             off = (BANNER_TILE_OFF + i * 128 if i < BANNER_TILE_MAX
@@ -3654,9 +4021,9 @@ class Patcher:
                 os.remove(temp)
             except OSError:
                 pass
-            log.append('Could not write %s: %s' % (ESCRGAME, exc))
+            log.append('patch: could not write %s - %s' % (ESCRGAME, exc))
             return
-        log.append('Wrote %s' % path)
+        log.append('patch: wrote %s' % path)
 
     def _retire_ini(self, log):
         """Binds written by the unpatched game do not fit the new device
@@ -3669,14 +4036,17 @@ class Patcher:
         if not os.path.exists(ini):
             return
         if not self._backup(ini, log):
-            log.append('v_on.ini left alone - the gamepad profile may not '
+            log.append('patch: v_on.ini left alone - the gamepad profile '
+                       'may not '
                        'work until you delete it by hand')
             return
         try:
             os.remove(ini)
-            log.append('Removed v_on.ini - the game will write a fresh one')
+            log.append('patch: moved v_on.ini aside, the game will write a '
+                       'fresh one')
         except OSError as exc:
-            log.append('Could not remove v_on.ini: %s - delete it by hand'
+            log.append('patch: could not move v_on.ini - %s, delete it by '
+                       'hand'
                        % exc)
 
     @staticmethod
@@ -3690,9 +4060,9 @@ class Patcher:
         try:
             shutil.copy(path, bak)
         except OSError as exc:
-            log.append('Backup failed for %s: %s' % (path, exc))
+            log.append('patch: backup failed for %s - %s' % (path, exc))
             return False
-        log.append('Backup: %s' % bak)
+        log.append('patch: backed up %s' % bak)
         return True
 
 
@@ -3743,12 +4113,35 @@ PALETTE = {
 # user who double-clicked the exe can see it, and it is the first
 # thing worth knowing about a bug report.
 TITLE = 'Virtual-On patcher %s' % VERSION
-INTRO = 'Select an unmodified v_on.exe.'
-MIN_CONTENT = 520               # px; narrower and the hints wrap badly
+MIN_CONTENT = 480               # px per column; narrower and hints wrap badly
+GUTTER = 14                     # px between the two columns
 NO_FILE = 'No file selected'
 
-ESSENTIAL_HINT = ('Fixes for what is broken on modern systems. Leave these '
-                  'on unless you have a reason not to.')
+FILE_HINT = ('Installing above fills this in. Browse for it if the game is '
+             'already on your disk.')
+
+INSTALL_HINT = ('Installs the game and rips the soundtrack, from a disc '
+                'image or a drive.')
+
+INSTALL_TIP = ('Source\tThe .cue sheet beside the .bin files, not the .bin.\n'
+               'Install game\tThe game folder, about 95 MB.\n'
+               'Rip soundtrack\tmusic\\track02.wav onward, about 320 MB.\n'
+               'Language\tPicks the readme and help file. The game is the '
+               'same either way.')
+
+INSTALL_PICK = 'Give the .cue sheet, not the .bin.'
+INSTALL_NOT_CUE = 'That is a %s. Give the .cue sheet beside it.'
+INSTALL_NEEDS_DEST = 'Choose where to install it.'
+INSTALL_BUSY = 'Copying\u2026'
+INSTALL_NEEDS_TARGET = 'Choose a folder above, or pick your v_on.exe.'
+INSTALL_OK = 'Installed %d files to %s'
+INSTALL_DRIVE_ONLY = 'A drive can only be ripped. Give a .cue to install.'
+# What a good disc looks like, in one line: enough to tell a full rip from a
+# data-only one before anything is written.
+INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
+
+ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
+                  'broken on a modern system, with nothing to weigh up.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
 # Clear space between a description and the button to its right. Added to
 # the button's own measured width, so it survives a longer label or a
@@ -3789,32 +4182,25 @@ NETPLAY_IN = 'Installed. Both players need this add-on.'
 NETPLAY_UPDATED = 'Updated to this build.'
 NETPLAY_OUT = 'Original dpctrl.dll restored.'
 NETPLAY_OLD = 'An older netplay DLL is installed. Install to update it.'
+# Only reachable for a file this patcher did not write: an older release let
+# the two simulation patches be unticked, and this build cannot.
 NETPLAY_NOSYNC = ('Installed. Note: this v_on.exe is missing a gameplay patch '
                   'online play needs, so matches will refuse to connect. '
-                  'Re-patch with Fix frame rate and Fix crash on round loss.')
+                  'Restore original and apply again with this version.')
 DDRAW_NEEDS_EXE = 'Pick v_on.exe first: cnc-ddraw goes in the same folder.'
 DDRAW_LOCKED = ('Close the game first: Windows will not let the patcher '
                 'replace a DLL that is loaded.')
 
-MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
-              'No disc required patch reads it. Source: a cue sheet or a CD '
-              'drive. About 320 MB.')
+MUSIC_HINT = 'The soundtrack, to music\\ beside the game. About 320 MB.'
 
-MUSIC_TIP = ('Rip before or after patching, it makes no difference, and '
-             'Restore original leaves the tracks alone.\n'
-             '\n'
-             'Cue sheet\tExact, and needs no drive. Sector offsets come from '
-             'the sheet.\n'
-             'CD drive\tRead raw. A cdemu device behaves like a physical '
-             'one.\n'
-             'Result\t26 files, music\\track02.wav to track27.wav. Track 1 '
-             'is the data track.')
-
-DONE = 'Done. Restore the original to change your selection.'
-FAILED = 'Nothing was written - see the log below.'
+# %d is the number of patches written. The count is the one thing someone
+# can check against what they ticked, and it is what a bug report needs.
+DONE = 'Done - %d patches written. Restore original puts v_on.exe.bak back.'
+FAILED = 'Nothing was written and the game is untouched - see the log below.'
+# DONE_NOSYNC is gone: Apply can no longer leave a sync patch out.
+READY = 'READY - %d patches selected. Press Apply patches.'
 # Under 52 characters: the status bar cuts longer text, and the log below
 # names which patch.
-DONE_NOSYNC = 'Done. A patch netplay needs is off - see the log.'
 
 
 def win_dpi():
@@ -4009,8 +4395,8 @@ def run_tk():
         return img
 
     def _hint(parent, text, colour, font, pady=0, gutter=0):
-        """The quiet explanatory line under a section heading; four of the
-        five cards have one and they only differ in their text.
+        """The quiet explanatory line under a section heading; most of the
+        cards have one and they only differ in their text.
 
         The width is taken from a holder frame rather than the card body.
         A ttk frame's winfo_width() counts its own padding, so wrapping to
@@ -4048,6 +4434,62 @@ def run_tk():
         wide.tk.call(wide, 'copy', image, '-to', 0, 0)
         return wide
 
+    class Compare:
+        """The "what is wanted / what you gave" panel.
+
+        Two cards use it - the game file and the disc image - and both want
+        the same thing: the numbers side by side rather than a sentence
+        about them, then why it matters and what to do."""
+
+        def __init__(self, app, parent, before=None):
+            # pack() appends, so a panel that appears later would land at
+            # the bottom of the card rather than under the line it explains.
+            # before names the widget it has to stay above.
+            self.before = before
+            self.frame = ttk.Frame(parent, style='Card.TFrame')
+            self.wrap = tk.Frame(self.frame, background=PALETTE['line'])
+            self.wrap.pack(fill='x', pady=(8, 0))
+            inner = tk.Frame(self.wrap, background=PALETTE['ink'])
+            inner.pack(fill='x', padx=1, pady=1)
+            self.rows = []
+            for colour in (app.dim, PALETTE['bad']):
+                row = tk.Label(inner, text='', font=app.mono, anchor='w',
+                               justify='left', padx=8, pady=2,
+                               background=PALETTE['ink'], foreground=colour)
+                row.pack(fill='x')
+                self.rows.append(row)
+            self.why = _hint(self.frame, '', app.dim, app.small, pady=(6, 0))
+            self.advice = _hint(self.frame, '', app.dim, app.small,
+                                pady=(4, 0))
+
+        def show(self, report):
+            """Amber for a file that is simply the wrong one, red for one
+            that looks damaged - the advice differs, so the colour does."""
+            if not report:
+                self.frame.pack_forget()
+                return
+            colour = PALETTE['amber' if report['level'] == 'warn' else 'bad']
+            # Some refusals have nothing to compare - a cue sheet has no
+            # business being weighed against the executable's checksum.
+            # Hide the table rather than leave the last file's numbers
+            # under a message about this one.
+            if report['rows']:
+                for row, (name, size, digest) in zip(self.rows,
+                                                     report['rows']):
+                    row.config(text='%-10s%11s B  %s'
+                                    % (name, '{:,}'.format(size),
+                                       digest[:12]))
+                self.rows[1].config(foreground=colour)
+                self.wrap.pack(fill='x', pady=(8, 0))
+            else:
+                self.wrap.pack_forget()
+            self.why.config(text=report['why'], foreground=colour)
+            self.advice.config(text=report['hint'])
+            if self.before is not None:
+                self.frame.pack(fill='x', before=self.before)
+            else:
+                self.frame.pack(fill='x')
+
     class App:
 
         def __init__(self, root):
@@ -4061,7 +4503,8 @@ def run_tk():
             self._cancel_rip = False
             root.title(TITLE)
             root.minsize(430, 0)
-            root.maxsize(1100, root.winfo_screenheight() - 60)
+            root.maxsize(root.winfo_screenwidth() - 40,
+                         root.winfo_screenheight() - 60)
             root.bind_all('<Button-1>', close_info, add='+')
             root.bind_all('<Escape>', close_info, add='+')
             root.protocol('WM_DELETE_WINDOW', self._close)
@@ -4073,26 +4516,32 @@ def run_tk():
             self._statusbar(outer)                  # pinned before the body
             body = self._body(outer)
 
-            self._section(body, 'GAME EXECUTABLE', self._file_body)
-            # Open: collapsed, the first screen is a file box and an empty
-            # log, and the patch list is the point of the window.
-            self._section(body, 'ESSENTIAL PATCHES',
+            # Top to bottom in the order the work is done. Installing comes
+            # first because someone who has only a disc image cannot do
+            # anything else until it is unpacked, and it is the step that
+            # used to happen outside this window entirely.
+            # Two columns where there is room: getting the game in place is
+            # one job and patching it is another, and side by side neither
+            # has to be scrolled past to reach the other. On a narrow screen
+            # _body gives back the same frame twice and it stacks instead.
+            left, right = body
+            self._section(left, '1  DISC', self._install_body)
+            self._section(left, '2  GAME FILE', self._file_body)
+            self._section(right, '3  ESSENTIAL PATCHES',
                           lambda p: self._patch_body(p, ESSENTIAL,
                                                      ESSENTIAL_HINT))
-            self._section(body, 'EXTRA PATCHES',
+            self._section(right, '4  EXTRA PATCHES',
                           lambda p: self._patch_body(p, EXTRA, EXTRA_HINT))
-            # Separate, because these two are not patches: Apply never
-            # touches them and they write files rather than bytes.
-            # Collapsed: none of these is part of patching, and open they
-            # push Apply below the fold. A header you can see beats content
-            # you have to scroll to find.
-            self._section(body, 'ADD-ONS', self._addons_body, expanded=False)
-            self._section(body, 'CD MUSIC', self._music_body, expanded=False)
-            self._section(body, 'LOG', self._log_body, expanded=False)
-            # Last and closed: the version and the link are reference, and
-            # the one tick box in it is not a fix to anything.
-            self._section(body, 'ABOUT', self._about_body, expanded=False)
-            self._log(INTRO)
+            # Separate, because these are not patches: Apply never touches
+            # them and they write files rather than bytes. Collapsed,
+            # because open they push Apply below the fold.
+            self._section(right, '5  ADD-ONS', self._addons_body,
+                          expanded=False)
+            self._section(right, 'LOG', self._log_body, expanded=False)
+            # Left, and closed: the version and the link are reference rather
+            # than patching, and the left column has the room. On the right
+            # it fell below the fold the moment the log opened.
+            self._section(left, 'ABOUT', self._about_body, expanded=False)
 
             # Width is settled here rather than on the canvas's first
             # <Configure>, which arrives while the sections are still being
@@ -4104,6 +4553,9 @@ def run_tk():
                 if not shown:
                     body.pack(fill='x')
             root.update_idletasks()
+            # With two columns the window has to fit the taller of them, not
+            # the sum: the grid puts them side by side and reqheight already
+            # reports the taller, but only once both have been laid out.
             full = self.inner.winfo_reqheight()
             # Width has to come from here too, for the same reason: a
             # collapsed section still has to fit when it is opened, and the
@@ -4113,7 +4565,9 @@ def run_tk():
             # A floor as well as the content width: with the long sections
             # collapsed the window would otherwise shrink to the widest
             # checkbox, and every hint below it would wrap to three lines.
-            wide = max(MIN_CONTENT, self.inner.winfo_reqwidth())
+            wide = max(MIN_CONTENT * self.columns
+                       + (GUTTER if self.columns > 1 else 0),
+                       self.inner.winfo_reqwidth())
             for body, shown in self._bodies:
                 if not shown:
                     body.pack_forget()
@@ -4125,7 +4579,7 @@ def run_tk():
 
         def _body(self, parent):
             """Size to the content, scrolling only if it outgrows the
-            screen."""
+            screen. Returns the two column frames to build into."""
             holder = ttk.Frame(parent, style='Ink.TFrame')
             holder.pack(fill='both', expand=True)
             self.canvas = tk.Canvas(holder, highlightthickness=0,
@@ -4145,16 +4599,38 @@ def run_tk():
                                    style='Ink.TFrame')
             self.window = self.canvas.create_window((0, 0), window=self.inner,
                                                     anchor='nw')
-            # Roughly fifty lines of text. Past that the content scrolls
-            # instead of the window growing, so it does not resize under the
-            # cursor.
+            # How tall the window may grow before the content scrolls
+            # instead. The screen is the real limit; the line count is only
+            # there to stop a very tall display giving a window nobody wants
+            # to drag. Sized so that a 1600x900 screen at 100% shows every
+            # section with the log open, which is the state people spend the
+            # most time looking at.
             row = self.small.metrics('linespace')
-            self.cap = min(max(300, parent.winfo_screenheight() - 160), row * 48)
+            self.cap = min(max(360, parent.winfo_screenheight() - 150),
+                           row * 56)
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
             for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
                 self.canvas.bind_all(seq, self._wheel)
-            return self.inner
+
+            # Two columns need both of them at the readable width plus the
+            # padding, the gutter and the scrollbar. Below that, one column
+            # and the sections stack as before - a squeezed pair wraps every
+            # hint to three lines and reads worse than scrolling.
+            self.columns = 2 if (parent.winfo_screenwidth() - 80
+                                 >= 2 * MIN_CONTENT + GUTTER + 40) else 1
+            if self.columns == 1:
+                self.left = self.right = self.inner
+                return self.inner, self.inner
+            self.inner.columnconfigure(0, weight=1, uniform='col')
+            self.inner.columnconfigure(1, weight=1, uniform='col')
+            self.left = ttk.Frame(self.inner, style='Ink.TFrame')
+            self.left.grid(row=0, column=0, sticky='nsew',
+                           padx=(0, GUTTER // 2))
+            self.right = ttk.Frame(self.inner, style='Ink.TFrame')
+            self.right.grid(row=0, column=1, sticky='nsew',
+                            padx=(GUTTER // 2, 0))
+            return self.left, self.right
 
         def _fit(self, _event=None):
             need = self.inner.winfo_reqheight()
@@ -4263,6 +4739,21 @@ def run_tk():
             style.map('Vo.TEntry',
                       fieldbackground=[('readonly', p['ink'])],
                       foreground=[('readonly', p['dim'])])
+            style.configure('Vo.TCombobox', fieldbackground=p['ink'],
+                            background=p['head'], foreground=p['text'],
+                            arrowcolor=p['dim'], **edges)
+            style.map('Vo.TCombobox',
+                      fieldbackground=[('readonly', p['ink'])],
+                      foreground=[('readonly', p['text'])],
+                      selectbackground=[('readonly', p['ink'])],
+                      selectforeground=[('readonly', p['text'])])
+            # The dropdown is a plain Tk listbox that ttk does not theme, so
+            # its colours have to be set through the option database.
+            for option, colour in (('background', p['ink']),
+                                   ('foreground', p['text']),
+                                   ('selectBackground', p['cyan']),
+                                   ('selectForeground', p['ink'])):
+                self.root.option_add('*TCombobox*Listbox.%s' % option, colour)
             style.configure('Vo.Vertical.TScrollbar', background=p['card'],
                             arrowcolor=p['dim'], **edges)
             style.map('Vo.Vertical.TScrollbar',
@@ -4382,123 +4873,320 @@ def run_tk():
             return inner
 
         def _file_body(self, parent):
-            row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x')
+            _hint(parent, FILE_HINT, self.dim, self.small, pady=(0, 8))
+            grid = ttk.Frame(parent, style='Card.TFrame')
+            grid.pack(fill='x')
+            grid.columnconfigure(1, weight=1)
             self.path_var = tk.StringVar()
-            ttk.Entry(row, textvariable=self.path_var, state='readonly',
-                      style='Vo.TEntry', width=30).pack(
-                          side='left', fill='x', expand=True)
-            ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
-                       command=self._pick).pack(side='left', padx=(8, 0))
+            # Same grid and the same label width as the install card above,
+            # so the two sets of boxes line up down the window.
+            self._field(grid, 0, 'v_on.exe', self.path_var,
+                        self._pick).state(['readonly'])
             self.file_note = _hint(parent, NO_FILE, self.dim, self.small,
                                    pady=(8, 0))
-
             # Only packed when a file was rejected. "Not the original" on its
-            # own leaves nothing to act on, so show both files side by side
-            # and say what to do about it.
-            self.mismatch = ttk.Frame(parent, style='Card.TFrame')
-            wrap = tk.Frame(self.mismatch, background=PALETTE['line'])
-            wrap.pack(fill='x', pady=(8, 0))
-            inner = tk.Frame(wrap, background=PALETTE['ink'])
-            inner.pack(fill='x', padx=1, pady=1)
-            self.rows = []
-            self.rows_wrap = wrap
-            for colour in (self.dim, PALETTE['bad']):
-                row = tk.Label(inner, text='', font=self.mono, anchor='w',
-                               justify='left', padx=8, pady=2,
-                               background=PALETTE['ink'], foreground=colour)
-                row.pack(fill='x')
-                self.rows.append(row)
-            self.mismatch_why = _hint(self.mismatch, '', self.dim, self.small,
-                                      pady=(6, 0))
-            self.mismatch_hint = _hint(self.mismatch, '', self.dim,
-                                       self.small, pady=(4, 0))
+            # own leaves nothing to act on.
+            self.file_compare = Compare(self, parent)
 
         def _compare(self, report):
-            """Show or hide the mismatch box.
+            self.file_compare.show(report)
 
-            Amber for a file that is simply the wrong one, red for a file
-            that looks damaged - the advice differs, so the colour should
-            too."""
-            if not report:
-                self.mismatch.pack_forget()
-                return
-            colour = PALETTE['amber' if report['level'] == 'warn' else 'bad']
-            # Some refusals have nothing to compare - a cue sheet has no
-            # business being weighed against the executable's checksum. Hide
-            # the table rather than leave the last file's numbers under a
-            # message about this one.
-            if report['rows']:
-                for row, (name, size, digest) in zip(self.rows,
-                                                     report['rows']):
-                    row.config(text='%-10s%11s B  %s'
-                                    % (name, '{:,}'.format(size),
-                                       digest[:12]))
-                self.rows[1].config(foreground=colour)
-                self.rows_wrap.pack(fill='x', pady=(8, 0))
-            else:
-                self.rows_wrap.pack_forget()
-            self.mismatch_why.config(text=report['why'], foreground=colour)
-            self.mismatch_hint.config(text=report['hint'])
-            self.mismatch.pack(fill='x')
+        def _install_body(self, parent):
+            """Disc image in, game folder out.
 
-        def _music_body(self, parent):
-            _hint(parent, MUSIC_HINT, self.dim, self.small, pady=(0, 8))
-            row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x')
-            # The bubble is packed first so pack reserves its width before
-            # the entry claims what is left, the same reason the scrollbar
-            # goes before the canvas.
-            Info(row, 'CD MUSIC', MUSIC_TIP, self).btn.pack(side='right',
-                                                            padx=(6, 0))
-            ttk.Label(row, text='Source', style='Card.TLabel',
-                      font=self.small).pack(side='left', padx=(0, 8))
-            self.rip_var = tk.StringVar()
-            drives = list_devices()
-            if drives:
-                self.rip_var.set(drives[0])
-            # Small on purpose: it expands into whatever the row has spare,
-            # and this row is the widest thing in the window, so a larger
-            # request only widens the window.
-            ttk.Entry(row, textvariable=self.rip_var, style='Vo.TEntry',
-                      width=12).pack(side='left', fill='x', expand=True)
-            ttk.Button(row, text='Browse\u2026', style='Vo.TButton',
-                       command=self._pick_cue).pack(side='left', padx=(8, 0))
-            self.rip_btn = ttk.Button(row, text='Rip tracks',
+            One source field drives both jobs: the same cue sheet holds the
+            game and the soundtrack, and asking for it twice is how the old
+            layout lost people."""
+            _hint(parent, INSTALL_HINT, self.dim, self.small, pady=(0, 8))
+
+            grid = ttk.Frame(parent, style='Card.TFrame')
+            grid.pack(fill='x')
+            grid.columnconfigure(1, weight=1)
+
+            self.disc_var = tk.StringVar()
+            self._field(grid, 0, 'Source', self.disc_var, self._pick_disc)
+            Info(grid, 'DISC', INSTALL_TIP, self).btn.grid(
+                row=0, column=3, sticky='e', padx=(6, 2))
+
+            self.dest_var = tk.StringVar()
+            self._field(grid, 1, 'Install to', self.dest_var, self._pick_dest)
+
+            # Only packed once a disc has been read and offers a choice: the
+            # OEM pressing has no language directories at all.
+            self.lang_row = ttk.Frame(grid, style='Card.TFrame')
+            self.lang_row.columnconfigure(1, weight=1)
+            ttk.Label(self.lang_row, text='Language', style='Card.TLabel',
+                      font=self.small, width=10, anchor='w').grid(
+                          row=0, column=0, sticky='w', padx=(0, 8))
+            self.lang_var = tk.StringVar()
+            self.lang_box = ttk.Combobox(self.lang_row, state='readonly',
+                                         style='Vo.TCombobox', width=14,
+                                         textvariable=self.lang_var)
+            self.lang_box.grid(row=0, column=1, sticky='w')
+
+            self.disc_note = _hint(parent, INSTALL_PICK, PALETTE['cyan'],
+                                   self.small, pady=(8, 0))
+            self.dest_note = _hint(parent, '', self.dim, self.small,
+                                   pady=(4, 0))
+
+            buttons = ttk.Frame(parent, style='Card.TFrame')
+            buttons.pack(fill='x', pady=(10, 0))
+            self.disc_compare = Compare(self, parent, before=buttons)
+            self.install_btn = ttk.Button(buttons, text='Install game',
+                                          style='Vo.TButton', state='disabled',
+                                          command=self._install)
+            self.install_btn.pack(side='left')
+            self.rip_btn = ttk.Button(buttons, text='Rip soundtrack',
                                       style='Vo.TButton', state='disabled',
                                       command=self._rip)
             self.rip_btn.pack(side='left', padx=(8, 0))
 
+            _hint(parent, MUSIC_HINT, self.dim, self.small, pady=(8, 0))
             self.music_note = _hint(parent, '', self.dim, self.small,
-                                    pady=(8, 0))
-            self._music(music_status(None))
+                                    pady=(4, 0))
+            self.disc_ok = False
+            self._disc_bytes = 0
+            self._music('')
+            # Typing a path counts as picking one. The disc read opens files,
+            # so it waits for a pause rather than running on every keystroke.
+            self.disc_var.trace_add('write', self._disc_typed)
+            self.dest_var.trace_add('write',
+                                    lambda *_a: self._sync_buttons())
 
-        def _music(self, text):
-            """The prompt to pick a file is the one line people miss, so it
-            gets the accent colour; everything else is a quiet hint."""
-            colour = PALETTE['cyan'] if text == MUSIC_NEEDS_EXE else self.dim
-            self.music_note.config(text=text, foreground=colour)
+        def _disc_typed(self, *_args):
+            pending = getattr(self, '_disc_after', None)
+            if pending:
+                self.root.after_cancel(pending)
+            self._disc_after = self.root.after(
+                400, lambda: self._check_disc(self.disc_var.get()))
 
-        def _pick_cue(self):
+        def _field(self, grid, line, label, var, browse):
+            """One labelled path row. The three of them share a grid so the
+            entries line up rather than each starting after its own word."""
+            ttk.Label(grid, text=label, style='Card.TLabel', font=self.small,
+                      width=10, anchor='w').grid(row=line, column=0,
+                                                 sticky='w', padx=(0, 8),
+                                                 pady=(0, 6))
+            # width=12 on purpose: it expands into whatever the row has
+            # spare, and a larger request only widens the window.
+            entry = ttk.Entry(grid, textvariable=var, style='Vo.TEntry',
+                              width=12)
+            entry.grid(row=line, column=1, sticky='ew', pady=(0, 6))
+            ttk.Button(grid, text='Browse\u2026', style='Vo.TButton',
+                       command=browse).grid(row=line, column=2, sticky='w',
+                                            padx=(8, 0), pady=(0, 6))
+            return entry
+
+        # -- source
+
+        def _pick_disc(self):
             path = filedialog.askopenfilename(
-                title='Select the cue sheet',
+                title='Select the disc image cue sheet',
                 filetypes=[('Cue sheets', '*.cue *.CUE'), ('All files', '*')])
             if path:
-                self.rip_var.set(path)
+                self.disc_var.set(path)       # the trace runs the check
+
+        def _check_disc(self, source):
+            """Read the disc and say what is in it, or what is wrong.
+
+            Everything here is cheap - a few kilobytes of directory and one
+            hash of v_on.exe - so it runs on the UI thread the moment a
+            source is picked, and the buttons below light up or do not."""
+            self.disc_ok = False
+            self._disc_bytes = 0
+            self.disc_compare.show(None)
+            self.lang_row.grid_forget()
+            source = (source or '').strip()
+
+            if not source:
+                self._disc_note(INSTALL_PICK, PALETTE['cyan'])
+            elif not os.path.exists(source):
+                self._disc_note('There is no file at that path.',
+                                PALETTE['bad'])
+            elif os.path.splitext(source)[1].lower() != '.cue':
+                kind = DISC_IMAGES.get(os.path.splitext(source)[1].lower())
+                self._disc_note(INSTALL_NOT_CUE % kind if kind
+                                else INSTALL_DRIVE_ONLY, PALETTE['amber'])
+            else:
+                try:
+                    info = probe_disc(source)
+                except DiscError as exc:
+                    self._disc_note(str(exc), PALETTE['bad'])
+                except (OSError, ValueError) as exc:
+                    # parse_cue names the missing bin or the bad line, and
+                    # that is the most useful thing there is to say.
+                    self._disc_note(str(exc), PALETTE['bad'])
+                else:
+                    self._describe_disc(info)
+            self._sync_buttons()
+
+        def _describe_disc(self, info):
+            build = info['build']
+            self._disc_bytes = info['bytes']
+            if info['wants_language'] and len(info['languages']) > 1:
+                self.lang_box.config(values=info['languages'])
+                self.lang_var.set(info['default_language'])
+                self.lang_row.grid(row=2, column=0, columnspan=3,
+                                   sticky='ew', pady=(0, 6))
+            if build['supported']:
+                self.disc_ok = True
+                self._disc_note(INSTALL_FOUND % (info['count'],
+                                                 info['bytes'] >> 20),
+                                PALETTE['ok'])
+                # The sector layout is worth having in a bug report and
+                # nowhere near worth a line in the window.
+                self._log('disc: %s, %d files, %d MB'
+                          % (info['form'], info['count'],
+                             info['bytes'] >> 20))
+            else:
+                # The same panel the game file card uses, for the same
+                # reason: the numbers say more than "wrong version" does.
+                self.disc_compare.show(compare_report(
+                    build['size'], build['md5'], build['why'],
+                    'Rip soundtrack still works; only patching needs '
+                    'the retail build.',
+                    'warn'))
+                self._disc_note('CANNOT INSTALL - %s build.' % build['name'],
+                                PALETTE['amber'])
+                self._log('disc: v_on.exe is the %s build (%s)'
+                          % (build['name'], build['md5']))
+
+        def _disc_note(self, text, colour):
+            self.disc_note.config(text=text, foreground=colour)
+
+        # -- destination
+
+        def _pick_dest(self):
+            path = filedialog.askdirectory(title='Install the game where?')
+            if path:
+                self.dest_var.set(path)       # the trace syncs the buttons
+
+        def _sync_buttons(self, *_args):
+            """One place decides what is clickable, because three things
+            feed it: the source, the destination and the game file."""
+            path = self.dest_var.get().strip()
+            if path:
+                why, level = dest_problem(path, self._disc_bytes)
+            elif self.disc_ok and not self.core.exe_path:
+                # Only a prompt for someone who has no game yet. With one
+                # already picked, the disc is here for the soundtrack and
+                # asking where to install is pointing at a step they have
+                # already done.
+                why, level = INSTALL_NEEDS_DEST, 'warn'
+            else:
+                why, level = None, None
+            self.dest_note.config(
+                text=why or '',
+                foreground=PALETTE['bad'] if level == 'bad'
+                else PALETTE['amber'] if level == 'warn' else self.dim)
+            # The prompt only helps once there is a disc to rip from;
+            # before that it is a second cyan line saying nothing new.
+            self._music(music_status(self._target())
+                        if self.disc_var.get().strip() or self._target()
+                        else '')
+
+            self.install_btn.state(
+                ['!disabled'] if self.disc_ok and path and level != 'bad'
+                else ['disabled'])
+            # Ripping needs a source and somewhere to put the tracks. It
+            # does not care which build the disc holds, or whether the game
+            # beside it can be patched.
+            can_rip = bool(self.disc_var.get().strip()) and bool(self._target())
+            self.rip_btn.state(['!disabled'] if can_rip else ['disabled'])
+
+        def _target(self):
+            """Where the tracks go: the install folder if one is set, the
+            folder holding the chosen v_on.exe otherwise."""
+            path = self.dest_var.get().strip()
+            if path:
+                return path
+            if self.core.exe_path:
+                return os.path.dirname(self.core.exe_path)
+            return None
+
+        # -- installing
+
+        def _install(self):
+            dest = self.dest_var.get().strip()
+            source = self.disc_var.get().strip()
+            language = self.lang_var.get() or None
+            self.install_btn.state(['disabled'])
+            self.rip_btn.state(['disabled'])
+            self._disc_note(INSTALL_BUSY, self.dim)
+            self._log('install: reading %s' % source)
+            self._installq = queue.Queue()
+            self._install_dest = dest
+            last = [-1]
+
+            def progress(done, total):
+                pct = done * 100 // max(total, 1)
+                if pct != last[0]:
+                    last[0] = pct
+                    self._installq.put(('progress', pct))
+
+            def finished(error, written):
+                self._installq.put(('done', error, written))
+
+            install_in_background(source, dest, language, progress, finished)
+            self._poll_install()
+
+        def _poll_install(self):
+            """Drain the worker's queue on the UI thread. Tk is not safe to
+            call from another one."""
+            try:
+                while True:
+                    message = self._installq.get_nowait()
+                    if message[0] == 'progress':
+                        self._disc_note('%s %d%%' % (INSTALL_BUSY,
+                                                     message[1]), self.dim)
+                    else:
+                        self._installed(message[1], message[2])
+                        return
+            except queue.Empty:
+                pass
+            self.root.after(100, self._poll_install)
+
+        def _installed(self, error, written):
+            dest = self._install_dest
+            if error is not None:
+                self._disc_note(str(error), PALETTE['bad'])
+                self._log('install: failed - %s' % error)
+                self._sync_buttons()
+                return
+            self._disc_note(INSTALL_OK % (len(written), dest), PALETTE['ok'])
+            self._log('install: %d files written to %s'
+                      % (len(written), dest))
+            # Hand the result straight to the next step rather than making
+            # someone browse to a folder this window just created.
+            exe = os.path.join(dest, 'v_on.exe')
+            if os.path.exists(exe):
+                self.path_var.set(exe)
+                self._check_file(exe)
+            self._sync_buttons()
+
+        # -- soundtrack
+
+        def _music(self, text):
+            """The prompt to pick somewhere is the one line people miss, so
+            it gets the accent colour; everything else is a quiet hint."""
+            if text == MUSIC_NEEDS_EXE:
+                text, colour = INSTALL_NEEDS_TARGET, PALETTE['cyan']
+            else:
+                colour = self.dim
+            self.music_note.config(text=text or '', foreground=colour)
 
         def _rip(self):
-            source = self.rip_var.get().strip()
-            if not source:
-                self._log('No source. Give a cue sheet or a drive.')
+            source = self.disc_var.get().strip()
+            target = self._target()
+            if not target:
+                self._music(MUSIC_NEEDS_EXE)
                 return
-            if not self.core.exe_path:
-                self._log(MUSIC_NEEDS_EXE)
-                return
-            # Captured now: the exe can be changed from under a running rip,
-            # and the finished message has to name where the files went.
-            self._rip_dir = os.path.dirname(self.core.exe_path)
+            # Captured now: the destination can be changed from under a
+            # running rip, and the finished message names where they went.
+            self._rip_dir = target
             self.rip_btn.state(['disabled'])
-            self._log('Ripping from %s' % source)
+            self.install_btn.state(['disabled'])
+            self._log('music: ripping from %s' % source)
             self._cancel_rip = False
             self._ripq = queue.Queue()
             last = [-1]
@@ -4522,15 +5210,13 @@ def run_tk():
             self._poll_rip()
 
         def _poll_rip(self):
-            """Drain the worker's queue on the UI thread.
-
-            Tk is not safe to call from another thread, and after() from one
-            hits a destroyed interpreter if the window is closed mid-rip."""
             try:
                 while True:
                     message = self._ripq.get_nowait()
                     if message[0] == 'progress':
-                        self._music('Track %02d  %d%%' % message[1:])
+                        self.music_note.config(
+                            text='Track %02d  %d%%' % message[1:],
+                            foreground=self.dim)
                     else:
                         self._ripped(message[1], message[2])
                         return
@@ -4540,14 +5226,19 @@ def run_tk():
 
         def _ripped(self, error, files):
             if isinstance(error, RipCancelled):
-                self._log('Ripping cancelled')
+                self._log('music: cancelled, the part-written track was '
+                          'discarded')
             elif error is not None:
-                self._log('Ripping failed: %s' % error)
+                self._log('music: failed - %s' % error)
+                self.music_note.config(text=str(error),
+                                       foreground=PALETTE['bad'])
+                self._sync_buttons()
+                return
             else:
-                self._log('Ripped %d tracks to %s'
+                self._log('music: %d tracks written to %s'
                           % (len(files), outdir_for(self._rip_dir)))
             self._music(music_status(self._rip_dir))
-            self.rip_btn.state(['!disabled'])
+            self._sync_buttons()
 
         def _close(self):
             """Stop a running rip before the interpreter goes away."""
@@ -4649,24 +5340,25 @@ def run_tk():
                     remove_netplay(gamedir)
                     self.net_note.config(text=NETPLAY_OUT,
                                          foreground=self.dim)
-                    self._log('netplay: original dpctrl.dll restored')
+                    self._log('netplay: removed, original dpctrl.dll '
+                              'restored')
                 else:
                     updating = self.net_state == 'old'
                     install_netplay(gamedir)
                     if netplay_sync_ready(gamedir) is False:
                         self.net_note.config(text=NETPLAY_NOSYNC,
                                              foreground=PALETTE['amber'])
-                        self._log('netplay: installed, but v_on.exe lacks a '
-                                  'sync-critical patch')
+                        self._log('netplay: installed, but this v_on.exe is '
+                                  'missing a patch matches need')
                     else:
                         self.net_note.config(
                             text=NETPLAY_UPDATED if updating else NETPLAY_IN,
                             foreground=PALETTE['ok'])
-                        self._log('netplay: UDP dpctrl.dll %s'
+                        self._log('netplay: %s, UDP dpctrl.dll in place'
                                   % ('updated' if updating else 'installed'))
             except (OSError, ValueError) as exc:
                 self.net_note.config(text=str(exc), foreground=PALETTE['bad'])
-                self._log('netplay: %s' % exc)
+                self._log('netplay: failed - %s' % exc)
             self._netplay_sync()
 
         def _ddraw_dir(self):
@@ -4695,10 +5387,10 @@ def run_tk():
             except OSError as exc:
                 self.ddraw_note.config(text=DDRAW_LOCKED,
                                        foreground=PALETTE['bad'])
-                self._log('cnc-ddraw: %s' % exc)
+                self._log('ddraw: failed - %s' % exc)
             else:
                 self.ddraw_note.config(text=DDRAW_GONE, foreground=self.dim)
-                self._log('cnc-ddraw removed: %s' % ', '.join(gone))
+                self._log('ddraw: removed %s' % ', '.join(gone))
             self._ddraw_sync()
 
         def _install_ddraw(self):
@@ -4712,7 +5404,7 @@ def run_tk():
 
             self.ddraw_btn.state(['disabled'])
             self.ddraw_note.config(text=DDRAW_BUSY, foreground=self.dim)
-            self._log('Fetching cnc-ddraw from %s' % DDRAW_URL)
+            self._log('ddraw: fetching %s' % DDRAW_URL)
             self._ddrawq = queue.Queue()
 
             def progress(got, total):
@@ -4741,17 +5433,18 @@ def run_tk():
                     if isinstance(exc, PermissionError):
                         self.ddraw_note.config(text=DDRAW_LOCKED,
                                                foreground=PALETTE['bad'])
-                        self._log('cnc-ddraw: %s' % DDRAW_LOCKED)
+                        self._log('ddraw: failed - %s' % DDRAW_LOCKED)
                     elif exc:
                         self.ddraw_note.config(text='Download failed.',
                                                foreground=PALETTE['bad'])
-                        self._log('cnc-ddraw: %s' % exc)
-                        self._log('Install it by hand from the link above.')
+                        self._log('ddraw: failed - %s' % exc)
+                        self._log('ddraw: install it by hand from the link '
+                                  'in the add-on row')
                     else:
                         self.ddraw_note.config(
                             text='Installed %d files beside v_on.exe.'
                                  % len(files), foreground=PALETTE['ok'])
-                        self._log('cnc-ddraw installed: %s'
+                        self._log('ddraw: installed %s'
                                   % ', '.join(sorted(files)[:6]))
                     self._ddraw_sync()
                     return
@@ -4768,13 +5461,22 @@ def run_tk():
                 row = ttk.Frame(parent, style='Card.TFrame')
                 row.pack(fill='x', pady=3)
                 var = tk.BooleanVar(value=state[key])
-                check = ttk.Checkbutton(row, text=label, variable=var,
-                                        style='Card.TCheckbutton')
-                check.state(['disabled'])
-                check.pack(side='left')
+                self.vars[key] = var
+                if key in ALWAYS:
+                    # A permanently ticked box that cannot be clicked reads
+                    # like something is broken. A plain line does not, and
+                    # the card's own heading says these are always applied.
+                    ttk.Label(row, text=label, style='Card.TLabel',
+                              padding=(2, 3)).pack(side='left')
+                else:
+                    check = ttk.Checkbutton(row, text=label, variable=var,
+                                            style='Card.TCheckbutton',
+                                            command=self._retally)
+                    check.state(['disabled'])
+                    check.pack(side='left')
+                    self.checks[key] = check
                 Info(row, label, tip, self).btn.pack(side='right',
                                                      padx=(6, 2))
-                self.vars[key], self.checks[key] = var, check
 
 
         def _about_body(self, parent):
@@ -4830,6 +5532,11 @@ def run_tk():
                                     foreground=self.dim, font=self.small,
                                     width=1, anchor='w')
             self.status.pack(side='left', fill='x', expand=True)
+            # Seeded before the binding: the first <Configure> arrives while
+            # the window is being built, and with nothing remembered it
+            # would fit an empty string over the label's own text.
+            self._status_text, self._status_font = NO_FILE, self.small
+            self.status.bind('<Configure>', self._fit_status, add='+')
 
         # -- behaviour
 
@@ -4843,10 +5550,29 @@ def run_tk():
             else:
                 colour = PALETTE['ok'] if ok else PALETTE[level]
             font = self.small if ok is None else self.bold
-            # the card above shows it in full
-            short = text if len(text) <= 52 else text[:51] + '\u2026'
-            self.status.config(text=short, foreground=colour, font=font)
+            self._status_text, self._status_font = text, font
+            self.status.config(foreground=colour, font=font)
             self.file_note.config(text=text, foreground=colour, font=font)
+            self._fit_status()
+
+        def _fit_status(self, _event=None):
+            """Trim the status line to the room it actually has.
+
+            It used to cut at 52 characters, chosen for a 430px window. The
+            window is twice that now, so the number is measured in the font
+            against the label's own width instead - and on a wide window
+            nothing is cut at all."""
+            text = getattr(self, '_status_text', '')
+            font = getattr(self, '_status_font', self.small)
+            room = self.status.winfo_width()
+            if room <= 1 or font.measure(text) <= room:
+                self.status.config(text=text)
+                return
+            ellipsis = font.measure('\u2026')
+            cut = len(text)
+            while cut > 1 and font.measure(text[:cut]) + ellipsis > room:
+                cut -= 1
+            self.status.config(text=text[:cut].rstrip() + '\u2026')
 
         def _pick(self):
             path = filedialog.askopenfilename(
@@ -4866,13 +5592,16 @@ def run_tk():
                 for key, check in self.checks.items():
                     self.vars[key].set(False)
                     check.state(['disabled'])
+                # ALWAYS keys have no widget to disable; _apply forces them.
                 self.apply_btn.state(['disabled'])
                 self.restore_btn.state(['disabled'])
-                self.rip_btn.state(['disabled'])
+                self._sync_buttons()
                 self._ddraw_sync()
                 self._netplay_sync()
                 return
             level = (self.core.compare or {}).get('level', 'bad')
+            if note == READY_TAG:
+                note = READY % self._selected()
             self._set_status(note, ok, 'amber' if level == 'warn' else 'bad')
             self._compare(self.core.compare)
             state = default_state()
@@ -4884,8 +5613,7 @@ def run_tk():
                 ['!disabled'] if self.core.can_restore() else ['disabled'])
             # Ripping only needs a folder, so it stays available for a file
             # that cannot be patched - already patched, most likely.
-            self.rip_btn.state(['!disabled'])
-            self._music(music_status(os.path.dirname(path)))
+            self._sync_buttons()
             self._ddraw_sync()
             self._netplay_sync()
             if not ok:
@@ -4893,8 +5621,19 @@ def run_tk():
                 for line in (self.core.compare or {}).get('log', ()):
                     self._log(line)
 
+        def _selected(self):
+            """How many patches Apply would write right now."""
+            return sum(1 for key, var in self.vars.items()
+                       if key in ALWAYS or var.get())
+
+        def _retally(self, *_args):
+            """Keep the count honest as boxes are ticked."""
+            if self.core.exe_path and not self.core.compare:
+                self._set_status(READY % self._selected(), True)
+
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
+            wanted.update({key: True for key in ALWAYS})
             ok, lines = self.core.apply(wanted)
             for line in lines:
                 self._log(line)
@@ -4906,13 +5645,12 @@ def run_tk():
             self.apply_btn.state(['disabled'])
             for check in self.checks.values():
                 check.state(['disabled'])
-            off = [k for k in SYNC_KEYS if not wanted.get(k)]
-            if off:
-                self._set_status(DONE_NOSYNC, 'warn')
-                self._log('netplay: %s off, online play will refuse to connect'
-                          % ' and '.join(BY_KEY[k][0] for k in off))
-            else:
-                self._set_status(DONE)
+            # No sync warning here any more: both patches internet play
+            # needs are in ALWAYS, so Apply cannot produce a file without
+            # them. netplay_sync_ready still checks the file on disk when
+            # the add-on is installed, which catches a copy patched by an
+            # older release.
+            self._set_status(DONE % sum(1 for v in wanted.values() if v), True)
 
         def _restore(self):
             for line in self.core.restore():
@@ -4959,6 +5697,8 @@ def probe_tk():
 USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
 
   vo-patch.py                     open the patcher
+  vo-patch.py --install CUE DIR   copy the game out of a disc image into DIR
+                                  (--language NAME picks the help files)
   vo-patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
                                   or a CD drive, DIR holds v_on.exe
   vo-patch.py --rip               list the drives it can see
@@ -5038,6 +5778,56 @@ def ddraw_cli(argv):
     return None
 
 
+def install_cli(args):
+    """--install CUE DIR [--language NAME]"""
+    usage = 'Usage: --install CUE DIR [--language NAME]'
+    language = None
+    if '--language' in args:
+        at = args.index('--language')
+        if at + 1 >= len(args):
+            return usage
+        language = args[at + 1]
+        args = args[:at] + args[at + 2:]
+    if len(args) != 2:
+        return usage
+    cue, dest = args
+    try:
+        info = probe_disc(cue)
+    except (DiscError, OSError, ValueError) as exc:
+        return str(exc)
+    print('%s, %d files, %d MB' % (info['form'], info['count'],
+                                   info['bytes'] >> 20))
+    if info['languages']:
+        print('languages: %s (default %s)' % (', '.join(info['languages']),
+                                              info['default_language']))
+    build = info['build']
+    if not build['supported']:
+        return ('This disc holds the %s build of v_on.exe (%s).\n%s\n'
+                'The patches are written for the retail disc build, so '
+                'installing this one gains nothing - but --rip still works.'
+                % (build['name'], build['md5'], build['why']))
+    why, level = dest_problem(dest, info['bytes'])
+    if level == 'bad':
+        return why
+    if why:
+        print(why)
+    last = [-1]
+
+    def progress(done, total):
+        pct = done * 100 // max(total, 1)
+        if pct != last[0]:
+            last[0] = pct
+            sys.stdout.write('\r%3d%%' % pct)
+            sys.stdout.flush()
+
+    try:
+        written = install_disc(cue, dest, language, progress)
+    except (DiscError, OSError, ValueError) as exc:
+        return '\n%s' % exc
+    print('\rInstalled %d files to %s' % (len(written), dest))
+    return 0
+
+
 def rip_cli(argv):
     """--rip SOURCE GAMEDIR, for scripting or a machine with no display."""
     if len(argv) == 0:
@@ -5084,6 +5874,8 @@ def main():
         return ddraw_cli(sys.argv[sys.argv.index('--ddraw') + 1:])
     if '--rip' in args:
         return rip_cli(sys.argv[sys.argv.index('--rip') + 1:])
+    if '--install' in args:
+        return install_cli(sys.argv[sys.argv.index('--install') + 1:])
     # Anything left that looks like an option is a typo. Opening the window
     # instead looks like it worked.
     for arg in args:
