@@ -79,6 +79,33 @@ python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
 python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language FRENCH
 ```
 
+### If you have the disc, not an image
+
+The patcher installs from a `bin`/`cue` pair and does not read a drive
+directly. Virtual-On is a mixed-mode disc - one data track and 26 audio
+tracks - and a plain ISO throws the audio away along with the layout the
+installer's rules depend on, so it has to be imaged as `bin`/`cue`. Do that
+once and everything after it works from the file.
+
+- **Windows** - [ImgBurn](https://www.imgburn.com), *Read* mode, with the
+  output set to **BIN/CUE** rather than ISO. Point **Source** at the `.cue`
+  it writes.
+- **Linux** - `cdrdao` reads the whole disc raw, and its own `toc2cue`
+  converts the result:
+
+  ```bash
+  cdrdao read-cd --driver generic-mmc-raw --datafile VIRTUAL-ON.bin \
+      VIRTUAL-ON.toc /dev/sr0
+  toc2cue VIRTUAL-ON.toc VIRTUAL-ON.cue
+  ```
+
+  A drive can also go straight in **Source** for the soundtrack, but not for
+  the install - see [Music](#music).
+
+Imaging is worth doing anyway: it is the copy that survives the disc, and
+after the install and the rip there is nothing left on the disc the game
+wants.
+
 ### What it copies, and why that is the whole install
 
 The disc ships Sega's generic installer driven by `ssp.ini` in its root, so
@@ -118,6 +145,7 @@ Every refusal names what is wrong and what to do about it.
 | | |
 | --- | --- |
 | *That is a disc image* | you gave the `.bin`; the `.cue` beside it lists the tracks |
+| *Give the .cue sheet of a disc image* | not a cue sheet at all. If you have the disc rather than an image, see above |
 | *No filesystem found* | the image is truncated, or the cue names the wrong file for track 1 |
 | *No ssp.ini in the root* | a Virtual-On disc has one, so this image is a different disc |
 | *This cue sheet has no data track* | only the audio half was ripped |
@@ -434,8 +462,17 @@ the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
 install from here - the note under the buttons names the folder either way.
 Closing the window mid-rip cancels it and discards the part-written track.
 
-A CD drive works in **Source** too, for ripping only - a cdemu device is read
-like a physical one.
+On Linux a device node works in **Source** too, for ripping only - a cdemu
+device is read like a physical one. Windows drives are not read directly;
+image the disc first, as in
+[If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
+
+**Rip soundtrack** lights up only for a source the ripper can read: a cue
+sheet whose bin files are all there and which has audio tracks, or a device
+node that exists. A cue for some other game will rip - it is your disc - but
+the patcher says how many audio tracks it found against the 26 Virtual-On
+has, because the game asks for tracks by number and a different count means
+different music.
 
 Or from a terminal:
 

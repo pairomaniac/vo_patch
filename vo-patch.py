@@ -1769,6 +1769,28 @@ def outdir_for(gamedir):
     return os.path.join(gamedir, MUSIC_SUBDIR)
 
 
+# Every pressing carries the same 26 audio tracks, numbered 02 to 27, and the
+# game asks for them by number. A cue with a different layout is a different
+# disc, and ripping it fills the music folder with tracks nothing asks for.
+VO_AUDIO = tuple(range(2, 28))
+
+
+def looks_like_drive(source):
+    """A device node the ripper can read directly.
+
+    Linux only, and only for ripping: a cdemu device or a real drive answers
+    the same ioctls. Windows drive letters are not accepted here - the raw
+    read behind them is the one path with no test over it, and imaging the
+    disc first is the answer the README gives instead."""
+    return bool(re.match(r'^/dev/', source.strip()))
+
+
+def audio_tracks(cue_path):
+    """The numbers of the audio tracks in a cue sheet. Raises like
+    parse_cue does when the sheet or its bin files are wrong."""
+    return [t['no'] for t in parse_cue(cue_path) if 'AUDIO' in t['mode']]
+
+
 def rip(source, outdir, progress=None):
     """Dispatch on what the source looks like."""
     if source.lower().endswith('.cue'):
@@ -4136,6 +4158,15 @@ INSTALL_BUSY = 'Copying\u2026'
 INSTALL_NEEDS_TARGET = 'Choose a folder above, or pick your v_on.exe.'
 INSTALL_OK = 'Installed %d files to %s'
 INSTALL_DRIVE_ONLY = 'A drive can only be ripped. Give a .cue to install.'
+INSTALL_NO_PATH = 'There is nothing at that path.'
+INSTALL_NO_DRIVE = 'No such device.'
+INSTALL_NOT_A_CUE = 'Give the .cue sheet of a disc image.'
+INSTALL_NO_AUDIO = ('This image has no audio tracks - the soundtrack is not '
+                    'in it. Only the data half was ripped.')
+# The game asks for tracks by number, so a different count is a different
+# disc. Said rather than refused: it is their disc and their call.
+INSTALL_ODD_AUDIO = ('This image has %d audio tracks; Virtual-On has %d. '
+                     'Ripping it will not give the right music.')
 # What a good disc looks like, in one line: enough to tell a full rip from a
 # data-only one before anything is written.
 INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
@@ -4945,6 +4976,8 @@ def run_tk():
             self.music_note = _hint(parent, '', self.dim, self.small,
                                     pady=(4, 0))
             self.disc_ok = False
+            self.rip_ok = False
+            self._audio_warning = ''
             self._disc_bytes = 0
             self._music('')
             # Typing a path counts as picking one. The disc read opens files,
@@ -4992,33 +5025,61 @@ def run_tk():
             Everything here is cheap - a few kilobytes of directory and one
             hash of v_on.exe - so it runs on the UI thread the moment a
             source is picked, and the buttons below light up or do not."""
-            self.disc_ok = False
+            self.disc_ok = False        # a Virtual-On disc: install and rip
+            self.rip_ok = False         # anything the ripper can read at all
+            self._audio_warning = ''
             self._disc_bytes = 0
             self.disc_compare.show(None)
             self.lang_row.grid_forget()
             source = (source or '').strip()
+            extension = os.path.splitext(source)[1].lower()
 
             if not source:
                 self._disc_note(INSTALL_PICK, PALETTE['cyan'])
+            elif looks_like_drive(source):
+                self.rip_ok = os.path.exists(source)
+                self._disc_note(INSTALL_DRIVE_ONLY if self.rip_ok
+                                else INSTALL_NO_DRIVE,
+                                PALETTE['amber'] if self.rip_ok
+                                else PALETTE['bad'])
             elif not os.path.exists(source):
-                self._disc_note('There is no file at that path.',
-                                PALETTE['bad'])
-            elif os.path.splitext(source)[1].lower() != '.cue':
-                kind = DISC_IMAGES.get(os.path.splitext(source)[1].lower())
+                self._disc_note(INSTALL_NO_PATH, PALETTE['bad'])
+            elif extension != '.cue':
+                kind = DISC_IMAGES.get(extension)
                 self._disc_note(INSTALL_NOT_CUE % kind if kind
-                                else INSTALL_DRIVE_ONLY, PALETTE['amber'])
+                                else INSTALL_NOT_A_CUE, PALETTE['bad'])
             else:
-                try:
-                    info = probe_disc(source)
-                except DiscError as exc:
-                    self._disc_note(str(exc), PALETTE['bad'])
-                except (OSError, ValueError) as exc:
-                    # parse_cue names the missing bin or the bad line, and
-                    # that is the most useful thing there is to say.
-                    self._disc_note(str(exc), PALETTE['bad'])
-                else:
-                    self._describe_disc(info)
+                self._check_cue(source)
             self._sync_buttons()
+
+        def _check_cue(self, source):
+            """A cue sheet, which may or may not be a Virtual-On one.
+
+            The two questions are separate. Whether the ripper can read it is
+            answered by the cue; whether the installer can use it is answered
+            by what is inside the data track. A cue for some other game fails
+            the second and passes the first."""
+            try:
+                audio = audio_tracks(source)
+            except (OSError, ValueError) as exc:
+                # parse_cue names the missing bin or the bad line, and that
+                # is the most useful thing there is to say.
+                self._disc_note(str(exc), PALETTE['bad'])
+                return
+            self.rip_ok = bool(audio)
+
+            try:
+                info = probe_disc(source)
+            except (DiscError, OSError, ValueError) as exc:
+                self._disc_note(str(exc), PALETTE['bad'])
+            else:
+                self._describe_disc(info)
+
+            if not audio:
+                self._audio_warning = INSTALL_NO_AUDIO
+            elif tuple(audio) != VO_AUDIO:
+                self._audio_warning = INSTALL_ODD_AUDIO % (len(audio),
+                                                           len(VO_AUDIO))
 
         def _describe_disc(self, info):
             build = info['build']
@@ -5079,19 +5140,26 @@ def run_tk():
                 text=why or '',
                 foreground=PALETTE['bad'] if level == 'bad'
                 else PALETTE['amber'] if level == 'warn' else self.dim)
-            # The prompt only helps once there is a disc to rip from;
-            # before that it is a second cyan line saying nothing new.
-            self._music(music_status(self._target())
-                        if self.disc_var.get().strip() or self._target()
-                        else '')
+            # A warning about the disc outranks the folder note: it is the
+            # reason someone would not press Rip soundtrack.
+            if self._audio_warning:
+                self.music_note.config(text=self._audio_warning,
+                                       foreground=PALETTE['amber'])
+            else:
+                # The prompt only helps once there is a disc to rip from;
+                # before that it is a second cyan line saying nothing new.
+                self._music(music_status(self._target())
+                            if self.disc_var.get().strip() or self._target()
+                            else '')
 
             self.install_btn.state(
                 ['!disabled'] if self.disc_ok and path and level != 'bad'
                 else ['disabled'])
-            # Ripping needs a source and somewhere to put the tracks. It
-            # does not care which build the disc holds, or whether the game
-            # beside it can be patched.
-            can_rip = bool(self.disc_var.get().strip()) and bool(self._target())
+            # Ripping needs a source the ripper can actually read and
+            # somewhere to put the tracks. It does not care which build the
+            # disc holds, or whether the game beside it can be patched - a
+            # cue for another pressing still rips.
+            can_rip = self.rip_ok and bool(self._target())
             self.rip_btn.state(['!disabled'] if can_rip else ['disabled'])
 
         def _target(self):

@@ -341,6 +341,33 @@ def main():
             check('an audio-only cue refused', 'only audio tracks' in str(exc),
                   exc)
 
+        # What the ripper will and will not accept, told apart from what
+        # the installer will: a cue for another game rips but does not
+        # install, and a data-only image does neither.
+        check('a device node is recognised, a cue sheet is not',
+              vp.looks_like_drive('/dev/sr0')
+              and not vp.looks_like_drive('game.cue')
+              and not vp.looks_like_drive('D:'))
+        here = os.path.join(tmp, 'othergame')
+        os.makedirs(here)
+        other = write_disc(here, 'OTHER',
+                           build_iso({'readme.txt': b'not virtual-on'}),
+                           'MODE1/2352', audio=9)
+        check('another game has audio to rip',
+              vp.audio_tracks(other) == list(range(2, 11)),
+              vp.audio_tracks(other))
+        try:
+            vp.probe_disc(other)
+            check('another game refused by the installer', False)
+        except vp.DiscError:
+            check('another game refused by the installer', True)
+        check('its layout is not Virtual-On\'s',
+              tuple(vp.audio_tracks(other)) != vp.VO_AUDIO)
+        data_only = write_disc(os.path.join(tmp, 'install'), 'DATAONLY',
+                               build_iso(retail_tree(exe)), 'MODE1/2352')
+        check('a data-only image has nothing to rip',
+              vp.audio_tracks(data_only) == [], vp.audio_tracks(data_only))
+
         # Destination checks, which run before anything is written.
         _why, level = vp.dest_problem(os.path.join(tmp, 'game'), 1000)
         check('a folder with files in it warns', level == 'warn', level)
