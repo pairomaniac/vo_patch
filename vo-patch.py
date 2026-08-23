@@ -4439,12 +4439,9 @@ def run_tk():
         the last word against the card edge. An empty frame filled to the
         content area measures it exactly.
 
-        gutter keeps the text clear of anything sitting to the right of it -
-        on the add-on rows, the Install button. Pass a callable and it is
-        asked once, the first time the line is laid out, and remembered: the
-        button does not change size after that, and asking it again on every
-        step of a window drag is a call into Tcl for an answer already
-        known.
+        gutter keeps the text clear of anything floated to the right of
+        it - on the add-on rows, a button. Pass a callable to have it
+        measured when the line is laid out rather than guessed at now.
 
         Packs itself, because the holder is nobody else's business."""
         holder = ttk.Frame(parent, style='Card.TFrame')
@@ -4452,37 +4449,24 @@ def run_tk():
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
-        last, edge = [0], [None]
+        last = [0]
 
-        def fit(event=None):
-            # The width comes off the event rather than from winfo_width:
-            # tkinter has already unpacked it, and asking the holder again
-            # is a round trip into Tcl on every step of a window drag.
-            #
-            # <Configure> also fires for position and height, and only a
-            # width change can alter the wrapping, so the rest return here
-            # rather than relaying the label out for nothing. The write
-            # itself goes through the Tcl call directly - configure()
-            # marshals a dict and re-reads the widget's options first, and
-            # this runs for every hint on screen for every pixel dragged.
-            width = event.width if event is not None else holder.winfo_width()
-            if width <= 1:
-                return
-            # Rounded down to a whole step. Re-wrapping is the dearest thing
-            # a resize does - Tk re-measures the text and lays the label out
-            # again - and a drag delivers an event per pixel. Rounding down
-            # rather than to nearest matters: the wrap is then never wider
-            # than the space, so text is never clipped, only wrapped up to a
-            # step early. One step is under a character.
-            if edge[0] is None:
-                edge[0] = gutter() if callable(gutter) else gutter
-            width = max(140, (width - 2 - edge[0]) // WRAP_STEP * WRAP_STEP)
-            if width != last[0]:
-                last[0] = width
-                label.tk.call(label._w, 'configure', '-wraplength', width)
+        def fit(_event=None):
+            width = holder.winfo_width()
+            if width > 1:
+                edge = gutter() if callable(gutter) else gutter
+                # Rounded down to a whole step. Re-wrapping is the dearest
+                # thing a resize does and a drag delivers an event a pixel;
+                # rounding down rather than to nearest means the wrap is
+                # never wider than the space, so text is never clipped, only
+                # wrapped up to a step early - under a character.
+                width = max(140, (width - 2 - edge) // WRAP_STEP * WRAP_STEP)
+                if width != last[0]:
+                    last[0] = width
+                    label.configure(wraplength=width)
         holder.bind('<Configure>', fit, add='+')
-        label.bind('<Map>', lambda _e: fit(), add='+')   # a collapsed card
-        #                          gets no Configure until it reopens
+        label.bind('<Map>', fit, add='+')       # a collapsed card gets no
+        #                                         Configure until it reopens
         label.pack(anchor='w')
         return label
 
