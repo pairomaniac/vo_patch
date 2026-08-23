@@ -27,6 +27,7 @@ import shutil
 import ssl
 import struct
 import sys
+import time
 import webbrowser
 import threading
 import urllib.request
@@ -4178,6 +4179,9 @@ ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
 EXTRA_HINT = 'Optional. Untick what you do not want.'
 # Granularity of the hint wrapping, in pixels. See _hint.
 WRAP_STEP = 8
+# Shortest gap between two relayouts while the window is being dragged, in
+# milliseconds. About a 60Hz screen's frame. See App._fit.
+FIT_MS = 16
 # Clear space between an add-on's description and the button beside it.
 # Added to the button's own measured width, so it survives a longer label
 # or a different font.
@@ -4549,6 +4553,7 @@ def run_tk():
             # What _fit last wrote, so a resize that changes nothing costs
             # nothing.
             self._last_width, self._last_region = 0, None
+            self._fit_queued, self._fit_at = False, 0.0
             self._last_status = (None, 0)
             self._cancel_rip = False
             root.title(TITLE)
@@ -4683,6 +4688,31 @@ def run_tk():
             return self.left, self.right
 
         def _fit(self, _event=None):
+            """Coalesce a burst of resize events into one relayout.
+
+            A window manager sends a <Configure> for every pixel of a drag,
+            and answering each one lays the whole window out again. Past a
+            certain rate that is work nobody sees: the frames go by faster
+            than the screen refreshes and the queue falls behind the cursor,
+            which is what makes a drag feel heavy. Anything arriving inside
+            FIT_MS of the last pass is folded into one deferred pass with
+            the width the drag has reached by then."""
+            if self._fit_queued:
+                return
+            waited = (time.monotonic() - self._fit_at) * 1000
+            if waited >= FIT_MS:
+                self._do_fit()
+            else:
+                self._fit_queued = True
+                self.root.after(int(FIT_MS - waited), self._fit_now)
+
+        def _fit_now(self):
+            self._fit_queued = False
+            if self.root.winfo_exists():    # the window may have closed
+                self._do_fit()              # while this was waiting
+
+        def _do_fit(self):
+            self._fit_at = time.monotonic()
             need = self.inner.winfo_reqheight()
             wide = self.canvas.winfo_width()
             # Setting the item width makes the inner frame resize, which
