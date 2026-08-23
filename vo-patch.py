@@ -4176,6 +4176,8 @@ INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
 ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
                   'broken on a modern system, with nothing to weigh up.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
+# Granularity of the hint wrapping, in pixels. See _hint.
+WRAP_STEP = 8
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4439,13 +4441,35 @@ def run_tk():
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
-        def fit(_event=None):
-            width = holder.winfo_width()
-            if width > 1:
-                label.configure(wraplength=max(140, width - 2))
+        last = [0]
+
+        def fit(event=None):
+            # The width comes off the event rather than from winfo_width:
+            # tkinter has already unpacked it, and asking the holder again
+            # is a round trip into Tcl on every step of a window drag.
+            #
+            # <Configure> also fires for position and height, and only a
+            # width change can alter the wrapping, so the rest return here
+            # rather than relaying the label out for nothing. The write
+            # itself goes through the Tcl call directly - configure()
+            # marshals a dict and re-reads the widget's options first, and
+            # this runs for every hint on screen for every pixel dragged.
+            width = event.width if event is not None else holder.winfo_width()
+            if width <= 1:
+                return
+            # Rounded down to a whole step. Re-wrapping is the dearest thing
+            # a resize does - Tk re-measures the text and lays the label out
+            # again - and a drag delivers an event per pixel. Rounding down
+            # rather than to nearest matters: the wrap is then never wider
+            # than the space, so text is never clipped, only wrapped up to a
+            # step early. One step is under a character.
+            width = max(140, (width - 2) // WRAP_STEP * WRAP_STEP)
+            if width != last[0]:
+                last[0] = width
+                label.tk.call(label._w, 'configure', '-wraplength', width)
         holder.bind('<Configure>', fit, add='+')
-        label.bind('<Map>', fit, add='+')       # a collapsed card gets no
-        #                                         Configure until it reopens
+        label.bind('<Map>', lambda _e: fit(), add='+')   # a collapsed card
+        #                          gets no Configure until it reopens
         label.pack(anchor='w')
         return label
 
@@ -4524,6 +4548,10 @@ def run_tk():
             self._bodies = []
             self._openers = {}
             self._rip_thread, self._rip_dir = None, None
+            # What _fit last wrote, so a resize that changes nothing costs
+            # nothing.
+            self._last_width, self._last_region = 0, None
+            self._last_status = (None, 0)
             self._cancel_rip = False
             root.title(TITLE)
             root.minsize(430, 0)
@@ -4659,13 +4687,21 @@ def run_tk():
         def _fit(self, _event=None):
             need = self.inner.winfo_reqheight()
             wide = self.canvas.winfo_width()
-            if wide > 1:
+            # Setting the item width makes the inner frame resize, which
+            # fires its own <Configure> and brings us straight back here.
+            # Writing the same value again is what made every drag step cost
+            # two full passes over the layout, so each write is guarded by
+            # what it last wrote rather than repeated.
+            if wide > 1 and wide != self._last_width:
+                self._last_width = wide
                 self.canvas.itemconfigure(self.window, width=wide)
             # Only the scroll extent. Height is settled at startup and left
             # alone: driving it from here resizes the window on every expand
             # and collapse.
-            self.canvas.configure(
-                scrollregion=(0, 0, self.inner.winfo_reqwidth(), need))
+            region = (0, 0, self.inner.winfo_reqwidth(), need)
+            if region != self._last_region:
+                self._last_region = region
+                self.canvas.configure(scrollregion=region)
             # The bar stays packed whether it is needed or not. Showing and
             # hiding it moves the window by its own width the moment the
             # content outgrows the cap. Tk fills the trough when there is
@@ -5621,14 +5657,24 @@ def run_tk():
             text = getattr(self, '_status_text', '')
             font = getattr(self, '_status_font', self.small)
             room = self.status.winfo_width()
+            if (text, room) == self._last_status:
+                return          # a drag sends one of these per pixel
+            self._last_status = (text, room)
             if room <= 1 or font.measure(text) <= room:
                 self.status.config(text=text)
                 return
+            # Bisected rather than walked back a character at a time: each
+            # measure is a call into Tcl, and a long message in a narrow
+            # window cost one per character on every step of a drag.
             ellipsis = font.measure('\u2026')
-            cut = len(text)
-            while cut > 1 and font.measure(text[:cut]) + ellipsis > room:
-                cut -= 1
-            self.status.config(text=text[:cut].rstrip() + '\u2026')
+            low, high = 1, len(text)
+            while low < high:
+                mid = (low + high + 1) // 2
+                if font.measure(text[:mid]) + ellipsis <= room:
+                    low = mid
+                else:
+                    high = mid - 1
+            self.status.config(text=text[:low].rstrip() + '\u2026')
 
         def _pick(self):
             path = filedialog.askopenfilename(
