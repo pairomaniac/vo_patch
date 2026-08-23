@@ -5,6 +5,9 @@ dialog templates that go with it. `vo-patch.py` carries the finished bytes, so
 nobody running the patcher or building the exe needs nasm. Only someone
 editing this directory does.
 
+For what each patch changes see [NOTES.md](../docs/NOTES.md); for the build
+and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
+
 | File | What it holds |
 | --- | --- |
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
@@ -238,9 +241,10 @@ compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
 at the first of them and `build.py` checks it. This is why CD audio got a
 section of its own rather than another cave. The `.rdata` one holds the
 Extras box's strings and tables, the keyboard page fixes and the intro-movie
-message wait - the dialog template itself is in
-the `.rsrc` cave. Anything else of any
-size wants its own section, the way `vocd.asm` has one.
+message wait; the `.rsrc` one holds `movie.asm`. The dialog template is in
+neither - it goes in the `.voxt` section the patch appends, with
+`voxt.asm` after it. Anything else of any size wants its own section, the
+way `vocd.asm` has one.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
@@ -280,7 +284,7 @@ this file, not by address:
 | `bindblock.asm` | `0x1fe64c`-`0x1fe6c0` | 116 | 94 | 22 |
 | `blockcur.asm` | `0x1fcc64`-`0x1fccb8` | 84 | 71 | 13 |
 | `commitdev.asm` | `0x1fcb4c`-`0x1fcb98` | 76 | 57 | 19 |
-| `iniall.asm` | `0x1fa544`-`0x1fa5a0` | 92 | 91 | **1** |
+| `iniall.asm` | `0x23b9f4`-`0x23ba4c` | 88 | 88 | **0** |
 | `iniparse.asm` | `0x200f0c`-`0x200f6c` | 96 | 92 | **4** |
 | `pagesec.asm` | `0x200f70`-`0x200fd0` | 96 | 60 | 36 |
 | `pagesel.asm` | `0x200fd4`-`0x201034` | 96 | 91 | **5** |
@@ -291,8 +295,14 @@ this file, not by address:
 
 `inisave.asm`'s cave ends early: `0x601c98` is a live address `0x4cf61b`
 reads, inside what scans as a longer run - the trap the second check below
-describes. `bindmap.asm` and `inisave.asm` are the tight ones; growing
-either past its cave is a rehoming job.
+describes. `iniall.asm` is full, and `bindmap.asm` and `f11pause.asm` have
+a byte or two each; growing any of them is a rehoming job.
+
+`iniall.asm` moved to this cave in v0.10.2. It sat at `0x1fa544` before,
+which is zeros in the file and not free: the attract loop's scoreboard state
+copies 21 dwords from `0x5fb140` into its own record and reads an index out
+of them, so the blob's bytes were the index and the loop crashed on its way
+back to the title screen.
 
 The ending screens and the credit use three more runs of zeros in `.rdata`,
 on the same terms:

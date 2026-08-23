@@ -2,7 +2,8 @@
 
 How the patches work, rather than how to use them. For using the
 patcher see [README.md](../README.md); for the assembly sources and how
-they are built see [asm/](../asm/).
+they are built see [asm/](../asm/); for the netplay DLL, which is a
+replacement rather than a patch, see [net/](../net/).
 
 ## Patches
 
