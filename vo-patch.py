@@ -4607,22 +4607,28 @@ def run_tk():
             for body, shown in self._bodies:
                 if not shown:
                     body.pack(fill='x')
+
+            # Hold the content to the width it is meant to have before
+            # measuring anything. Left to itself a paragraph asks for the
+            # width of its longest line unwrapped, so the window came out as
+            # wide as the longest sentence in it and could not be dragged
+            # any narrower - the minimum below is taken from this. The
+            # hints wrap to whatever the content is given, so give it the
+            # answer first and let them settle against it.
+            wide = MIN_CONTENT * self.columns \
+                + (GUTTER if self.columns > 1 else 0)
+            self._last_width = wide
+            self.canvas.itemconfigure(self.window, width=wide)
             root.update_idletasks()
+
             # With two columns the window has to fit the taller of them, not
             # the sum: the grid puts them side by side and reqheight already
             # reports the taller, but only once both have been laid out.
             full = self.inner.winfo_reqheight()
-            # Width has to come from here too, for the same reason: a
-            # collapsed section still has to fit when it is opened, and the
-            # canvas forces its content to the window width rather than
-            # scrolling sideways, so anything wider is cut off. The CD music
-            # row is the widest thing in the window and starts collapsed.
-            # A floor as well as the content width: with the long sections
-            # collapsed the window would otherwise shrink to the widest
-            # checkbox, and every hint below it would wrap to three lines.
-            wide = max(MIN_CONTENT * self.columns
-                       + (GUTTER if self.columns > 1 else 0),
-                       self.inner.winfo_reqwidth())
+            # Anything still asking for more than the target cannot be
+            # wrapped - a row of fixed-width boxes, say - so the window
+            # grows to it rather than cutting it off.
+            wide = max(wide, self.inner.winfo_reqwidth())
             for body, shown in self._bodies:
                 if not shown:
                     body.pack_forget()
