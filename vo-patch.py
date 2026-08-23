@@ -4386,11 +4386,13 @@ def run_tk():
         put() and its -subsample does not average.
 
         Only fixed-size widgets get this. A ttk image element with a border
-        re-composites its nine-patch on every expose, in software, which
-        made resizing the window ten times slower when the cards used one.
+        re-composites its nine-patch on every expose, in software.
 
         clam has no border radius and its checkbox is a flat square with two
-        settable colours, so anything rounded has to be an image."""
+        settable colours, so anything rounded has to be an image. The cards
+        used to have rounded corners too, faked with four small images
+        placed at each one; they were repositioned on every step of a window
+        drag and cost more than the rounding was worth."""
         def cover(distance):
             return min(1.0, max(0.0, 0.5 - distance))
 
@@ -4541,7 +4543,6 @@ def run_tk():
             self.root = root
             self.core = Patcher()
             self.vars, self.checks = {}, {}
-            self._corner_cache = {}
             self._bodies = []
             self._openers = {}
             self._rip_thread, self._rip_dir = None, None
@@ -4831,30 +4832,6 @@ def run_tk():
             self.mono.configure(size=small)
             self.dim = p['dim']
 
-        def _corners(self, parent, colour, spots, pad):
-            """Fake a radius with four small images pinned to the corners.
-            Fixed size, so Tk blits them; a stretched nine-patch would be
-            recomposited on every expose instead, which is ten times dearer.
-
-            place() measures from a ttk frame's content area, so the padding
-            has to be subtracted or the corners sit inside the card."""
-            left, top, right, bottom = pad
-            for spot in spots:
-                key = (colour, spot)
-                if key not in self._corner_cache:
-                    self._corner_cache[key] = _rounded(
-                        18, 18, PALETTE['ink'], colour, PALETTE['line'],
-                        radius=9, line=1.0, corners=spot,
-                        grow=('s' if 'n' in spot else 'n')
-                             + ('e' if 'w' in spot else 'w'))
-                tk.Label(parent, image=self._corner_cache[key], borderwidth=0,
-                         highlightthickness=0).place(
-                    relx=0 if 'w' in spot else 1,
-                    rely=0 if 'n' in spot else 1,
-                    x=-left if 'w' in spot else right,
-                    y=-top if 'n' in spot else bottom,
-                    anchor=spot)
-
         def _draw_indicator(self, style, p):
             """Swap clam's indicator for drawn images. Keep the references:
             Tk does not own them, and a collected image leaves a blank box."""
@@ -4896,15 +4873,12 @@ def run_tk():
                              font=self.head_font)
             name.pack(side='left')
 
-            self._corners(head, PALETTE['head'], ('nw', 'ne'), (10, 7, 10, 7))
             inner = ttk.Frame(card, style='Body.TFrame',
                               padding=(14, 10, 12, 12))
             self._bodies.append((inner, expanded))
             if expanded:
                 inner.pack(fill='x')
             build(inner)
-            self._corners(inner, PALETTE['card'], ('sw', 'se'),
-                          (14, 10, 12, 12))
 
             state = {'open': expanded}
 
