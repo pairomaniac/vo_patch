@@ -4147,6 +4147,12 @@ TITLE = '%s %s' % (NAME, VERSION)
 # milliseconds. See App._nudge.
 NUDGE_MS = 60
 MIN_CONTENT = 480               # px per column; narrower and hints wrap badly
+# And the widest, per column. Past this the extra room goes into longer
+# lines of hint text, which is harder to read rather than easier - a
+# paragraph wants sixty to ninety characters a line and this is already at
+# the top of that. Maximising lands here rather than filling a 34-inch
+# monitor with one sentence per line.
+MAX_CONTENT = 620
 GUTTER = 14                     # px between the two columns
 NO_FILE = 'No file selected'
 
@@ -4556,6 +4562,8 @@ def run_tk():
             self._nudge_at = 0.0
             root.title(TITLE)
             root.minsize(430, 0)
+            # Set again at the end of __init__, once the content has been
+            # measured. This is only a floor to build against.
             root.maxsize(root.winfo_screenwidth() - 40,
                          root.winfo_screenheight() - 60)
 
@@ -4633,7 +4641,25 @@ def run_tk():
             root.update_idletasks()
             self.canvas.configure(width=wide, height=min(full, self.cap))
             # the minimum has to leave room for the scrollbar as well
-            root.minsize(wide + self.vbar.winfo_reqwidth(), 320)
+            bar = self.vbar.winfo_reqwidth()
+            root.minsize(wide + bar, 320)
+            # And a maximum, so that maximising lands on the largest size
+            # that is any use rather than on the size of the screen. Wider
+            # only stretches the hints; taller only adds empty space under
+            # the last card, since the content is as tall as it gets with
+            # every section open. Both are clamped to the screen, and a
+            # window manager that ignores size hints - a tiling one, say -
+            # is no worse off than before.
+            root.update_idletasks()
+            # Everything the window holds that is not the scrolling area:
+            # the status bar. The tallest it is ever worth being is all of
+            # the content plus that.
+            chrome = root.winfo_reqheight() - min(full, self.cap)
+            root.maxsize(
+                min(root.winfo_screenwidth() - 40,
+                    max(wide, MAX_CONTENT * self.columns
+                        + (GUTTER if self.columns > 1 else 0)) + bar),
+                min(root.winfo_screenheight() - 60, full + chrome))
             self._fit()
 
         def _body(self, parent):
