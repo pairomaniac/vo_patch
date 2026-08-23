@@ -65,15 +65,20 @@ Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
 the `.bin` itself - choose a folder in **Install to**, and press **Install
 game**. About 95 MB.
 
-The **Language** box appears when the disc carries more than one; it decides
-which `readme.txt` and help file are copied and nothing else. The game itself
-is the same in every region.
+The **Manual** box appears when the disc carries more than one language. It
+picks which `readme.txt`, `von.hlp` and `von.cnt` are copied. It is not the
+language of the game: every pressing carries one `v_on.exe` and it is
+English, so there is no translated build to install.
+
+`von.hlp` is 1997 WinHelp, which Windows has not been able to open since
+WinHlp32 stopped being available for Windows 10. The `readme.txt` is plain
+text and opens anywhere.
 
 Or from a terminal:
 
 ```bash
 python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
-python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language FRENCH
+python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language GERMAN
 ```
 
 ### If you have the disc, not an image
@@ -98,8 +103,8 @@ Then put the `.cue` in **Source**. On Linux a drive can also go straight in
 
 ### What it copies
 
-The game directory, and your language's `readme.txt` and help file. Nothing
-else on the disc is part of the game: `directx\` is a 1997 redistributable
+The game directory, and the chosen language's `readme.txt` and help file.
+Nothing else on the disc is part of the game: `directx\` is a 1997 redistributable
 and the rest is the installer's own furniture.
 
 No `v_on.ini` is written - the game makes its own on first run, and with

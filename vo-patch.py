@@ -4148,8 +4148,9 @@ INSTALL_HINT = ('Installs the game and rips the soundtrack, from a disc '
 INSTALL_TIP = ('Source\tThe .cue sheet beside the .bin files, not the .bin.\n'
                'Install game\tThe game folder, about 95 MB.\n'
                'Rip soundtrack\tmusic\\track02.wav onward, about 320 MB.\n'
-               'Language\tPicks the readme and help file. The game is the '
-               'same either way.')
+               'Manual\tWhich readme and help file is copied. Every '
+               'pressing carries one v_on.exe and it is English, so there '
+               'is no translated game to install.')
 
 INSTALL_PICK = 'Give the .cue sheet, not the .bin.'
 INSTALL_NOT_CUE = 'That is a %s. Give the .cue sheet beside it.'
@@ -4945,8 +4946,14 @@ def run_tk():
             # Only packed once a disc has been read and offers a choice: the
             # OEM pressing has no language directories at all.
             self.lang_row = ttk.Frame(grid, style='Card.TFrame')
-            self.lang_row.columnconfigure(1, weight=1)
-            ttk.Label(self.lang_row, text='Language', style='Card.TLabel',
+            # The note absorbs the slack, not the box: with the weight on
+            # column 1 the row overflowed and the combobox was squeezed
+            # until GERMAN read as GERI.
+            self.lang_row.columnconfigure(2, weight=1)
+            # Named "Manual", not "Language": the disc has one v_on.exe and
+            # it is English, so a language label promises a translated game
+            # that no pressing carries. This is the language of the papers.
+            ttk.Label(self.lang_row, text='Manual', style='Card.TLabel',
                       font=self.small, width=10, anchor='w').grid(
                           row=0, column=0, sticky='w', padx=(0, 8))
             self.lang_var = tk.StringVar()
