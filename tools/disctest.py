@@ -381,6 +381,33 @@ def main():
               vp.probe_disc(short)['languages'] == ['ENGLISH'],
               vp.probe_disc(short)['languages'])
 
+        # Cue sheets as the tools that write them actually write them: the
+        # sheet travels with the image and names it the way another machine
+        # saw it.
+        variants = os.path.join(tmp, 'cues')
+        os.makedirs(variants)
+        plain = write_disc(variants, 'VARIANT', build_iso(retail_tree(exe)),
+                           'MODE1/2352')
+        base = os.path.dirname(plain)
+        sheet = open(plain).read()
+        for label, text in (
+                ('a CRLF sheet reads', sheet.replace('\n', '\r\n')),
+                ('a sheet with a BOM reads', '\ufeff' + sheet),
+                ('an unquoted FILE name reads',
+                 '\n'.join(l.replace('"', '') if l.startswith('FILE') else l
+                           for l in sheet.splitlines())),
+                ('a wrong-case FILE name reads',
+                 sheet.replace('.bin"', '.BIN"')),
+                ('a stale absolute path reads',
+                 sheet.replace('FILE "', 'FILE "D:\\rips\\gone\\'))):
+            path = os.path.join(base, label.split()[1] + '.cue')
+            with open(path, 'w', newline='') as fh:
+                fh.write(text)
+            try:
+                check(label, vp.probe_disc(path)['count'] > 0)
+            except Exception as exc:                    # noqa: BLE001
+                check(label, False, '%s: %s' % (type(exc).__name__, exc))
+
         # Destination checks, which run before anything is written.
         _why, level = vp.dest_problem(os.path.join(tmp, 'game'), 1000)
         check('a folder with files in it warns', level == 'warn', level)

@@ -1483,6 +1483,51 @@ def _msf_to_sectors(text):
     return (m * 60 + s) * 75 + f
 
 
+def _cue_file(base, line):
+    """Where a cue sheet's FILE line actually points.
+
+    Sheets travel with the images they describe and are written by tools on
+    another machine, so the name in them is often not the name on this disk:
+    a different case, a backslash path that means nothing here, or an
+    absolute path to a drive letter that no longer exists. The bin sits
+    beside the cue in every one of those, so the name is what matters and
+    the path around it does not.
+    """
+    if '"' in line:
+        name = line.split('"')[1]
+    else:
+        # FILE NAME TYPE, unquoted. The type is the last word; anything
+        # between it and FILE is the name, spaces and all.
+        parts = line.split()
+        name = ' '.join(parts[1:-1]) if len(parts) > 2 else parts[-1]
+
+    here = os.path.join(base, name)
+    if os.path.exists(here):
+        return here
+
+    # A backslash is a separator to the tool that wrote it and a character
+    # in a name to this one, so try it as a path first.
+    walked = name.replace('\\', '/').rstrip('/')
+    here = os.path.join(base, *walked.split('/'))
+    if os.path.exists(here):
+        return here
+
+    # Then as a name, since the bin sits beside the sheet in every sheet
+    # that has travelled.
+    plain = walked.rsplit('/', 1)[-1]
+    here = os.path.join(base, plain)
+    if os.path.exists(here):
+        return here
+
+    try:
+        for entry in os.listdir(base):
+            if entry.lower() == plain.lower():
+                return os.path.join(base, entry)
+    except OSError:
+        pass
+    return os.path.join(base, plain)
+
+
 def parse_cue(path):
     """Return [(track_no, mode, binpath, start_sector, index0_sector)].
 
@@ -1492,20 +1537,15 @@ def parse_cue(path):
     base = os.path.dirname(os.path.abspath(path))
     tracks, curbin, cur = [], None, None
 
-    with open(path, 'r', errors='replace') as fh:
+    # utf-8-sig, because a sheet written on Windows can start with a BOM and
+    # the first line is the one naming the bin.
+    with open(path, 'r', encoding='utf-8-sig', errors='replace') as fh:
         for line in fh:
             line = line.strip()
             up = line.upper()
 
             if up.startswith('FILE'):
-                name = line.split('"')[1] if '"' in line else line.split()[1]
-                curbin = os.path.join(base, name)
-                if not os.path.exists(curbin):
-                    # Cue sheets are often wrong about case.
-                    for entry in os.listdir(base):
-                        if entry.lower() == os.path.basename(name).lower():
-                            curbin = os.path.join(base, entry)
-                            break
+                curbin = _cue_file(base, line)
 
             elif up.startswith('TRACK'):
                 parts = line.split()
