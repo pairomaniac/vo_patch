@@ -26,11 +26,9 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 It is unsigned, so SmartScreen calls it an unknown publisher on the first
 run. On Linux, see [Running from source](#running-from-source).
 
-The window is in two columns where the screen allows: getting the game in
-place on the left, patching it on the right. It is sized to fit a 1600x900
-screen at 100% scaling with everything open; on a narrower one the sections
-stack into a single column instead. Work down it - the sections are numbered
-in the same order.
+The window is in two columns - getting the game in place on the left,
+patching it on the right - and the sections are numbered in the order to
+work through them.
 
 1. **DISC** - put your `.cue` sheet in **Source**, choose a folder in
    **Install to**, and press **Install game**. Then **Rip soundtrack**,
@@ -60,9 +58,8 @@ editing it, so Apply and Restore leave them alone.
 
 ## Installing from a disc image
 
-The disc is mixed-mode, so Windows will not mount the `.cue`, WinCDEmu often
-refuses it, and the 1997 installer checks that it is running from a real
-optical drive. The patcher reads the image itself instead.
+The patcher reads the image itself, so there is nothing to mount and no
+virtual drive to set up.
 
 Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
 the `.bin` itself - choose a folder in **Install to**, and press **Install
@@ -81,17 +78,13 @@ python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language FRENC
 
 ### If you have the disc, not an image
 
-The patcher installs from a `bin`/`cue` pair and does not read a drive
-directly. Virtual-On is a mixed-mode disc - one data track and 26 audio
-tracks - and a plain ISO throws the audio away along with the layout the
-installer's rules depend on, so it has to be imaged as `bin`/`cue`. Do that
-once and everything after it works from the file.
+The patcher needs a `bin`/`cue` pair; it does not read a drive directly, and
+a plain ISO will not do because it drops the audio tracks. Image the disc
+once:
 
 - **Windows** - [ImgBurn](https://www.imgburn.com), *Read* mode, with the
-  output set to **BIN/CUE** rather than ISO. Point **Source** at the `.cue`
-  it writes.
-- **Linux** - `cdrdao` reads the whole disc raw, and its own `toc2cue`
-  converts the result:
+  output set to **BIN/CUE** rather than ISO.
+- **Linux** - `cdrdao`, then its own `toc2cue`:
 
   ```bash
   cdrdao read-cd --driver generic-mmc-raw --datafile VIRTUAL-ON.bin \
@@ -99,44 +92,22 @@ once and everything after it works from the file.
   toc2cue VIRTUAL-ON.toc VIRTUAL-ON.cue
   ```
 
-  A drive can also go straight in **Source** for the soundtrack, but not for
-  the install - see [Music](#music).
+Then put the `.cue` in **Source**. On Linux a drive can also go straight in
+**Source** for the soundtrack, though not for the install - see
+[Music](#music).
 
-Imaging is worth doing anyway: it is the copy that survives the disc, and
-after the install and the rip there is nothing left on the disc the game
-wants.
+### What it copies
 
-### What it copies, and why that is the whole install
+The game directory, and your language's `readme.txt` and help file. Nothing
+else on the disc is part of the game: `directx\` is a 1997 redistributable
+and the rest is the installer's own furniture.
 
-The disc ships Sega's generic installer driven by `ssp.ini` in its root, so
-the copy rules are read from there rather than guessed at:
+No `v_on.ini` is written - the game makes its own on first run, and with
+**Better defaults** applied it makes a good one. The disc's `v_on_a.ini` and
+`v_on_b.ini` are copied as they are.
 
-| | |
-| --- | --- |
-| `SourcePath1` | the game directory, copied whole - `v_on\` on every pressing |
-| `Select1` | whether a language directory is copied too |
-| `LangExeclusive` | which one, per language section |
-| `IniFileName` | the file Sega's installer writes. The patcher does not - see below |
-
-**No `v_on.ini` is written.** Sega's installer asks a dialog and copies
-`v_on_a.ini` or `v_on_b.ini` over it, deleting both afterwards
-(`setup.exe` at `0x408acf`). Doing the same would fight the patches:
-`v_on_a.ini` carries `Motion=3`, a frame divisor the patched game obeys, so a
-freshly installed and patched copy would run at a third speed. An ini that is
-there wins over the defaults the patches set. Both files are copied as the
-disc has them, and the game writes its own `v_on.ini` on first run.
-
-Nothing else on the disc belongs beside the game: the `directx\` tree is a
-1997 redistributable, and `ssp.dll`, `wincpuid.dll`, the `von**.dll` and
-`msgv3*.dll` sets, `loader.exe` and `vouninst.exe` are the installer's own
-furniture.
-
-`setup.exe` writes nothing the game reads. Its only registry writes register
-the Indeo video codec, and they sit behind a Windows 95 check that no modern
-system passes; the `SOFTWARE\SEGA\` and Uninstall keys are `vouninst.exe`
-registering itself. The game reads two registry keys of its own, both under
-`MediaResources\Joystick`, and both are Windows' own joystick table rather
-than anything an installer puts there.
+For how the copy rules are read off the disc, see
+[docs/NOTES.md](docs/NOTES.md#installing-from-a-disc-image).
 
 ### If it refuses
 
@@ -144,31 +115,28 @@ Every refusal names what is wrong and what to do about it.
 
 | | |
 | --- | --- |
-| *That is a disc image* | you gave the `.bin`; the `.cue` beside it lists the tracks |
+| *That is a disc image. Give the .cue sheet beside it* | you gave the `.bin`; the `.cue` beside it lists the tracks |
 | *Give the .cue sheet of a disc image* | not a cue sheet at all. If you have the disc rather than an image, see above |
-| *No filesystem found* | the image is truncated, or the cue names the wrong file for track 1 |
-| *No ssp.ini in the root* | a Virtual-On disc has one, so this image is a different disc |
-| *This cue sheet has no data track* | only the audio half was ripped |
+| *No filesystem in ...* | the image is truncated, or the cue names the wrong file for track 1 |
+| *No ssp.ini in the root of this image* | it is not a Virtual-On disc |
+| *This cue sheet lists only audio tracks* | only the audio half was ripped |
+| *This image has no audio tracks* | only the data half was ripped; the install works, the rip does not |
 | *CANNOT INSTALL - USA OEM build* | see [Which build](#which-build). **Rip soundtrack** still works |
 | *That folder is not empty* | a warning, not a refusal - same-named files are replaced |
 | *Not enough room* | with the numbers, checked before anything is written |
 
-Sector layout is found by looking rather than by trusting the cue sheet, so
-`MODE1/2352`, `MODE2/2352`, `MODE1/2048` and `MODE2/2336` all work, and a cue
-that names the wrong one still reads.
+`MODE1/2352`, `MODE2/2352`, `MODE1/2048` and `MODE2/2336` images all work,
+including a cue sheet that names the wrong one.
 
 ## What the patches do
 
-Every **Essential** patch is applied, with no tick box. Each fixes something
-broken on a modern system and none has a trade-off to weigh: without them the
-game does not start, crashes when you lose a round, runs at a third of the
-frame rate, or loses the keyboard after ALT+TAB. Two of them are also what
-internet play needs, so this removes a way to build a game that patches
-cleanly and then refuses to connect.
+Every **Essential** patch is applied, with no tick box. Without them the game
+does not start, crashes when you lose a round, runs at a third of the frame
+rate, or loses the keyboard after ALT+TAB.
 
-One consequence worth knowing: keeping the keyboard alive across ALT+TAB
-means the game reads it in the background, so keys pressed in another window
-still reach it while the game is running.
+Keeping the keyboard alive across ALT+TAB means the game reads it in the
+background, so keys pressed in another window still reach it while the game
+is running.
 
 **Essential** fixes what is broken on modern systems; **Extra** is down to
 taste. Every patch's offsets and internals are in [NOTES.md](docs/NOTES.md).
@@ -450,10 +418,6 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game. No drive, no extra DLL.
 
-Ripping is what lets the disc image go in a drawer: installing gets the game
-off it, this gets the music off it, and after both there is nothing left on
-the disc the game wants.
-
 ### Ripping the tracks
 
 Use **DISC**, the same **Source** box as the install: one cue sheet holds
@@ -462,17 +426,14 @@ the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
 install from here - the note under the buttons names the folder either way.
 Closing the window mid-rip cancels it and discards the part-written track.
 
-On Linux a device node works in **Source** too, for ripping only - a cdemu
-device is read like a physical one. Windows drives are not read directly;
-image the disc first, as in
-[If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
+On Linux a device node works in **Source** too - a cdemu device is read like
+a physical one. Windows drives are not read directly; image the disc first,
+as in [If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
 
-**Rip soundtrack** lights up only for a source the ripper can read: a cue
-sheet whose bin files are all there and which has audio tracks, or a device
-node that exists. A cue for some other game will rip - it is your disc - but
-the patcher says how many audio tracks it found against the 26 Virtual-On
-has, because the game asks for tracks by number and a different count means
-different music.
+**Rip soundtrack** stays greyed out until **Source** holds something the
+ripper can read. If the image is not Virtual-On, it says how many audio
+tracks it found against the 26 there should be - the game asks for tracks by
+number, so a different count is different music.
 
 Or from a terminal:
 
@@ -588,9 +549,9 @@ write into unrelated code.
 
 If your file is neither of these, the patcher shows both checksums side by
 side and says which one it got - in **GAME FILE** for a file you picked, or
-in **DISC** for a disc image, where it checks the `v_on.exe`
-inside before writing 95 MB you cannot patch. Ripping the soundtrack off an
-OEM disc still works; only patching needs the retail build.
+in **DISC** for a disc image, which is checked before anything is installed.
+Ripping the soundtrack off an OEM disc still works; only patching needs the
+retail build.
 
 ### What gets written
 

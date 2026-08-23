@@ -28,6 +28,70 @@ replacement rather than a patch, see [net/](../net/).
 
 Bold entries are not part of original VO_Patch.
 
+## Installing from a disc image
+
+The disc carries Sega's generic installer, driven by `ssp.ini` in the root,
+so the copy rules are read from there rather than guessed at. The four keys
+that matter:
+
+| Key | Meaning |
+| --- | --- |
+| `SourcePath1` | the game directory, copied whole - `v_on\` on every pressing |
+| `Select1` | whether a language directory is copied too |
+| `LangExeclusive` | which one, per language section |
+| `IniFileName` | the file Sega's installer writes; the patcher does not |
+
+The retail pressings set `Select1 = SourceCopy, LangExeclusive` and keep the
+help files in `english\` and friends; the USA OEM disc has neither and keeps
+them in `v_on\`. One rule covers both: copy `SourcePath1`, and copy the
+chosen section's `LangExeclusive` directory as well when `Select1` names it.
+
+Sector layout is found by looking rather than by trusting `TRACK 01` - the
+four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
+so a cue sheet that names the wrong mode still reads.
+
+### Why no v_on.ini
+
+`setup.exe` at `0x408acf` builds the three paths, asks a dialog in the
+language DLL, and copies `v_on_a.ini` or `v_on_b.ini` over `v_on.ini` before
+deleting both:
+
+```
+  DialogBoxParamA(<language dll>, 7140, ...)
+  if result:  CopyFileA(v_on_a.ini -> v_on.ini)
+  else:       CopyFileA(v_on_b.ini -> v_on.ini)
+  DeleteFileA(v_on_a.ini)
+  DeleteFileA(v_on_b.ini)
+```
+
+Doing the same would fight the patches. `v_on_a.ini` carries `Motion=3`, the
+frame divisor at `0x6c84d0` that the frame rate patch sets to 1, and a value
+in the ini wins over the default in the code - so a freshly installed and
+patched game would run at a third speed. Both files are copied as the disc
+has them and no `v_on.ini` is written; the game writes its own on first run,
+against whatever defaults are patched in.
+
+### What setup.exe writes that the game reads
+
+Nothing. Its only `RegSetValueExA` calls register the Indeo Video 4.1 codec
+in `Drivers32` and `drivers.desc`, and they sit behind a `GetVersionExA`
+guard at `0x4021dd` testing `dwPlatformId == VER_PLATFORM_WIN32_WINDOWS`, so
+they never run on NT, Wine or Proton. The `SOFTWARE\SEGA\`, App Paths and
+Uninstall keys go through `SSP.dll!CreateRegistryString` and are
+`vouninst.exe` registering itself.
+
+`v_on.exe` imports `RegCreateKeyExA` and `RegQueryValueExA` but writes
+nothing. Both call sites are at `0x495b82`-`0x495bf3`, reading `OEMName`
+under `MediaResources\Joystick` and `MediaProperties\...\Joystick\OEM` and
+comparing against `Microsoft SideWinder game pad` - Windows' own joystick
+table, not anything an installer puts there. The paths are assembled at
+runtime from `%s\%s\%s`, which is why they do not show up in a string dump.
+
+One consequence worth recording: registering IV41 means `von.avi` is Indeo
+Video 4.1, and `ir41_32.dll` is not on the disc - it came from Windows. Wine
+has no Indeo decoder, so that movie cannot play on a clean prefix however the
+game is installed.
+
 ## How each patch works
 
 In the order of the table above; rows that are a single obvious byte edit are
