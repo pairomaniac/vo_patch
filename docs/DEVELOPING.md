@@ -1,4 +1,4 @@
-# Developing vo_patch
+# Developing vo-patch
 
 How to build, what to run before pushing, and what each check is for. For
 using the patcher see [README.md](../README.md); for what the patches do see

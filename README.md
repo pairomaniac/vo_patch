@@ -1,9 +1,10 @@
-# Virtual-On (PC, 1997) - v_on.exe patcher
+# vo-patch
 
-Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
-the crashes, the frame rate and the keyboard, adds XInput gamepad support for
-both players, reads the soundtrack from files instead of the disc, and puts
-two-player versus on the internet - a code to share, no port forwarding.
+Gets *Cyber Troopers Virtual-On* (PC, 1997) running properly on a modern
+system: installs it straight from a disc image, fixes the crashes, the frame
+rate and the keyboard, adds XInput gamepad support for both players, reads
+the soundtrack from files instead of the disc, and puts two-player versus on
+the internet - a code to share, no port forwarding.
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 

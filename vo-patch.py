@@ -4133,10 +4133,16 @@ PALETTE = {
     'bad': '#ff6b6b',
 }
 
-# The version is in the title because it is the only place a Windows
-# user who double-clicked the exe can see it, and it is the first
-# thing worth knowing about a bug report.
-TITLE = 'Virtual-On patcher %s' % VERSION
+# One name for the tool, everywhere: the window, the About card, the
+# executable, the version resource and the docs. It was three before -
+# "Virtual-On patcher" on the window, vo-patch on the exe, vo_patch in the
+# version resource - and a bug report could name any of them.
+#
+# The version is in the title because it is the only place a Windows user
+# who double-clicked the exe can see it, and it is the first thing worth
+# knowing about a bug report.
+NAME = 'vo-patch'
+TITLE = '%s %s' % (NAME, VERSION)
 MIN_CONTENT = 480               # px per column; narrower and hints wrap badly
 GUTTER = 14                     # px between the two columns
 NO_FILE = 'No file selected'
@@ -4182,6 +4188,8 @@ WRAP_STEP = 8
 # Shortest gap between two relayouts while the window is being dragged, in
 # milliseconds. About a 60Hz screen's frame. See App._fit.
 FIT_MS = 16
+# A width change larger than this is not a drag, so it is not deferred.
+FIT_JUMP = 64
 # Clear space between an add-on's description and the button beside it.
 # Added to the button's own measured width, so it survives a longer label
 # or a different font.
@@ -4705,6 +4713,15 @@ def run_tk():
             the width the drag has reached by then."""
             if self._fit_queued:
                 return
+            # A jump this big is a maximise, a snap or a tiling manager
+            # placing the window - one event, with nothing after it to
+            # coalesce with. Deferring those is all cost and no saving, and
+            # it leaves the newly exposed area unpainted until something
+            # else asks for a redraw, which is why maximising left the
+            # labels blank until the pointer crossed them.
+            if abs(self.canvas.winfo_width() - self._last_width) > FIT_JUMP:
+                self._do_fit()
+                return
             waited = (time.monotonic() - self._fit_at) * 1000
             if waited >= FIT_MS:
                 self._do_fit()
@@ -4714,8 +4731,12 @@ def run_tk():
 
         def _fit_now(self):
             self._fit_queued = False
-            if self.root.winfo_exists():    # the window may have closed
-                self._do_fit()              # while this was waiting
+            if not self.root.winfo_exists():    # the window may have closed
+                return                          # while this was waiting
+            self._do_fit()
+            # This ran from a timer rather than from the event that caused
+            # it, so nothing is going to flush the redraw on its own.
+            self.canvas.update_idletasks()
 
         def _do_fit(self):
             self._fit_at = time.monotonic()
@@ -5595,7 +5616,7 @@ def run_tk():
 
 
         def _about_body(self, parent):
-            ttk.Label(parent, text='vo-patch %s' % VERSION,
+            ttk.Label(parent, text=TITLE,
                       style='Card.TLabel', font=self.bold).pack(anchor='w')
             # Without the scheme, which is nine characters of nothing and
             # makes the line wider than the card wants to be.
