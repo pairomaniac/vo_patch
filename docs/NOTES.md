@@ -88,10 +88,10 @@ comparing against `Microsoft SideWinder game pad` - Windows' own joystick
 table, not anything an installer puts there. The paths are assembled at
 runtime from `%s\%s\%s`, which is why they do not show up in a string dump.
 
-Registering IV41 means `von.avi` is Indeo
-Video 4.1, and `ir41_32.dll` is not on the disc - it came from Windows. Wine
-has no Indeo decoder, so that movie cannot play on a clean prefix however the
-game is installed.
+That IV41 registration is what identifies `von.avi` as Indeo Video 4.1, and
+`ir41_32.dll` is not on the disc - it came from Windows. Wine has no Indeo
+decoder, so that movie cannot play on a clean prefix however the game is
+installed.
 
 ## How each patch works
 

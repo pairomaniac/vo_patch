@@ -11,8 +11,10 @@ Needs a display. Under CI that is xvfb; locally, run it inside
 
     xvfb-run -a -s "-screen 0 1600x1400x24" python3 tools/guitest.py
 
-It skips with a message rather than failing when there is no display, so a
-checkout on a headless box without xvfb still gets a clean run.
+With no display it skips rather than fails, so a checkout on a headless box
+without xvfb still gets a clean run - but it says so as a `note:` line, which
+is what check.py surfaces, because a green run that tested no window at all
+should not look like one that did.
 
 Most of it needs no copy of the game - the disc is built by disctest, with a
 stand-in for v_on.exe. Pass a game folder (or set VO_GAME) and the checks
@@ -24,7 +26,9 @@ The patching side itself is selftest.py's, and check.py's offsets, banner and
 credit.
 """
 
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 
@@ -84,16 +88,20 @@ def main():
         import tkinter as tk
         from tkinter import ttk
     except ImportError:
-        print('no tkinter; skipped')
+        print('note: no tkinter, so the window was not tested')
         return 0
     try:
         tk.Tk().destroy()
     except tk.TclError as exc:
-        print('no display (%s); skipped - run under xvfb-run' % exc)
+        print('note: no display (%s), so the window was not tested - run it '
+              'under xvfb-run' % exc)
         return 0
 
     vp = disctest.load_patcher()
     tmp = tempfile.mkdtemp(prefix='vo-guitest-')
+    # However the run ends, including on a check that raises: the disc built
+    # below is tens of megabytes and there is no reason to keep it.
+    atexit.register(shutil.rmtree, tmp, ignore_errors=True)
     here = os.path.join(tmp, 'disc')
     os.makedirs(here)
 
@@ -115,7 +123,7 @@ def main():
             print('note: no unmodified v_on.exe in %s, so the copy is not '
                   'exercised' % game)
         else:
-            print('using %s' % source)
+            print('note: using %s' % source)
     real = exe is not None
     if not real:
         exe = b'M' * vp.EXE_SIZE

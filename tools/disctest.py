@@ -302,18 +302,15 @@ def main():
               sorted(os.listdir(dest)))
 
         # Refusals, each naming what is wrong rather than failing bare.
-        for label, tree, form, wanted in (
-                ('a disc with no ssp.ini', {'readme.txt': b'hi'},
-                 'MODE1/2352', 'ssp.ini'),
-        ):
-            here = os.path.join(tmp, label.replace(' ', '_'))
-            os.makedirs(here)
-            bad = write_disc(here, 'X', build_iso(tree), form)
-            try:
-                vp.probe_disc(bad)
-                check(label + ' refused', False, 'it was accepted')
-            except vp.DiscError as exc:
-                check(label + ' refused', wanted in str(exc), exc)
+        here = os.path.join(tmp, 'no_ssp')
+        os.makedirs(here)
+        bad = write_disc(here, 'X', build_iso({'readme.txt': b'hi'}),
+                         'MODE1/2352')
+        try:
+            vp.probe_disc(bad)
+            check('a disc with no ssp.ini refused', False, 'it was accepted')
+        except vp.DiscError as exc:
+            check('a disc with no ssp.ini refused', 'ssp.ini' in str(exc), exc)
 
         here = os.path.join(tmp, 'blank')
         os.makedirs(here)
@@ -369,6 +366,27 @@ def main():
                                build_iso(retail_tree(exe)), 'MODE1/2352')
         check('a data-only image has nothing to rip',
               vp.audio_tracks(data_only) == [], vp.audio_tracks(data_only))
+        check('a data-only image needs no room either',
+              vp.rip_bytes(data_only) == 0, vp.rip_bytes(data_only))
+
+        # The room the tracks will take, read off the sheet before anything
+        # is written. write_disc gives each audio track its own 200-sector
+        # file with INDEX 01 at 00:02:00, so 150 sectors of that is pregap
+        # and only the rest is written out.
+        sized = write_disc(os.path.join(tmp, 'othergame'), 'SIZED',
+                           build_iso({'readme.txt': b'x'}), 'MODE1/2352',
+                           audio=4)
+        want = 4 * ((200 - 150) * 2352 + 44)
+        check('the rip size comes off the cue sheet',
+              vp.rip_bytes(sized) == want,
+              '%d, wanted %d' % (vp.rip_bytes(sized), want))
+        check('and is what the room check is asked about',
+              vp.room_for(tmp, 1 << 60, 'the soundtrack').startswith(
+                  'Not enough room for the soundtrack')
+              and vp.room_for(tmp, 1) == '',
+              vp.room_for(tmp, 1 << 60, 'the soundtrack'))
+        check('a folder that is not there yet asks its parent',
+              vp.room_for(os.path.join(tmp, 'not', 'yet'), 1 << 60) != '')
 
         # A language the ssp.ini names but the disc does not carry is not
         # offered: it would appear in the box and then fail on the copy.
@@ -380,6 +398,14 @@ def main():
         check('a language with no directory is not offered',
               vp.probe_disc(short)['languages'] == ['ENGLISH'],
               vp.probe_disc(short)['languages'])
+        # And is refused rather than quietly copying no manual at all.
+        try:
+            vp.install_disc(short, os.path.join(tmp, 'game-none'), 'GERMAN')
+            check('a language the disc lacks is refused', False,
+                  'it installed without one')
+        except vp.DiscError as exc:
+            check('a language the disc lacks is refused',
+                  'no GERMAN manual' in str(exc), exc)
 
         # Cue sheets as the tools that write them actually write them: the
         # sheet travels with the image and names it the way another machine
@@ -423,8 +449,8 @@ def main():
             # os.access(W_OK) would pass this as root, and on Windows it
             # passes for any folder without the read-only attribute. The
             # probe write is what actually answers the question.
-            check('an unwritable folder is refused',
-                  level == 'bad' or os.geteuid() == 0,
+            root = getattr(os, 'geteuid', lambda: 1)() == 0
+            check('an unwritable folder is refused', level == 'bad' or root,
                   '%s / %s' % (level, why))
         finally:
             os.chmod(locked, 0o700)

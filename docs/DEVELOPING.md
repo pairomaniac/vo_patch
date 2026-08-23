@@ -28,13 +28,15 @@ either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 ## Setup, once
 
 ```bash
-sudo dnf install nasm gcc-mingw64-i686      # or apt: nasm gcc-mingw-w64-i686
+sudo dnf install nasm gcc-mingw64-i686 xorg-x11-server-Xvfb
+                                           # or apt: nasm gcc-mingw-w64-i686 xvfb
 pip install pyflakes
 ```
 
 `nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
 DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo_patch.py` as text. pyflakes is the `lint` check.
+into `vo_patch.py` as text. pyflakes is the `lint` check, and xvfb is the
+display the `gui` one needs; without it that check skips itself and says so.
 
 A pre-push hook catches a forgotten build before CI does:
 
@@ -84,11 +86,12 @@ inside one will do.
 | `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
+| `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
-| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 | `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5 |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
+| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 
 Some need a copy of the game, which is not in the repository, so CI skips
 them and says so. They are the manual step before tagging.
@@ -184,9 +187,10 @@ read straight from the running exe by `sync_fingerprint()`, and a mismatch is
 refused at connect. If you add a patch that changes the simulation - a rule,
 a timing, a physics value, anything that alters what the game computes from a
 given input - add its site beside `FP_DIVISOR_VA` and `FP_CONTINUE_VA`
-there, and the same site and its key to `SYNC_SITES` and `SYNC_KEYS` in
-`vo_patch.py`, which is what warns at Apply and at netplay install. Miss one
-and two builds with and without it desync instead of refusing to link. A
+there, and the same site to `SYNC_SITES` in `vo_patch.py`, which is what
+warns when the netplay add-on is installed beside an executable an older
+release patched without it. Miss one and two builds with and without it
+desync instead of refusing to link. A
 patch that only changes what a machine shows or how it reads its own controls
 stays out of the fingerprint: those are each player's own business.
 
@@ -331,6 +335,8 @@ gh release delete v0.8.4 --yes     # if a release was created
 | a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
 | a cave that was live data to begin with | `offsets`, as a note to read | before tagging |
 | picked a cave that was never free | `freespace.py` | only when placing a blob |
+| a button armed when it should not be | `gui` | CI, every push |
+| a card or column that lays out wrong | `gui` | CI, every push |
 | a state machine left in a state nothing handles | nothing | only playing the game |
 | a blob moved without its hook | `asm` | CI, every push |
 | a table that is well-formed and wrong | nothing | only playing the game |
@@ -388,6 +394,10 @@ file. Point it at `v_on.exe.bak`.
 
 **`nasm not found`** - the `asm` check needs it. Everything else runs without.
 
+**`gui` says it found no display** - it needs one, and xvfb is what gives it
+one. Install xvfb, or run `xvfb-run -a python3 tools/guitest.py` by hand. A
+skipped `gui` still counts as passing, which is why it prints the note.
+
 **Push rejected** - someone (probably you, via the web UI) committed on
 GitHub. `git pull`, then push. Pick local *or* web and stick with it.
 
@@ -420,7 +430,7 @@ well is caught at import rather than in someone's game.
 ```bash
 python3 vo_patch.py --help
 python3 vo_patch.py --install CUE DIR  # install the game from a disc image
-python3 vo_patch.py --rip          # list CD drives
+python3 vo_patch.py --rip          # list CD drives (Linux)
 python3 vo_patch.py --netplay DIR  # install the UDP netplay DLL
 python3 tools/check.py --list      # what the checks are
 python3 tools/check.py --only asm  # run one of them

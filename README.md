@@ -39,10 +39,10 @@ The sections are numbered in the order to work through them.
 2. **GAME FILE** - installing fills this in for you. Otherwise browse to
    your `v_on.exe`; only the unmodified disc file is accepted, and if yours
    is refused see [Which build](#which-build).
-3. **ESSENTIAL** - applied whole, no tick boxes. See
+3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
-4. **EXTRA** - starts ticked and is yours to change. Click the ⓘ beside a
-   patch to read what it does. Then **Apply patches**.
+4. **EXTRA PATCHES** - starts ticked and is yours to change. Click the ⓘ
+   beside a patch to read what it does. Then **Apply patches**.
 5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
@@ -95,7 +95,7 @@ once:
 
 Then put the `.cue` in **Source**. On Linux a drive can also go straight in
 **Source** for the soundtrack, though not for the install - see
-[Music](#music).
+[Music](#music). On Windows the image is the only way in.
 
 ### What it copies
 
@@ -413,15 +413,16 @@ the folder they go to. Closing the window mid-rip discards the part-written
 track.
 
 On Linux a device node works in **Source** too, a cdemu one like a physical
-drive. Windows drives are not read directly; image the disc first, as in
+drive. Windows drives are not read at all, in the window or from a terminal;
+image the disc first, as in
 [If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
 
 Or from a terminal:
 
 ```bash
 python3 vo_patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
-python3 vo_patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
-python3 vo_patch.py --rip                # list drives
+python3 vo_patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON   # Linux
+python3 vo_patch.py --rip                # list drives (Linux)
 ```
 
 The directory is the one holding `v_on.exe`; `music\` is created inside it.

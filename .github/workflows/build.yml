@@ -63,6 +63,7 @@ jobs:
       #          layout ends where it should. None of these raise on their
       #          own - the wrong thing is simply on screen - so each one
       #          asserts the property.
+      # lint     pyflakes over every script in the repository.
       # tree     a blob regenerated but not committed, and proof that the
       #          --check runs above really are read-only.
       - name: Checks

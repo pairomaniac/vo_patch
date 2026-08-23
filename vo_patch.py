@@ -1283,12 +1283,11 @@ DI_FIND = re.compile(
 # key -> (label, description, sites), with sites None meaning DI_FIND.
 BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
 
-# The patches a lockstep match cannot differ on: the frame rate and the
-# round-loss fix change what the simulation computes. Both are Essential and
-# always applied, so this patcher cannot produce a build missing them -
+# The patches a lockstep match cannot differ on are the frame rate and the
+# round-loss fix: both change what the simulation computes. Both are Essential
+# and always applied, so this patcher cannot produce a build missing them -
 # SYNC_SITES reads them back out of a file an older release may have written
 # without, and net/dpctrl.c fingerprints the same two bytes.
-SYNC_KEYS = ('framerate', 'continuefix')
 BY_KEY['dinput'] = (
     'Fix keyboard input after ALT+TAB',
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
@@ -1479,7 +1478,12 @@ _MSF = re.compile(r'(\d+):(\d+):(\d+)')
 
 
 def _msf_to_sectors(text):
-    m, s, f = (int(x) for x in _MSF.match(text).groups())
+    stamp = _MSF.match(text)
+    if not stamp:
+        # Every other bad line in a sheet gets a sentence naming it, and an
+        # AttributeError out of a regex is not one.
+        raise ValueError('not a cue sheet timestamp: %r' % text)
+    m, s, f = (int(x) for x in stamp.groups())
     return (m * 60 + s) * 75 + f
 
 
@@ -1529,10 +1533,12 @@ def _cue_file(base, line):
 
 
 def parse_cue(path):
-    """Return [(track_no, mode, binpath, start_sector, index0_sector)].
+    """Every track in a cue sheet, in sheet order.
 
-    index0_sector is the pregap start of the *next* track where present, which
-    is where this track's audio should stop.
+    One dict per track: 'no', 'mode', 'bin' (the resolved path), 'start' from
+    INDEX 01 and 'pregap' from its own INDEX 00, or None where there is none.
+    A track's audio stops at the *next* track's pregap, which is rip_cue's
+    business rather than this one's.
     """
     base = os.path.dirname(os.path.abspath(path))
     tracks, curbin, cur = [], None, None
@@ -1572,29 +1578,37 @@ def parse_cue(path):
     return tracks
 
 
+def _audio_spans(tracks):
+    """(track, first sector, last sector) for every audio track worth writing.
+
+    Where a track ends: the next track's pregap when the two share a bin file,
+    so trailing silence is dropped, and the end of the file otherwise.
+    """
+    for i, t in enumerate(tracks):
+        if 'AUDIO' not in t['mode']:
+            continue
+        nxt = tracks[i + 1] if i + 1 < len(tracks) else None
+        if nxt is None or nxt['bin'] != t['bin']:
+            end = os.path.getsize(t['bin']) // RAW
+        else:
+            end = nxt['pregap'] if nxt['pregap'] is not None else nxt['start']
+        if end > t['start']:
+            yield t, t['start'], end
+
+
+def rip_bytes(cue_path):
+    """How much room the WAV files will need, from the cue sheet alone."""
+    return sum((end - start) * RAW + WAV_HDR
+               for _t, start, end in _audio_spans(parse_cue(cue_path)))
+
+
 def rip_cue(cue_path, outdir, progress=None):
     """Extract every AUDIO track from a bin/cue pair."""
     tracks = parse_cue(cue_path)
     os.makedirs(outdir, exist_ok=True)
     written = []
 
-    for i, t in enumerate(tracks):
-        if 'AUDIO' not in t['mode']:
-            continue
-
-        nxt = tracks[i + 1] if i + 1 < len(tracks) else None
-        size = os.path.getsize(t['bin'])
-
-        if nxt is None or nxt['bin'] != t['bin']:
-            end = size // RAW
-        else:
-            # Stop at the next track's pregap so trailing silence is dropped.
-            end = nxt['pregap'] if nxt['pregap'] is not None else nxt['start']
-
-        start = t['start']
-        if end <= start:
-            continue
-
+    for t, start, end in _audio_spans(tracks):
         out = os.path.join(outdir, 'track%02d.wav' % t['no'])
         total = (end - start) * RAW
 
@@ -1688,124 +1702,33 @@ def _rip_linux(device, outdir, progress=None, chunk=8):
         os.close(fd)
 
 
-# ---------------------------------------------------------- Windows device
-
-IOCTL_CDROM_READ_TOC = 0x00024000
-IOCTL_CDROM_RAW_READ = 0x0002403E
-TRACK_MODE_CDDA = 2
-INVALID_HANDLE = ctypes.c_void_p(-1).value
-
-
-def _kernel32():
-    """kernel32 with prototypes. Without them ctypes assumes every argument
-    and return value is a 32-bit int, which truncates handles on 64-bit
-    Windows."""
-    k = ctypes.WinDLL('kernel32', use_last_error=True)
-    u32, ptr = ctypes.c_uint32, ctypes.c_void_p
-    k.CreateFileW.restype = ptr
-    k.CreateFileW.argtypes = [ctypes.c_wchar_p, u32, u32, ptr, u32, u32, ptr]
-    k.DeviceIoControl.restype = ctypes.c_int
-    k.DeviceIoControl.argtypes = [ptr, u32, ptr, u32, ptr, u32,
-                                  ctypes.POINTER(ctypes.c_ulong), ptr]
-    k.CloseHandle.restype = ctypes.c_int
-    k.CloseHandle.argtypes = [ptr]
-    k.GetDriveTypeW.restype = ctypes.c_uint
-    k.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
-    k.GetLogicalDrives.restype = ctypes.c_uint32
-    return k
-
-
-def _win_ioctl(k, h, code, inbuf, outlen):
-    out = ctypes.create_string_buffer(outlen)
-    ret = ctypes.c_ulong(0)
-    ok = k.DeviceIoControl(h, code, inbuf, len(inbuf) if inbuf else 0,
-                           out, outlen, ctypes.byref(ret), None)
-    if not ok:
-        raise OSError('DeviceIoControl 0x%x failed: %d'
-                      % (code, ctypes.get_last_error()))
-    return out.raw[:ret.value]
-
-
-def _rip_windows(letter, outdir, progress=None, chunk=16):
-    GENERIC_READ = 0x80000000
-    FILE_SHARE_READ = 1
-    OPEN_EXISTING = 3
-
-    k = _kernel32()
-    path = '\\\\.\\%s:' % letter.rstrip(':\\/')
-    h = k.CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, None,
-                      OPEN_EXISTING, 0, None)
-    if not h or h == INVALID_HANDLE:
-        raise OSError('cannot open %s: %d' % (path, ctypes.get_last_error()))
-
-    try:
-        toc = _win_ioctl(k, h, IOCTL_CDROM_READ_TOC, None, 4 + 100 * 8)
-        first, last = toc[2], toc[3]
-        entries = []
-        for i in range((len(toc) - 4) // 8):
-            # TRACK_DATA declares Control before Adr, so on this side Control
-            # is the *low* nibble - the opposite of Linux's cdrom_tocentry.
-            # Reading the wrong one makes the data track look like audio.
-            no, ctrl = toc[4 + i * 8 + 2], toc[4 + i * 8 + 1] & 0x0F
-            m, s, f = toc[4 + i * 8 + 5:4 + i * 8 + 8]
-            # MSF counts from the start of the lead-in, LBA from the start
-            # of track 1, and the gap between them is 2 seconds.
-            lba = (m * 60 + s) * 75 + f - 150
-            entries.append({'no': no, 'lba': lba, 'audio': not (ctrl & 4)})
-            if no == 0xAA:
-                break
-
-        os.makedirs(outdir, exist_ok=True)
-        written = []
-        for i, t in enumerate(entries):
-            if t['no'] == 0xAA or not t['audio'] or t['no'] < first \
-                    or t['no'] > last:
-                continue
-            start, end = t['lba'], entries[i + 1]['lba']
-            total = (end - start) * RAW
-            out = os.path.join(outdir, 'track%02d.wav' % t['no'])
-
-            with WavWriter(out) as dst:
-                lba = start
-                while lba < end:
-                    n = min(chunk, end - lba)
-                    # DiskOffset counts in 2048-byte units even for CDDA.
-                    req = struct.pack('<qII', lba * 2048, n, TRACK_MODE_CDDA)
-                    dst.write(_win_ioctl(k, h, IOCTL_CDROM_RAW_READ, req,
-                                         n * RAW))
-                    lba += n
-                    if progress:
-                        progress(t['no'], (lba - start) * RAW, total)
-            written.append(out)
-        if not written:
-            raise ValueError('no audio tracks in %s - data-only disc?' % path)
-        return written
-    finally:
-        k.CloseHandle(h)
-
-
 # ------------------------------------------------------------------ public
 
+# Said in one place, because three of them used to answer differently: the
+# window refused a drive letter, the CLI listed them and offered to rip one,
+# and the README said drives were not read at all.
+NO_WINDOWS_DRIVE = ('Reading a drive directly is not supported on Windows. '
+                    'Image the disc to bin/cue first - ImgBurn in Read mode, '
+                    'with the output set to BIN/CUE rather than ISO - and '
+                    'give the .cue sheet instead.')
+
+
 def rip_device(device, outdir, progress=None):
-    """Rip audio tracks from a CD drive, real or cdemu-backed."""
+    """Rip audio tracks from a CD drive, real or cdemu-backed.
+
+    Linux only. The Windows path was a raw DeviceIoControl read that no check
+    could reach without a drive and a disc in it, and imaging the disc is the
+    answer the rest of the patcher gives anyway - the installer reads nothing
+    but bin/cue either."""
     if os.name == 'nt':
-        return _rip_windows(device, outdir, progress)
+        raise ValueError(NO_WINDOWS_DRIVE)
     return _rip_linux(device, outdir, progress)
 
 
 def list_devices():
-    """Candidate optical devices, best-effort."""
+    """Candidate optical devices, best-effort. Linux only; see rip_device."""
     if os.name == 'nt':
-        DRIVE_CDROM = 5
-        k = _kernel32()
-        out = []
-        mask = k.GetLogicalDrives()
-        for i in range(26):
-            if mask & (1 << i):
-                letter = chr(ord('A') + i)
-                if k.GetDriveTypeW(letter + ':\\') == DRIVE_CDROM:
-                    out.append(letter + ':')
-        return out
+        return []
     return [os.path.join('/dev', d) for d in sorted(os.listdir('/dev'))
             if re.match(r'^sr\d+$', d)]
 
@@ -2057,6 +1980,13 @@ class DiscPlan:
     def language_dir(self, language):
         if not self.wants_language:
             return None
+        # A name this disc does not have would otherwise resolve to no
+        # directory at all, and the install would quietly finish without a
+        # manual. Only checked when one was asked for by name: the default
+        # is empty on a disc that lists no usable section.
+        if language and language.upper() not in self.languages:
+            raise DiscError('This disc has no %s manual. It carries: %s.'
+                            % (language, ', '.join(self.languages) or 'none'))
         section = self.ssp.get((language or self.default).upper(), {})
         return section.get('langexeclusive', '').strip().lower() or None
 
@@ -2215,6 +2145,17 @@ def why_unwritable(folder, exc, name=None, elsewhere=None):
     return 'Cannot write in %s: %s.' % (folder, exc.strerror or exc)
 
 
+def copy_failure(folder, exc):
+    """What to say when a copy or a rip stops part way.
+
+    The destination is checked before either one starts, so anything that
+    gets here happened during the write - a disk that filled up, a drive
+    pulled out - and reads as a bare OSError otherwise."""
+    if isinstance(exc, OSError):
+        return why_unwritable(folder, exc)
+    return str(exc)
+
+
 def writable(folder):
     """Can a file actually be created here? Returns (ok, why not).
 
@@ -2240,6 +2181,29 @@ def writable(folder):
     return True, ''
 
 
+def room_for(folder, needed, what=''):
+    """A message if `folder` cannot take `needed` more bytes, else ''.
+
+    The folder may not exist yet - it is often the one about to be created -
+    so the nearest parent that does is what gets asked. No answer at all is
+    not the same as a bad one, and gets out of the way."""
+    if not needed:
+        return ''
+    while folder and not os.path.isdir(folder):
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            return ''
+        folder = parent
+    try:
+        free = shutil.disk_usage(folder or '.').free
+    except OSError:
+        return ''
+    if free >= needed:
+        return ''
+    return ('Not enough room%s: %d MB free, %d MB needed.'
+            % (' for ' + what if what else '', free >> 20, needed >> 20))
+
+
 def dest_problem(path, needed):
     """(message, level) for a destination folder, or (None, None).
 
@@ -2254,13 +2218,9 @@ def dest_problem(path, needed):
     ok, why = writable(probe)
     if not ok:
         return why, 'bad'
-    try:
-        free = shutil.disk_usage(probe).free
-    except OSError:
-        free = None
-    if free is not None and needed and free < needed:
-        return ('Not enough room: %d MB free, %d MB needed.'
-                % (free >> 20, needed >> 20)), 'bad'
+    short = room_for(probe, needed)
+    if short:
+        return short, 'bad'
     if exists and os.path.exists(os.path.join(path, 'v_on.exe')):
         # Worth its own message: installing over a patched copy replaces
         # v_on.exe with the stock one and leaves the .bak beside it no
@@ -3752,7 +3712,7 @@ class Patcher:
                 'rows': [],
                 'why': 'This is a %s, not the game.' % kind,
                 'hint': 'Pick v_on.exe here. The disc image goes in Source '
-                        'under DISC, which installs and rips from it.',
+                        'under INSTALL, which installs and rips from it.',
                 'level': 'warn',
                 'log': ['%s is a %s' % (os.path.basename(path), kind)],
             }
@@ -3857,7 +3817,7 @@ class Patcher:
             except OSError:
                 pass
             return False, log + [
-                _note(self._why_unwritable(
+                _note(why_unwritable(
                     os.path.dirname(self.exe_path) or '.', exc,
                     os.path.basename(self.exe_path))),
                 NOTHING]
@@ -3930,10 +3890,6 @@ class Patcher:
         rather than pasting the OS message into a sentence about permissions
         - "cannot write here (No such file or directory)" helps nobody."""
         return writable(os.path.dirname(self.exe_path) or '.')
-
-    @staticmethod
-    def _why_unwritable(folder, exc, name=None):
-        return why_unwritable(folder, exc, name)
 
     def _banner_ready(self):
         """Can escrgame.bin take the new tiles? Returns (ok, why not).
@@ -5218,6 +5174,7 @@ def run_tk():
             self.rip_ok = False
             self._audio_warning = ''
             self._disc_bytes = 0
+            self._rip_bytes = 0
             self._music('')
             # Typing a path counts as picking one. The disc read opens files,
             # so it waits for a pause rather than running on every keystroke.
@@ -5266,9 +5223,12 @@ def run_tk():
             self.disc_ok = False        # a Virtual-On disc: install and rip
             self.rip_ok = False         # anything the ripper can read at all
             self._audio_warning = ''
-            self._disc_bytes = 0
+            self._disc_bytes = self._rip_bytes = 0
             self.disc_compare.show(None)
             self.lang_row.grid_forget()
+            # Cleared with the row: a name left over from the last disc is
+            # one this one may not carry, and the copy would refuse it.
+            self.lang_var.set('')
             source = (source or '').strip()
             extension = os.path.splitext(source)[1].lower()
 
@@ -5305,6 +5265,10 @@ def run_tk():
                 self._disc_note(str(exc), PALETTE['bad'])
                 return
             self.rip_ok = bool(audio)
+            # From the sheet, without reading a sector: the tracks are 320 MB
+            # and go wherever the game is, which the install check above may
+            # never have looked at.
+            self._rip_bytes = rip_bytes(source) if audio else 0
 
             try:
                 info = probe_disc(source)
@@ -5378,9 +5342,16 @@ def run_tk():
                 text=why or '',
                 foreground=PALETTE['bad'] if level == 'bad'
                 else PALETTE['amber'] if level == 'warn' else self.dim)
-            # A warning about the disc outranks the folder note: it is the
-            # reason someone would not press Rip soundtrack.
-            if self._audio_warning:
+            # Three things can be said about the music folder, in this
+            # order: no room is the one that stops the rip, a disc with the
+            # wrong tracks is the reason not to press the button, and where
+            # the tracks go is what is left.
+            short = (room_for(self._target(), self._rip_bytes,
+                              'the soundtrack')
+                     if self.rip_ok and self._target() else '')
+            if short:
+                self.music_note.config(text=short, foreground=PALETTE['bad'])
+            elif self._audio_warning:
                 self.music_note.config(text=self._audio_warning,
                                        foreground=PALETTE['amber'])
             else:
@@ -5401,7 +5372,7 @@ def run_tk():
             # somewhere to put the tracks. It does not care which build the
             # disc holds, or whether the game beside it can be patched - a
             # cue for another pressing still rips.
-            can_rip = self.rip_ok and bool(self._target())
+            can_rip = self.rip_ok and bool(self._target()) and not short
             self.rip_btn.state(['!disabled'] if can_rip else ['disabled'])
 
         def _target(self):
@@ -5473,8 +5444,9 @@ def run_tk():
                 self._sync_buttons()
                 return
             if error is not None:
-                self._disc_note(str(error), PALETTE['bad'])
-                self._log('install: failed - %s' % error)
+                why = copy_failure(dest, error)
+                self._disc_note(why, PALETTE['bad'])
+                self._log('install: failed - %s' % why)
                 self._sync_buttons()
                 return
             self._disc_note(INSTALL_OK % (len(written), dest), PALETTE['ok'])
@@ -5552,9 +5524,9 @@ def run_tk():
                 self._log('music: cancelled, the part-written track was '
                           'discarded')
             elif error is not None:
-                self._log('music: failed - %s' % error)
-                self.music_note.config(text=str(error),
-                                       foreground=PALETTE['bad'])
+                why = copy_failure(outdir_for(self._rip_dir), error)
+                self._log('music: failed - %s' % why)
+                self.music_note.config(text=why, foreground=PALETTE['bad'])
                 self._sync_buttons()
                 return
             else:
@@ -6117,8 +6089,8 @@ USAGE = """vo_patch.py %s - Virtual-On (PC, 1997) patcher
   vo_patch.py --install CUE DIR   copy the game out of a disc image into DIR
                                   (--language NAME picks the manual)
   vo_patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
-                                  or a CD drive, DIR holds v_on.exe
-  vo_patch.py --rip               list the drives it can see
+                                  or, on Linux, a CD drive. DIR holds v_on.exe
+  vo_patch.py --rip               list the drives it can see (Linux)
   vo_patch.py --ddraw DIR         download cnc-ddraw into DIR (holds v_on.exe)
   vo_patch.py --netplay DIR       install the UDP netplay DLL (--remove undoes)
   vo_patch.py --selfcheck         validate the patch tables and exit
@@ -6240,7 +6212,7 @@ def install_cli(args):
     try:
         written = install_disc(cue, dest, language, progress)
     except (DiscError, OSError, ValueError) as exc:
-        return '\n%s' % exc
+        return '\n%s' % copy_failure(dest, exc)
     print('\rInstalled %d files to %s' % (len(written), dest))
     return 0
 
@@ -6248,6 +6220,9 @@ def install_cli(args):
 def rip_cli(argv):
     """--rip SOURCE GAMEDIR, for scripting or a machine with no display."""
     if len(argv) == 0:
+        if os.name == 'nt':
+            print(NO_WINDOWS_DRIVE)
+            return None
         found = list_devices()
         print('Drives visible here: %s' % (', '.join(found) or 'none'))
         print('Rip one with: vo_patch.py --rip SOURCE GAMEDIR')
@@ -6266,9 +6241,14 @@ def rip_cli(argv):
                          % (track, 100.0 * done / max(total, 1)))
 
     try:
+        if source.lower().endswith('.cue'):
+            short = room_for(outdir_for(gamedir), rip_bytes(source),
+                             'the soundtrack')
+            if short:
+                return short
         files = rip(source, outdir_for(gamedir), progress)
     except Exception as exc:
-        return '\nRipping failed: %s' % exc
+        return '\nRipping failed: %s' % copy_failure(outdir_for(gamedir), exc)
     sys.stderr.write('\n')
     print('%d tracks written to %s' % (len(files), outdir_for(gamedir)))
     return None
