@@ -4160,6 +4160,20 @@ MIN_CHARS = 68                  # per column; narrower and hints wrap badly
 MAX_CHARS = 88
 GUTTER_CHARS = 2                # between the two columns
 ALPHABET = 'abcdefghijklmnopqrstuvwxyz'
+# One character of the default font on an unscaled display. Every fixed gap
+# in this window was chosen against it, so those numbers stay written as the
+# pixel counts they were and scaled by how far the real font has moved.
+BASE_EM = 6.8
+
+
+def scaled(value, em):
+    """A gap chosen at 100%, in the pixels it should be now.
+
+    Takes a number or a pack/grid pair and gives back the same shape, so a
+    call site keeps reading as the spacing it asks for."""
+    if isinstance(value, tuple):
+        return tuple(scaled(part, em) for part in value)
+    return max(1, int(round(value * em / BASE_EM))) if value else value
 NO_FILE = 'No file selected'
 
 FILE_HINT = ('Installing above fills this in. Browse for it if the game is '
@@ -4466,13 +4480,13 @@ def run_tk():
         measured when the line is laid out rather than guessed at now.
 
         Packs itself, because the holder is nobody else's business."""
-        holder = ttk.Frame(parent, style='Card.TFrame')
-        holder.pack(fill='x', pady=pady)
-        label = ttk.Label(holder, text=text, style='Card.TLabel',
-                          foreground=colour, font=font, justify='left')
         # A floor in characters rather than pixels, for the same reason the
         # columns are: at 200% scaling 140px is ten characters.
         em = max(1.0, font.measure(ALPHABET) / len(ALPHABET))
+        holder = ttk.Frame(parent, style='Card.TFrame')
+        holder.pack(fill='x', pady=scaled(pady, em))
+        label = ttk.Label(holder, text=text, style='Card.TLabel',
+                          foreground=colour, font=font, justify='left')
 
         def fit(_event=None):
             # Unconditional, every event, as it has always been. Skipping
@@ -4573,8 +4587,8 @@ def run_tk():
             root.minsize(430, 0)
             # Set again at the end of __init__, once the content has been
             # measured. This is only a floor to build against.
-            root.maxsize(root.winfo_screenwidth() - 40,
-                         root.winfo_screenheight() - 60)
+            root.maxsize(root.winfo_screenwidth(),
+                         root.winfo_screenheight())
 
             root.bind_all('<Button-1>', close_info, add='+')
             root.bind_all('<Escape>', close_info, add='+')
@@ -4651,7 +4665,7 @@ def run_tk():
             self.canvas.configure(width=wide, height=min(full, self.cap))
             # the minimum has to leave room for the scrollbar as well
             bar = self.vbar.winfo_reqwidth()
-            root.minsize(wide + bar, 320)
+            root.minsize(wide + bar, self.px(320))
             # And a maximum, so that maximising lands on the largest size
             # that is any use rather than on the size of the screen. Wider
             # only stretches the hints; taller only adds empty space under
@@ -4665,11 +4679,12 @@ def run_tk():
             # the content plus that.
             chrome = root.winfo_reqheight() - min(full, self.cap)
             root.maxsize(
-                min(root.winfo_screenwidth() - 40,
+                min(root.winfo_screenwidth() - self.px(40),
                     max(wide + int(8 * self.em),
                         self.max_content * self.columns
                         + (self.gutter if self.columns > 1 else 0)) + bar),
-                min(root.winfo_screenheight() - 60, full + chrome))
+                min(root.winfo_screenheight() - self.px(60),
+                    full + chrome))
             self._fit()
 
         def _body(self, parent):
@@ -4690,7 +4705,7 @@ def run_tk():
             self.canvas.pack(side='left', fill='both', expand=True)
             self.canvas.configure(yscrollcommand=self.vbar.set)
 
-            self.inner = ttk.Frame(self.canvas, padding=12,
+            self.inner = ttk.Frame(self.canvas, padding=self.px(12),
                                    style='Ink.TFrame')
             self.window = self.canvas.create_window((0, 0), window=self.inner,
                                                     anchor='nw')
@@ -4701,7 +4716,8 @@ def run_tk():
             # section with the log open, which is the state people spend the
             # most time looking at.
             row = self.small.metrics('linespace')
-            self.cap = min(max(360, parent.winfo_screenheight() - 150),
+            self.cap = min(max(self.px(360),
+                               parent.winfo_screenheight() - self.px(150)),
                            row * 56)
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
@@ -4892,6 +4908,10 @@ def run_tk():
             # looked like a mistake.
             self._draw_indicator(style, p)
 
+        def px(self, value):
+            """A gap written as pixels at 100%, in this display's pixels."""
+            return scaled(value, self.em)
+
         def _draw_indicator(self, style, p):
             """Swap clam's indicator for drawn images. Keep the references:
             Tk does not own them, and a collected image leaves a blank box."""
@@ -4923,26 +4943,28 @@ def run_tk():
                         ('Checkbutton.focus', {
                             'side': 'left', 'sticky': 'w', 'children': [
                                 ('Checkbutton.label', {'sticky': 'nswe'})]})]})])
-                style.configure('Card.TCheckbutton', padding=(0, 3, 0, 3))
+                style.configure('Card.TCheckbutton',
+                            padding=self.px((0, 3, 0, 3)))
             except tk.TclError:
                 pass            # keep clam's square rather than no box at all
 
         def _section(self, parent, title, build, expanded=True):
             card = ttk.Frame(parent, style='Card.TFrame')
-            card.pack(fill='x', pady=(0, 10))
+            card.pack(fill='x', pady=self.px((0, 10)))
 
-            head = ttk.Frame(card, style='Head.TFrame', padding=(10, 7))
+            head = ttk.Frame(card, style='Head.TFrame',
+                             padding=self.px((10, 7)))
             head.pack(fill='x')
             arrow = self._static_label(ttk.Label(
                 head, style='Head.TLabel',
                 text='\u25be' if expanded else '\u25b8'))
-            arrow.pack(side='left', padx=(0, 8))
+            arrow.pack(side='left', padx=self.px((0, 8)))
             name = self._static_label(ttk.Label(
                 head, text=title, style='Head.TLabel', font=self.head_font))
             name.pack(side='left')
 
             inner = ttk.Frame(card, style='Body.TFrame',
-                              padding=(14, 10, 12, 12))
+                              padding=self.px((14, 10, 12, 12)))
             self._bodies.append((inner, expanded))
             if expanded:
                 inner.pack(fill='x')
@@ -5608,7 +5630,7 @@ def run_tk():
             for key in keys:
                 label, tip, _sites = BY_KEY[key]
                 row = ttk.Frame(parent, style='Card.TFrame')
-                row.pack(fill='x', pady=3)
+                row.pack(fill='x', pady=self.px(3))
                 var = tk.BooleanVar(value=state[key])
                 self.vars[key] = var
                 if key in ALWAYS:
@@ -5668,7 +5690,8 @@ def run_tk():
             self.log_box.configure(yscrollcommand=bar.set)
 
         def _statusbar(self, parent):
-            bar = ttk.Frame(parent, style='Bar.TFrame', padding=(12, 8))
+            bar = ttk.Frame(parent, style='Bar.TFrame',
+                            padding=self.px((12, 8)))
             bar.pack(fill='x', side='bottom')
             self.apply_btn = ttk.Button(bar, text='Apply patches',
                                         style='Go.TButton', state='disabled',
