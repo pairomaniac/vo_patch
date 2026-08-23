@@ -19,17 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
-What this covers
-----------------
-
-The patcher, its tools and its documentation.
-
-Not the game. Rights to Virtual-On belong to SEGA, and nothing here licenses
-it or the bytes quoted from it. The letterforms in CREDIT1_BITS, CREDIT2_BITS
-and BANNER_BITS are traced from the game's own artwork and are not the
-author's to license either.
-
-Some of the byte edits come from the original VO_Patch 0.43 (2008) by
-UE2A-GEL.
