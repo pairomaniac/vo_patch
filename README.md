@@ -21,39 +21,39 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 ## Quick start
 
+**Download** `vo-patch-*.exe` from the
+[latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
+It is unsigned, so SmartScreen calls it an unknown publisher on the first
+run. On Linux, see [Running from source](#running-from-source).
+
 The window is in two columns where the screen allows: getting the game in
 place on the left, patching it on the right. It is sized to fit a 1600x900
 screen at 100% scaling with everything open; on a narrower one the sections
-stack into a single column instead.
+stack into a single column instead. Work down it - the sections are numbered
+in the same order.
 
-1. **Download** `vo-patch-*.exe` from the
-   [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
-   It is unsigned, so SmartScreen calls it an unknown publisher on the first
-   run. On Linux, see [Running from source](#running-from-source).
-2. **1 DISC** - put your `.cue` sheet in **Source**, choose a
-   folder in **Install to**, and press **Install game**. Already have the
-   game installed? Skip to step 4. See
-   [Installing from a disc image](#installing-from-a-disc-image).
-3. **Press Rip soundtrack** in the same section, unless you plan to keep a
-   disc in the drive. Already have the game? Pick your `v_on.exe` in step 4
-   first and the tracks go beside it - leave **Install to** empty. See
+1. **DISC** - put your `.cue` sheet in **Source**, choose a folder in
+   **Install to**, and press **Install game**. Then **Rip soundtrack**,
+   unless you plan to keep a disc in the drive. Already have the game
+   installed? Leave this alone and start at 2; pick your `v_on.exe` there and
+   the tracks go beside it. See
+   [Installing from a disc image](#installing-from-a-disc-image) and
    [Music](#music).
-4. **2 GAME FILE** - installing fills this in for you. Otherwise browse to
+2. **GAME FILE** - installing fills this in for you. Otherwise browse to
    your `v_on.exe`; only the unmodified disc file is accepted, and if yours
    is refused see [Which build](#which-build).
-5. **3 ESSENTIAL** is applied whole and has no tick boxes; **4 EXTRA**
-   starts ticked and is yours to change. Click the ⓘ beside a patch to read
-   what it does. Then **Apply patches**.
-6. **5 ADD-ONS** - the section starts collapsed. Press **Install** on the row
-   you want:
+3. **ESSENTIAL** - applied whole, no tick boxes. See
+   [What the patches do](#what-the-patches-do).
+4. **EXTRA** - starts ticked and is yours to change. Click the ⓘ beside a
+   patch to read what it does. Then **Apply patches**.
+5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
     - **Resolution and windowing** - installs cnc-ddraw. See
       [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
-7. **Play.**
 
-Changed your mind? **Restore original** puts the game back, then apply again
-with a different selection.
+Then play. Changed your mind? **Restore original** puts the game back, then
+apply again with a different selection.
 
 Add-ons are separate because they write files beside the game rather than
 editing it, so Apply and Restore leave them alone.
@@ -221,7 +221,7 @@ same button reads **Remove** once installed.
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
 | **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
 
-The soundtrack rip lives in **1 DISC** at the top of the window, beside the
+The soundtrack rip lives in **DISC** at the top of the window, beside the
 install. See [Music](#music).
 
 ## Internet play
@@ -422,9 +422,13 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game. No drive, no extra DLL.
 
+Ripping is what lets the disc image go in a drawer: installing gets the game
+off it, this gets the music off it, and after both there is nothing left on
+the disc the game wants.
+
 ### Ripping the tracks
 
-Use **1 DISC**, the same **Source** box as the install: one cue sheet holds
+Use **DISC**, the same **Source** box as the install: one cue sheet holds
 the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
 `music\` under **Install to**, or beside your `v_on.exe` if you did not
 install from here - the note under the buttons names the folder either way.
@@ -440,6 +444,8 @@ python3 vo-patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
 python3 vo-patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
 python3 vo-patch.py --rip                # list drives
 ```
+
+The directory is the one holding `v_on.exe`; `music\` is created inside it.
 
 `bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
 
@@ -457,9 +463,13 @@ because the game asks for tracks by number.
 
 ### At runtime
 
-With `music\` missing or empty, the game reads the drive as before. With
-tracks present, they are used, disc or no disc. Under Wine they play through
-`mciwave` - no `dosdevices` entry, raw device link or cdemu instance.
+The tracks are read by the **No disc required** patch, so they do nothing on
+their own: untick it and the folder is ignored however full it is.
+
+With the patch on and `music\` missing or empty, the game reads the drive as
+before. With tracks present, they are used, disc or no disc. Under Wine they
+play through `mciwave` - no `dosdevices` entry, raw device link or cdemu
+instance.
 
 ## Resolution and windowing (cnc-ddraw)
 
@@ -540,8 +550,8 @@ write into unrelated code.
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 
 If your file is neither of these, the patcher shows both checksums side by
-side and says which one it got - in **2 GAME FILE** for a file you picked, or
-in **1 DISC** for a disc image, where it checks the `v_on.exe`
+side and says which one it got - in **GAME FILE** for a file you picked, or
+in **DISC** for a disc image, where it checks the `v_on.exe`
 inside before writing 95 MB you cannot patch. Ripping the soundtrack off an
 OEM disc still works; only patching needs the retail build.
 
