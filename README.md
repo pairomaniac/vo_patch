@@ -31,7 +31,7 @@ The window is in two columns - getting the game in place on the left,
 patching it on the right - and the sections are numbered in the order to
 work through them.
 
-1. **DISC** - put your `.cue` sheet in **Source**, choose a folder in
+1. **INSTALL** - put your `.cue` sheet in **Source**, choose a folder in
    **Install to**, and press **Install game**. Then **Rip soundtrack**,
    unless you plan to keep a disc in the drive. Already have the game
    installed? Leave this alone and start at 2; pick your `v_on.exe` there and
@@ -223,8 +223,8 @@ same button reads **Remove** once installed.
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
 | **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
 
-The soundtrack rip lives in **DISC** at the top of the window, beside the
-install. See [Music](#music).
+The soundtrack rip lives in **INSTALL** at the top of the window, beside
+the game copy. See [Music](#music).
 
 ## Internet play
 
@@ -426,7 +426,7 @@ reads it from WAV files beside the game. No drive, no extra DLL.
 
 ### Ripping the tracks
 
-Use **DISC**, the same **Source** box as the install: one cue sheet holds
+Use **INSTALL**, the same **Source** box as the game copy: one cue sheet holds
 the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
 `music\` under **Install to**, or beside your `v_on.exe` if you did not
 install from here - the note under the buttons names the folder either way.
@@ -555,7 +555,8 @@ write into unrelated code.
 
 If your file is neither of these, the patcher shows both checksums side by
 side and says which one it got - in **GAME FILE** for a file you picked, or
-in **DISC** for a disc image, which is checked before anything is installed.
+in **INSTALL** for a disc image, which is checked before anything is
+installed.
 Ripping the soundtrack off an OEM disc still works; only patching needs the
 retail build.
 

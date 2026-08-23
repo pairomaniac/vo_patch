@@ -55,7 +55,8 @@ OTHER_BUILDS = {
         'for the retail disc build.'),
 }
 
-RETAIL_HINT = 'Reinstall from the retail disc and pick the installed copy.'
+RETAIL_HINT = ('Install from a retail disc image above, or pick a copy '
+               'installed from one.')
 
 # Patcher.load has no idea how many boxes are ticked, so it returns this and
 # the window swaps in a count. Anything else using load gets a plain word.
@@ -4181,12 +4182,15 @@ NO_FILE = 'No file selected'
 FILE_HINT = ('Installing above fills this in. Browse for it if the game is '
              'already on your disk.')
 
-INSTALL_HINT = ('Installs the game and rips the soundtrack, from a disc '
-                'image or a drive.')
+INSTALL_HINT = ('Copies the game and its soundtrack off a disc image, onto '
+                'your disk.')
 
-INSTALL_TIP = ('Source\tThe .cue sheet beside the .bin files, not the .bin.\n'
+INSTALL_TIP = ('Source\tThe .cue sheet beside the .bin files, not the .bin '
+               'itself. On Linux a device node such as /dev/sr0 works too, '
+               'for the soundtrack only.\n'
                'Install game\tThe game folder, about 95 MB.\n'
-               'Rip soundtrack\tmusic\\track02.wav onward, about 320 MB.\n'
+               'Rip soundtrack\tmusic\\track02.wav onward, about 320 MB. '
+               'Needed unless you keep a disc in the drive.\n'
                'Manual\tWhich readme and help file is copied. Every '
                'pressing carries one v_on.exe and it is English, so there '
                'is no translated game to install.')
@@ -4197,10 +4201,11 @@ INSTALL_NEEDS_DEST = 'Choose where to install it.'
 INSTALL_BUSY = 'Copying\u2026'
 INSTALL_CANCELLED = 'Cancelled. The folder holds a part-written copy.'
 INSTALL_NEEDS_TARGET = 'Choose a folder above, or pick your v_on.exe.'
-INSTALL_OK = 'Installed %d files to %s'
-INSTALL_DRIVE_ONLY = 'A drive can only be ripped. Give a .cue to install.'
+INSTALL_OK = 'Installed %d files to %s.'
+INSTALL_DRIVE_ONLY = ('A drive can only be used for the soundtrack. Give a '
+                      '.cue sheet to install.')
 INSTALL_NO_PATH = 'There is nothing at that path.'
-INSTALL_NO_DRIVE = 'No such device.'
+INSTALL_NO_DRIVE = 'There is no such device on this machine.'
 INSTALL_NOT_A_CUE = 'Give the .cue sheet of a disc image.'
 INSTALL_NO_AUDIO = ('This image has no audio tracks - the soundtrack is not '
                     'in it. Only the data half was ripped.')
@@ -4212,8 +4217,8 @@ INSTALL_ODD_AUDIO = ('This image has %d audio tracks; Virtual-On has %d. '
 # data-only one before anything is written.
 INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
 
-ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
-                  'broken on a modern system, with nothing to weigh up.')
+ESSENTIAL_HINT = ('Always applied. Each fixes something that is broken on a '
+                  'modern system, and none of them has a trade-off.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
@@ -4259,7 +4264,8 @@ DDRAW_NEEDS_EXE = 'Pick v_on.exe first: cnc-ddraw goes in the same folder.'
 DDRAW_LOCKED = ('Close the game first: Windows will not let the patcher '
                 'replace a DLL that is loaded.')
 
-MUSIC_HINT = 'The soundtrack, to music\\ beside the game. About 320 MB.'
+MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
+              'No disc required patch reads it. About 320 MB.')
 
 # %d is the number of patches written. The count is the one thing someone
 # can check against what they ticked, and it is what a bug report needs.
@@ -4626,7 +4632,7 @@ def run_tk():
             # has to be scrolled past to reach the other. On a narrow screen
             # _body gives back the same frame twice and it stacks instead.
             left, right, band, foot_left, foot_right = body
-            self._section(left, '1  DISC', self._install_body)
+            self._section(left, '1  INSTALL', self._install_body)
             self._section(left, '2  GAME FILE', self._file_body)
             self._section(right, '3  ESSENTIAL PATCHES',
                           lambda p: self._patch_body(p, ESSENTIAL,
@@ -4659,7 +4665,7 @@ def run_tk():
             # The columns are as tall as the taller one, so without this
             # the shorter column stops early and its last card's lower edge
             # sits opposite nothing.
-            for column in (left, right):
+            for column in (left, right, foot_left, foot_right):
                 cards = column.winfo_children()
                 if cards and column is not self.inner:
                     cards[-1].pack_configure(fill='both', expand=True)
@@ -4788,11 +4794,14 @@ def run_tk():
             self.band.grid(row=1, column=0, columnspan=2, sticky='ew')
             # The two short reference cards sit beside each other under it,
             # on the same split as the columns, so their headings line up.
+            # Their cards stretch to the taller of the two, as the columns
+            # above do, so the pair reads as one row rather than as two
+            # boxes that happen to start together.
             self.foot_left = ttk.Frame(self.inner, style='Ink.TFrame')
-            self.foot_left.grid(row=2, column=0, sticky='new',
+            self.foot_left.grid(row=2, column=0, sticky='nsew',
                                 padx=(0, self.gutter // 2))
             self.foot_right = ttk.Frame(self.inner, style='Ink.TFrame')
-            self.foot_right.grid(row=2, column=1, sticky='new',
+            self.foot_right.grid(row=2, column=1, sticky='nsew',
                                  padx=(self.gutter // 2, 0))
             return (self.left, self.right, self.band,
                     self.foot_left, self.foot_right)
@@ -5092,7 +5101,7 @@ def run_tk():
 
             self.disc_var = tk.StringVar()
             self._field(grid, 0, 'Source', self.disc_var, self._pick_disc)
-            Info(grid, 'DISC', INSTALL_TIP, self).btn.grid(
+            Info(grid, 'INSTALL', INSTALL_TIP, self).btn.grid(
                 row=0, column=3, sticky='e', padx=(6, 2))
 
             self.dest_var = tk.StringVar()
