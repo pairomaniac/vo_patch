@@ -8,7 +8,7 @@ the internet - a code to share, no port forwarding.
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 
-<img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
+<img height="700" alt="full-gui" src="https://github.com/user-attachments/assets/92da3bba-687f-4011-977b-8197440cf607" />
 
 <h4 align="center">
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
@@ -61,6 +61,9 @@ editing it, so Apply and Restore leave them alone.
 
 The patcher reads the image itself, so there is nothing to mount and no
 virtual drive to set up.
+
+<img height="280" alt="install" src="https://github.com/user-attachments/assets/d03430cf-4ef4-4ff8-bf8d-e608d5049be5" />
+<br /><br />
 
 Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
 the `.bin` itself - choose a folder in **Install to**, and press **Install
@@ -115,26 +118,10 @@ No `v_on.ini` is written - the game makes its own on first run, and with
 For how the copy rules are read off the disc, see
 [docs/NOTES.md](docs/NOTES.md#installing-from-a-disc-image).
 
-### If it refuses
-
-Every refusal names what is wrong and what to do about it.
-
-| | |
-| --- | --- |
-| *That is a disc image. Give the .cue sheet beside it* | you gave the `.bin`; the `.cue` beside it lists the tracks |
-| *Give the .cue sheet of a disc image* | not a cue sheet at all. If you have the disc rather than an image, see above |
-| *No filesystem in ...* | the image is truncated, or the cue names the wrong file for track 1 |
-| *No ssp.ini in the root of this image* | it is not a Virtual-On disc |
-| *This cue sheet lists only audio tracks* | only the audio half was ripped |
-| *This image has no audio tracks* | only the data half was ripped; the install works, the rip does not |
-| *CANNOT INSTALL - USA OEM build* | see [Which build](#which-build). **Rip soundtrack** still works |
-| *That folder is not empty* | a warning, not a refusal - same-named files are replaced |
-| *Not enough room* | with the numbers, checked before anything is written |
-
-`MODE1/2352`, `MODE2/2352`, `MODE1/2048` and `MODE2/2336` images all work,
-including a cue sheet that names the wrong one.
-
 ## What the patches do
+
+<img height="160" alt="game-patched" src="https://github.com/user-attachments/assets/15fdc7a1-c52e-4565-8977-6ac024229f4f" />
+<br /><br />
 
 Every **Essential** patch is applied, with no tick box. Without them the game
 does not start, crashes when you lose a round, runs at a third of the frame
@@ -217,6 +204,9 @@ is skipped, version included, and everything else still applies.
 
 Open the collapsed **ADD-ONS** header and press **Install** on a row. The
 same button reads **Remove** once installed.
+
+<img height="360" alt="addons" src="https://github.com/user-attachments/assets/759d2fc6-39c6-473d-b08f-c9de8d5d214a" />
+<br /><br />
 
 | Row | What it is |
 | --- | --- |
@@ -544,9 +534,11 @@ The patcher works on one build and refuses everything else. Every patch is a
 fixed file offset belonging to that build alone; on another build it would
 write into unrelated code.
 
-<kbd><img height="150" alt="Rejected executable, side by side checksums" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+<kbd><img height="220" alt="oem" src="https://github.com/user-attachments/assets/9825b5cb-7c3a-43fc-873b-e1c78ae5660a" />
+</kbd>
 &nbsp;
-<kbd><img height="150" alt="Accepted executable" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
+<kbd><img height="220" alt="error" src="https://github.com/user-attachments/assets/808bb2cc-0c14-4922-bd64-f9db9af2963f" />
+</kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
