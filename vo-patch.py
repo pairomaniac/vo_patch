@@ -4655,6 +4655,15 @@ def run_tk():
             self._section(foot_right, 'ABOUT', self._about_body,
                           expanded=False)
 
+            # The last card in each column stretches to the bottom of it.
+            # The columns are as tall as the taller one, so without this
+            # the shorter column stops early and its last card's lower edge
+            # sits opposite nothing.
+            for column in (left, right):
+                cards = column.winfo_children()
+                if cards and column is not self.inner:
+                    cards[-1].pack_configure(fill='both', expand=True)
+
             # Width is settled here rather than on the canvas's first
             # <Configure>, which arrives while the sections are still being
             # built and measures whatever exists at that point.
@@ -4944,7 +4953,6 @@ def run_tk():
             self.min_content = int(MIN_CHARS * self.em)
             self.max_content = int(MAX_CHARS * self.em)
             self.gutter = max(2, int(GUTTER_CHARS * self.em))
-            self.addon_gap = max(2, int(self.em))
 
             # Drawn last, because the tick box is sized against the text it
             # sits beside: a fixed 16px box next to 27px letters at 200%
@@ -5002,9 +5010,24 @@ def run_tk():
                 head, style='Head.TLabel',
                 text='\u25be' if expanded else '\u25b8'))
             arrow.pack(side='left', padx=self.px((0, 8)))
+            name = arrow                # rebound below; keeps the bind list
+            # The step number is set apart from the name, in the amber the
+            # description tables already use for a key. It is the one thing
+            # in the heading that is a sequence rather than a label.
+            number, _, rest = title.partition('  ')
+            labels = [name]
+            if rest:
+                step = self._static_label(ttk.Label(
+                    head, text=number, style='Head.TLabel',
+                    foreground=PALETTE['amber'], font=self.head_font))
+                step.pack(side='left', padx=self.px((0, 8)))
+                labels.append(step)
+            else:
+                rest = number
             name = self._static_label(ttk.Label(
-                head, text=title, style='Head.TLabel', font=self.head_font))
+                head, text=rest, style='Head.TLabel', font=self.head_font))
             name.pack(side='left')
+            labels.append(name)
 
             inner = ttk.Frame(card, style='Body.TFrame',
                               padding=self.px((14, 10, 12, 12)))
@@ -5030,7 +5053,7 @@ def run_tk():
             def toggle(_event=None):
                 set_open(not inner.winfo_manager())
 
-            for widget in (head, arrow, name):
+            for widget in [head] + labels:
                 widget.bind('<Button-1>', toggle)
 
             self._openers[title] = lambda: set_open(True)
@@ -5486,26 +5509,35 @@ def run_tk():
         def _link_row(self, parent, label, name, url, note):
             """cnc-ddraw: somebody else's program, so the project name is a
             link to it. Not a patch - Apply never touches this."""
-            self.ddraw_btn = self._addon_head(parent, label, name, url,
-                                              self._ddraw_click, first=True)
-            gut = self._clear_of(self.ddraw_btn)
-            _hint(parent, note, self.dim, self.small, gutter=gut)
-            _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
-                  pady=(4, 0), gutter=gut)
-            self.ddraw_note = _hint(parent, '', self.dim, self.small,
-                                    pady=(4, 0), gutter=gut)
+            self.ddraw_btn, text = self._addon_head(
+                parent, label, name, url, self._ddraw_click, first=True)
+            _hint(text, note, self.dim, self.small, pady=(4, 0))
+            _hint(text, DDRAW_WINE, PALETTE['amber'], self.small,
+                  pady=(4, 0))
+            self.ddraw_note = _hint(text, '', self.dim, self.small,
+                                    pady=(4, 0))
             self.ddraw_installed = False
 
-        def _addon_head(self, parent, label, name=None, url=None,
+        def _addon_head(self, grid, label, name=None, url=None,
                         command=None, first=False):
-            """Title, optional project link, and the one button - laid out
-            like a patch row so the two entries read as a list."""
-            if not first:
-                rule = tk.Frame(parent, background=PALETTE['line'], height=1)
-                rule.pack(fill='x', pady=(14, 0))
+            """One add-on: its title and description on the left of the
+            split, its button on the right of it.
 
-            row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(12, 4))
+            Returns (button, text side) - the caller's descriptions go into
+            the text side, so they wrap to half the card rather than to all
+            of it and stop where the button starts."""
+            line = grid.grid_size()[1]
+            if not first:
+                rule = tk.Frame(grid, background=PALETTE['line'], height=1)
+                rule.grid(row=line, column=0, columnspan=2, sticky='ew',
+                          pady=self.px((14, 0)))
+                line += 1
+
+            text = ttk.Frame(grid, style='Card.TFrame')
+            text.grid(row=line, column=0, sticky='ew',
+                      pady=self.px((12, 4)))
+            row = ttk.Frame(text, style='Card.TFrame')
+            row.pack(fill='x')
             self._static_label(ttk.Label(
                 row, text=label, style='Card.TLabel',
                 foreground=PALETTE['text'])).pack(side='left')
@@ -5514,49 +5546,49 @@ def run_tk():
                     row, text=name, cursor='hand2',
                     background=PALETTE['card'],
                     foreground=PALETTE['cyan']))
-                link.pack(side='left', padx=(6, 0))
+                link.pack(side='left', padx=self.px((6, 0)))
                 link.bind('<Button-1>', lambda _e: webbrowser.open(url))
                 link.bind('<Enter>', lambda _e: link.config(
                     foreground=PALETTE['cyan_hi']))
                 link.bind('<Leave>', lambda _e: link.config(
                     foreground=PALETTE['cyan']))
-            btn = ttk.Button(row, text='Install', style='Vo.TButton',
+            btn = ttk.Button(grid, text='Install', style='Vo.TButton',
                              command=command)
-            btn.pack(side='right', padx=(6, 2))
-            return btn
-
-        def _clear_of(self, btn):
-            """How much room to leave a description on the right, measured
-            from the button rather than assumed.
-
-            The button sits on the title row, so only the first line of a
-            description is really beside it - but stopping every line at the
-            same place is what gives the block a straight right edge under
-            the button, instead of text running along beneath it."""
-            def measure():
-                return max(btn.winfo_width(), btn.winfo_reqwidth()) \
-                    + self.addon_gap
-            return measure
+            # No sticky north or south, so grid centres it against the whole
+            # entry; sticky west puts it at the start of its half, which is
+            # the gutter the columns above are split on.
+            btn.grid(row=line, column=1, sticky='w',
+                     padx=self.px((14, 2)))
+            return btn, text
 
         def _addons_body(self, parent):
             """Separate files that sit beside the game, not byte patches.
             Apply and Restore do not touch either of these; each row
-            installs and removes itself."""
+            installs and removes itself.
+
+            Split down the same line as the two columns above, because this
+            card spans both: what reads goes on the left, the button on the
+            right of the split, so it sits by the gutter and level with the
+            middle of the entry it belongs to rather than out at the far
+            edge of the window."""
             _hint(parent, ADDONS_HINT, self.dim, self.small, pady=(0, 4))
-            self._link_row(parent, *DDRAW_LINK)
-            self._netplay_row(parent)
+            grid = ttk.Frame(parent, style='Card.TFrame')
+            grid.pack(fill='x')
+            grid.columnconfigure(0, weight=1, uniform='addon')
+            grid.columnconfigure(1, weight=1, uniform='addon')
+            self._link_row(grid, *DDRAW_LINK)
+            self._netplay_row(grid)
 
         def _netplay_row(self, parent):
             """Ours, so there is nowhere to link: the explanation lives in
             the README."""
-            self.net_btn = self._addon_head(parent, NETPLAY_LABEL,
-                                            command=self._netplay_click)
-            gut = self._clear_of(self.net_btn)
-            _hint(parent, NETPLAY_NOTE, self.dim, self.small, gutter=gut)
-            _hint(parent, NETPLAY_PORT, PALETTE['amber'], self.small,
-                  pady=(4, 0), gutter=gut)
-            self.net_note = _hint(parent, '', self.dim, self.small,
-                                  pady=(4, 0), gutter=gut)
+            self.net_btn, text = self._addon_head(
+                parent, NETPLAY_LABEL, command=self._netplay_click)
+            _hint(text, NETPLAY_NOTE, self.dim, self.small, pady=(4, 0))
+            _hint(text, NETPLAY_PORT, PALETTE['amber'], self.small,
+                  pady=(4, 0))
+            self.net_note = _hint(text, '', self.dim, self.small,
+                                  pady=(4, 0))
             self.net_state = None
 
         def _netplay_sync(self):
