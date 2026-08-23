@@ -33,6 +33,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import disctest                                             # noqa: E402
+import selftest                                             # noqa: E402
 
 FAILED = []
 
@@ -98,19 +99,30 @@ def main():
 
     # A stand-in reads as an unsupported build, which is correct and is what
     # the refusal checks want; the real one lets the copy run.
+    #
+    # pristine, because a development copy of the game is normally patched -
+    # which is the point of having one - and the patched file is not a build
+    # the patcher will install. selftest and bannertest fall back the same
+    # way, to the .bak beside it.
     game = (sys.argv[1] if len(sys.argv) > 1 else '') or os.environ.get(
         'VO_GAME', '')
-    real = os.path.join(game, 'v_on.exe') if game else ''
-    if real and os.path.exists(real):
-        with open(real, 'rb') as fh:
-            exe = fh.read()
-    else:
-        exe, real = b'M' * vp.EXE_SIZE, ''
+    exe = None
+    if game:
+        if os.path.isfile(game):
+            game = os.path.dirname(game) or '.'
+        exe, source = selftest.pristine(os.path.join(game, 'v_on.exe'), vp)
+        if exe is None:
+            print('note: no unmodified v_on.exe in %s, so the copy is not '
+                  'exercised' % game)
+        else:
+            print('using %s' % source)
+    real = exe is not None
+    if not real:
+        exe = b'M' * vp.EXE_SIZE
     tree = disctest.retail_tree(exe)
-    # Padded so the copy lasts longer than the checks that run during it.
-    # A real disc is 95 MB; without this the exe alone copies faster than
-    # one turn of the event loop and there is no "during" to test.
-    tree['v_on']['escrgame.bin'] = b'E' * (24 << 20)
+    # Padded so the copy lasts more than one turn of the event loop, which
+    # is all the "during" the check below needs. A real disc is 95 MB.
+    tree['v_on']['escrgame.bin'] = b'E' * (12 << 20)
     cue = disctest.write_disc(here, 'RETAIL', disctest.build_iso(tree),
                               'MODE1/2352', audio=26)
 
@@ -187,16 +199,23 @@ def main():
 
         # ---- a long job holds the buttons down -----------------------
         buttons['Install game'][0].invoke()
-        pump(40)
+        pump()
         running = not enabled('Install game')
         check('a copy disables both buttons',
               running and not enabled('Rip soundtrack'))
-        set_entry(entries[1], os.path.join(tmp, 'elsewhere'))
-        pump(60)
-        check('editing a path mid-copy does not re-arm them',
-              not running or (not enabled('Install game')
-                              and not enabled('Rip soundtrack')),
-              'a second copy could start on top of the first')
+        if running:
+            # No pump in between: the destination's trace runs inside the
+            # set, so if it re-arms the buttons it has already done it by
+            # the time this looks. Waiting instead would race the copy,
+            # which on a fast disk finishes first and passes for the wrong
+            # reason.
+            set_entry(entries[1], os.path.join(tmp, 'elsewhere'))
+            check('editing a path mid-copy does not re-arm them',
+                  not enabled('Install game')
+                  and not enabled('Rip soundtrack'),
+                  'a second copy could start on top of the first')
+        else:
+            print('     the copy finished too quickly to interrupt; skipped')
         for _ in range(600):
             pump(20)
             if enabled('Install game'):
