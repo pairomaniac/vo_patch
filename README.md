@@ -27,9 +27,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 It is unsigned, so SmartScreen calls it an unknown publisher on the first
 run. On Linux, see [Running from source](#running-from-source).
 
-The window is in two columns - getting the game in place on the left,
-patching it on the right - and the sections are numbered in the order to
-work through them.
+The sections are numbered in the order to work through them.
 
 1. **INSTALL** - put your `.cue` sheet in **Source**, choose a folder in
    **Install to**, and press **Install game**. Then **Rip soundtrack**,
@@ -51,11 +49,9 @@ work through them.
     - **Resolution and windowing** - installs cnc-ddraw. See
       [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
 
-Then play. Changed your mind? **Restore original** puts the game back, then
-apply again with a different selection.
-
-Add-ons are separate because they write files beside the game rather than
-editing it, so Apply and Restore leave them alone.
+Then play. **Restore original** puts the game back if you change your mind.
+Add-ons write files beside the game rather than editing it, so Apply and
+Restore leave them alone.
 
 ## Installing from a disc image
 
@@ -69,14 +65,10 @@ Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
 the `.bin` itself - choose a folder in **Install to**, and press **Install
 game**. About 95 MB.
 
-The **Manual** box appears when the disc carries more than one language. It
-picks which `readme.txt`, `von.hlp` and `von.cnt` are copied. It is not the
-language of the game: every pressing carries one `v_on.exe` and it is
-English, so there is no translated build to install.
-
-`von.hlp` is 1997 WinHelp, which Windows has not been able to open since
-WinHlp32 stopped being available for Windows 10. The `readme.txt` is plain
-text and opens anywhere.
+The **Manual** box picks which `readme.txt`, `von.hlp` and `von.cnt` are
+copied, not the language of the game: every pressing carries one `v_on.exe`
+and it is English. `von.hlp` is 1997 WinHelp, which Windows has not opened
+since WinHlp32 stopped shipping for Windows 10; the readme is plain text.
 
 Or from a terminal:
 
@@ -107,13 +99,12 @@ Then put the `.cue` in **Source**. On Linux a drive can also go straight in
 
 ### What it copies
 
-The game directory, and the chosen language's `readme.txt` and help file.
-Nothing else on the disc is part of the game: `directx\` is a 1997 redistributable
-and the rest is the installer's own furniture.
+The game directory, and the chosen manual. Nothing else: `directx\` is a
+1997 redistributable and the rest is the installer's own furniture.
 
-No `v_on.ini` is written - the game makes its own on first run, and with
-**Better defaults** applied it makes a good one. The disc's `v_on_a.ini` and
-`v_on_b.ini` are copied as they are.
+No `v_on.ini` is written - the game makes its own on first run, a good one
+with **Better defaults** applied. The disc's `v_on_a.ini` and `v_on_b.ini`
+are copied as they are.
 
 For how the copy rules are read off the disc, see
 [docs/NOTES.md](docs/NOTES.md#installing-from-a-disc-image).
@@ -416,20 +407,14 @@ reads it from WAV files beside the game. No drive, no extra DLL.
 
 ### Ripping the tracks
 
-Use **INSTALL**, the same **Source** box as the game copy: one cue sheet holds
-the game and the soundtrack both. Press **Rip soundtrack**. The tracks go to
-`music\` under **Install to**, or beside your `v_on.exe` if you did not
-install from here - the note under the buttons names the folder either way.
-Closing the window mid-rip cancels it and discards the part-written track.
+Same **Source** box as the install - one cue sheet holds the game and the
+soundtrack both. Press **Rip soundtrack**; the note under the buttons names
+the folder they go to. Closing the window mid-rip discards the part-written
+track.
 
-On Linux a device node works in **Source** too - a cdemu device is read like
-a physical one. Windows drives are not read directly; image the disc first,
-as in [If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
-
-**Rip soundtrack** stays greyed out until **Source** holds something the
-ripper can read. If the image is not Virtual-On, it says how many audio
-tracks it found against the 26 there should be - the game asks for tracks by
-number, so a different count is different music.
+On Linux a device node works in **Source** too, a cdemu one like a physical
+drive. Windows drives are not read directly; image the disc first, as in
+[If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
 
 Or from a terminal:
 
@@ -440,10 +425,7 @@ python3 vo_patch.py --rip                # list drives
 ```
 
 The directory is the one holding `v_on.exe`; `music\` is created inside it.
-
-`bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
-
-Output is about 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
+About 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
 
 ```
 VIRTUAL-ON\
@@ -457,13 +439,11 @@ because the game asks for tracks by number.
 
 ### At runtime
 
-The tracks are read by the **No disc required** patch, so they do nothing on
-their own: untick it and the folder is ignored however full it is.
-
-With the patch on and `music\` missing or empty, the game reads the drive as
-before. With tracks present, they are used, disc or no disc. Under Wine they
-play through `mciwave` - no `dosdevices` entry, raw device link or cdemu
-instance.
+The tracks are read by the **No disc required** patch, so untick it and the
+folder is ignored however full it is. With the patch on and `music\` missing
+or empty, the game reads the drive as before; with tracks there, they are
+used, disc or no disc. Under Wine they play through `mciwave` - no
+`dosdevices` entry, raw device link or cdemu instance.
 
 ## Resolution and windowing (cnc-ddraw)
 
@@ -530,9 +510,8 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 ## Which build
 
-The patcher works on one build and refuses everything else. Every patch is a
-fixed file offset belonging to that build alone; on another build it would
-write into unrelated code.
+The patcher works on one build and refuses everything else: every patch is a
+fixed file offset, and on another build it would write into unrelated code.
 
 <kbd><img height="220" alt="oem" src="https://github.com/user-attachments/assets/9825b5cb-7c3a-43fc-873b-e1c78ae5660a" />
 </kbd>
@@ -545,18 +524,16 @@ write into unrelated code.
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 
-If your file is neither of these, the patcher shows both checksums side by
-side and says which one it got - in **GAME FILE** for a file you picked, or
-in **INSTALL** for a disc image, which is checked before anything is
-installed.
-Ripping the soundtrack off an OEM disc still works; only patching needs the
-retail build.
+Anything else gets both checksums side by side and which one it is - in
+**GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
+is checked before anything is copied. Ripping the soundtrack off an OEM disc
+still works; only patching needs the retail build.
 
 ### What gets written
 
 The original is copied to `v_on.exe.bak` first, and nothing is written
-unless every selected patch applied and the backup was made, so a failure
-leaves the game exactly as it was.
+unless every selected patch applied, so a failure leaves the game as it
+was.
 
 **XInput gamepad support** touches two more files. `v_on.ini` is moved to
 `v_on.ini.bak` and the game writes a fresh one, because binds saved by the
@@ -565,10 +542,8 @@ with the new title artwork, after a copy is kept as `escrgame.bin.bak`.
 
 **Restore original** puts all three back, keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
-hand: `escrgame.bin` and `v_on.exe` have to match, and putting back only one
-draws the title prompt as scrambled letters. If `escrgame.bin` is missing,
-the wrong size, or already modified with no backup beside it, the patcher
-stops before writing anything.
+hand: `escrgame.bin` and `v_on.exe` have to match, and restoring one alone
+draws the title prompt as scrambled letters.
 
 ## Running from source
 

@@ -39,12 +39,13 @@ that matter:
 | `SourcePath1` | the game directory, copied whole - `v_on\` on every pressing |
 | `Select1` | whether a language directory is copied too |
 | `LangExeclusive` | which one, per language section |
-| `IniFileName` | the file Sega's installer writes over; the patcher does not, so it is read off the disc and ignored |
+| `IniFileName` | the file Sega's installer writes over; the patcher does not |
 
-The retail pressings set `Select1 = SourceCopy, LangExeclusive` and keep the
-help files in `english\` and friends; the USA OEM disc has neither and keeps
-them in `v_on\`. One rule covers both: copy `SourcePath1`, and copy the
-chosen section's `LangExeclusive` directory as well when `Select1` names it.
+Retail pressings set `Select1 = SourceCopy, LangExeclusive` and keep the help
+files in `english\` and friends; the USA OEM disc has neither and keeps them
+in `v_on\`. One rule covers both: copy `SourcePath1`, plus the chosen
+section's `LangExeclusive` directory when `Select1` names it. A section whose
+directory is not on the disc is not offered.
 
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
@@ -65,11 +66,11 @@ deleting both:
 ```
 
 Doing the same would fight the patches. `v_on_a.ini` carries `Motion=3`, the
-frame divisor at `0x6c84d0` that the frame rate patch sets to 1, and a value
-in the ini wins over the default in the code - so a freshly installed and
-patched game would run at a third speed. Both files are copied as the disc
-has them and no `v_on.ini` is written; the game writes its own on first run,
-against whatever defaults are patched in.
+frame divisor at `0x6c84d0` that the frame rate patch sets to 1, and the ini
+wins over the default in the code - so a freshly installed and patched game
+would run at a third speed. Both files are copied as the disc has them and no
+`v_on.ini` is written; the game writes its own on first run, against whatever
+defaults are patched in.
 
 ### What setup.exe writes that the game reads
 
@@ -87,7 +88,7 @@ comparing against `Microsoft SideWinder game pad` - Windows' own joystick
 table, not anything an installer puts there. The paths are assembled at
 runtime from `%s\%s\%s`, which is why they do not show up in a string dump.
 
-One consequence worth recording: registering IV41 means `von.avi` is Indeo
+Registering IV41 means `von.avi` is Indeo
 Video 4.1, and `ir41_32.dll` is not on the disc - it came from Windows. Wine
 has no Indeo decoder, so that movie cannot play on a clean prefix however the
 game is installed.
