@@ -9,7 +9,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 <img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
 
-<p align="center">
+<h3 align="center">
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
@@ -17,7 +17,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
   <a href="#which-build">Which build</a>
-</p>
+</h3>
 
 ## Quick start
 
