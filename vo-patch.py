@@ -4181,7 +4181,12 @@ WRAP_STEP = 8
 # Clear space between an add-on's description and the button beside it.
 # Added to the button's own measured width, so it survives a longer label
 # or a different font.
-ADDON_GAP = 20
+ADDON_GAP = 8
+# How far the balanced wrap may pull a line in, as a fraction of the room it
+# has. Without a floor each paragraph settles at its own width and their
+# right edges stop agreeing - a short one ends a long way short of the rest,
+# which reads as a hole rather than as a margin. See _wrap_at.
+WRAP_FLOOR = 8
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4437,7 +4442,8 @@ def run_tk():
         decides each line, so one long word early on can leave a line short
         while the rest run to the margin. Wrapping to the narrowest width
         with the same line count evens them out, and can only ever be
-        narrower than the space, so nothing is clipped.
+        narrower than the space, so nothing is clipped. WRAP_FLOOR stops it
+        going so far that the block no longer lines up with its neighbours.
 
         Word widths are measured once per font and kept, because this runs
         for every hint on screen every time the window changes width and
@@ -4482,7 +4488,11 @@ def run_tk():
                 high = mid
             else:
                 low = mid + 1
-        return low
+        # Floored, so a paragraph that could be squeezed a long way still
+        # ends near the same right edge as the ones beside it. Evening the
+        # lines inside one block is worth a few pixels; leaving that block
+        # visibly narrower than its neighbours is not.
+        return max(low, avail - avail // WRAP_FLOOR)
 
     def _hint(parent, text, colour, font, pady=0, gutter=0):
         """The quiet explanatory line under a section heading; most of the
