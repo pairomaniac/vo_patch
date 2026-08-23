@@ -4178,6 +4178,10 @@ ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
 EXTRA_HINT = 'Optional. Untick what you do not want.'
 # Granularity of the hint wrapping, in pixels. See _hint.
 WRAP_STEP = 8
+# Clear space between an add-on's description and the button beside it.
+# Added to the button's own measured width, so it survives a longer label
+# or a different font.
+ADDON_GAP = 20
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4480,7 +4484,7 @@ def run_tk():
                 low = mid + 1
         return low
 
-    def _hint(parent, text, colour, font, pady=0):
+    def _hint(parent, text, colour, font, pady=0, gutter=0):
         """The quiet explanatory line under a section heading; most of the
         cards have one and they only differ in their text.
 
@@ -4489,6 +4493,10 @@ def run_tk():
         that made every hint 26px wider than the space it had and clipped
         the last word against the card edge. An empty frame filled to the
         content area measures it exactly.
+
+        gutter keeps the text clear of anything sitting to the right of it -
+        on the add-on rows, the Install button. Pass a callable to have it
+        measured when the line is laid out rather than guessed at now.
 
         Packs itself, because the holder is nobody else's business."""
         holder = ttk.Frame(parent, style='Card.TFrame')
@@ -4518,7 +4526,8 @@ def run_tk():
             # rather than to nearest matters: the wrap is then never wider
             # than the space, so text is never clipped, only wrapped up to a
             # step early. One step is under a character.
-            width = max(140, (width - 2) // WRAP_STEP * WRAP_STEP)
+            edge = gutter() if callable(gutter) else gutter
+            width = max(140, (width - 2 - edge) // WRAP_STEP * WRAP_STEP)
             if width != last[0]:
                 last[0] = width
                 label.tk.call(label._w, 'configure', '-wraplength',
@@ -5411,32 +5420,26 @@ def run_tk():
         def _link_row(self, parent, label, name, url, note):
             """cnc-ddraw: somebody else's program, so the project name is a
             link to it. Not a patch - Apply never touches this."""
-            self.ddraw_btn, self.ddraw_note = self._addon_row(
-                parent, label, ((note, self.dim),
-                                (DDRAW_WINE, PALETTE['amber'])),
-                self._ddraw_click, name=name, url=url, first=True)
+            self.ddraw_btn = self._addon_head(parent, label, name, url,
+                                              self._ddraw_click, first=True)
+            gut = self._clear_of(self.ddraw_btn)
+            _hint(parent, note, self.dim, self.small, gutter=gut)
+            _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
+                  pady=(4, 0), gutter=gut)
+            self.ddraw_note = _hint(parent, '', self.dim, self.small,
+                                    pady=(4, 0), gutter=gut)
             self.ddraw_installed = False
 
-        def _addon_row(self, parent, label, notes, command,
-                       name=None, url=None, first=False):
-            """One add-on: a title, its descriptions, and its one button.
-
-            The button goes under the text, not beside it. Beside it, the
-            paragraph has to clear the button on every line even though the
-            button only sits next to the first, which cost a third of the
-            width and turned four lines into seven. Underneath, the text
-            runs to the card's own margin like everything else in the
-            window, and nothing is written next to a button.
-
-            Returns (button, status line) - the caller writes results into
-            the status line.
-            """
+        def _addon_head(self, parent, label, name=None, url=None,
+                        command=None, first=False):
+            """Title, optional project link, and the one button - laid out
+            like a patch row so the two entries read as a list."""
             if not first:
                 rule = tk.Frame(parent, background=PALETTE['line'], height=1)
                 rule.pack(fill='x', pady=(14, 0))
 
             row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(12, 0))
+            row.pack(fill='x', pady=(12, 4))
             ttk.Label(row, text=label, style='Card.TLabel',
                       foreground=PALETTE['text']).pack(side='left')
             if name:
@@ -5449,17 +5452,24 @@ def run_tk():
                     foreground=PALETTE['cyan_hi']))
                 link.bind('<Leave>', lambda _e: link.config(
                     foreground=PALETTE['cyan']))
-
-            for text, colour in notes:
-                _hint(parent, text, colour, self.small, pady=(6, 0))
-            status = _hint(parent, '', self.dim, self.small, pady=(6, 0))
-
-            bar = ttk.Frame(parent, style='Card.TFrame')
-            bar.pack(fill='x', pady=(10, 2))
-            btn = ttk.Button(bar, text='Install', style='Vo.TButton',
+            btn = ttk.Button(row, text='Install', style='Vo.TButton',
                              command=command)
-            btn.pack(side='right', padx=(0, 2))
-            return btn, status
+            btn.pack(side='right', padx=(6, 2))
+            return btn
+
+        @staticmethod
+        def _clear_of(btn):
+            """How much room to leave a description on the right, measured
+            from the button rather than assumed.
+
+            The button sits on the title row, so only the first line of a
+            description is really beside it - but stopping every line at the
+            same place is what gives the block a straight right edge under
+            the button, instead of text running along beneath it."""
+            def measure():
+                return max(btn.winfo_width(), btn.winfo_reqwidth()) \
+                    + ADDON_GAP
+            return measure
 
         def _addons_body(self, parent):
             """Separate files that sit beside the game, not byte patches.
@@ -5472,10 +5482,14 @@ def run_tk():
         def _netplay_row(self, parent):
             """Ours, so there is nowhere to link: the explanation lives in
             the README."""
-            self.net_btn, self.net_note = self._addon_row(
-                parent, NETPLAY_LABEL, ((NETPLAY_NOTE, self.dim),
-                                        (NETPLAY_PORT, PALETTE['amber'])),
-                self._netplay_click)
+            self.net_btn = self._addon_head(parent, NETPLAY_LABEL,
+                                            command=self._netplay_click)
+            gut = self._clear_of(self.net_btn)
+            _hint(parent, NETPLAY_NOTE, self.dim, self.small, gutter=gut)
+            _hint(parent, NETPLAY_PORT, PALETTE['amber'], self.small,
+                  pady=(4, 0), gutter=gut)
+            self.net_note = _hint(parent, '', self.dim, self.small,
+                                  pady=(4, 0), gutter=gut)
             self.net_state = None
 
         def _netplay_sync(self):
