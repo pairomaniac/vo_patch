@@ -1,13 +1,14 @@
-# Virtual-On (PC, 1997) - v_on.exe patcher
+# vo_patch
 
-Gets *Cyber Troopers Virtual-On* running properly on a modern system: fixes
-the crashes, the frame rate and the keyboard, adds XInput gamepad support for
-both players, reads the soundtrack from files instead of the disc, and puts
-two-player versus on the internet - a code to share, no port forwarding.
+Gets *Cyber Troopers Virtual-On* (PC, 1997) running properly on a modern
+system: installs it straight from a disc image, fixes the crashes, the frame
+rate and the keyboard, adds XInput gamepad support for both players, reads
+the soundtrack from files instead of the disc, and puts two-player versus on
+the internet - a code to share, no port forwarding.
 
 In a nutshell - the patch makes the game <i>just work ™️</i>
 
-<img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
+<img height="700" alt="full-gui" src="https://github.com/user-attachments/assets/92da3bba-687f-4011-977b-8197440cf607" />
 
 <h4 align="center">
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
@@ -21,31 +22,105 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 ## Quick start
 
-1. **Download** `vo-patch-*.exe` from the
-   [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
-   It is unsigned, so SmartScreen calls it an unknown publisher on the first
-   run. On Linux, see [Running from source](#running-from-source).
-2. **Run it and select your `v_on.exe`.** Only the unmodified disc file is
-   accepted - if yours is refused, see [Which build](#which-build).
-3. **Press Apply patches.** Everything starts ticked. Click the ⓘ beside a
-   patch to read what it does, and untick anything you do not want.
-4. **Want internet play, or a proper fullscreen picture?** Click the
-   **ADD-ONS** header to open it - the section starts collapsed - and press
-   **Install** on the row you want:
+**Download** `vo_patch-*.exe` from the
+[latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
+It is unsigned, so SmartScreen calls it an unknown publisher on the first
+run. On Linux, see [Running from source](#running-from-source).
+
+The sections are numbered in the order to work through them.
+
+1. **INSTALL** - put your `.cue` sheet in **Source**, choose a folder in
+   **Install to**, and press **Install game**. Then **Rip soundtrack**,
+   unless you plan to keep a disc in the drive. Already have the game
+   installed? Leave this alone and start at 2; pick your `v_on.exe` there and
+   the tracks go beside it. See
+   [Installing from a disc image](#installing-from-a-disc-image) and
+   [Music](#music).
+2. **GAME FILE** - installing fills this in for you. Otherwise browse to
+   your `v_on.exe`; only the unmodified disc file is accepted, and if yours
+   is refused see [Which build](#which-build).
+3. **ESSENTIAL** - applied whole, no tick boxes. See
+   [What the patches do](#what-the-patches-do).
+4. **EXTRA** - starts ticked and is yours to change. Click the ⓘ beside a
+   patch to read what it does. Then **Apply patches**.
+5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
     - **Resolution and windowing** - installs cnc-ddraw. See
       [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
-5. **Play.**
 
-Changed your mind? **Restore original** puts the game back, then apply again
-with a different selection.
+Then play. **Restore original** puts the game back if you change your mind.
+Add-ons write files beside the game rather than editing it, so Apply and
+Restore leave them alone.
 
-Add-ons are separate because they write files beside the game rather than
-editing it, so Apply and Restore leave them alone. Select `v_on.exe` first
-either way - that is how the patcher knows which folder to write to.
+## Installing from a disc image
+
+The patcher reads the image itself, so there is nothing to mount and no
+virtual drive to set up.
+
+<img height="280" alt="install" src="https://github.com/user-attachments/assets/d03430cf-4ef4-4ff8-bf8d-e608d5049be5" />
+<br /><br />
+
+Put the **`.cue`** sheet in **Source** - the one beside the `.bin` files, not
+the `.bin` itself - choose a folder in **Install to**, and press **Install
+game**. About 95 MB.
+
+The **Manual** box picks which `readme.txt`, `von.hlp` and `von.cnt` are
+copied, not the language of the game: every pressing carries one `v_on.exe`
+and it is English. `von.hlp` is 1997 WinHelp, which Windows has not opened
+since WinHlp32 stopped shipping for Windows 10; the readme is plain text.
+
+Or from a terminal:
+
+```bash
+python3 vo_patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
+python3 vo_patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language GERMAN
+```
+
+### If you have the disc, not an image
+
+The patcher needs a `bin`/`cue` pair; it does not read a drive directly, and
+a plain ISO will not do because it drops the audio tracks. Image the disc
+once:
+
+- **Windows** - [ImgBurn](https://www.imgburn.com), *Read* mode, with the
+  output set to **BIN/CUE** rather than ISO.
+- **Linux** - `cdrdao`, then its own `toc2cue`:
+
+  ```bash
+  cdrdao read-cd --driver generic-mmc-raw --datafile VIRTUAL-ON.bin \
+      VIRTUAL-ON.toc /dev/sr0
+  toc2cue VIRTUAL-ON.toc VIRTUAL-ON.cue
+  ```
+
+Then put the `.cue` in **Source**. On Linux a drive can also go straight in
+**Source** for the soundtrack, though not for the install - see
+[Music](#music).
+
+### What it copies
+
+The game directory, and the chosen manual. Nothing else: `directx\` is a
+1997 redistributable and the rest is the installer's own furniture.
+
+No `v_on.ini` is written - the game makes its own on first run, a good one
+with **Better defaults** applied. The disc's `v_on_a.ini` and `v_on_b.ini`
+are copied as they are.
+
+For how the copy rules are read off the disc, see
+[docs/NOTES.md](docs/NOTES.md#installing-from-a-disc-image).
 
 ## What the patches do
+
+<img height="160" alt="game-patched" src="https://github.com/user-attachments/assets/15fdc7a1-c52e-4565-8977-6ac024229f4f" />
+<br /><br />
+
+Every **Essential** patch is applied, with no tick box. Without them the game
+does not start, crashes when you lose a round, runs at a third of the frame
+rate, or loses the keyboard after ALT+TAB.
+
+Keeping the keyboard alive across ALT+TAB means the game reads it in the
+background, so keys pressed in another window still reach it while the game
+is running.
 
 **Essential** fixes what is broken on modern systems; **Extra** is down to
 taste. Every patch's offsets and internals are in [NOTES.md](docs/NOTES.md).
@@ -107,7 +182,7 @@ side of the fighting:
 
 ### About
 
-**Show the version, and credit the patch in the ending roll** sits under
+**Version and credit in the game** sits under
 ABOUT rather than with the patches, and is on by default. It prints the
 patcher's version in the bottom right of the title screen and adds two lines
 under the title of the ending credits.
@@ -121,13 +196,16 @@ is skipped, version included, and everything else still applies.
 Open the collapsed **ADD-ONS** header and press **Install** on a row. The
 same button reads **Remove** once installed.
 
+<img height="360" alt="addons" src="https://github.com/user-attachments/assets/759d2fc6-39c6-473d-b08f-c9de8d5d214a" />
+<br /><br />
+
 | Row | What it is |
 | --- | --- |
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
 | **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
 
-**CD MUSIC**, further down the window, rips the soundtrack for the **No disc
-required** patch. See [Music](#music).
+The soundtrack rip lives in **INSTALL** at the top of the window, beside
+the game copy. See [Music](#music).
 
 ## Internet play
 
@@ -153,8 +231,8 @@ forwarding, no VPN. Direct IP is still there for LAN play.
   Or from a terminal:
 
     ```bash
-    python3 vo-patch.py --netplay path/to/game            # install
-    python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
+    python3 vo_patch.py --netplay path/to/game            # install
+    python3 vo_patch.py --netplay path/to/game --remove   # put the stock one back
     ```
 
 - **Both players need the same two gameplay patches**, Fix frame rate and
@@ -327,29 +405,27 @@ The BGM is Redbook CD audio, so unpatched it needs a disc or a virtual drive
 with the audio tracks - a data-only ISO plays nothing. **No disc required**
 reads it from WAV files beside the game. No drive, no extra DLL.
 
-<img height="360" alt="CD MUSIC section" src="https://github.com/user-attachments/assets/69d7501f-b16c-4394-a9ef-a5120c224775" />
-
 ### Ripping the tracks
 
-Use the **CD MUSIC** section of the patcher. Pick `v_on.exe` first so it
-knows where the files go, put a cue sheet or a drive in **Source**, then
-press **Rip tracks**. Closing the window mid-rip cancels it and discards the
-part-written track.
+Same **Source** box as the install - one cue sheet holds the game and the
+soundtrack both. Press **Rip soundtrack**; the note under the buttons names
+the folder they go to. Closing the window mid-rip discards the part-written
+track.
 
-<img height="300" alt="Ripping in progress" src="https://github.com/user-attachments/assets/363be68c-fcab-4ddd-af3f-09f125d9911f" />
+On Linux a device node works in **Source** too, a cdemu one like a physical
+drive. Windows drives are not read directly; image the disc first, as in
+[If you have the disc, not an image](#if-you-have-the-disc-not-an-image).
 
 Or from a terminal:
 
 ```bash
-python3 vo-patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
-python3 vo-patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
-python3 vo-patch.py --rip                # list drives
+python3 vo_patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
+python3 vo_patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
+python3 vo_patch.py --rip                # list drives
 ```
 
-`bin`/`cue` is exact and needs no drive - sector offsets come from the sheet.
-A cdemu device is read like a physical one.
-
-Output is about 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
+The directory is the one holding `v_on.exe`; `music\` is created inside it.
+About 320 MB: 26 tracks, roughly 30 minutes, uncompressed.
 
 ```
 VIRTUAL-ON\
@@ -363,9 +439,11 @@ because the game asks for tracks by number.
 
 ### At runtime
 
-With `music\` missing or empty, the game reads the drive as before. With
-tracks present, they are used, disc or no disc. Under Wine they play through
-`mciwave` - no `dosdevices` entry, raw device link or cdemu instance.
+The tracks are read by the **No disc required** patch, so untick it and the
+folder is ignored however full it is. With the patch on and `music\` missing
+or empty, the game reads the drive as before; with tracks there, they are
+used, disc or no disc. Under Wine they play through `mciwave` - no
+`dosdevices` entry, raw device link or cdemu instance.
 
 ## Resolution and windowing (cnc-ddraw)
 
@@ -387,7 +465,7 @@ shaders. The same button then reads **Remove**, which deletes them again and
 keeps `ddraw.ini`. From a terminal:
 
 ```bash
-python3 vo-patch.py --ddraw path/to/game
+python3 vo_patch.py --ddraw path/to/game
 ```
 
 It comes straight from
@@ -432,27 +510,30 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 ## Which build
 
-The patcher works on one build and refuses everything else. Every patch is a
-fixed file offset belonging to that build alone; on another build it would
-write into unrelated code.
+The patcher works on one build and refuses everything else: every patch is a
+fixed file offset, and on another build it would write into unrelated code.
 
-<kbd><img height="150" alt="Rejected executable, side by side checksums" src="https://github.com/user-attachments/assets/00a718b1-1193-45ea-a152-8f62ecaf304a" /></kbd>
+<kbd><img height="220" alt="oem" src="https://github.com/user-attachments/assets/9825b5cb-7c3a-43fc-873b-e1c78ae5660a" />
+</kbd>
 &nbsp;
-<kbd><img height="150" alt="Accepted executable" src="https://github.com/user-attachments/assets/97b416fd-b2fe-41e5-957a-50a574bffff6" /></kbd>
+<kbd><img height="220" alt="error" src="https://github.com/user-attachments/assets/808bb2cc-0c14-4922-bd64-f9db9af2963f" />
+</kbd>
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 
-If your file is neither of these, the patcher shows both checksums side by
-side and says which one it got.
+Anything else gets both checksums side by side and which one it is - in
+**GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
+is checked before anything is copied. Ripping the soundtrack off an OEM disc
+still works; only patching needs the retail build.
 
 ### What gets written
 
 The original is copied to `v_on.exe.bak` first, and nothing is written
-unless every selected patch applied and the backup was made, so a failure
-leaves the game exactly as it was.
+unless every selected patch applied, so a failure leaves the game as it
+was.
 
 **XInput gamepad support** touches two more files. `v_on.ini` is moved to
 `v_on.ini.bak` and the game writes a fresh one, because binds saved by the
@@ -461,17 +542,15 @@ with the new title artwork, after a copy is kept as `escrgame.bin.bak`.
 
 **Restore original** puts all three back, keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
-hand: `escrgame.bin` and `v_on.exe` have to match, and putting back only one
-draws the title prompt as scrambled letters. If `escrgame.bin` is missing,
-the wrong size, or already modified with no backup beside it, the patcher
-stops before writing anything.
+hand: `escrgame.bin` and `v_on.exe` have to match, and restoring one alone
+draws the title prompt as scrambled letters.
 
 ## Running from source
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
 ```
-py vo-patch.py
+py vo_patch.py
 ```
 
 On Linux, Tk usually needs installing:
@@ -480,28 +559,29 @@ On Linux, Tk usually needs installing:
 sudo apt install python3-tk        # Debian, Ubuntu, Mint
 sudo dnf install python3-tkinter   # Fedora, RHEL
 sudo pacman -S tk                  # Arch, EndeavourOS
-python3 vo-patch.py
+python3 vo_patch.py
 ```
 
 Everything the patcher does is also available without a window:
 
 ```bash
-python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
-python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
-python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL
-python3 vo-patch.py --selfcheck        # validate the patch tables
+python3 vo_patch.py --install CUE DIR  # the game, out of a disc image
+python3 vo_patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo_patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo_patch.py --netplay DIR      # install the UDP netplay DLL
+python3 vo_patch.py --selfcheck        # validate the patch tables
 ```
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
-`pyinstaller vo-patch.spec`. It builds as `vo-patch-dev.exe` - releases take
+`pyinstaller vo_patch.spec`. It builds as `vo_patch-dev.exe` - releases take
 their version from the git tag, and a source tree has none.
 
 To change the machine code the patches install, see [asm/](asm/); `asm/build.py`
-builds it into the hex strings in `vo-patch.py`. Never edit those by hand.
+builds it into the hex strings in `vo_patch.py`. Never edit those by hand.
 
 The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
 and run `python3 net/build.py`, which compiles it with mingw and bakes it back
-into `vo-patch.py`. [net/README.md](net/README.md) covers the protocol and
+into `vo_patch.py`. [net/README.md](net/README.md) covers the protocol and
 the matchcode server.
 
 `python3 tools/check.py` runs every check in the project - give it your game

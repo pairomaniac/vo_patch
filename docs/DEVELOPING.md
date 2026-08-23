@@ -7,13 +7,13 @@ using the patcher see [README.md](../README.md); for what the patches do see
 ## The four layers
 
 ```
-asm/*.asm    ──nasm──►  hex strings in vo-patch.py  ──PyInstaller──►  vo-patch-X.Y.Z.exe
-net/dpctrl.c ──mingw─►  base64 blob in vo-patch.py       CI builds this
+asm/*.asm    ──nasm──►  hex strings in vo_patch.py  ──PyInstaller──►  vo_patch-X.Y.Z.exe
+net/dpctrl.c ──mingw─►  base64 blob in vo_patch.py       CI builds this
   you edit             asm/build.py, net/build.py
                        write these
 ```
 
-`vo-patch.py` ships as one self-contained file, so it cannot read `asm/` or
+`vo_patch.py` ships as one self-contained file, so it cannot read `asm/` or
 `net/` at runtime. The machine code and the netplay DLL are baked in as text
 between marker comments. `asm/build.py` and `net/build.py` are the only things
 that put them there.
@@ -34,7 +34,7 @@ pip install pyflakes
 
 `nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
 DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo-patch.py` as text. pyflakes is the `lint` check.
+into `vo_patch.py` as text. pyflakes is the `lint` check.
 
 A pre-push hook catches a forgotten build before CI does:
 
@@ -53,10 +53,10 @@ python3 asm/build.py              # only if you touched asm/ - regenerates the h
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
 
 python3 tools/check.py            # the checks CI runs, in two seconds
-python3 vo-patch.py               # does the window still open?
+python3 vo_patch.py               # does the window still open?
 ```
 
-Both build scripts rewrite blobs inside `vo-patch.py`, so `git diff` after one
+Both build scripts rewrite blobs inside `vo_patch.py`, so `git diff` after one
 shows the hex changing and nothing else. If it shows more, something else
 moved too.
 
@@ -83,6 +83,7 @@ inside one will do.
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
+| `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
@@ -102,7 +103,7 @@ repository. Their output is committed.
 
 **`tools/vonbanner.py`** redraws the title screen prompt. It rasterises text
 into the banner's 42x3 cells and, with `--write`, writes the game's own
-`v_on.exe` and `escrgame.bin`. It does not touch `vo-patch.py`: to ship a new
+`v_on.exe` and `escrgame.bin`. It does not touch `vo_patch.py`: to ship a new
 wording, replace `BANNER_BITS` there with the bitmap it produces.
 
 ```bash
@@ -143,7 +144,7 @@ and [TEXT.md](TEXT.md) has the proportions they follow.
 
 ```bash
 python3 tools/vocredits.py DIR             # preview, as ASCII art
-python3 tools/vocredits.py DIR --write     # into vo-patch.py
+python3 tools/vocredits.py DIR --write     # into vo_patch.py
 ```
 
 Edit `LINES` at the top to change what it says. The result goes between the
@@ -166,7 +167,7 @@ hand, once, per blob:
    `asm/build.py`.
 
 Moving one is the same work plus its hooks: `grep` the old address across
-`vo-patch.py` and `asm/`, because every rel32 in the site table is computed
+`vo_patch.py` and `asm/`, because every rel32 in the site table is computed
 by hand. `check_calls` catches a call that lands outside `.text` on no
 label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
 
@@ -184,7 +185,7 @@ refused at connect. If you add a patch that changes the simulation - a rule,
 a timing, a physics value, anything that alters what the game computes from a
 given input - add its site beside `FP_DIVISOR_VA` and `FP_CONTINUE_VA`
 there, and the same site and its key to `SYNC_SITES` and `SYNC_KEYS` in
-`vo-patch.py`, which is what warns at Apply and at netplay install. Miss one
+`vo_patch.py`, which is what warns at Apply and at netplay install. Miss one
 and two builds with and without it desync instead of refusing to link. A
 patch that only changes what a machine shows or how it reads its own controls
 stays out of the fingerprint: those are each player's own business.
@@ -408,7 +409,7 @@ and nothing looked wrong. That is what the cave check in `selftest.py` and
 `CEILINGS` in `asm/build.py` are between them for.
 
 A stub in `.rdata` needs that mark, and the site that sets it is `RDATA_EXEC`
-in `vo-patch.py` rather than any one patch's site list, because a site written
+in `vo_patch.py` rather than any one patch's site list, because a site written
 twice fails its own original check. Add the patch's key to `RDATA_EXEC_KEYS`
 and it is applied once for whichever of them is ticked. `_check_table` seeds
 its collision map with those four bytes, so putting them in a patch's list as
@@ -417,9 +418,10 @@ well is caught at import rather than in someone's game.
 ## Useful commands
 
 ```bash
-python3 vo-patch.py --help
-python3 vo-patch.py --rip          # list CD drives
-python3 vo-patch.py --netplay DIR  # install the UDP netplay DLL
+python3 vo_patch.py --help
+python3 vo_patch.py --install CUE DIR  # install the game from a disc image
+python3 vo_patch.py --rip          # list CD drives
+python3 vo_patch.py --netplay DIR  # install the UDP netplay DLL
 python3 tools/check.py --list      # what the checks are
 python3 tools/check.py --only asm  # run one of them
 
@@ -428,5 +430,5 @@ python3 tools/vocredits.py DIR     # redraw the credit line
 ```
 
 `DIR` is the game folder. Without `--write` both only preview; with it
-`vocredits.py` writes into `vo-patch.py` and `vonbanner.py` writes the game's
+`vocredits.py` writes into `vo_patch.py` and `vonbanner.py` writes the game's
 files.

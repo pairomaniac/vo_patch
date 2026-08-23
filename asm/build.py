@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the blobs in ../vo-patch.py, or check that they still match.
+"""Build the blobs in ../vo_patch.py, or check that they still match.
 
 Machine code comes from the .asm files through nasm; the tables and dialog
 templates come from the .py modules beside them, which pack them from a
@@ -16,7 +16,7 @@ every call or jump a site writes whose target lands inside a cave against
 the assembled labels (check_calls) - a slipped rel32 is caught here rather
 than in the game.
 
-vo-patch.py carries the assembled bytes because it ships as a single file that
+vo_patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
 in when the assembly changes, and --check catches assembly edited without them
 being regenerated. It also reads the patch table back, so each blob's site and
@@ -37,7 +37,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-TARGET = os.path.join(ROOT, 'vo-patch.py')
+TARGET = os.path.join(ROOT, 'vo_patch.py')
 
 sys.path.insert(0, HERE)
 import dialogs                                            # noqa: E402
@@ -135,12 +135,12 @@ def replace(text, name, body):
                      lambda m: m.group(1) + body + m.group(2),
                      text, flags=re.S)
     if n != 1:
-        raise SystemExit('%s BLOB markers not found in vo-patch.py' % name)
+        raise SystemExit('%s BLOB markers not found in vo_patch.py' % name)
     return new
 
 
 def blob_sites(names):
-    """Blob name -> the offset in vo-patch.py's table that writes it.
+    """Blob name -> the offset in vo_patch.py's table that writes it.
 
     Read out of the patch table rather than repeated here, so each site is
     written down once. A blob is matched by its own hex, which is what the
@@ -155,7 +155,7 @@ def blob_sites(names):
         hits = [off for _k, _l, _t, sites in vp.FEATURES
                 for off, _old, new in sites or () if new == want]
         if len(hits) != 1:
-            raise SystemExit('%s is written at %d sites in vo-patch.py, and '
+            raise SystemExit('%s is written at %d sites in vo_patch.py, and '
                              'this check needs exactly one' % (name, len(hits)))
         at[name] = hits[0]
     return at
@@ -487,12 +487,12 @@ def main(check=False):
     if check:
         if new != src:
             raise SystemExit('asm/ does not match the blobs in '
-                             'vo-patch.py.\nRun: python3 asm/build.py')
-        print('asm/ matches vo-patch.py (%s)' % sizes)
+                             'vo_patch.py.\nRun: python3 asm/build.py')
+        print('asm/ matches vo_patch.py (%s)' % sizes)
     else:
         with open(TARGET, 'w', encoding='utf-8') as fh:
             fh.write(new)
-        print('written to vo-patch.py (%s)' % sizes)
+        print('written to vo_patch.py (%s)' % sizes)
 
     # The tables are what actually gets written to somebody's executable, so
     # never report success without running their checks too.

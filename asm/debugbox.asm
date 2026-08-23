@@ -56,7 +56,7 @@ F11CHECKS   equ 0x0063bf50      ; asm/f11pause.asm's tail: the check boxes
 ANNEXREL    equ 0xEAEAEAEA      ; a placeholder: the rel32 to asm/voxt.asm's
                                 ; annex at the end of the .voxt section,
                                 ; whose address only exists at apply time -
-                                ; vo-patch.py computes and fills it
+                                ; vo_patch.py computes and fills it
 VK_F11      equ 0x7a
 F11WRAP     equ 0x0063bf24      ; asm/f11pause.asm
 

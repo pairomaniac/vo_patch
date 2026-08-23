@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile net/dpctrl.c and bake it into vo-patch.py.
+"""Compile net/dpctrl.c and bake it into vo_patch.py.
 
 Same idea as asm/build.py: the patcher ships as one file, so it cannot read
 net/ at runtime and the DLL rides along as text between marker comments.
@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = os.path.join(HERE, 'dpctrl.c')
 DEF = os.path.join(HERE, 'dpctrl.def')
-TARGET = os.path.join(ROOT, 'vo-patch.py')
+TARGET = os.path.join(ROOT, 'vo_patch.py')
 
 CC = 'i686-w64-mingw32-gcc'
 
@@ -78,7 +78,7 @@ def compile_dll(workdir):
 
 
 def render(blob, sha):
-    """The blob as it appears in vo-patch.py."""
+    """The blob as it appears in vo_patch.py."""
     packed = base64.b64encode(zlib.compress(blob, 9)).decode()
     lines = [packed[i:i + 72] for i in range(0, len(packed), 72)]
     body = '\n'.join("    '%s'" % line for line in lines)
@@ -115,7 +115,7 @@ def main(argv):
     with open(TARGET, encoding='utf-8') as f:
         text = f.read()
     if BEGIN not in text or END not in text:
-        sys.exit('markers not found in vo-patch.py')
+        sys.exit('markers not found in vo_patch.py')
 
     sha = source_hash()
 

@@ -1,7 +1,7 @@
 # asm
 
 Source for the machine code the patches install, and for the tables and
-dialog templates that go with it. `vo-patch.py` carries the finished bytes, so
+dialog templates that go with it. `vo_patch.py` carries the finished bytes, so
 nobody running the patcher or building the exe needs nasm. Only someone
 editing this directory does.
 
@@ -41,7 +41,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
-| `build.py` | builds every blob in `../vo-patch.py`, from the `.asm` and `.py` sources above |
+| `build.py` | builds every blob in `../vo_patch.py`, from the `.asm` and `.py` sources above |
 
 The prefix is the patch each file ships in, which is not always the obvious
 one: `camskip.asm` goes out with **XInput gamepad support** because the tick
@@ -51,7 +51,7 @@ with **Intro, loading and ending screens**.
 
 ## How the assembly gets into the patcher
 
-`vo-patch.py` never reads these files. It carries the finished machine code as
+`vo_patch.py` never reads these files. It carries the finished machine code as
 hex strings, because it ships as a single file - bundled into the exe, and
 downloaded on its own by Linux users - and has to run from a fresh checkout
 with nothing installed.
@@ -139,14 +139,14 @@ every address into them would be a few bytes out.
 sudo dnf install nasm            # or: sudo apt install nasm
 
 vim asm/vocd.asm                 # 1. edit an .asm file, or a .py one
-python3 asm/build.py             # 2. rebuild the blobs in vo-patch.py
-git diff                         # 3. vo-patch.py's hex strings changed
+python3 asm/build.py             # 2. rebuild the blobs in vo_patch.py
+git diff                         # 3. vo_patch.py's hex strings changed
 ```
 
-Step 2 also runs `vo-patch.py --selfcheck`, which validates the patch tables,
+Step 2 also runs `vo_patch.py --selfcheck`, which validates the patch tables,
 so a run that prints `tables OK` has verified both halves.
 
-You never edit the hex in `vo-patch.py` yourself. The generated regions carry
+You never edit the hex in `vo_patch.py` yourself. The generated regions carry
 a GENERATED banner saying so, and the next `build.py` run would overwrite the
 edit anyway.
 

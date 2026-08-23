@@ -19,7 +19,7 @@ import struct
 
 TEMPLATE = 0xE7E7E7E7   # a placeholder: the template lives in its own
                         # appended section, whose address only exists at
-                        # apply time - vo-patch.py fills it in the way it
+                        # apply time - vo_patch.py fills it in the way it
                         # fills .vocd's, at apply_extras_template()
 DATA = 0x0063e8e8       # its strings and tables, in the .rdata cave
 

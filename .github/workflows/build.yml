@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  # vo-patch.py carries the assembled bytes rather than assembling on demand,
+  # vo_patch.py carries the assembled bytes rather than assembling on demand,
   # so the assembly and the blobs in the script can drift apart and everything
   # will still look fine: the repository is self-consistent and the shipped
   # patcher installs last week's code. This job is the only thing that
@@ -123,18 +123,18 @@ jobs:
           fi
           python - "$version" <<'EOF'
           import pathlib, re, sys
-          src = pathlib.Path('vo-patch.py')
+          src = pathlib.Path('vo_patch.py')
           text, n = re.subn(r"^VERSION = '.*'$", "VERSION = '%s'" % sys.argv[1],
                             src.read_text(encoding='utf-8'), count=1, flags=re.M)
           if n != 1:
-              raise SystemExit('no VERSION line in vo-patch.py')
+              raise SystemExit('no VERSION line in vo_patch.py')
           src.write_text(text, encoding='utf-8', newline='\n')
           EOF
-          grep '^VERSION = ' vo-patch.py
+          grep '^VERSION = ' vo_patch.py
 
-      # Everything about the build lives in vo-patch.spec, including the
+      # Everything about the build lives in vo_patch.spec, including the
       # version, which it reads out of the script.
-      - run: pyinstaller vo-patch.spec --noconfirm
+      - run: pyinstaller vo_patch.spec --noconfirm
 
       # A frozen build fails at import time or not at all, so check the
       # bundle: no tkinter and the exe is dead on arrival.
@@ -160,7 +160,7 @@ jobs:
       - name: The exe starts
         shell: bash
         run: |
-          timeout 60 dist/vo-patch-*.exe --selfcheck
+          timeout 60 dist/vo_patch-*.exe --selfcheck
           echo 'the exe runs and its tables check out'
 
       # To the log, not an asset: a checksum beside its own binary proves
@@ -176,14 +176,14 @@ jobs:
         run: |
           python - <<'EOF'
           import pathlib, re
-          src = pathlib.Path('vo-patch.py')
+          src = pathlib.Path('vo_patch.py')
           text = src.read_bytes().replace(b'\r\n', b'\n')
           version = re.search(rb"^VERSION = '(.*)'$", text, re.M).group(1).decode()
-          pathlib.Path('dist/vo-patch-%s.py' % version).write_bytes(text)
-          print('staged vo-patch-%s.py' % version)
+          pathlib.Path('dist/vo_patch-%s.py' % version).write_bytes(text)
+          print('staged vo_patch-%s.py' % version)
           EOF
-          if grep -q $'\r' dist/vo-patch-*.py; then
-            echo 'a CR survived - ./vo-patch.py would not run on Linux'
+          if grep -q $'\r' dist/vo_patch-*.py; then
+            echo 'a CR survived - ./vo_patch.py would not run on Linux'
             exit 1
           fi
           ls -l dist/
@@ -194,9 +194,9 @@ jobs:
         shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "artifact=vo-patch-$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-$GITHUB_REF_NAME" >> "$GITHUB_ENV"
           else
-            echo "artifact=vo-patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           fi
 
       - uses: actions/upload-artifact@v4
