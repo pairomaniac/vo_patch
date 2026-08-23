@@ -27,6 +27,7 @@ import shutil
 import ssl
 import struct
 import sys
+import time
 import webbrowser
 import threading
 import urllib.request
@@ -4142,6 +4143,9 @@ PALETTE = {
 # knowing about a bug report.
 NAME = 'vo-patch'
 TITLE = '%s %s' % (NAME, VERSION)
+# How long after the last resize event the static widgets are redrawn, in
+# milliseconds. See App._nudge.
+NUDGE_MS = 60
 MIN_CONTENT = 480               # px per column; narrower and hints wrap badly
 GUTTER = 14                     # px between the two columns
 NO_FILE = 'No file selected'
@@ -4288,9 +4292,9 @@ def run_tk():
 
         def __init__(self, parent, title, text, app):
             self.app, self.title, self.text, self.win = app, title, text, None
-            self.btn = ttk.Label(parent, text='\u24d8', style='Card.TLabel',
-                                 foreground=PALETTE['dim'],
-                                 cursor='question_arrow')
+            self.btn = app._static_label(ttk.Label(
+                parent, text='\u24d8', style='Card.TLabel',
+                foreground=PALETTE['dim'], cursor='question_arrow'))
             self.btn.bind('<Button-1>', self.toggle)
             self.btn.bind('<Enter>', lambda _e: self.btn.config(
                 foreground=PALETTE['text']))
@@ -4545,13 +4549,16 @@ def run_tk():
             self._bodies = []
             self._openers = {}
             self._rip_thread, self._rip_dir = None, None
-            # What _fit last wrote, so a resize that changes nothing costs
-            # nothing.
             self._cancel_rip = False
+            # Widgets whose text is written once and never touched again.
+            # Those are the ones left blank after a resize; see _nudge.
+            self._static, self._nudge_after = [], None
+            self._nudge_at = 0.0
             root.title(TITLE)
             root.minsize(430, 0)
             root.maxsize(root.winfo_screenwidth() - 40,
                          root.winfo_screenheight() - 60)
+
             root.bind_all('<Button-1>', close_info, add='+')
             root.bind_all('<Escape>', close_info, add='+')
             root.protocol('WM_DELETE_WINDOW', self._close)
@@ -4662,6 +4669,7 @@ def run_tk():
                            row * 56)
             self.inner.bind('<Configure>', self._fit)
             self.canvas.bind('<Configure>', self._fit)
+            self.canvas.bind('<Configure>', self._nudge, add='+')
             for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
                 self.canvas.bind_all(seq, self._wheel)
 
@@ -4870,11 +4878,12 @@ def run_tk():
 
             head = ttk.Frame(card, style='Head.TFrame', padding=(10, 7))
             head.pack(fill='x')
-            arrow = ttk.Label(head, style='Head.TLabel',
-                              text='\u25be' if expanded else '\u25b8')
+            arrow = self._static_label(ttk.Label(
+                head, style='Head.TLabel',
+                text='\u25be' if expanded else '\u25b8'))
             arrow.pack(side='left', padx=(0, 8))
-            name = ttk.Label(head, text=title, style='Head.TLabel',
-                             font=self.head_font)
+            name = self._static_label(ttk.Label(
+                head, text=title, style='Head.TLabel', font=self.head_font))
             name.pack(side='left')
 
             inner = ttk.Frame(card, style='Body.TFrame',
@@ -4956,9 +4965,10 @@ def run_tk():
             # Named "Manual", not "Language": the disc has one v_on.exe and
             # it is English, so a language label promises a translated game
             # that no pressing carries. This is the language of the papers.
-            ttk.Label(self.lang_row, text='Manual', style='Card.TLabel',
-                      font=self.small, width=10, anchor='w').grid(
-                          row=0, column=0, sticky='w', padx=(0, 8))
+            self._static_label(ttk.Label(
+                self.lang_row, text='Manual', style='Card.TLabel',
+                font=self.small, width=10, anchor='w')).grid(
+                    row=0, column=0, sticky='w', padx=(0, 8))
             self.lang_var = tk.StringVar()
             self.lang_box = ttk.Combobox(self.lang_row, state='readonly',
                                          style='Vo.TCombobox', width=14,
@@ -5006,10 +5016,10 @@ def run_tk():
         def _field(self, grid, line, label, var, browse):
             """One labelled path row. The three of them share a grid so the
             entries line up rather than each starting after its own word."""
-            ttk.Label(grid, text=label, style='Card.TLabel', font=self.small,
-                      width=10, anchor='w').grid(row=line, column=0,
-                                                 sticky='w', padx=(0, 8),
-                                                 pady=(0, 6))
+            self._static_label(ttk.Label(
+                grid, text=label, style='Card.TLabel', font=self.small,
+                width=10, anchor='w')).grid(row=line, column=0, sticky='w',
+                                            padx=(0, 8), pady=(0, 6))
             # width=12 on purpose: it expands into whatever the row has
             # spare, and a larger request only widens the window.
             entry = ttk.Entry(grid, textvariable=var, style='Vo.TEntry',
@@ -5349,12 +5359,14 @@ def run_tk():
 
             row = ttk.Frame(parent, style='Card.TFrame')
             row.pack(fill='x', pady=(12, 4))
-            ttk.Label(row, text=label, style='Card.TLabel',
-                      foreground=PALETTE['text']).pack(side='left')
+            self._static_label(ttk.Label(
+                row, text=label, style='Card.TLabel',
+                foreground=PALETTE['text'])).pack(side='left')
             if name:
-                link = tk.Label(row, text=name, cursor='hand2',
-                                background=PALETTE['card'],
-                                foreground=PALETTE['cyan'])
+                link = self._static_label(tk.Label(
+                    row, text=name, cursor='hand2',
+                    background=PALETTE['card'],
+                    foreground=PALETTE['cyan']))
                 link.pack(side='left', padx=(6, 0))
                 link.bind('<Button-1>', lambda _e: webbrowser.open(url))
                 link.bind('<Enter>', lambda _e: link.config(
@@ -5549,12 +5561,13 @@ def run_tk():
                     # A permanently ticked box that cannot be clicked reads
                     # like something is broken. A plain line does not, and
                     # the card's own heading says these are always applied.
-                    ttk.Label(row, text=label, style='Card.TLabel',
-                              padding=(2, 3)).pack(side='left')
+                    self._static_label(ttk.Label(
+                        row, text=label, style='Card.TLabel',
+                        padding=(2, 3))).pack(side='left')
                 else:
-                    check = ttk.Checkbutton(row, text=label, variable=var,
-                                            style='Card.TCheckbutton',
-                                            command=self._retally)
+                    check = self._static_label(ttk.Checkbutton(
+                        row, text=label, variable=var,
+                        style='Card.TCheckbutton', command=self._retally))
                     check.state(['disabled'])
                     check.pack(side='left')
                     self.checks[key] = check
@@ -5563,13 +5576,15 @@ def run_tk():
 
 
         def _about_body(self, parent):
-            ttk.Label(parent, text=TITLE,
-                      style='Card.TLabel', font=self.bold).pack(anchor='w')
+            self._static_label(ttk.Label(
+                parent, text=TITLE, style='Card.TLabel',
+                font=self.bold)).pack(anchor='w')
             # Without the scheme, which is nine characters of nothing and
             # makes the line wider than the card wants to be.
             short = REPO_URL.split('//', 1)[-1]
-            link = ttk.Label(parent, text=short, style='Link.TLabel',
-                             font=self.small, cursor='hand2')
+            link = self._static_label(ttk.Label(
+                parent, text=short, style='Link.TLabel', font=self.small,
+                cursor='hand2'))
             link.pack(anchor='w', pady=(1, 0))
             link.bind('<Button-1>', lambda _e: webbrowser.open(REPO_URL))
             # A ttk separator takes the theme's colour, which is not one of
@@ -5637,6 +5652,50 @@ def run_tk():
             self.status.config(foreground=colour, font=font)
             self.file_note.config(text=text, foreground=colour, font=font)
             self._fit_status()
+
+        def _static_label(self, widget):
+            """Remember a widget whose text is written once."""
+            self._static.append(widget)
+            return widget
+
+        def _nudge(self, _event=None):
+            """Rewrite the text of every widget that never changes it.
+
+            Resizing this window leaves some widgets undrawn on some X
+            stacks: the pixels are missing while the widget itself is
+            present and the right size, and running the pointer over it
+            brings the text back. Every widget that survives is one that
+            gets written to during the resize - the hints re-wrap, so they
+            repaint; a section heading is set once at startup, so it does
+            not, and it is the headings that come back blank.
+
+            Writing a widget's own text back to it costs nothing and marks
+            it for redraw, which is the part that was missing. It runs once
+            the resize has stopped rather than on every event, because it is
+            about the state the window is left in, and because a write is
+            safe to defer in a way that a geometry change is not.
+            """
+            # A drag sends an event a pixel. Noting the time is free;
+            # cancelling and rescheduling a Tcl timer for each one is not,
+            # so the timer is armed once and asks on arrival whether the
+            # window has stopped moving yet.
+            self._nudge_at = time.monotonic()
+            if self._nudge_after is None:
+                self._nudge_after = self.root.after(NUDGE_MS, self._settled)
+
+        def _settled(self):
+            self._nudge_after = None
+            if (time.monotonic() - self._nudge_at) * 1000 < NUDGE_MS:
+                self._nudge_after = self.root.after(NUDGE_MS, self._settled)
+                return                  # still moving, come back later
+            self._redraw_static()
+
+        def _redraw_static(self):
+            for widget in self._static:
+                try:
+                    widget.configure(text=widget.cget('text'))
+                except tk.TclError:
+                    pass                # destroyed with the window
 
         def _fit_status(self, _event=None):
             """Trim the status line to the room it actually has.
