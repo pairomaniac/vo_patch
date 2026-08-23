@@ -4618,7 +4618,7 @@ def run_tk():
             # one job and patching it is another, and side by side neither
             # has to be scrolled past to reach the other. On a narrow screen
             # _body gives back the same frame twice and it stacks instead.
-            left, right = body
+            left, right, band = body
             self._section(left, '1  DISC', self._install_body)
             self._section(left, '2  GAME FILE', self._file_body)
             self._section(right, '3  ESSENTIAL PATCHES',
@@ -4629,13 +4629,21 @@ def run_tk():
             # Separate, because these are not patches: Apply never touches
             # them and they write files rather than bytes. Collapsed,
             # because open they push Apply below the fold.
-            self._section(right, '5  ADD-ONS', self._addons_body,
+            # Full width as well. Its rows are a title, a paragraph and a
+            # button, which read better across the window than down half of
+            # it, and opening the tallest section in the window inside one
+            # column left the other half empty.
+            self._section(band, '5  ADD-ONS', self._addons_body,
                           expanded=False)
-            self._section(right, 'LOG', self._log_body, expanded=False)
-            # Left, and closed: the version and the link are reference rather
-            # than patching, and the left column has the room. On the right
-            # it fell below the fold the moment the log opened.
-            self._section(left, 'ABOUT', self._about_body, expanded=False)
+            # Full width, under both columns. It is about the whole window
+            # rather than the patching half, it reads better with the long
+            # paths it prints on one line, and opening it no longer makes
+            # one column half as tall again as the other.
+            self._section(band, 'LOG', self._log_body, expanded=False)
+            # Pinned to the foot of the left column, opposite whatever the
+            # right one ends with.
+            self._section(left, 'ABOUT', self._about_body, expanded=False,
+                          footer=True)
 
             # Width is settled here rather than on the canvas's first
             # <Configure>, which arrives while the sections are still being
@@ -4698,7 +4706,8 @@ def run_tk():
 
         def _body(self, parent):
             """Size to the content, scrolling only if it outgrows the
-            screen. Returns the two column frames to build into."""
+            screen. Returns the two columns and the full-width band under
+            them; with one column all three are the same frame."""
             holder = ttk.Frame(parent, style='Ink.TFrame')
             holder.pack(fill='both', expand=True)
             self.canvas = tk.Canvas(holder, highlightthickness=0,
@@ -4742,8 +4751,8 @@ def run_tk():
                                  >= 2 * self.min_content + self.gutter
                                  + int(6 * self.em)) else 1
             if self.columns == 1:
-                self.left = self.right = self.inner
-                return self.inner, self.inner
+                self.left = self.right = self.band = self.inner
+                return self.inner, self.inner, self.inner
             self.inner.columnconfigure(0, weight=1, uniform='col')
             self.inner.columnconfigure(1, weight=1, uniform='col')
             self.left = ttk.Frame(self.inner, style='Ink.TFrame')
@@ -4752,7 +4761,9 @@ def run_tk():
             self.right = ttk.Frame(self.inner, style='Ink.TFrame')
             self.right.grid(row=0, column=1, sticky='nsew',
                             padx=(self.gutter // 2, 0))
-            return self.left, self.right
+            self.band = ttk.Frame(self.inner, style='Ink.TFrame')
+            self.band.grid(row=1, column=0, columnspan=2, sticky='ew')
+            return self.left, self.right, self.band
 
         def _fit(self, _event=None):
             """Answer a resize, in the event that caused it, doing the same
@@ -4957,9 +4968,16 @@ def run_tk():
             except tk.TclError:
                 pass            # keep clam's square rather than no box at all
 
-        def _section(self, parent, title, build, expanded=True):
+        def _section(self, parent, title, build, expanded=True,
+                     footer=False):
             card = ttk.Frame(parent, style='Card.TFrame')
-            card.pack(fill='x', pady=self.px((0, 10)))
+            # A footer sits at the bottom of its column rather than under
+            # the card above it. The two columns are as tall as the taller
+            # one, so without this the shorter column's last heading floats
+            # in the middle of a void while the other ends at the frame -
+            # which is the bottom edge you notice.
+            card.pack(fill='x', pady=self.px((0, 10)),
+                      side='bottom' if footer else 'top')
 
             head = ttk.Frame(card, style='Head.TFrame',
                              padding=self.px((10, 7)))
