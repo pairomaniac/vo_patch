@@ -4425,6 +4425,61 @@ def run_tk():
         img.put(' '.join(rows))
         return img
 
+    def _wrap_at(text, font, avail, cache):
+        """The narrowest width that wraps this text into as few lines as
+        `avail` would.
+
+        Greedy wrapping leaves a ragged right edge: the last word that fits
+        decides each line, so one long word early on can leave a line short
+        while the rest run to the margin. Wrapping to the narrowest width
+        with the same line count evens them out, and can only ever be
+        narrower than the space, so nothing is clipped.
+
+        Word widths are measured once per font and kept, because this runs
+        for every hint on screen every time the window changes width and
+        each measure is a call into Tcl."""
+        words = text.split()
+        if not words:
+            return avail
+        space = cache.get(' ')
+        if space is None:
+            space = cache[' '] = font.measure(' ')
+        widths = []
+        for word in words:
+            got = cache.get(word)
+            if got is None:
+                got = cache[word] = font.measure(word)
+            widths.append(got)
+
+        def lines(width):
+            """How many lines this width takes, or None if a word will not
+            fit at all - Tk breaks inside the word then, and counting is off
+            anyway."""
+            count, run = 1, None
+            for got in widths:
+                if got > width:
+                    return None
+                if run is None:
+                    run = got
+                elif run + space + got <= width:
+                    run += space + got
+                else:
+                    count += 1
+                    run = got
+            return count
+
+        target = lines(avail)
+        if target is None or target < 2:
+            return avail
+        low, high = max(widths), avail
+        while low < high:
+            mid = (low + high) // 2
+            if lines(mid) == target:
+                high = mid
+            else:
+                low = mid + 1
+        return low
+
     def _hint(parent, text, colour, font, pady=0):
         """The quiet explanatory line under a section heading; most of the
         cards have one and they only differ in their text.
@@ -4441,7 +4496,7 @@ def run_tk():
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
-        last = [0]
+        last, cache = [0], {}
 
         def fit(event=None):
             # The width comes off the event rather than from winfo_width:
@@ -4466,7 +4521,9 @@ def run_tk():
             width = max(140, (width - 2) // WRAP_STEP * WRAP_STEP)
             if width != last[0]:
                 last[0] = width
-                label.tk.call(label._w, 'configure', '-wraplength', width)
+                label.tk.call(label._w, 'configure', '-wraplength',
+                              _wrap_at(label.cget('text'), font, width,
+                                       cache))
         holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', lambda _e: fit(), add='+')   # a collapsed card
         #                          gets no Configure until it reopens
@@ -5354,25 +5411,32 @@ def run_tk():
         def _link_row(self, parent, label, name, url, note):
             """cnc-ddraw: somebody else's program, so the project name is a
             link to it. Not a patch - Apply never touches this."""
-            self.ddraw_btn = self._addon_head(parent, label, name, url,
-                                              self._ddraw_click, first=True)
-            _hint(parent, note, self.dim, self.small)
-            _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
-                  pady=(4, 0))
-            self.ddraw_note = _hint(parent, '', self.dim, self.small,
-                                    pady=(4, 0))
+            self.ddraw_btn, self.ddraw_note = self._addon_row(
+                parent, label, ((note, self.dim),
+                                (DDRAW_WINE, PALETTE['amber'])),
+                self._ddraw_click, name=name, url=url, first=True)
             self.ddraw_installed = False
 
-        def _addon_head(self, parent, label, name=None, url=None,
-                        command=None, first=False):
-            """Title, optional project link, and the one button - laid out
-            like a patch row so the two entries read as a list."""
+        def _addon_row(self, parent, label, notes, command,
+                       name=None, url=None, first=False):
+            """One add-on: a title, its descriptions, and its one button.
+
+            The button goes under the text, not beside it. Beside it, the
+            paragraph has to clear the button on every line even though the
+            button only sits next to the first, which cost a third of the
+            width and turned four lines into seven. Underneath, the text
+            runs to the card's own margin like everything else in the
+            window, and nothing is written next to a button.
+
+            Returns (button, status line) - the caller writes results into
+            the status line.
+            """
             if not first:
                 rule = tk.Frame(parent, background=PALETTE['line'], height=1)
                 rule.pack(fill='x', pady=(14, 0))
 
             row = ttk.Frame(parent, style='Card.TFrame')
-            row.pack(fill='x', pady=(12, 4))
+            row.pack(fill='x', pady=(12, 0))
             ttk.Label(row, text=label, style='Card.TLabel',
                       foreground=PALETTE['text']).pack(side='left')
             if name:
@@ -5385,10 +5449,17 @@ def run_tk():
                     foreground=PALETTE['cyan_hi']))
                 link.bind('<Leave>', lambda _e: link.config(
                     foreground=PALETTE['cyan']))
-            btn = ttk.Button(row, text='Install', style='Vo.TButton',
+
+            for text, colour in notes:
+                _hint(parent, text, colour, self.small, pady=(6, 0))
+            status = _hint(parent, '', self.dim, self.small, pady=(6, 0))
+
+            bar = ttk.Frame(parent, style='Card.TFrame')
+            bar.pack(fill='x', pady=(10, 2))
+            btn = ttk.Button(bar, text='Install', style='Vo.TButton',
                              command=command)
-            btn.pack(side='right', padx=(6, 2))
-            return btn
+            btn.pack(side='right', padx=(0, 2))
+            return btn, status
 
         def _addons_body(self, parent):
             """Separate files that sit beside the game, not byte patches.
@@ -5401,13 +5472,10 @@ def run_tk():
         def _netplay_row(self, parent):
             """Ours, so there is nowhere to link: the explanation lives in
             the README."""
-            self.net_btn = self._addon_head(parent, NETPLAY_LABEL,
-                                            command=self._netplay_click)
-            _hint(parent, NETPLAY_NOTE, self.dim, self.small)
-            _hint(parent, NETPLAY_PORT, PALETTE['amber'], self.small,
-                  pady=(4, 0))
-            self.net_note = _hint(parent, '', self.dim, self.small,
-                                  pady=(4, 0))
+            self.net_btn, self.net_note = self._addon_row(
+                parent, NETPLAY_LABEL, ((NETPLAY_NOTE, self.dim),
+                                        (NETPLAY_PORT, PALETTE['amber'])),
+                self._netplay_click)
             self.net_state = None
 
         def _netplay_sync(self):
