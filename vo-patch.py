@@ -4182,8 +4182,6 @@ INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
 ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
                   'broken on a modern system, with nothing to weigh up.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
-# Granularity of the hint wrapping, in pixels. See _hint.
-WRAP_STEP = 8
 # Clear space between an add-on's description and the button beside it.
 # Added to the button's own measured width, so it survives a longer label
 # or a different font.
@@ -4457,21 +4455,16 @@ def run_tk():
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
-        last = [0]
-
         def fit(_event=None):
+            # Unconditional, every event, as it has always been. Skipping
+            # the write when the wrap would not move is an obvious saving
+            # and it is not one: setting wraplength is also what marks the
+            # label for redraw, and without that a label Tk has not
+            # repainted stays blank until something else touches it.
             width = holder.winfo_width()
             if width > 1:
                 edge = gutter() if callable(gutter) else gutter
-                # Rounded down to a whole step. Re-wrapping is the dearest
-                # thing a resize does and a drag delivers an event a pixel;
-                # rounding down rather than to nearest means the wrap is
-                # never wider than the space, so text is never clipped, only
-                # wrapped up to a step early - under a character.
-                width = max(140, (width - 2 - edge) // WRAP_STEP * WRAP_STEP)
-                if width != last[0]:
-                    last[0] = width
-                    label.configure(wraplength=width)
+                label.configure(wraplength=max(140, width - 2 - edge))
         holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', fit, add='+')       # a collapsed card gets no
         #                                         Configure until it reopens
@@ -4554,8 +4547,6 @@ def run_tk():
             self._rip_thread, self._rip_dir = None, None
             # What _fit last wrote, so a resize that changes nothing costs
             # nothing.
-            self._last_width, self._last_region = 0, None
-            self._last_status = (None, 0)
             self._cancel_rip = False
             root.title(TITLE)
             root.minsize(430, 0)
@@ -4618,7 +4609,6 @@ def run_tk():
             # answer first and let them settle against it.
             wide = MIN_CONTENT * self.columns \
                 + (GUTTER if self.columns > 1 else 0)
-            self._last_width = wide
             self.canvas.itemconfigure(self.window, width=wide)
             root.update_idletasks()
 
@@ -4695,34 +4685,25 @@ def run_tk():
             return self.left, self.right
 
         def _fit(self, _event=None):
-            """Answer a resize, in the event that caused it.
+            """Answer a resize, in the event that caused it, doing the same
+            work every time.
 
-            This used to defer the work on a timer so that a fast drag laid
-            the window out once a frame rather than once a pixel. It was
-            twice as quick by the clock and visibly broken on a real window
-            manager: text came back blank until the pointer crossed it, and
-            worse after a few resizes. Tk repaints as part of handling the
-            event, so a pass that runs from a timer afterwards leaves the
-            window it just changed with nothing to redraw it. Doing the work
-            here costs about two milliseconds a step and always looks
-            right."""
+            Two attempts at making this cheaper both broke the drawing on a
+            real window manager - deferring it onto a timer, and skipping
+            the writes when they would not change anything. Tk repaints as
+            part of handling the event, and these calls are what mark the
+            canvas and its window item as needing it. Anything that runs
+            later, or does not run at all, leaves the window changed with
+            nothing left to redraw it."""
             need = self.inner.winfo_reqheight()
             wide = self.canvas.winfo_width()
-            # Setting the item width makes the inner frame resize, which
-            # fires its own <Configure> and brings us straight back here.
-            # Writing the same value again is what made every drag step cost
-            # two full passes over the layout, so each write is guarded by
-            # what it last wrote rather than repeated.
-            if wide > 1 and wide != self._last_width:
-                self._last_width = wide
+            if wide > 1:
                 self.canvas.itemconfigure(self.window, width=wide)
             # Only the scroll extent. Height is settled at startup and left
             # alone: driving it from here resizes the window on every expand
             # and collapse.
-            region = (0, 0, self.inner.winfo_reqwidth(), need)
-            if region != self._last_region:
-                self._last_region = region
-                self.canvas.configure(scrollregion=region)
+            self.canvas.configure(
+                scrollregion=(0, 0, self.inner.winfo_reqwidth(), need))
             # The bar stays packed whether it is needed or not. Showing and
             # hiding it moves the window by its own width the moment the
             # content outgrows the cap. Tk fills the trough when there is
@@ -5667,9 +5648,6 @@ def run_tk():
             text = getattr(self, '_status_text', '')
             font = getattr(self, '_status_font', self.small)
             room = self.status.winfo_width()
-            if (text, room) == self._last_status:
-                return          # a drag sends one of these per pixel
-            self._last_status = (text, room)
             if room <= 1 or font.measure(text) <= room:
                 self.status.config(text=text)
                 return
