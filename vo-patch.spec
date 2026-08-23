@@ -34,11 +34,11 @@ _version_file.write_text("""VSVersionInfo(
   kids=[
     StringFileInfo([StringTable('040904B0', [
       StringStruct('CompanyName', 'pairomaniac'),
-      StringStruct('FileDescription', 'vo-patch - Virtual-On (PC, 1997)'),
+      StringStruct('FileDescription', 'vo_patch - Virtual-On (PC, 1997)'),
       StringStruct('FileVersion', '%(version)s'),
-      StringStruct('InternalName', 'vo-patch'),
+      StringStruct('InternalName', 'vo_patch'),
       StringStruct('OriginalFilename', 'vo-patch-%(version)s.exe'),
-      StringStruct('ProductName', 'vo-patch'),
+      StringStruct('ProductName', 'vo_patch'),
       StringStruct('ProductVersion', '%(version)s'),
     ])]),
     VarFileInfo([VarStruct('Translation', [0x0409, 1200])]),

@@ -1,4 +1,4 @@
-# vo-patch
+# vo_patch
 
 Gets *Cyber Troopers Virtual-On* (PC, 1997) running properly on a modern
 system: installs it straight from a disc image, fixes the crashes, the frame

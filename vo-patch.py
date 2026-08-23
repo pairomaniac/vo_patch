@@ -39,6 +39,13 @@ import urllib.error
 # source checkout has no version of its own, and saying so is more use in a
 # bug report than a number nobody bumped.
 VERSION = 'dev'
+# One name for the tool, everywhere it is shown: the window, the About card,
+# the version resource, the line the patched game prints on its own title
+# screen, and the docs. It was three before - "Virtual-On patcher" on the
+# window, vo-patch on the executable, vo_patch in the version resource - and
+# a bug report could name any of them. The file names keep their hyphen:
+# those are paths, not the name of the thing.
+NAME = 'vo_patch'
 REPO_URL = 'https://github.com/pairomaniac/vo_patch'
 
 EXE_SIZE = 6650880
@@ -508,7 +515,7 @@ def version_text():
 
     No v in front of the number: a tag build reads 0.8.7 but a commit build
     reads a short SHA, and "vo_patch v1a2b3c4" is nonsense."""
-    return ('vo_patch %s' % VERSION)[:TITLEVER_LEN - 1]
+    return ('%s %s' % (NAME, VERSION))[:TITLEVER_LEN - 1]
 
 
 def stamp_version(buf):
@@ -4145,15 +4152,9 @@ PALETTE = {
     'bad': '#ff6b6b',
 }
 
-# One name for the tool, everywhere: the window, the About card, the
-# executable, the version resource and the docs. It was three before -
-# "Virtual-On patcher" on the window, vo-patch on the exe, vo_patch in the
-# version resource - and a bug report could name any of them.
-#
 # The version is in the title because it is the only place a Windows user
 # who double-clicked the exe can see it, and it is the first thing worth
 # knowing about a bug report.
-NAME = 'vo-patch'
 TITLE = '%s %s' % (NAME, VERSION)
 # How long after the last resize event the static widgets are redrawn, in
 # milliseconds. See App._nudge.
@@ -4612,6 +4613,9 @@ def run_tk():
             # _sync_buttons and light the buttons back up - a second Install
             # would then be writing the same files as the first.
             self._busy = None
+            # Whether this file was ever accepted, so a selection made
+            # against it can be told from a list nobody was able to touch.
+            self._chose = False
             self._static, self._nudge_after = [], None
             self._nudge_at = 0.0
             root.title(TITLE)
@@ -5950,6 +5954,7 @@ def run_tk():
                     self.vars[key].set(False)
                     check.state(['disabled'])
                 # ALWAYS keys have no widget to disable; _apply forces them.
+                self._chose = False
                 self.apply_btn.state(['disabled'])
                 self.restore_btn.state(['disabled'])
                 self._sync_buttons()
@@ -5965,6 +5970,7 @@ def run_tk():
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
                 check.state(['!disabled'] if ok else ['disabled'])
+            self._chose = bool(ok)
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
                 ['!disabled'] if self.core.can_restore() else ['disabled'])
@@ -6010,17 +6016,25 @@ def run_tk():
             self._set_status(DONE % sum(1 for v in wanted.values() if v), True)
 
         def _restore(self):
-            # Kept across the reload. _check_file puts every box back to its
-            # default, which is right for a file that has just been picked
-            # and wrong here: somebody who unticked two patches, restored,
-            # and applied again would get the two back without being told.
-            chosen = {key: var.get() for key, var in self.vars.items()}
+            # A selection is worth keeping across the reload only if there
+            # was one to make - _chose says whether the boxes were ever
+            # usable for this file. They are disabled after an apply as well
+            # as after a refusal, so their own state cannot answer it. Somebody who unticked two patches, applied, and
+            # restored should get their two back rather than a fresh set of
+            # defaults - but somebody who opened the patcher on an already
+            # patched copy never chose anything: every box was unticked and
+            # disabled because the file could not be patched, and carrying
+            # that forward left the whole list off after the restore had
+            # made it patchable again.
+            chosen = ({key: var.get() for key, var in self.vars.items()}
+                      if self._chose else None)
             for line in self.core.restore():
                 self._log(line)
             self._check_file(self.core.exe_path)
-            for key, was in chosen.items():
-                if key in self.checks:
-                    self.vars[key].set(was)
+            if chosen:
+                for key, was in chosen.items():
+                    if key in self.checks:
+                        self.vars[key].set(was)
             self._retally()
 
         def _log(self, text):
