@@ -4146,14 +4146,20 @@ TITLE = '%s %s' % (NAME, VERSION)
 # How long after the last resize event the static widgets are redrawn, in
 # milliseconds. See App._nudge.
 NUDGE_MS = 60
-MIN_CONTENT = 480               # px per column; narrower and hints wrap badly
+# Column widths in characters of the hint font rather than in pixels, so
+# they hold at any display scaling: at 125% or 200% the font grows and the
+# columns have to grow with it, or the same paragraph wraps a line deeper
+# every step up. Sixty to ninety characters is the readable range for a
+# line of prose and these sit inside it.
+MIN_CHARS = 68                  # per column; narrower and hints wrap badly
 # And the widest, per column. Past this the extra room goes into longer
 # lines of hint text, which is harder to read rather than easier - a
 # paragraph wants sixty to ninety characters a line and this is already at
 # the top of that. Maximising lands here rather than filling a 34-inch
 # monitor with one sentence per line.
-MAX_CONTENT = 620
-GUTTER = 14                     # px between the two columns
+MAX_CHARS = 88
+GUTTER_CHARS = 2                # between the two columns
+ALPHABET = 'abcdefghijklmnopqrstuvwxyz'
 NO_FILE = 'No file selected'
 
 FILE_HINT = ('Installing above fills this in. Browse for it if the game is '
@@ -4192,10 +4198,6 @@ INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
 ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
                   'broken on a modern system, with nothing to weigh up.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
-# Clear space between an add-on's description and the button beside it.
-# Added to the button's own measured width, so it survives a longer label
-# or a different font.
-ADDON_GAP = 8
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4393,7 +4395,8 @@ def run_tk():
     TICK = (((4.0, 8.0), (6.6, 10.8)), ((6.6, 10.8), (11.6, 4.8)))
 
     def _rounded(width_px, height_px, back, fill, edge, tick=None,
-                 radius=4.0, line=1.4, corners='nw ne sw se', grow=''):
+                 radius=4.0, line=1.4, corners='nw ne sw se', grow='',
+                 scale=1.0):
         """A rounded rectangle, which is how the checkboxes are drawn. It
         works by coverage rather than by pixels, each point blending by its
         distance to the shape's edge, because Tk has no drawing API past
@@ -4433,13 +4436,16 @@ def run_tk():
                           + min(max(dx, dy), 0.0) - r)
                 px = _blend(back, edge, cover(edge_d))
                 px = _blend(px, fill, cover(edge_d + line))
-                for (x0, y0), (x1, y1) in (TICK if tick else ()):
+                for (x0, y0), (x1, y1) in (
+                        [[(a * scale, b * scale) for a, b in seg]
+                         for seg in TICK] if tick else ()):
                     vx, vy = x1 - x0, y1 - y0
                     along = max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy)
                                          / (vx * vx + vy * vy)))
                     ex, ey = x - x0 - vx * along, y - y0 - vy * along
                     px = _blend(px, tick,
-                                cover((ex * ex + ey * ey) ** 0.5 - 1.1))
+                                cover((ex * ex + ey * ey) ** 0.5
+                                      - 1.1 * scale))
                 row.append(px)
             rows.append('{%s}' % ' '.join(row))
         img.put(' '.join(rows))
@@ -4464,6 +4470,9 @@ def run_tk():
         holder.pack(fill='x', pady=pady)
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
+        # A floor in characters rather than pixels, for the same reason the
+        # columns are: at 200% scaling 140px is ten characters.
+        em = max(1.0, font.measure(ALPHABET) / len(ALPHABET))
 
         def fit(_event=None):
             # Unconditional, every event, as it has always been. Skipping
@@ -4474,7 +4483,7 @@ def run_tk():
             width = holder.winfo_width()
             if width > 1:
                 edge = gutter() if callable(gutter) else gutter
-                label.configure(wraplength=max(140, width - 2 - edge))
+                label.configure(wraplength=max(int(20 * em), width - 2 - edge))
         holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', fit, add='+')       # a collapsed card gets no
         #                                         Configure until it reopens
@@ -4622,8 +4631,8 @@ def run_tk():
             # any narrower - the minimum below is taken from this. The
             # hints wrap to whatever the content is given, so give it the
             # answer first and let them settle against it.
-            wide = MIN_CONTENT * self.columns \
-                + (GUTTER if self.columns > 1 else 0)
+            wide = self.min_content * self.columns \
+                + (self.gutter if self.columns > 1 else 0)
             self.canvas.itemconfigure(self.window, width=wide)
             root.update_idletasks()
 
@@ -4657,8 +4666,9 @@ def run_tk():
             chrome = root.winfo_reqheight() - min(full, self.cap)
             root.maxsize(
                 min(root.winfo_screenwidth() - 40,
-                    max(wide, MAX_CONTENT * self.columns
-                        + (GUTTER if self.columns > 1 else 0)) + bar),
+                    max(wide + int(8 * self.em),
+                        self.max_content * self.columns
+                        + (self.gutter if self.columns > 1 else 0)) + bar),
                 min(root.winfo_screenheight() - 60, full + chrome))
             self._fit()
 
@@ -4704,7 +4714,8 @@ def run_tk():
             # and the sections stack as before - a squeezed pair wraps every
             # hint to three lines and reads worse than scrolling.
             self.columns = 2 if (parent.winfo_screenwidth() - 80
-                                 >= 2 * MIN_CONTENT + GUTTER + 40) else 1
+                                 >= 2 * self.min_content + self.gutter
+                                 + int(6 * self.em)) else 1
             if self.columns == 1:
                 self.left = self.right = self.inner
                 return self.inner, self.inner
@@ -4712,10 +4723,10 @@ def run_tk():
             self.inner.columnconfigure(1, weight=1, uniform='col')
             self.left = ttk.Frame(self.inner, style='Ink.TFrame')
             self.left.grid(row=0, column=0, sticky='nsew',
-                           padx=(0, GUTTER // 2))
+                           padx=(0, self.gutter // 2))
             self.right = ttk.Frame(self.inner, style='Ink.TFrame')
             self.right.grid(row=0, column=1, sticky='nsew',
-                            padx=(GUTTER // 2, 0))
+                            padx=(self.gutter // 2, 0))
             return self.left, self.right
 
         def _fit(self, _event=None):
@@ -4855,8 +4866,6 @@ def run_tk():
             style.map('Vo.Vertical.TScrollbar',
                       background=[('active', p['line'])])
 
-            self._draw_indicator(style, p)
-
             default = tkfont.nametofont('TkDefaultFont')
             small = max(7, abs(default.cget('size')) - 1)
             self.head_font = default.copy()
@@ -4870,18 +4879,38 @@ def run_tk():
             self.mono.configure(size=small)
             self.dim = p['dim']
 
+            # One character of the hint font, which everything laid out in
+            # pixels is measured against.
+            self.em = max(1.0, self.small.measure(ALPHABET) / len(ALPHABET))
+            self.min_content = int(MIN_CHARS * self.em)
+            self.max_content = int(MAX_CHARS * self.em)
+            self.gutter = max(2, int(GUTTER_CHARS * self.em))
+            self.addon_gap = max(2, int(self.em))
+
+            # Drawn last, because the tick box is sized against the text it
+            # sits beside: a fixed 16px box next to 27px letters at 200%
+            # looked like a mistake.
+            self._draw_indicator(style, p)
+
         def _draw_indicator(self, style, p):
             """Swap clam's indicator for drawn images. Keep the references:
             Tk does not own them, and a collected image leaves a blank box."""
+            side = max(16, int(round(self.em * 2.4)))
+            scale = side / 16.0
+            gap = max(6, int(round(self.em)))
             try:
                 self._boxes = tuple(
-                    _gap(box, 8, p['card']) for box in (
-                        _rounded(16, 16, p['card'], p['ink'], p['line']),
-                        _rounded(16, 16, p['card'], p['cyan'], p['cyan'],
-                                 tick=p['ink']),
-                        _rounded(16, 16, p['card'], p['ink'], p['card']),
-                        _rounded(16, 16, p['card'], p['line'], p['line'],
-                                 tick=p['dim'])))
+                    _gap(box, gap, p['card']) for box in (
+                        _rounded(side, side, p['card'], p['ink'], p['line'],
+                                 radius=4.0 * scale, line=1.4 * scale),
+                        _rounded(side, side, p['card'], p['cyan'], p['cyan'],
+                                 tick=p['ink'], radius=4.0 * scale,
+                                 line=1.4 * scale, scale=scale),
+                        _rounded(side, side, p['card'], p['ink'], p['card'],
+                                 radius=4.0 * scale, line=1.4 * scale),
+                        _rounded(side, side, p['card'], p['line'], p['line'],
+                                 tick=p['dim'], radius=4.0 * scale,
+                                 line=1.4 * scale, scale=scale)))
                 off, on, off_off, on_off = self._boxes
                 style.element_create(
                     'Vo.indicator', 'image', off,
@@ -5404,8 +5433,7 @@ def run_tk():
             btn.pack(side='right', padx=(6, 2))
             return btn
 
-        @staticmethod
-        def _clear_of(btn):
+        def _clear_of(self, btn):
             """How much room to leave a description on the right, measured
             from the button rather than assumed.
 
@@ -5415,7 +5443,7 @@ def run_tk():
             the button, instead of text running along beneath it."""
             def measure():
                 return max(btn.winfo_width(), btn.winfo_reqwidth()) \
-                    + ADDON_GAP
+                    + self.addon_gap
             return measure
 
         def _addons_body(self, parent):
