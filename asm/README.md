@@ -353,7 +353,7 @@ All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
 silently drop them.
 
-## vocd.asm, what it does
+## vocd.asm
 
 The game's music is Redbook CD audio - real audio tracks on the disc, not
 files. It asks Windows to play them over MCI, the old Media Control Interface,
@@ -406,7 +406,7 @@ game's own polling drives everything; nothing here runs on its own.
 Unrecognised messages return success without doing anything. Failing them
 would make the game give up on music entirely.
 
-## timer.asm, what it does
+## timer.asm
 
 The entry point the frame rate patch redirects to. It calls
 `timeBeginPeriod(1)` and jumps to the entry point that was there before.
@@ -421,7 +421,7 @@ to fail over.
 `nodisc` chains this same entry point in turn, which is why it is applied
 after every other patch.
 
-## debugbox.asm, what it does
+## debugbox.asm
 
 The Debug options only ever existed as menu items, so once the menu bar goes
 there is nothing to open them with. This builds a dialog instead.
@@ -465,7 +465,7 @@ zero in that byte.
 The strings, the two tables it reads and the dialog template are data, packed
 by `dialogs.py`.
 
-## padtables.py, what it does
+## padtables.py
 
 Sixteen pad inputs, described once:
 
@@ -492,7 +492,7 @@ per player, and the tick indexes the pair by the parameter block's player -
 the table's axis values only pick the side of zero, and this constant is the
 shipped default's ancestor rather than what the tick compares.
 
-## dialogs.py, what it does
+## dialogs.py
 
 Both dialogs, from a control list each.
 
@@ -515,7 +515,7 @@ already has. Sega's *Fast* and *Smooth* read **30 FPS** and **60 FPS** now.
 The first is wider than *Fast*, so everything after it in the resource shifts
 by four bytes, which is what the size field at `0x6035ac` gains.
 
-## padxinput.asm, what it does
+## padxinput.asm
 
 The gamepad patch's own code: two profile entry stubs, the message-pump stub,
 the per-player input tick, and a parameter block per player. Everything else
@@ -561,7 +561,7 @@ also padded to a fixed 830 bytes, because `levers.asm` is written immediately
 after it. `times` pins all of it, so nasm fails rather than quietly shifting
 anything.
 
-## levers.asm, what it does
+## levers.asm
 
 The game's jump and guard are lever gestures, not buttons: both levers spread
 outward and both squeezed inward. Each lever word is a bitmask where a clear
@@ -579,7 +579,7 @@ that `0x207460` wrote there, not anything from the original file. The site
 list is applied in order and `_check_table` enforces that relationship, so
 sorting that list by offset will fail at import rather than at write time.
 
-## introwait.asm, what it does
+## introwait.asm
 
 The pad cannot reach the intro movie, and the reason is the message loop
 rather than the pad. `0x6bc598` picks between two loops; the movie leaves it
@@ -598,7 +598,7 @@ cached in the `.data` scratch rather than in the blob, which is executable
 here but not writable. If it cannot be resolved the stub falls through to the
 blocking call, which is what the game did before.
 
-## twinstick.asm, what it does
+## twinstick.asm
 
 There is no logic in it. The XInput tick already walks twelve bind slots,
 tests each against a condition, and clears the bits its mask names in the two
@@ -611,7 +611,7 @@ So the file is two entry stubs, a bind list, two mask tables and a parameter
 block per player, mostly tables. It carries an `org` because the stubs jump
 to fixed addresses and the blocks point at its tables.
 
-## kbpage.asm, what it does
+## kbpage.asm
 
 Two unrelated repairs to the keyboard bind page, sharing a cave.
 
@@ -631,7 +631,7 @@ The two slots are a fixed 32 bytes apart, padded with `nop`, because the
 second one's site names its address. Let the first grow and the second moves,
 and nothing downstream would notice.
 
-## The bind page files, what they do
+## The bind page files
 
 Six files, one concern: the bind page Simple and the gamepad share, told
 apart by the pending device. `bindlist.asm` picks the (name, id) input
@@ -647,7 +647,7 @@ page - fill and store in the first, preselect in the second, split only
 because no free run held both. The mechanism is in NOTES.md under *The
 shared bind page*.
 
-## The ini files, what they do
+## The ini files
 
 Four files, one concern: Keyboard (Simple)'s binds surviving a restart,
 which the stock game never had to do for that slot. `inisave.asm` writes
@@ -660,7 +660,7 @@ runs the same loader for both players whatever the saved devices, since
 the stock loader runs one device-picked section per player and would skip
 it otherwise. The full story is in NOTES.md under *Saving and loading*.
 
-## commitdev.asm and devorder.asm, what they do
+## commitdev.asm and devorder.asm
 
 Both serve the F7 device page. `commitdev.asm` wraps the plain-OK commit
 and reseeds the shared live table from the new device's block, so a
@@ -671,7 +671,7 @@ display order (gamepad, twin-stick, Simple, Real) to the fixed device
 numbers and back, at the page's preselect and its OK translate; the
 numbers themselves stay what the executable and `v_on.ini` always used.
 
-## f11pause.asm, what it does
+## f11pause.asm
 
 The F11 Extras dialog's runner. The built-in F-key dialogs pause the game
 and the music around their DialogBox call and resume after; the F11 hook
@@ -680,7 +680,7 @@ whole DialogBox block moved here and gained them. The tail is the dialog's
 check-box init, evicted from the same cave when the second deadzone box
 needed the room. Ships with **Disable menu bar**, not the gamepad patch.
 
-## movie.asm, what it does
+## movie.asm
 
 Places the intro movie's window. The game does this itself from `0x54e817`,
 using an offset out of two globals that are each a hardcoded centre for one
@@ -713,7 +713,7 @@ It reaches `mciSendCommandA` through a register rather than the six-byte
 indirect call, because `apply_cdaudio` counts those and aborts on anything
 but 37.
 
-## credits.asm, what it does
+## credits.asm
 
 Makes the ending credits skippable, which they are not in the stock game.
 
@@ -743,7 +743,7 @@ needs the same reading for its own edge.
 It runs in place of the write that opens the handler, so that write is
 repeated at the end of the stub.
 
-## nameentry.asm, what it does
+## nameentry.asm
 
 Adds A to the initials screen, which stock takes a letter on only from the
 weapon triggers: LT for 1P at `0x4d6cc8` and RT for 2P immediately after it.
@@ -766,7 +766,7 @@ screen a frame or two later with A still held, and one shared byte is what
 keeps that press from being taken as the first letter as well. They ship in
 the same patch, so they are always both there or neither.
 
-## camskip.asm, what it does
+## camskip.asm
 
 Lets A skip the win and lose screens, which stock only takes on the camera
 key.
@@ -782,7 +782,7 @@ camera, and A is jump by default, so it is gated on `MODE` 4 with `SUBMODE`
 branch that has already established A is held, with `ebx` still holding the
 parameter block the camera slot comes out of.
 
-## overlay.asm, what it does
+## overlay.asm
 
 Draws `HOLD TO SKIP` over the credits while the button is down.
 
@@ -806,7 +806,7 @@ count. The count alone is not enough: `HELD` sits in a run of zeros in
 on the title screen and in a match. `credits.asm` owns it while the roll is
 running, which is the only place this looks at it.
 
-## titlever.asm, what it does
+## titlever.asm
 
 Prints `vo_patch <version>` in the bottom right of the title screen.
 

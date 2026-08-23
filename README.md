@@ -9,10 +9,15 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 <img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/63514261-53a8-43df-adda-6018bdbc5a26" />
 
-[Quick start](#quick-start) · [What the patches do](#what-the-patches-do) ·
-[Gamepad](#gamepad) · [Internet play](#internet-play) · [Music](#music) ·
-[Resolution and windowing](#resolution-and-windowing-cnc-ddraw) ·
-[Which build](#which-build) · [Running from source](#running-from-source)
+<p align="center">
+  <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
+  <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
+  <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
+  <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
+  <a href="#music">Music</a> &nbsp;·&nbsp;
+  <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
+  <a href="#which-build">Which build</a>
+</p>
 
 ## Quick start
 
