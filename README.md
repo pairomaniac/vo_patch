@@ -203,7 +203,7 @@ side of the fighting:
 
 ### About
 
-**Show the version, and credit the patch in the ending roll** sits under
+**Version and credit in the game** sits under
 ABOUT rather than with the patches, and is on by default. It prints the
 patcher's version in the bottom right of the title screen and adds two lines
 under the title of the ending credits.

@@ -828,7 +828,7 @@ FEATURES = [
          (0x00058189, '01', '02'),
          (0x00170dc9, '01', '02')]),
 
-    ('credits', 'Show the version, and credit the patch in the ending roll',
+    ('credits', 'Version and credit in the game',
      'Two places, one box.\n'
      '\n'
      'Title screen\tThe version of the patcher in the bottom right, in\n'
@@ -1049,7 +1049,8 @@ FEATURES = [
      'the menus. A or Select skips the win and lose screens between\n'
      'rounds. On-screen prompts name the button rather than a key.\n'
      '\n'
-     'Stick deadzone\t40% per player, set from the F11 Extras dialog.\n'
+     'Stick deadzone\tEach player has one, 40% to start, set in the F11\n'
+     '\tExtras dialog.\n'
      '\n'
      'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
      'original puts both back.', [
@@ -4175,10 +4176,6 @@ INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
 ESSENTIAL_HINT = ('Always applied. Each of these fixes something that is '
                   'broken on a modern system, with nothing to weigh up.')
 EXTRA_HINT = 'Optional. Untick what you do not want.'
-# Clear space between a description and the button to its right. Added to
-# the button's own measured width, so it survives a longer label or a
-# different font.
-BTN_CLEARANCE = 28
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4426,7 +4423,7 @@ def run_tk():
         img.put(' '.join(rows))
         return img
 
-    def _hint(parent, text, colour, font, pady=0, gutter=0):
+    def _hint(parent, text, colour, font, pady=0):
         """The quiet explanatory line under a section heading; most of the
         cards have one and they only differ in their text.
 
@@ -4435,10 +4432,6 @@ def run_tk():
         that made every hint 26px wider than the space it had and clipped
         the last word against the card edge. An empty frame filled to the
         content area measures it exactly.
-
-        gutter keeps the text clear of anything floated to the right of
-        it - on the add-on rows, a button. Pass a callable to have it
-        measured when the line is laid out rather than guessed at now.
 
         Packs itself, because the holder is nobody else's business."""
         holder = ttk.Frame(parent, style='Card.TFrame')
@@ -4449,8 +4442,7 @@ def run_tk():
         def fit(_event=None):
             width = holder.winfo_width()
             if width > 1:
-                edge = gutter() if callable(gutter) else gutter
-                label.configure(wraplength=max(140, width - 2 - edge))
+                label.configure(wraplength=max(140, width - 2))
         holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', fit, add='+')       # a collapsed card gets no
         #                                         Configure until it reopens
@@ -5328,12 +5320,11 @@ def run_tk():
             link to it. Not a patch - Apply never touches this."""
             self.ddraw_btn = self._addon_head(parent, label, name, url,
                                               self._ddraw_click, first=True)
-            gut = self._clear_of(self.ddraw_btn)
-            _hint(parent, note, self.dim, self.small, gutter=gut)
+            _hint(parent, note, self.dim, self.small)
             _hint(parent, DDRAW_WINE, PALETTE['amber'], self.small,
-                  pady=(4, 0), gutter=gut)
+                  pady=(4, 0))
             self.ddraw_note = _hint(parent, '', self.dim, self.small,
-                                    pady=(4, 0), gutter=gut)
+                                    pady=(4, 0))
             self.ddraw_installed = False
 
         def _addon_head(self, parent, label, name=None, url=None,
@@ -5363,15 +5354,6 @@ def run_tk():
             btn.pack(side='right', padx=(6, 2))
             return btn
 
-        @staticmethod
-        def _clear_of(btn):
-            """How much room to leave a description on the right, measured
-            from the button rather than assumed."""
-            def measure():
-                return max(btn.winfo_width(), btn.winfo_reqwidth()) \
-                    + BTN_CLEARANCE
-            return measure
-
         def _addons_body(self, parent):
             """Separate files that sit beside the game, not byte patches.
             Apply and Restore do not touch either of these; each row
@@ -5385,12 +5367,11 @@ def run_tk():
             the README."""
             self.net_btn = self._addon_head(parent, NETPLAY_LABEL,
                                             command=self._netplay_click)
-            gut = self._clear_of(self.net_btn)
-            _hint(parent, NETPLAY_NOTE, self.dim, self.small, gutter=gut)
+            _hint(parent, NETPLAY_NOTE, self.dim, self.small)
             _hint(parent, NETPLAY_PORT, PALETTE['amber'], self.small,
-                  pady=(4, 0), gutter=gut)
+                  pady=(4, 0))
             self.net_note = _hint(parent, '', self.dim, self.small,
-                                  pady=(4, 0), gutter=gut)
+                                  pady=(4, 0))
             self.net_state = None
 
         def _netplay_sync(self):
