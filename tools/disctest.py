@@ -291,6 +291,8 @@ def main():
         info = vp.probe_disc(oem)
         check('oem build refused', not info['build']['supported'])
         check('oem copies no language directory', not info['wants_language'])
+        check('and offers no manual to choose', info['languages'] == [],
+              info['languages'])
         dest = os.path.join(tmp, 'game-oem')
         vp.install_disc(oem, dest)
         check('oem file list',

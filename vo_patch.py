@@ -1998,13 +1998,15 @@ class DiscPlan:
         # files in english/, the OEM disc does not and keeps them in v_on/.
         self.wants_language = 'langexeclusive' in option.get('select1',
                                                              '').lower()
-        # Only the ones this disc can actually give: a section names a
+        # Only the ones this disc can actually give. A section names a
         # directory, and a pressing that ships fewer manuals than its
         # ssp.ini lists would otherwise offer a language and then fail on
-        # the copy.
-        self.languages = [name for name in ssp if name not in NOT_A_LANGUAGE
-                          and (not self.wants_language
-                               or self._has_language(name))]
+        # the copy. A pressing that copies no language directory at all -
+        # the OEM disc, whose manual sits in v_on\ - offers none, rather
+        # than listing sections that decide nothing.
+        self.languages = ([name for name in ssp if name not in NOT_A_LANGUAGE
+                           and self._has_language(name)]
+                          if self.wants_language else [])
         self.default = (option.get('defaultsection') or '').upper()
         if self.default not in self.languages:
             self.default = self.languages[0] if self.languages else ''
@@ -6177,8 +6179,8 @@ def install_cli(args):
     print('%s, %d files, %d MB' % (info['form'], info['count'],
                                    info['bytes'] >> 20))
     if info['languages']:
-        print('languages: %s (default %s)' % (', '.join(info['languages']),
-                                              info['default_language']))
+        print('manuals: %s (default %s)' % (', '.join(info['languages']),
+                                            info['default_language']))
     build = info['build']
     if not build['supported']:
         return ('This disc holds the %s build of v_on.exe (%s).\n%s\n'
