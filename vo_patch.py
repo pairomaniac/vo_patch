@@ -1807,10 +1807,8 @@ def rip(source, outdir, progress=None):
     return rip_device(source, outdir, progress)
 
 
-# Returned by music_status when it has no folder to describe. The window
-# treats it as a tag and swaps in its own prompt (INSTALL_NEEDS_TARGET), so
-# the wording here is only ever seen by code.
-MUSIC_NEEDS_EXE = 'Pick v_on.exe first: the tracks go beside it.'
+# Returned by music_status when it has no folder to describe.
+MUSIC_NEEDS_EXE = 'Choose a folder above, or pick your v_on.exe.'
 
 
 def music_status(gamedir):
@@ -2241,8 +2239,6 @@ class Cancelled(Exception):
     It travels the same path as a real failure, so the WavWriter context
     manager discards the partial track on the way out."""
 
-
-RipCancelled = Cancelled        # the name this had before it covered both
 
 
 def rip_in_background(source, gamedir, progress, done):
@@ -4211,7 +4207,6 @@ INSTALL_NOT_CUE = 'That is a %s. Give the .cue sheet beside it.'
 INSTALL_NEEDS_DEST = 'Choose where to install it.'
 INSTALL_BUSY = 'Copying\u2026'
 INSTALL_CANCELLED = 'Cancelled. The folder holds a part-written copy.'
-INSTALL_NEEDS_TARGET = 'Choose a folder above, or pick your v_on.exe.'
 INSTALL_OK = 'Installed %d files to %s.'
 INSTALL_DRIVE_ONLY = ('A drive can only be used for the soundtrack. Give a '
                       '.cue sheet to install.')
@@ -4485,6 +4480,11 @@ def run_tk():
         img.put(' '.join(rows))
         return img
 
+    def _em(font):
+        """The width of one character of a font, which everything laid out
+        in pixels is measured against."""
+        return max(1.0, font.measure(ALPHABET) / len(ALPHABET))
+
     def _hint(parent, text, colour, font, pady=0, gutter=0):
         """The quiet explanatory line under a section heading; most of the
         cards have one and they only differ in their text.
@@ -4502,7 +4502,7 @@ def run_tk():
         Packs itself, because the holder is nobody else's business."""
         # A floor in characters rather than pixels, for the same reason the
         # columns are: at 200% scaling 140px is ten characters.
-        em = max(1.0, font.measure(ALPHABET) / len(ALPHABET))
+        em = _em(font)
         holder = ttk.Frame(parent, style='Card.TFrame')
         holder.pack(fill='x', pady=scaled(pady, em))
         label = ttk.Label(holder, text=text, style='Card.TLabel',
@@ -4617,6 +4617,8 @@ def run_tk():
             # Whether this file was ever accepted, so a selection made
             # against it can be told from a list nobody was able to touch.
             self._chose = False
+            self._disc_after = None
+            self._status_text, self._status_font = NO_FILE, None
             self._static, self._nudge_after = [], None
             self._nudge_at = 0.0
             root.title(TITLE)
@@ -4975,7 +4977,7 @@ def run_tk():
 
             # One character of the hint font, which everything laid out in
             # pixels is measured against.
-            self.em = max(1.0, self.small.measure(ALPHABET) / len(ALPHABET))
+            self.em = _em(self.small)
             self.min_content = int(MIN_CHARS * self.em)
             self.max_content = int(MAX_CHARS * self.em)
             self.gutter = max(2, int(GUTTER_CHARS * self.em))
@@ -5184,9 +5186,8 @@ def run_tk():
                                     lambda *_a: self._sync_buttons())
 
         def _disc_typed(self, *_args):
-            pending = getattr(self, '_disc_after', None)
-            if pending:
-                self.root.after_cancel(pending)
+            if self._disc_after:
+                self.root.after_cancel(self._disc_after)
             self._disc_after = self.root.after(
                 400, lambda: self._check_disc(self.disc_var.get()))
 
@@ -5452,10 +5453,7 @@ def run_tk():
         def _music(self, text):
             """The prompt to pick somewhere is the one line people miss, so
             it gets the accent colour; everything else is a quiet hint."""
-            if text == MUSIC_NEEDS_EXE:
-                text, colour = INSTALL_NEEDS_TARGET, PALETTE['cyan']
-            else:
-                colour = self.dim
+            colour = PALETTE['cyan'] if text == MUSIC_NEEDS_EXE else self.dim
             self.music_note.config(text=text or '', foreground=colour)
 
         def _rip(self):
@@ -5843,10 +5841,9 @@ def run_tk():
                                     foreground=self.dim, font=self.small,
                                     width=1, anchor='w')
             self.status.pack(side='left', fill='x', expand=True)
-            # Seeded before the binding: the first <Configure> arrives while
-            # the window is being built, and with nothing remembered it
-            # would fit an empty string over the label's own text.
-            self._status_text, self._status_font = NO_FILE, self.small
+            # The font is only known once the styles have run, and the
+            # first <Configure> arrives while the window is being built.
+            self._status_font = self.small
             self.status.bind('<Configure>', self._fit_status, add='+')
 
         # -- behaviour
@@ -5917,8 +5914,7 @@ def run_tk():
             window is twice that now, so the number is measured in the font
             against the label's own width instead - and on a wide window
             nothing is cut at all."""
-            text = getattr(self, '_status_text', '')
-            font = getattr(self, '_status_font', self.small)
+            text, font = self._status_text, self._status_font
             room = self.status.winfo_width()
             if room <= 1 or font.measure(text) <= room:
                 self.status.config(text=text)
