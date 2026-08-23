@@ -4668,7 +4668,10 @@ def run_tk():
             for column in (left, right, foot_left, foot_right):
                 cards = column.winfo_children()
                 if cards and column is not self.inner:
-                    cards[-1].pack_configure(fill='both', expand=True)
+                    last = cards[-1]
+                    last.fills = True
+                    if last.winfo_children()[-1].winfo_manager():
+                        last.pack_configure(fill='both', expand=True)
 
             # Width is settled here rather than on the canvas's first
             # <Configure>, which arrives while the sections are still being
@@ -5058,6 +5061,14 @@ def run_tk():
                     inner.pack(fill='x')
                 else:
                     inner.pack_forget()
+                # The last card in a column or a foot takes up the slack, so
+                # that the two sides end level - but only while it has
+                # something in it. Stretching a closed one turns a heading
+                # into a tall empty box that reads as an open section with
+                # nothing in it, which is what opening About did to the log.
+                if getattr(card, 'fills', False):
+                    card.pack_configure(fill='both' if flag else 'x',
+                                        expand=flag)
 
             def toggle(_event=None):
                 set_open(not inner.winfo_manager())
