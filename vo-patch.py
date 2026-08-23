@@ -4182,11 +4182,6 @@ WRAP_STEP = 8
 # Added to the button's own measured width, so it survives a longer label
 # or a different font.
 ADDON_GAP = 8
-# How far the balanced wrap may pull a line in, as a fraction of the room it
-# has. Without a floor each paragraph settles at its own width and their
-# right edges stop agreeing - a short one ends a long way short of the rest,
-# which reads as a hole rather than as a margin. See _wrap_at.
-WRAP_FLOOR = 8
 
 ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
                'Apply and Restore leave these alone; install and remove '
@@ -4434,66 +4429,6 @@ def run_tk():
         img.put(' '.join(rows))
         return img
 
-    def _wrap_at(text, font, avail, cache):
-        """The narrowest width that wraps this text into as few lines as
-        `avail` would.
-
-        Greedy wrapping leaves a ragged right edge: the last word that fits
-        decides each line, so one long word early on can leave a line short
-        while the rest run to the margin. Wrapping to the narrowest width
-        with the same line count evens them out, and can only ever be
-        narrower than the space, so nothing is clipped. WRAP_FLOOR stops it
-        going so far that the block no longer lines up with its neighbours.
-
-        Word widths are measured once per font and kept, because this runs
-        for every hint on screen every time the window changes width and
-        each measure is a call into Tcl."""
-        words = text.split()
-        if not words:
-            return avail
-        space = cache.get(' ')
-        if space is None:
-            space = cache[' '] = font.measure(' ')
-        widths = []
-        for word in words:
-            got = cache.get(word)
-            if got is None:
-                got = cache[word] = font.measure(word)
-            widths.append(got)
-
-        def lines(width):
-            """How many lines this width takes, or None if a word will not
-            fit at all - Tk breaks inside the word then, and counting is off
-            anyway."""
-            count, run = 1, None
-            for got in widths:
-                if got > width:
-                    return None
-                if run is None:
-                    run = got
-                elif run + space + got <= width:
-                    run += space + got
-                else:
-                    count += 1
-                    run = got
-            return count
-
-        target = lines(avail)
-        if target is None or target < 2:
-            return avail
-        low, high = max(widths), avail
-        while low < high:
-            mid = (low + high) // 2
-            if lines(mid) == target:
-                high = mid
-            else:
-                low = mid + 1
-        # Floored, so a paragraph that could be squeezed a long way still
-        # ends near the same right edge as the ones beside it. Evening the
-        # lines inside one block is worth a few pixels; leaving that block
-        # visibly narrower than its neighbours is not.
-        return max(low, avail - avail // WRAP_FLOOR)
-
     def _hint(parent, text, colour, font, pady=0, gutter=0):
         """The quiet explanatory line under a section heading; most of the
         cards have one and they only differ in their text.
@@ -4505,8 +4440,11 @@ def run_tk():
         content area measures it exactly.
 
         gutter keeps the text clear of anything sitting to the right of it -
-        on the add-on rows, the Install button. Pass a callable to have it
-        measured when the line is laid out rather than guessed at now.
+        on the add-on rows, the Install button. Pass a callable and it is
+        asked once, the first time the line is laid out, and remembered: the
+        button does not change size after that, and asking it again on every
+        step of a window drag is a call into Tcl for an answer already
+        known.
 
         Packs itself, because the holder is nobody else's business."""
         holder = ttk.Frame(parent, style='Card.TFrame')
@@ -4514,7 +4452,7 @@ def run_tk():
         label = ttk.Label(holder, text=text, style='Card.TLabel',
                           foreground=colour, font=font, justify='left')
 
-        last, cache = [0], {}
+        last, edge = [0], [None]
 
         def fit(event=None):
             # The width comes off the event rather than from winfo_width:
@@ -4536,13 +4474,12 @@ def run_tk():
             # rather than to nearest matters: the wrap is then never wider
             # than the space, so text is never clipped, only wrapped up to a
             # step early. One step is under a character.
-            edge = gutter() if callable(gutter) else gutter
-            width = max(140, (width - 2 - edge) // WRAP_STEP * WRAP_STEP)
+            if edge[0] is None:
+                edge[0] = gutter() if callable(gutter) else gutter
+            width = max(140, (width - 2 - edge[0]) // WRAP_STEP * WRAP_STEP)
             if width != last[0]:
                 last[0] = width
-                label.tk.call(label._w, 'configure', '-wraplength',
-                              _wrap_at(label.cget('text'), font, width,
-                                       cache))
+                label.tk.call(label._w, 'configure', '-wraplength', width)
         holder.bind('<Configure>', fit, add='+')
         label.bind('<Map>', lambda _e: fit(), add='+')   # a collapsed card
         #                          gets no Configure until it reopens
