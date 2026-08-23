@@ -1986,7 +1986,6 @@ class DiscPlan:
         self.track, self.root, self.ssp = track, root, ssp
         option = ssp.get('OPTION', {})
         self.source_dir = (option.get('sourcepath1') or 'V_ON').lower()
-        self.ini_name = (option.get('inifilename') or 'V_ON.INI').lower()
         # Whether a language directory is copied at all is a property of the
         # pressing: the retail discs say so in Select1 and keep the help
         # files in english/, the OEM disc does not and keeps them in v_on/.
@@ -2218,11 +2217,14 @@ def dest_problem(path, needed):
     return None, None
 
 
-class RipCancelled(Exception):
-    """Raised out of the progress callback to stop a rip in its tracks.
+class Cancelled(Exception):
+    """Raised out of a progress callback to stop a copy or a rip.
 
     It travels the same path as a real failure, so the WavWriter context
     manager discards the partial track on the way out."""
+
+
+RipCancelled = Cancelled        # the name this had before it covered both
 
 
 def rip_in_background(source, gamedir, progress, done):
@@ -4193,6 +4195,7 @@ INSTALL_PICK = 'Give the .cue sheet, not the .bin.'
 INSTALL_NOT_CUE = 'That is a %s. Give the .cue sheet beside it.'
 INSTALL_NEEDS_DEST = 'Choose where to install it.'
 INSTALL_BUSY = 'Copying\u2026'
+INSTALL_CANCELLED = 'Cancelled. The folder holds a part-written copy.'
 INSTALL_NEEDS_TARGET = 'Choose a folder above, or pick your v_on.exe.'
 INSTALL_OK = 'Installed %d files to %s'
 INSTALL_DRIVE_ONLY = 'A drive can only be ripped. Give a .cue to install.'
@@ -4578,9 +4581,15 @@ def run_tk():
             self._bodies = []
             self._openers = {}
             self._rip_thread, self._rip_dir = None, None
-            self._cancel_rip = False
+            self._install_thread = None
+            self._cancel_rip = self._cancel_install = False
             # Widgets whose text is written once and never touched again.
             # Those are the ones left blank after a resize; see _nudge.
+            # Set while a copy or a rip is running. Both fields stay live
+            # while one is going, and editing either used to run
+            # _sync_buttons and light the buttons back up - a second Install
+            # would then be writing the same files as the first.
+            self._busy = None
             self._static, self._nudge_after = [], None
             self._nudge_at = 0.0
             root.title(TITLE)
@@ -5249,6 +5258,10 @@ def run_tk():
                             if self.disc_var.get().strip() or self._target()
                             else '')
 
+            if self._busy:
+                self.install_btn.state(['disabled'])
+                self.rip_btn.state(['disabled'])
+                return
             self.install_btn.state(
                 ['!disabled'] if self.disc_ok and path and level != 'bad'
                 else ['disabled'])
@@ -5275,6 +5288,8 @@ def run_tk():
             dest = self.dest_var.get().strip()
             source = self.disc_var.get().strip()
             language = self.lang_var.get() or None
+            self._busy = 'install'
+            self._cancel_install = False
             self.install_btn.state(['disabled'])
             self.rip_btn.state(['disabled'])
             self._disc_note(INSTALL_BUSY, self.dim)
@@ -5284,6 +5299,10 @@ def run_tk():
             last = [-1]
 
             def progress(done, total):
+                # Runs on the worker. Raising here unwinds out of the copy,
+                # which is how closing the window stops it.
+                if self._cancel_install:
+                    raise Cancelled('cancelled')
                 pct = done * 100 // max(total, 1)
                 if pct != last[0]:
                     last[0] = pct
@@ -5292,7 +5311,8 @@ def run_tk():
             def finished(error, written):
                 self._installq.put(('done', error, written))
 
-            install_in_background(source, dest, language, progress, finished)
+            self._install_thread = install_in_background(
+                source, dest, language, progress, finished)
             self._poll_install()
 
         def _poll_install(self):
@@ -5313,6 +5333,13 @@ def run_tk():
 
         def _installed(self, error, written):
             dest = self._install_dest
+            self._busy = None
+            if isinstance(error, Cancelled):
+                self._disc_note(INSTALL_CANCELLED, PALETTE['amber'])
+                self._log('install: cancelled, %s holds a part-written copy'
+                          % dest)
+                self._sync_buttons()
+                return
             if error is not None:
                 self._disc_note(str(error), PALETTE['bad'])
                 self._log('install: failed - %s' % error)
@@ -5349,6 +5376,7 @@ def run_tk():
             # Captured now: the destination can be changed from under a
             # running rip, and the finished message names where they went.
             self._rip_dir = target
+            self._busy = 'music'
             self.rip_btn.state(['disabled'])
             self.install_btn.state(['disabled'])
             self._log('music: ripping from %s' % source)
@@ -5361,7 +5389,7 @@ def run_tk():
                 # WavWriter's context manager, which throws the partial
                 # track away rather than leaving a short but valid file.
                 if self._cancel_rip:
-                    raise RipCancelled('cancelled')
+                    raise Cancelled('cancelled')
                 pct = done * 100 // max(total, 1)
                 if pct != last[0]:
                     last[0] = pct
@@ -5390,7 +5418,8 @@ def run_tk():
             self.root.after(100, self._poll_rip)
 
         def _ripped(self, error, files):
-            if isinstance(error, RipCancelled):
+            self._busy = None
+            if isinstance(error, Cancelled):
                 self._log('music: cancelled, the part-written track was '
                           'discarded')
             elif error is not None:
@@ -5406,11 +5435,18 @@ def run_tk():
             self._sync_buttons()
 
         def _close(self):
-            """Stop a running rip before the interpreter goes away."""
-            thread = getattr(self, '_rip_thread', None)
-            if thread is not None and thread.is_alive():
-                self._cancel_rip = True
-                thread.join(1.5)
+            """Stop a running copy or rip before the interpreter goes away.
+
+            Both write files, and a worker still running when the
+            interpreter is torn down leaves whichever one it was on half
+            written. Asking it to stop and waiting a moment is enough: both
+            check on the next chunk."""
+            self._cancel_rip = True
+            self._cancel_install = True
+            for name in ('_rip_thread', '_install_thread'):
+                thread = getattr(self, name, None)
+                if thread is not None and thread.is_alive():
+                    thread.join(1.5)
             self.root.destroy()
 
         def _link_row(self, parent, label, name, url, note):
@@ -5879,9 +5915,18 @@ def run_tk():
             self._set_status(DONE % sum(1 for v in wanted.values() if v), True)
 
         def _restore(self):
+            # Kept across the reload. _check_file puts every box back to its
+            # default, which is right for a file that has just been picked
+            # and wrong here: somebody who unticked two patches, restored,
+            # and applied again would get the two back without being told.
+            chosen = {key: var.get() for key, var in self.vars.items()}
             for line in self.core.restore():
                 self._log(line)
             self._check_file(self.core.exe_path)
+            for key, was in chosen.items():
+                if key in self.checks:
+                    self.vars[key].set(was)
+            self._retally()
 
         def _log(self, text):
             # Open it on the first line written: collapsed by default, but

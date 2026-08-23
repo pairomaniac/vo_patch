@@ -39,7 +39,7 @@ that matter:
 | `SourcePath1` | the game directory, copied whole - `v_on\` on every pressing |
 | `Select1` | whether a language directory is copied too |
 | `LangExeclusive` | which one, per language section |
-| `IniFileName` | the file Sega's installer writes; the patcher does not |
+| `IniFileName` | the file Sega's installer writes over; the patcher does not, so it is read off the disc and ignored |
 
 The retail pressings set `Select1 = SourceCopy, LangExeclusive` and keep the
 help files in `english\` and friends; the USA OEM disc has neither and keeps
