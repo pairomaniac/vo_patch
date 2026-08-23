@@ -368,6 +368,17 @@ def main():
         check('a data-only image has nothing to rip',
               vp.audio_tracks(data_only) == [], vp.audio_tracks(data_only))
 
+        # A language the ssp.ini names but the disc does not carry is not
+        # offered: it would appear in the box and then fail on the copy.
+        here = os.path.join(tmp, 'onemanual')
+        os.makedirs(here)
+        tree = retail_tree(exe)
+        del tree['french']
+        short = write_disc(here, 'SHORT', build_iso(tree), 'MODE1/2352')
+        check('a language with no directory is not offered',
+              vp.probe_disc(short)['languages'] == ['ENGLISH'],
+              vp.probe_disc(short)['languages'])
+
         # Destination checks, which run before anything is written.
         _why, level = vp.dest_problem(os.path.join(tmp, 'game'), 1000)
         check('a folder with files in it warns', level == 'warn', level)

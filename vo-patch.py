@@ -1992,12 +1992,21 @@ class DiscPlan:
         # files in english/, the OEM disc does not and keeps them in v_on/.
         self.wants_language = 'langexeclusive' in option.get('select1',
                                                              '').lower()
+        # Only the ones this disc can actually give: a section names a
+        # directory, and a pressing that ships fewer manuals than its
+        # ssp.ini lists would otherwise offer a language and then fail on
+        # the copy.
         self.languages = [name for name in ssp if name not in NOT_A_LANGUAGE
                           and (not self.wants_language
-                               or ssp[name].get('langexeclusive'))]
+                               or self._has_language(name))]
         self.default = (option.get('defaultsection') or '').upper()
         if self.default not in self.languages:
             self.default = self.languages[0] if self.languages else ''
+
+    def _has_language(self, name):
+        folder = self.ssp.get(name, {}).get('langexeclusive', '').strip()
+        entry = self.root.get(folder.lower()) if folder else None
+        return bool(entry and entry[0])
 
     def language_dir(self, language):
         if not self.wants_language:
@@ -6055,7 +6064,7 @@ USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
 
   vo-patch.py                     open the patcher
   vo-patch.py --install CUE DIR   copy the game out of a disc image into DIR
-                                  (--language NAME picks the help files)
+                                  (--language NAME picks the manual)
   vo-patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
                                   or a CD drive, DIR holds v_on.exe
   vo-patch.py --rip               list the drives it can see
