@@ -1072,11 +1072,27 @@ static int rv_handle(const unsigned char *p, int n, HWND dlg)
         break;
     case 'N':
         if (g.host) {
-            g.code[0] = 0;                 /* server forgot us: ask again */
+            /* Our entry aged out - a sleeping laptop, a dropped link - so
+               ask for a fresh code. The clock has to restart with it: the
+               no-answer check below is gated on having no code, and by now
+               rv_start is minutes old, so the next tick would fail with
+               "no answer from the server" immediately after the server
+               answered. Blank the old code too; it is dead, and a player
+               reading it out to a friend has no way of knowing. */
+            g.code[0] = 0;
+            g.rv_start = timeGetTime();
+            SetDlgItemTextA(dlg, ID_CODE, "");
+            ShowWindow(GetDlgItem(dlg, ID_CODE), SW_HIDE);
+            ShowWindow(GetDlgItem(dlg, ID_CODEBTN), SW_HIDE);
+            SetDlgItemTextA(dlg, ID_STATUS, "Asking the matchcode server...");
+            netlog("code expired on the server, asking for a new one");
         } else {
-            g.fail = "No game with that code.";
+            /* One reply covers both: the code was never issued, and the
+               code exists but another player joined it first. */
+            g.fail = "No game with that code, or another player has "
+                     "already joined it.";
             g.hs_failed = 1;
-            netlog("server does not know code %s", g.code);
+            netlog("server refused code %s", g.code);
         }
         break;
     }
@@ -1180,8 +1196,20 @@ recv:
             }
             /* Same game and session, different last byte: the other side has
                a different set of the patches that affect the simulation, so
-               the two copies would drift. Say so instead of hanging. */
+               the two copies would drift. Say so instead of hanging - and
+               tell the guest first, or it sits on "Connecting..." with no
+               idea why: its only timeout is for a silent server, and a
+               joining player always has a code. The reply is an ack carrying
+               OUR tag, which every guest build already parses - it fails the
+               full compare, matches the 15-byte prefix, and lands on the
+               guest's own mismatch branch. Sent three times, datagrams being
+               datagrams; a fourth would not survive a link this bad. */
             if (!memcmp(g.pkt + 1, g.tag, sizeof(g.tag) - 1)) {
+                int j;
+                b[0] = P_ACK;
+                memcpy(b + 1, g.tag, sizeof(g.tag));
+                for (j = 0; j < 3; j++)
+                    send_raw(b, sizeof(b));
                 g.fail = MISMATCH_MSG;
                 g.hs_failed = 1;
                 netlog("patch mismatch: peer tag byte %02x, ours %02x",
@@ -1478,8 +1506,13 @@ int __stdcall InitialDirectPlay(VO_NETINIT *init)
     }
 
     if (!wait_for_peer(inst)) {
+        /* Cancel closes the dialog with hs_failed clear and says nothing.
+           Every path that does set it also sets g.fail, so the string below
+           is a backstop against a future path that forgets, not a message
+           anyone sees today - it is here so that a forgotten one shows
+           something rather than dereferencing NULL. */
         if (g.hs_failed)
-            notice(g.fail ? g.fail : "The other player did not answer.");
+            notice(g.fail ? g.fail : "Could not connect to the other player.");
         sock_close();
         return 0;
     }
@@ -1615,11 +1648,26 @@ int __stdcall SWDataSendReceive(unsigned char *p1, unsigned char *p2)
             }
         } else if (relaying) {
             MSG m;
+            DWORD now = timeGetTime();
             heartbeat();
             if (link_silent()) {
                 sock_close();
                 notice("Now Network interrupted.");
                 return 0;
+            }
+            /* The frame we are waiting on may have been lost, and in here
+               the peer is heartbeating, so the silence check above never
+               fires. Ask again on the same cadence as the branch below. If
+               the peer simply has not sent it yet - it is sitting in its
+               menu - its tx slot was retired half a window ago and the
+               request is answered with nothing, so this cannot feed the
+               game a stale frame. No overall timeout on purpose: a player
+               may hold a menu open far longer than timeout_ms. */
+            if (last_resend == 0)
+                last_resend = now;
+            if (now - last_resend >= RESEND_MS) {
+                send_ctl(P_RESEND, (DWORD)(g.cursor & RING_MASK));
+                last_resend = now;
             }
             if (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
                 if (m.message == WM_QUIT)
