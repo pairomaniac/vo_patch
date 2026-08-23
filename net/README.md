@@ -8,7 +8,7 @@ using it see [README.md](../README.md); for testing it see
 ```
 dpctrl.c            the implementation
 dpctrl.def          export names, undecorated, as the game imports them
-build.py            compiles it and bakes the result into vo-patch.py
+build.py            compiles it and bakes the result into vo_patch.py
 rendezvous.py       the matchcode server, runs anywhere with a public address
 rendezvous.service  a systemd unit for it
 ```
@@ -230,7 +230,7 @@ to get the spin back and feel the difference.
 ## Building
 
 ```bash
-python3 net/build.py            # compile and bake into vo-patch.py
+python3 net/build.py            # compile and bake into vo_patch.py
 python3 net/build.py --check    # is the blob current? no compiler needed
 ```
 

@@ -27,7 +27,7 @@ import sys
 EXPECTED_ALL = '95d2f70a91e5f87b0ba7d468db068b12'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATCHER = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
+PATCHER = os.path.join(os.path.dirname(HERE), 'vo_patch.py')
 
 
 def pristine(path, vp):

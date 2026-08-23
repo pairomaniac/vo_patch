@@ -22,7 +22,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 ## Quick start
 
-**Download** `vo-patch-*.exe` from the
+**Download** `vo_patch-*.exe` from the
 [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
 It is unsigned, so SmartScreen calls it an unknown publisher on the first
 run. On Linux, see [Running from source](#running-from-source).
@@ -78,8 +78,8 @@ text and opens anywhere.
 Or from a terminal:
 
 ```bash
-python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
-python3 vo-patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language GERMAN
+python3 vo_patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON
+python3 vo_patch.py --install VIRTUAL-ON.cue ~/games/VIRTUAL-ON --language GERMAN
 ```
 
 ### If you have the disc, not an image
@@ -250,8 +250,8 @@ forwarding, no VPN. Direct IP is still there for LAN play.
   Or from a terminal:
 
     ```bash
-    python3 vo-patch.py --netplay path/to/game            # install
-    python3 vo-patch.py --netplay path/to/game --remove   # put the stock one back
+    python3 vo_patch.py --netplay path/to/game            # install
+    python3 vo_patch.py --netplay path/to/game --remove   # put the stock one back
     ```
 
 - **Both players need the same two gameplay patches**, Fix frame rate and
@@ -444,9 +444,9 @@ number, so a different count is different music.
 Or from a terminal:
 
 ```bash
-python3 vo-patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
-python3 vo-patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
-python3 vo-patch.py --rip                # list drives
+python3 vo_patch.py --rip VIRTUAL-ON.cue /path/to/VIRTUAL-ON
+python3 vo_patch.py --rip /dev/sr0       /path/to/VIRTUAL-ON
+python3 vo_patch.py --rip                # list drives
 ```
 
 The directory is the one holding `v_on.exe`; `music\` is created inside it.
@@ -495,7 +495,7 @@ shaders. The same button then reads **Remove**, which deletes them again and
 keeps `ddraw.ini`. From a terminal:
 
 ```bash
-python3 vo-patch.py --ddraw path/to/game
+python3 vo_patch.py --ddraw path/to/game
 ```
 
 It comes straight from
@@ -583,7 +583,7 @@ stops before writing anything.
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
 ```
-py vo-patch.py
+py vo_patch.py
 ```
 
 On Linux, Tk usually needs installing:
@@ -592,29 +592,29 @@ On Linux, Tk usually needs installing:
 sudo apt install python3-tk        # Debian, Ubuntu, Mint
 sudo dnf install python3-tkinter   # Fedora, RHEL
 sudo pacman -S tk                  # Arch, EndeavourOS
-python3 vo-patch.py
+python3 vo_patch.py
 ```
 
 Everything the patcher does is also available without a window:
 
 ```bash
-python3 vo-patch.py --install CUE DIR  # the game, out of a disc image
-python3 vo-patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
-python3 vo-patch.py --ddraw DIR        # fetch and install cnc-ddraw
-python3 vo-patch.py --netplay DIR      # install the UDP netplay DLL
-python3 vo-patch.py --selfcheck        # validate the patch tables
+python3 vo_patch.py --install CUE DIR  # the game, out of a disc image
+python3 vo_patch.py --rip SOURCE DIR   # soundtrack, from a cue sheet or drive
+python3 vo_patch.py --ddraw DIR        # fetch and install cnc-ddraw
+python3 vo_patch.py --netplay DIR      # install the UDP netplay DLL
+python3 vo_patch.py --selfcheck        # validate the patch tables
 ```
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
-`pyinstaller vo-patch.spec`. It builds as `vo-patch-dev.exe` - releases take
+`pyinstaller vo_patch.spec`. It builds as `vo_patch-dev.exe` - releases take
 their version from the git tag, and a source tree has none.
 
 To change the machine code the patches install, see [asm/](asm/); `asm/build.py`
-builds it into the hex strings in `vo-patch.py`. Never edit those by hand.
+builds it into the hex strings in `vo_patch.py`. Never edit those by hand.
 
 The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
 and run `python3 net/build.py`, which compiles it with mingw and bakes it back
-into `vo-patch.py`. [net/README.md](net/README.md) covers the protocol and
+into `vo_patch.py`. [net/README.md](net/README.md) covers the protocol and
 the matchcode server.
 
 `python3 tools/check.py` runs every check in the project - give it your game

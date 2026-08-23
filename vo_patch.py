@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Virtual-On (PC, 1997) patcher. See README.md.
 
-    python3 vo-patch.py                 patch a copy of v_on.exe
-    python3 vo-patch.py --install CUE DIR   install from a disc image
-    python3 vo-patch.py --rip SRC DIR   rip the soundtrack, no window needed
-    python3 vo-patch.py --ddraw DIR     fetch cnc-ddraw into the game folder
-    python3 vo-patch.py --netplay DIR   install the UDP netplay DLL
-    python3 vo-patch.py --selfcheck     validate the patch tables and exit
-    python3 vo-patch.py --version
+    python3 vo_patch.py                 patch a copy of v_on.exe
+    python3 vo_patch.py --install CUE DIR   install from a disc image
+    python3 vo_patch.py --rip SRC DIR   rip the soundtrack, no window needed
+    python3 vo_patch.py --ddraw DIR     fetch cnc-ddraw into the game folder
+    python3 vo_patch.py --netplay DIR   install the UDP netplay DLL
+    python3 vo_patch.py --selfcheck     validate the patch tables and exit
+    python3 vo_patch.py --version
 
 The version is the VERSION line below and nowhere else, so there is nothing
 to keep in step with it.
@@ -43,8 +43,7 @@ VERSION = 'dev'
 # the version resource, the line the patched game prints on its own title
 # screen, and the docs. It was three before - "Virtual-On patcher" on the
 # window, vo-patch on the executable, vo_patch in the version resource - and
-# a bug report could name any of them. The file names keep their hyphen:
-# those are paths, not the name of the thing.
+# a bug report could name any of them.
 NAME = 'vo_patch'
 REPO_URL = 'https://github.com/pairomaniac/vo_patch'
 
@@ -2189,7 +2188,7 @@ def writable(folder):
     redirect the write into VirtualStore: an unelevated write to a folder
     the user does not own arrives here as EACCES rather than appearing to
     succeed somewhere else."""
-    probe = os.path.join(folder, '.vo-patch-write-test')
+    probe = os.path.join(folder, '.vo_patch-write-test')
     try:
         with open(probe, 'wb') as fh:
             fh.write(b'x')
@@ -3146,7 +3145,7 @@ def install_ddraw(gamedir, progress=None):
     so re-running to update never discards someone's settings.
     """
     req = urllib.request.Request(DDRAW_URL, headers={
-        'User-Agent': 'vo-patch/%s' % VERSION})
+        'User-Agent': '%s/%s' % (NAME, VERSION)})
     blob = io.BytesIO()
     with _urlopen(req, timeout=30) as resp:
         total = int(resp.headers.get('Content-Length') or 0)
@@ -6074,18 +6073,18 @@ def probe_tk():
     return None
 
 
-USAGE = """vo-patch.py %s - Virtual-On (PC, 1997) patcher
+USAGE = """vo_patch.py %s - Virtual-On (PC, 1997) patcher
 
-  vo-patch.py                     open the patcher
-  vo-patch.py --install CUE DIR   copy the game out of a disc image into DIR
+  vo_patch.py                     open the patcher
+  vo_patch.py --install CUE DIR   copy the game out of a disc image into DIR
                                   (--language NAME picks the manual)
-  vo-patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
+  vo_patch.py --rip SOURCE DIR    rip the soundtrack; SOURCE is a .cue sheet
                                   or a CD drive, DIR holds v_on.exe
-  vo-patch.py --rip               list the drives it can see
-  vo-patch.py --ddraw DIR         download cnc-ddraw into DIR (holds v_on.exe)
-  vo-patch.py --netplay DIR       install the UDP netplay DLL (--remove undoes)
-  vo-patch.py --selfcheck         validate the patch tables and exit
-  vo-patch.py --version
+  vo_patch.py --rip               list the drives it can see
+  vo_patch.py --ddraw DIR         download cnc-ddraw into DIR (holds v_on.exe)
+  vo_patch.py --netplay DIR       install the UDP netplay DLL (--remove undoes)
+  vo_patch.py --selfcheck         validate the patch tables and exit
+  vo_patch.py --version
 """
 
 
@@ -6095,7 +6094,7 @@ def selfcheck():
     The tables are the whole patcher, and nothing else exercises them without
     a copy of the game, so this is what to run after editing one."""
     sites, byte_count = _check_table()
-    lines = ['vo-patch.py %s' % VERSION,
+    lines = ['vo_patch.py %s' % VERSION,
              '%d patches, %d sites, %d bytes of the executable touched'
              % (len(BY_KEY), sites, byte_count),
              'expects %d bytes, MD5 %s' % (EXE_SIZE, ORIGINAL_MD5),
@@ -6113,7 +6112,7 @@ def selfcheck():
 def netplay_cli(argv):
     """--netplay GAMEDIR [--remove]."""
     if not argv or len(argv) > 2:
-        return 'Usage: vo-patch.py --netplay GAMEDIR [--remove]'
+        return 'Usage: vo_patch.py --netplay GAMEDIR [--remove]'
     gamedir = argv[0]
     if not os.path.isdir(gamedir):
         return 'Not a directory: %s' % gamedir
@@ -6139,7 +6138,7 @@ def netplay_cli(argv):
 def ddraw_cli(argv):
     """--ddraw GAMEDIR, for a machine with no display."""
     if len(argv) != 1:
-        return 'Usage: vo-patch.py --ddraw GAMEDIR'
+        return 'Usage: vo_patch.py --ddraw GAMEDIR'
     gamedir = argv[0]
     if not os.path.isdir(gamedir):
         return 'Not a directory: %s' % gamedir
@@ -6213,10 +6212,10 @@ def rip_cli(argv):
     if len(argv) == 0:
         found = list_devices()
         print('Drives visible here: %s' % (', '.join(found) or 'none'))
-        print('Rip one with: vo-patch.py --rip SOURCE GAMEDIR')
+        print('Rip one with: vo_patch.py --rip SOURCE GAMEDIR')
         return None
     if len(argv) != 2:
-        return 'Usage: vo-patch.py --rip SOURCE GAMEDIR'
+        return 'Usage: vo_patch.py --rip SOURCE GAMEDIR'
 
     source, gamedir = argv
     seen = [None]

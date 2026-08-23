@@ -2,17 +2,17 @@
 """Windows build for the patcher.
 
     pip install pyinstaller
-    pyinstaller vo-patch.spec
+    pyinstaller vo_patch.spec
 
 Everything the build needs is here, so the CI workflow is one command. The
-version is read out of vo-patch.py's VERSION line, which the workflow stamps
+version is read out of vo_patch.py's VERSION line, which the workflow stamps
 from the tag before this runs; an unstamped source tree builds as 'dev'.
 """
 
 import pathlib
 import re
 
-SOURCE = 'vo-patch.py'
+SOURCE = 'vo_patch.py'
 VERSION = re.search(r"^VERSION = '(.*)'$",
                     pathlib.Path(SOURCE).read_text(encoding='utf-8'),
                     re.M).group(1)
@@ -37,7 +37,7 @@ _version_file.write_text("""VSVersionInfo(
       StringStruct('FileDescription', 'vo_patch - Virtual-On (PC, 1997)'),
       StringStruct('FileVersion', '%(version)s'),
       StringStruct('InternalName', 'vo_patch'),
-      StringStruct('OriginalFilename', 'vo-patch-%(version)s.exe'),
+      StringStruct('OriginalFilename', 'vo_patch-%(version)s.exe'),
       StringStruct('ProductName', 'vo_patch'),
       StringStruct('ProductVersion', '%(version)s'),
     ])]),
@@ -75,7 +75,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='vo-patch-%s' % VERSION,
+    name='vo_patch-%s' % VERSION,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -39,7 +39,7 @@ def colours(force=None):
 
 CHECKS = [
     ('tables', 'patch tables, blobs and the banner bitmap',
-     [PY, 'vo-patch.py', '--selfcheck'], False, False),
+     [PY, 'vo_patch.py', '--selfcheck'], False, False),
     ('asm', 'asm/ sources match the committed blobs',
      [PY, 'asm/build.py', '--check'], False, False),
     ('net', 'netplay blob matches net/dpctrl.c',
@@ -47,7 +47,7 @@ CHECKS = [
     ('disc', 'the disc reader, on images built for the test',
      [PY, 'tools/disctest.py'], False, False),
     ('lint', 'pyflakes',
-     [PY, '-m', 'pyflakes', 'vo-patch.py', 'asm/build.py', 'asm/layout.py',
+     [PY, '-m', 'pyflakes', 'vo_patch.py', 'asm/build.py', 'asm/layout.py',
       'asm/padtables.py', 'asm/dialogs.py', 'net/build.py',
       'tools/selftest.py', 'tools/bannertest.py', 'tools/vonbanner.py',
       'tools/credittest.py', 'tools/vocredits.py', 'tools/disctest.py',

@@ -192,7 +192,7 @@ def check(label, condition, detail=''):
 
 def load_patcher():
     spec = importlib.util.spec_from_file_location(
-        'vo_patch', os.path.join(ROOT, 'vo-patch.py'))
+        'vo_patch', os.path.join(ROOT, 'vo_patch.py'))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

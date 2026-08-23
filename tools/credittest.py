@@ -44,7 +44,7 @@ def pristine(path, want):
 
 def load_patcher():
     import importlib.util
-    path = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
+    path = os.path.join(os.path.dirname(HERE), 'vo_patch.py')
     spec = importlib.util.spec_from_file_location('vo_patch', path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

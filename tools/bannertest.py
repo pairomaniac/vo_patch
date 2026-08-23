@@ -25,7 +25,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATCHER = os.path.join(os.path.dirname(HERE), 'vo-patch.py')
+PATCHER = os.path.join(os.path.dirname(HERE), 'vo_patch.py')
 
 
 def pristine(path, want):

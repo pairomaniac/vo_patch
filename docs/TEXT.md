@@ -125,7 +125,7 @@ python3 tools/vonbanner.py /path/to/VIRTUAL-ON --text 'Press Start' --write
 ```
 
 That writes the game's files directly, which is enough to see it. To ship it,
-take the bitmap it produces and replace `BANNER_BITS` in `vo-patch.py`; the
+take the bitmap it produces and replace `BANNER_BITS` in `vo_patch.py`; the
 patcher expands it into tiles and the index table at import.
 
 The rendering depends on which font is installed, so it is generated once and
