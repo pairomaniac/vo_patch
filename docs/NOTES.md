@@ -58,8 +58,9 @@ does the full copy, which is `Select1`.
 
 Five pressings were read for this: USA, USA Alt, the EU rerelease, the USA
 OEM and the Japanese rerelease, which has the OEM shape. The Japanese
-original has not been, though nothing in the rule depends on the build or
-the language.
+original has not been, so nothing here is known about its `ssp.ini` - the
+rule may well cover it, since none of it depends on the build or the
+language, but that is a guess until a copy is read.
 
 ### The Japanese rerelease
 
