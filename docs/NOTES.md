@@ -77,7 +77,8 @@ depend on an offset.
 
 The title artwork is `jscrgame.bin` here, not `escrgame.bin`, at the same
 4 MB. The patcher names that file in a dozen places, so the banner patch
-needs a per-build name before it could be tried.
+needs a per-build name before it could be tried - and it is why dropping
+the English `v_on.exe` into a Japanese install does not work either.
 
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,

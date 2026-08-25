@@ -527,19 +527,14 @@ fixed file offset, and on another build it would write into unrelated code.
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | installs, does not patch |
 
 The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches.
+carry the same `v_on.exe` byte for byte, so any of them patches. Anything
+else is named if it is one of the builds above and unrecognised if not,
+with both checksums side by side either way - in **GAME FILE** for a file
+you picked, in **INSTALL** for a disc image.
 
-Any other disc is unrecognised rather than named - the Japanese original
-among them, which has not been read here. Installing does not depend on
-knowing the build, so an unrecognised disc still copies as long as its
-`ssp.ini` reads; patching is what needs the English retail build.
-
-Either way both checksums go up side by side, with which build it is when
-that is known - in **GAME FILE** for a file you picked, in **INSTALL** for
-a disc image, where it is said before anything is copied. Copying the
-English `v_on.exe` into another build's install is not a way round the
-patching, either: the Japanese rerelease keeps its title artwork in
-`jscrgame.bin`, which the English executable does not look for.
+Installing and ripping the soundtrack work whichever build the disc holds.
+Only patching needs the English retail build, and copying its `v_on.exe`
+into another build's install is not a way round that.
 
 ### What gets written
 
