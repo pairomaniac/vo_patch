@@ -59,6 +59,10 @@ OTHER_BUILDS = {
         6649344, 'USA OEM',
         'A different release of the same game. Everything here is written '
         'for the retail disc build.'),
+    'd19320bdc3381a48228990907910a391': (
+        6621696, 'Japanese rerelease',
+        'A different release of the same game. Everything here is written '
+        'for the retail disc build.'),
 }
 
 RETAIL_HINT = ('Install from a retail disc image above, or pick a copy '

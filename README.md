@@ -524,11 +524,12 @@ fixed file offset, and on another build it would write into unrelated code.
 | --- | --- | --- | --- |
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
+| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | not supported |
 
 Anything else gets both checksums side by side and which one it is - in
 **GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
-is checked before anything is copied. Ripping the soundtrack off an OEM disc
-still works; only patching needs the retail build.
+is checked before anything is copied. Installing and ripping the soundtrack
+work on any of them; only patching needs the retail build.
 
 ### What gets written
 
