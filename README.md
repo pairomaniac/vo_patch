@@ -525,9 +525,12 @@ fixed file offset, and on another build it would write into unrelated code.
 | Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | not supported |
+| Japanese original | - | not checked | not supported |
 
 The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches.
+carry the same `v_on.exe` byte for byte, so any of them patches. The
+Japanese original has not been through here, so the patcher cannot name
+it and calls it unrecognised instead.
 
 Anything else gets both checksums side by side and which one it is - in
 **GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
