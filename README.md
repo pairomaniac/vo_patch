@@ -532,7 +532,7 @@ carry the same `v_on.exe` byte for byte, so any of them patches.
 Anything else gets both checksums side by side and which one it is - in
 **GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
 is checked before anything is copied. Installing and ripping the soundtrack
-work on any of them; only patching needs the retail build.
+work on any of them; only patching needs the English retail build.
 
 ### What gets written
 

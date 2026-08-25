@@ -58,15 +58,15 @@ OTHER_BUILDS = {
     '4c70f780a7f0d98d74be62304fb99021': (
         6649344, 'USA OEM',
         'A different release of the same game. Everything here is written '
-        'for the retail disc build.'),
+        'for the English retail build.'),
     'd19320bdc3381a48228990907910a391': (
         6621696, 'Japanese rerelease',
         'A different release of the same game. Everything here is written '
-        'for the retail disc build.'),
+        'for the English retail build.'),
 }
 
-RETAIL_HINT = ('Install from a retail disc image above, or pick a copy '
-               'installed from one.')
+RETAIL_HINT = ('Install from an English retail disc image above, or pick '
+               'a copy installed from one.')
 
 # Patcher.load has no idea how many boxes are ticked, so it returns this and
 # the window swaps in a count. Anything else using load gets a plain word.
@@ -5311,7 +5311,7 @@ def run_tk():
                 self.disc_compare.show(compare_report(
                     build['size'], build['md5'], build['why'],
                     'Rip soundtrack still works; only patching needs '
-                    'the retail build.',
+                    'the English retail build.',
                     'warn'))
                 self._disc_note('CANNOT INSTALL - %s build.' % build['name'],
                                 PALETTE['amber'])
@@ -6196,7 +6196,7 @@ def install_cli(args):
     build = info['build']
     if not build['supported']:
         return ('This disc holds the %s build of v_on.exe (%s).\n%s\n'
-                'The patches are written for the retail disc build, so '
+                'The patches are written for the English retail build, so '
                 'installing this one gains nothing - but --rip still works.'
                 % (build['name'], build['md5'], build['why']))
     why, level = dest_problem(dest, info['bytes'])
