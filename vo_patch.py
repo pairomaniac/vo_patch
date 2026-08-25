@@ -4224,6 +4224,9 @@ INSTALL_ODD_AUDIO = ('This image has %d audio tracks; Virtual-On has %d. '
 # What a good disc looks like, in one line: enough to tell a full rip from a
 # data-only one before anything is written.
 INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
+# The copy is the same work whichever build is on the disc, so it runs; only
+# the patches are English-retail-only, which the card below spells out.
+INSTALL_FOUND_OTHER = '%s build. %d files, %d MB - installs, does not patch.'
 
 ESSENTIAL_HINT = ('Always applied. Each fixes something that is broken on a '
                   'modern system, and none of them has a trade-off.')
@@ -5310,12 +5313,15 @@ def run_tk():
             else:
                 # The same panel the game file card uses, for the same
                 # reason: the numbers say more than "wrong version" does.
+                self.disc_ok = True
                 self.disc_compare.show(compare_report(
                     build['size'], build['md5'], build['why'],
-                    'Rip soundtrack still works; only patching needs '
+                    'Installing and ripping still work; only patching needs '
                     'the English retail build.',
                     'warn'))
-                self._disc_note('CANNOT INSTALL - %s build.' % build['name'],
+                self._disc_note(INSTALL_FOUND_OTHER
+                                % (build['name'], info['count'],
+                                   info['bytes'] >> 20),
                                 PALETTE['amber'])
                 self._log('disc: v_on.exe is the %s build (%s)'
                           % (build['name'], build['md5']))
@@ -6197,10 +6203,9 @@ def install_cli(args):
                                             info['default_language']))
     build = info['build']
     if not build['supported']:
-        return ('This disc holds the %s build of v_on.exe (%s).\n%s\n'
-                'The patches are written for the English retail build, so '
-                'installing this one gains nothing - but --rip still works.'
-                % (build['name'], build['md5'], build['why']))
+        print('This disc holds the %s build of v_on.exe (%s).\n%s\n'
+              'It installs, but the patches need the English retail build.'
+              % (build['name'], build['md5'], build['why']))
     why, level = dest_problem(dest, info['bytes'])
     if level == 'bad':
         return why

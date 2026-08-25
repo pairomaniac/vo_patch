@@ -105,8 +105,8 @@ def main():
     here = os.path.join(tmp, 'disc')
     os.makedirs(here)
 
-    # A stand-in reads as an unsupported build, which is correct and is what
-    # the refusal checks want; the real one lets the copy run.
+    # A stand-in reads as an unsupported build, which is what the check
+    # below wants; the real one is what the copy is exercised on.
     #
     # pristine, because a development copy of the game is normally patched -
     # which is the point of having one - and the patched file is not a build
@@ -198,9 +198,9 @@ def main():
     check('the rip is offered for a readable image', enabled('Rip soundtrack'),
           'it needs a destination as well as a source')
     if not real:
-        check('a stand-in build is refused for the install',
-              not enabled('Install game'),
-              'only the retail build may be installed')
+        check('another build is offered for the install too',
+              enabled('Install game'),
+              'the copy does not depend on which build is on the disc')
     else:
         check('the install is offered for a retail disc',
               enabled('Install game'))

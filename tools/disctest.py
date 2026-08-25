@@ -10,8 +10,10 @@ only be exercised by owning four pressings - the sector probe, the directory
 walk, the ssp.ini rules, and the refusals.
 """
 
+import contextlib
 import hashlib
 import importlib.util
+import io
 import os
 import shutil
 import struct
@@ -378,7 +380,7 @@ def main():
         vp.OTHER_BUILDS[hashlib.md5(jp_exe).hexdigest()] = (
             len(jp_exe), 'Japanese rerelease', 'test')
         info = vp.probe_disc(jp)
-        check('jp build refused', not info['build']['supported'])
+        check('jp build not patchable', not info['build']['supported'])
         check('jp build named', info['build']['name'] == 'Japanese rerelease',
               info['build']['name'])
         check('jp copies no language directory', not info['wants_language'])
@@ -390,6 +392,20 @@ def main():
                                            'v_on.exe', 'v_on_a.ini',
                                            'v_on_b.ini', 'von.hlp'],
               sorted(os.listdir(dest)))
+
+        # --install says which build it is and copies it anyway. The copy is
+        # the same work whichever build is on the disc; only the patches are
+        # English-retail-only.
+        cli_dest = os.path.join(tmp, 'game-jp-cli')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            err = vp.install_cli([jp, cli_dest])
+        check('--install copies another build', err in (None, 0), err)
+        check('and names it first',
+              'Japanese rerelease' in out.getvalue(), out.getvalue()[:120])
+        check('--install file list',
+              os.path.isdir(cli_dest) and len(os.listdir(cli_dest)) == 8,
+              sorted(os.listdir(cli_dest)) if os.path.isdir(cli_dest) else '-')
 
         # One bin for the lot: a track ends at the next track's pregap, not
         # at the end of the file.
