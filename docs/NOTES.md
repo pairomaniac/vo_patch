@@ -61,6 +61,23 @@ OEM and the Japanese rerelease, which has the OEM shape. The Japanese
 original has not been, though nothing in the rule depends on the build or
 the language.
 
+### The Japanese rerelease
+
+Its `v_on.exe` is a separate compile, not the retail one relaid out, so the
+patch tables do not transfer: of the 152 `original` sites, 9 are still where
+they were, 43 turn up elsewhere at inconsistent distances, and the rest are
+gone. The dinput signature finds nothing.
+
+Two things do carry. The ending roll files are byte-identical to retail, so
+the harvested glyphs and the cells stay valid and only the block list in the
+executable would need finding again. And `dpctrl.dll` is imported with the
+same exports, so the netplay replacement is the one patch that does not
+depend on an offset.
+
+The title artwork is `jscrgame.bin` here, not `escrgame.bin`, at the same
+4 MB. The patcher names that file in a dozen places, so the banner patch
+needs a per-build name before it could be tried.
+
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
 so a cue sheet that names the wrong mode still reads.
