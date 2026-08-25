@@ -47,9 +47,19 @@ in `v_on\`. One rule covers both: copy `SourcePath1`, plus the chosen
 section's `LangExeclusive` directory when `Select1` names it. A section whose
 directory is not on the disc is not offered.
 
-Four pressings were read for this: USA, USA Alt, the EU rerelease and the USA
-OEM. The two Japanese discs have not been, so the rule is untested on them -
-though nothing in it depends on the build or the language.
+The section list is no guide to what is on the disc: the Japanese rerelease
+carries `[JAPANESE]` and `[ENGLISH]`, both with `LangExeclusive` empty, and
+they differ only in which installer chrome they load. That is why the rule
+reads `LangExeclusive` rather than the section names.
+
+Discs offer smaller installs as well - `Select2` skips the AVI, `Select3`
+copies the list in `MinimumCopy3` - and the patcher ignores both. It always
+does the full copy, which is `Select1`.
+
+Five pressings were read for this: USA, USA Alt, the EU rerelease, the USA
+OEM and the Japanese rerelease, which has the OEM shape. The Japanese
+original has not been, though nothing in the rule depends on the build or
+the language.
 
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
