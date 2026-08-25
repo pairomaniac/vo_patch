@@ -21,10 +21,11 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LOGICAL = 2048
+RAW = 2352
 
-# The two manifests that matter, cut down to the keys the patcher reads.
-# Retail copies a language directory; the OEM pressing has none and keeps
-# the help files in v_on/ instead.
+# The manifests that matter, cut down to the keys the patcher reads.
+# Retail copies a language directory; the OEM and Japanese pressings have
+# none and keep the help files in v_on/ instead.
 RETAIL_SSP = b"""[option]
 SourcePath1     = V_ON
 IniFileName     = V_ON.INI
@@ -47,6 +48,20 @@ Select1         = SourceCopy
 LangExeclusive  =
 [ENGLISH]
 LangExeclusive  =
+"""
+
+# The Ultra 2000 pressing: OEM shape, Japanese section first.
+JP_SSP = b"""[option]
+SourcePath1     = V_ON
+IniFileName     = V_ON.INI
+DefaultSection  = English
+Select1         = SourceCopy
+[JAPANESE]
+LangExeclusive  =
+[ENGLISH]
+LangExeclusive  =
+[RunTime]
+DirectX         = Yes
 """
 
 
@@ -144,6 +159,51 @@ def build_iso(tree):
     for _name, at, data, _parent in files:
         image[at * LOGICAL:at * LOGICAL + len(data)] = data
     return bytes(image)
+
+
+def _msf(sectors):
+    return '%02d:%02d:%02d' % (sectors // (75 * 60), sectors // 75 % 60,
+                               sectors % 75)
+
+
+def write_one_bin(directory, name, image, form, audio):
+    """One bin holding every track, indices absolute. Returns cue and spans.
+
+    What a whole-disc rip looks like: each audio track after the first sits
+    behind a 150 sector pregap inside the same file, so a track ends at the
+    next one's INDEX 00 rather than at EOF.
+    """
+    offset = {'MODE1/2352': 16, 'MODE2/2352': 24}[form]
+    raw = bytearray()
+    for at in range(0, len(image), LOGICAL):
+        sector = bytearray(RAW)
+        sector[0:12] = b'\x00' + b'\xff' * 10 + b'\x00'
+        sector[offset:offset + LOGICAL] = image[at:at + LOGICAL]
+        raw += sector
+
+    track = '%s.bin' % name
+    lines = ['FILE "%s" BINARY' % track, '  TRACK 01 %s' % form,
+             '    INDEX 01 00:00:00']
+    spans = []
+    for number in range(2, 2 + audio):
+        pregap = None
+        if number > 2:                       # first audio track has none
+            pregap = len(raw) // RAW
+            raw += bytes(RAW * 150)
+        start = len(raw) // RAW
+        lines += ['FILE "%s" BINARY' % track, '  TRACK %02d AUDIO' % number]
+        if pregap is not None:
+            lines.append('    INDEX 00 %s' % _msf(pregap))
+        lines.append('    INDEX 01 %s' % _msf(start))
+        raw += bytes(RAW * 200)
+        spans.append((number, start, start + 200))
+
+    with open(os.path.join(directory, track), 'wb') as fh:
+        fh.write(bytes(raw))
+    cue = os.path.join(directory, '%s.cue' % name)
+    with open(cue, 'w') as fh:
+        fh.write('\n'.join(lines) + '\n')
+    return cue, spans
 
 
 def write_disc(directory, name, image, form, audio=0):
@@ -300,6 +360,38 @@ def main():
                                            'v_on_a.ini', 'v_on_b.ini',
                                            'von.hlp'],
               sorted(os.listdir(dest)))
+
+        # The Ultra 2000 pressing: OEM shape with a Japanese section, and a
+        # whole-disc rip rather than one bin per track.
+        here = os.path.join(tmp, 'jp')
+        os.makedirs(here)
+        jp_exe = bytes(6621696)
+        jp, spans = write_one_bin(here, 'JP', build_iso({
+            'ssp.ini': JP_SSP,
+            'v_on': {'v_on.exe': jp_exe, 'von.hlp': b'H' * 99,
+                     'cpuid32.dll': b'C' * 50, 'jscrgame.bin': b'J' * 40,
+                     'v_on_a.ini': b'[Option]\n', 'v_on_b.ini': b'[Option]\n'},
+        }), 'MODE1/2352', audio=3)
+        vp.OTHER_BUILDS[hashlib.md5(jp_exe).hexdigest()] = (
+            len(jp_exe), 'Japanese rerelease', 'test')
+        info = vp.probe_disc(jp)
+        check('jp build refused', not info['build']['supported'])
+        check('jp build named', info['build']['name'] == 'Japanese rerelease',
+              info['build']['name'])
+        check('jp copies no language directory', not info['wants_language'])
+        dest = os.path.join(tmp, 'game-jp')
+        vp.install_disc(jp, dest)
+        check('jp file list',
+              sorted(os.listdir(dest)) == ['cpuid32.dll', 'jscrgame.bin',
+                                           'v_on.exe', 'v_on_a.ini',
+                                           'v_on_b.ini', 'von.hlp'],
+              sorted(os.listdir(dest)))
+
+        # One bin for the lot: a track ends at the next track's pregap, not
+        # at the end of the file.
+        got = [(t['no'], start, end)
+               for t, start, end in vp._audio_spans(vp.parse_cue(jp))]
+        check('one-bin cue rips to track bounds', got == spans, got)
 
         # Refusals, each naming what is wrong rather than failing bare.
         here = os.path.join(tmp, 'no_ssp')
