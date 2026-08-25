@@ -66,8 +66,9 @@ OTHER_BUILDS = {
         'build.'),
 }
 
-RETAIL_HINT = ('Install from an English retail disc image above, or pick '
-               'a copy installed from one.')
+RETAIL_HINT = ('Install from an English retail disc image above, or pick a '
+               'copy installed from one. Its v_on.exe alone will not do: the '
+               'patcher writes to files beside it.')
 
 # Patcher.load has no idea how many boxes are ticked, so it returns this and
 # the window swaps in a count. Anything else using load gets a plain word.

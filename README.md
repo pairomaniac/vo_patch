@@ -535,7 +535,10 @@ it and calls it unrecognised instead.
 Anything else gets both checksums side by side and which one it is - in
 **GAME FILE** for a file you picked, in **INSTALL** for a disc image, which
 is checked before anything is copied. Installing and ripping the soundtrack
-work on any of them; only patching needs the English retail build.
+work on any of them; only patching needs the English retail build. Copying
+that `v_on.exe` into another build's install is not a way round it: the
+Japanese rerelease keeps its title artwork in `jscrgame.bin`, which the
+English executable does not look for.
 
 ### What gets written
 
