@@ -47,6 +47,10 @@ in `v_on\`. One rule covers both: copy `SourcePath1`, plus the chosen
 section's `LangExeclusive` directory when `Select1` names it. A section whose
 directory is not on the disc is not offered.
 
+Four pressings were read for this: USA, USA Alt, the EU rerelease and the USA
+OEM. The two Japanese discs have not been, so the rule is untested on them -
+though nothing in it depends on the build or the language.
+
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
 so a cue sheet that names the wrong mode still reads.
