@@ -589,12 +589,14 @@ the matchcode server.
 folder and it runs the ones that need one.
 [docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
----
+## AI Disclaimer
 
-Written with AI assistance. Every offset and byte sequence is checked against
-the original executable before it is written, and the patcher refuses anything
-that is not the unmodified disc file - but this is a hobby project poking at a
-nearly 30-year-old binary so expect bugs.
+LLMs are part of the toolchain here. The scope, the disc dumps, the testing and
+the debugging are human, and every release runs on the real game before it ships.
+Offsets and byte sequences are verified against the original executable before
+anything is written, and the patcher refuses any file that is not the unmodified
+retail build - but this is a hobby project poking at a nearly 30-year-old binary,
+so expect bugs.
 
 ## Credits and licence
 
