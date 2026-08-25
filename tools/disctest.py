@@ -51,6 +51,8 @@ LangExeclusive  =
 """
 
 # The Ultra 2000 pressing: OEM shape, Japanese section first.
+# The Japanese rerelease, trimmed from the disc's own ssp.ini. Both language
+# sections are empty, so no language directory is copied and none is offered.
 JP_SSP = b"""[option]
 SourcePath1     = V_ON
 IniFileName     = V_ON.INI
@@ -370,6 +372,7 @@ def main():
             'ssp.ini': JP_SSP,
             'v_on': {'v_on.exe': jp_exe, 'von.hlp': b'H' * 99,
                      'cpuid32.dll': b'C' * 50, 'jscrgame.bin': b'J' * 40,
+                     'jscradv.bin': b'A' * 40, 'scrstfcg.bin': b'S' * 40,
                      'v_on_a.ini': b'[Option]\n', 'v_on_b.ini': b'[Option]\n'},
         }), 'MODE1/2352', audio=3)
         vp.OTHER_BUILDS[hashlib.md5(jp_exe).hexdigest()] = (
@@ -382,7 +385,8 @@ def main():
         dest = os.path.join(tmp, 'game-jp')
         vp.install_disc(jp, dest)
         check('jp file list',
-              sorted(os.listdir(dest)) == ['cpuid32.dll', 'jscrgame.bin',
+              sorted(os.listdir(dest)) == ['cpuid32.dll', 'jscradv.bin',
+                                           'jscrgame.bin', 'scrstfcg.bin',
                                            'v_on.exe', 'v_on_a.ini',
                                            'v_on_b.ini', 'von.hlp'],
               sorted(os.listdir(dest)))
