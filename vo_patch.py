@@ -61,8 +61,9 @@ OTHER_BUILDS = {
         'for the English retail build.'),
     'd19320bdc3381a48228990907910a391': (
         6621696, 'Japanese rerelease',
-        'A different release of the same game. Everything here is written '
-        'for the English retail build.'),
+        'A separate compile of the same game, so the offsets here do not '
+        'line up with it. Everything is written for the English retail '
+        'build.'),
 }
 
 RETAIL_HINT = ('Install from an English retail disc image above, or pick '
