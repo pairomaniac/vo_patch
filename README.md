@@ -591,12 +591,12 @@ folder and it runs the ones that need one.
 
 ## AI Disclaimer
 
-LLMs are part of the toolchain here. The scope, the disc dumps, the testing and
-the debugging are human, and every release runs on the real game before it ships.
-Offsets and byte sequences are verified against the original executable before
-anything is written, and the patcher refuses any file that is not the unmodified
-retail build - but this is a hobby project poking at a nearly 30-year-old binary,
-so expect bugs.
+LLMs are part of the toolchain here. The scope, the disc dumps, the testing
+and the debugging are human, and nothing ships without a thorough read of the
+code and a run on the real game. Offsets and byte sequences are verified
+against the original executable before anything is written, and the patcher
+refuses any file that is not the unmodified retail build - but this is a hobby
+project poking at a nearly 30-year-old binary, so expect bugs.
 
 ## Credits and licence
 
