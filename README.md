@@ -12,6 +12,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
 
 <h4 align="center">
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
+  <a href="#virus-warnings">Virus warnings</a> &nbsp;·&nbsp;
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
@@ -20,12 +21,24 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#which-build">Which build</a>
 </h4>
 
+## Virus warnings
+
+Defender and other scanners flag the download sometimes, as a false
+positive. It is an unsigned program that edits another program, which is the
+sort of thing they warn about.
+
+If you would rather not run it, `vo_patch.py` does everything the download
+does - see [Running from source](#running-from-source). Each release is
+built here on GitHub and the build log lists the file's checksum, if you
+want to check yours matches.
+
 ## Quick start
 
 **Download** `vo_patch-*.exe` from the
 [latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
 It is unsigned, so SmartScreen calls it an unknown publisher on the first
-run. On Linux, see [Running from source](#running-from-source).
+run, and see [Virus warnings](#virus-warnings) if a scanner objects. On
+Linux, see [Running from source](#running-from-source).
 
 The sections are numbered in the order to work through them.
 
