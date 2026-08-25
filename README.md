@@ -522,10 +522,10 @@ fixed file offset, and on another build it would write into unrelated code.
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
-| English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
-| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
-| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | not supported |
-| Japanese original | - | not checked | not supported |
+| English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
+| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | installs, does not patch |
+| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | installs, does not patch |
+| Japanese original | - | not checked | installs, does not patch |
 
 The three retail pressings - USA, USA Alt and the European rerelease -
 carry the same `v_on.exe` byte for byte, so any of them patches. The
