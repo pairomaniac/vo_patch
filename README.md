@@ -522,7 +522,7 @@ fixed file offset, and on another build it would write into unrelated code.
 
 | Build | Size | MD5 | |
 | --- | --- | --- | --- |
-| Retail disc | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
+| English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | supported |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | not supported |
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | not supported |
 | Japanese original | - | not checked | not supported |
@@ -602,8 +602,8 @@ LLMs are part of the toolchain here. The scope, the disc dumps, the testing
 and the debugging are human, and nothing ships without a thorough read of the
 code and a run on the real game. Offsets and byte sequences are verified
 against the original executable before anything is written, and the patcher
-refuses any file that is not the unmodified retail build - but this is a hobby
-project poking at a nearly 30-year-old binary, so expect bugs.
+refuses any file that is not the unmodified English retail build - but this
+is a hobby project poking at a nearly 30-year-old binary, so expect bugs.
 
 ## Credits and licence
 
