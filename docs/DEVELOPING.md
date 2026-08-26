@@ -245,7 +245,7 @@ on a machine that should keep one up.
 that has drifted from the source shows up:
 
 ```bash
-python3 tools/rvload.py segaonline.net us.segaonline.net
+python3 tools/rvload.py segaonline.net us.segaonline.net jp.segaonline.net
 ```
 
 Each probe targets one thing the server does: the create round trip, a full

@@ -55,6 +55,12 @@
    gets through within PUNCH_MS, game traffic goes through the server. */
 #define MATCH_SERVER_EU  "segaonline.net"
 #define MATCH_SERVER_US  "us.segaonline.net"
+#define MATCH_SERVER_JP  "jp.segaonline.net"
+/* Shown under the radios, so the choice names a place and not just a
+   continent. MATCH_WHERE_EU must match wherever 01 actually is. */
+#define MATCH_WHERE_EU   "Europe: Helsinki (segaonline.net)"
+#define MATCH_WHERE_US   "America: New York (us.segaonline.net)"
+#define MATCH_WHERE_JP   "Asia: Tokyo (jp.segaonline.net)"
 #define MATCH_INI        ".\\vo-net.ini"   /* Custom server; relay=1 for tests */
 #define MATCH_PORT       47625
 #define MATCH_MAGIC      "VOR1"
@@ -65,6 +71,9 @@
 #define REGION_EU        0
 #define REGION_US        1
 #define REGION_OTHER     2
+/* Appended, not inserted: the value is written to vo-net.ini, so renumbering
+   would change what an existing file means. An older DLL clamps 3 to EU. */
+#define REGION_JP        3
 #define RELAY_HDR        (5 + CODE_LEN)   /* "VOR1" 'R' code */
 
 /* packet types. 1..0x18 are the original's; 0x80+ are ours. */
@@ -443,10 +452,11 @@ static int handle_packet(void)
 #define ID_EU      0x3F4    /* radio: region               */
 #define ID_US      0x3F5
 #define ID_REGLBL  0x3F6
+#define ID_JP      0x3F7
 #define ID_CUSTOM  0x3F8    /* radio: a server of your own */
 #define ID_HINT    0x3FA
 #define ID_SERVER  0x3F9
-#define ID_PORTLBL 0x3F7
+#define ID_PORTLBL 0x3FE
 #define ID_HOWTO   0x3FD    /* the host how-to, shown only in matchcode+host */
 
 #define STUN_HOST1 "stun.l.google.com"
@@ -679,28 +689,51 @@ static void local_addresses(char *out, int outsz)
 /* Show and enable only what the current mode needs. */
 static int parse_code(const char *text, int *region, char *code);
 
+/* Which region the radios are on. Only meaningful while hosting; a guest's
+   region comes from the code typed. */
+static int region_checked(HWND dlg)
+{
+    return IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED ? REGION_US
+         : IsDlgButtonChecked(dlg, ID_JP) == BST_CHECKED ? REGION_JP
+         : IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED ? REGION_OTHER
+         : REGION_EU;
+}
+
+/* The line under the radios: where the chosen server is. */
+static const char *region_where(int region)
+{
+    return region == REGION_US ? MATCH_WHERE_US
+         : region == REGION_JP ? MATCH_WHERE_JP
+         : region == REGION_OTHER ? "Your own server, at the address above."
+         : MATCH_WHERE_EU;
+}
+
 static void set_mode(HWND dlg)
 {
     int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
     int match   = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
     int addr_sw = (hosting && !match) ? SW_SHOW : SW_HIDE;
-    int custom;
+    int custom, known = 1, region = REGION_EU;
 
     /* Region is the host's choice; the guest's code carries it. The
        address field follows the radio while hosting and the typed code
-       while joining, since a CUST code names no server. */
+       while joining, since an XX code names no server. */
     if (hosting) {
-        custom = IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED;
+        region = region_checked(dlg);
     } else {
         char buf[32], code[CODE_LEN + 1];
-        int region;
         GetDlgItemTextA(dlg, ID_IP, buf, sizeof(buf));
-        custom = parse_code(buf, &region, code) && region == REGION_OTHER;
+        known = parse_code(buf, &region, code);
     }
+    custom = known && region == REGION_OTHER;
+
+    SetDlgItemTextA(dlg, ID_HINT, known ? region_where(region)
+                                        : "Type the code the host gave you.");
 
     EnableWindow(GetDlgItem(dlg, ID_REGLBL), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_EU), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_US), match && hosting);
+    EnableWindow(GetDlgItem(dlg, ID_JP), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_CUSTOM), match && hosting);
     EnableWindow(GetDlgItem(dlg, ID_SERVER), match && custom);
     EnableWindow(GetDlgItem(dlg, ID_HINT), match);
@@ -721,12 +754,13 @@ static void set_mode(HWND dlg)
         SetFocus(GetDlgItem(dlg, ID_IP));
 }
 
-/* The tag a code carries, so the guest reaches the same server. CUST says
+/* The tag a code carries, so the guest reaches the same server. XX says
    only that it is not one of ours; the guest fills in the address by hand. */
 static const char *code_tag(int region)
 {
     return region == REGION_US ? "US"
-         : region == REGION_OTHER ? "CUST" : "EU";
+         : region == REGION_JP ? "JP"
+         : region == REGION_OTHER ? "XX" : "EU";
 }
 
 /* Region to endpoint. Custom is "host" or "host:port". 0 if it will not
@@ -744,6 +778,7 @@ static int resolve_server(int region, const char *other,
         lstrcpynA(host, other, sizeof(host));
     else
         lstrcpynA(host, region == REGION_US ? MATCH_SERVER_US
+                      : region == REGION_JP ? MATCH_SERVER_JP
                                             : MATCH_SERVER_EU, sizeof(host));
     colon = strchr(host, ':');
     if (colon) {
@@ -770,9 +805,10 @@ static int resolve_server(int region, const char *other,
 /* "EU-ABCDE", "cust abcde" -> region and bare code. 0 if it is
    not a code. */
 static const struct { const char *tag; int region; } tags[] = {
-    { "CUST", REGION_OTHER },
     { "EU",   REGION_EU },
+    { "JP",   REGION_JP },
     { "US",   REGION_US },
+    { "XX",   REGION_OTHER },
 };
 
 static int parse_code(const char *text, int *region, char *code)
@@ -832,12 +868,13 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         g.region = GetPrivateProfileIntA("net", "region", REGION_EU,
                                          MATCH_INI);
         g.force_relay = GetPrivateProfileIntA("net", "relay", 0, MATCH_INI);
-        if (g.region < REGION_EU || g.region > REGION_OTHER)
+        if (g.region < REGION_EU || g.region > REGION_JP)
             g.region = REGION_EU;
 
         CheckRadioButton(dlg, ID_MATCH, ID_DIRECT, ID_MATCH);
         CheckRadioButton(dlg, ID_EU, ID_CUSTOM,
                          g.region == REGION_US ? ID_US :
+                         g.region == REGION_JP ? ID_JP :
                          g.region == REGION_OTHER ? ID_CUSTOM : ID_EU);
         CheckRadioButton(dlg, ID_HOST, ID_JOIN, ID_HOST);
         set_mode(dlg);
@@ -847,12 +884,12 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case ID_HOST: case ID_JOIN: case ID_MATCH: case ID_DIRECT:
-        case ID_EU: case ID_US: case ID_CUSTOM:
+        case ID_EU: case ID_US: case ID_JP: case ID_CUSTOM:
             set_mode(dlg);
             return TRUE;
         case ID_IP:
             if (HIWORD(wp) == EN_CHANGE)
-                set_mode(dlg);   /* a CUST code needs the address field */
+                set_mode(dlg);   /* an XX code needs the address field */
             return TRUE;
 
         /* Off by default, and one click hides it again: the public address
@@ -886,9 +923,7 @@ static INT_PTR CALLBACK connect_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         case IDOK: {
             int hosting = IsDlgButtonChecked(dlg, ID_HOST) == BST_CHECKED;
             g.match  = IsDlgButtonChecked(dlg, ID_MATCH) == BST_CHECKED;
-            g.region = IsDlgButtonChecked(dlg, ID_US) == BST_CHECKED ? REGION_US
-                     : IsDlgButtonChecked(dlg, ID_CUSTOM) == BST_CHECKED
-                       ? REGION_OTHER : REGION_EU;
+            g.region = region_checked(dlg);
             GetDlgItemTextA(dlg, ID_SERVER, g.server, sizeof(g.server));
 
             GetDlgItemTextA(dlg, ID_PORT, buf, sizeof(buf));
@@ -956,7 +991,7 @@ static int ask_connection(HINSTANCE inst)
        group; creation order is not layout order. The count in the header
        must match the controls below, or the tail of the dialog is dropped
        without a word. */
-    p = tpl_head(buf, DLG_STYLE, 270, 268, 23, "Virtual-On Netplay");
+    p = tpl_head(buf, DLG_STYLE, 270, 268, 24, "Virtual-On Netplay");
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
                 8, 6, 254, 112, 0xFFFF, CLS_BUTTON, "Connection");
@@ -969,17 +1004,19 @@ static int ask_connection(HINSTANCE inst)
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 38, 36, 9,
                 ID_REGLBL, CLS_STATIC, "Region:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP | WS_TABSTOP |
-                BS_AUTORADIOBUTTON, 66, 36, 46, 12,
+                BS_AUTORADIOBUTTON, 66, 36, 44, 12,
                 ID_EU, CLS_BUTTON, "Europe");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                116, 36, 50, 12, ID_US, CLS_BUTTON, "America");
+                112, 36, 50, 12, ID_US, CLS_BUTTON, "America");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-                170, 36, 46, 12, ID_CUSTOM, CLS_BUTTON, "Custom:");
+                164, 36, 38, 12, ID_JP, CLS_BUTTON, "Asia");
+    p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+                206, 36, 48, 12, ID_CUSTOM, CLS_BUTTON, "Custom:");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
                 66, 52, 188, 12, ID_SERVER, CLS_EDIT, "");
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE, 32, 68, 222, 9,
                 ID_HINT, CLS_STATIC,
-                "Europe and America are hosted by segaonline.net.");
+                MATCH_WHERE_EU);
 
     p = tpl_ctl(buf, p, WS_CHILD | WS_VISIBLE | WS_GROUP, 28, 102, 34, 9,
                 ID_PORTLBL, CLS_STATIC, "Port:");
@@ -1241,6 +1278,7 @@ static INT_PTR CALLBACK wait_proc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp)
         if (g.match)
             netlog("matchcode: %s server %s:%d",
                    g.region == REGION_US ? "US" :
+                   g.region == REGION_JP ? "JP" :
                    g.region == REGION_OTHER ? "custom" : "EU",
                    inet_ntoa(g.rv.sin_addr), ntohs(g.rv.sin_port));
         SetDlgItemTextA(dlg, ID_STATUS,

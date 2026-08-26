@@ -104,14 +104,14 @@ always tried first.
 
 ### Codes
 
-Codes are shown as `EU-ABCDE` or `US-ABCDE`. A code only exists on the
+Codes are shown as `EU-ABCDE`, `US-ABCDE` or `JP-ABCDE`. A code only exists on the
 server that issued it, so the guest has to reach that same one, and the tag
 is how it knows which. Hyphens, spaces and case are ignored on the way in;
-the tag itself is required. Hostnames are `MATCH_SERVER_EU` and
-`MATCH_SERVER_US` in `dpctrl.c`, port 47625.
+the tag itself is required. Hostnames are `MATCH_SERVER_EU`,
+`MATCH_SERVER_US` and `MATCH_SERVER_JP` in `dpctrl.c`, port 47625.
 
 *Custom* points both sides at a server of their own, `host` or `host:port`.
-Those codes are `CUST-ABCDE`: the tag says only that it is not one of ours,
+Those codes are `XX-ABCDE`: the tag says only that it is not one of ours,
 so the guest fills in the same address. The choice and the address are kept
 in `vo-net.ini` next to the game, so it is typed once:
 

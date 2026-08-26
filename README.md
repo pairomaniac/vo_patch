@@ -278,7 +278,7 @@ at the same moment. Once a match is running, a player who quits or crashes is
 noticed within a few seconds.
 
 **Custom** points both players at a server that is not one of ours. Both
-enter the same address, and codes from it read `CUST-ABCDE`.
+enter the same address, and codes from it read `XX-ABCDE`.
 
 ### Playing by IP
 
