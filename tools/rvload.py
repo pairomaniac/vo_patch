@@ -73,6 +73,19 @@ def probe_latency(sv, n=20):
         return 'no create'
     code = r[5:]
     call(g, sv.addr, MAGIC + b'J' + code)      # so H gets a P, not silence
+
+    # The join is answered to both sides, so h already holds a P. Reading it
+    # here rather than in the loop below keeps each timed H matched with its
+    # own reply; without this the probe stays one datagram behind and reports
+    # the sleep instead of the round trip.
+    h.setblocking(False)
+    try:
+        while True:
+            h.recvfrom(2048)
+    except OSError:
+        pass
+    h.settimeout(2.0)
+
     got = []
     for _ in range(n):
         t = time.perf_counter()
