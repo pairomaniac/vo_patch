@@ -104,11 +104,19 @@ always tried first.
 
 ### Codes
 
-Codes are shown as `EU-ABCDE`, `US-ABCDE` or `JP-ABCDE`. A code only exists on the
-server that issued it, so the guest has to reach that same one, and the tag
-is how it knows which. Hyphens, spaces and case are ignored on the way in;
-the tag itself is required. Hostnames are `MATCH_SERVER_EU`,
-`MATCH_SERVER_US` and `MATCH_SERVER_JP` in `dpctrl.c`, port 47625.
+Codes are shown as `EU-ABCDE`, `US-ABCDE` or `JP-ABCDE`. A code only exists
+on the server that issued it, so the guest has to reach that same one, and
+the tag is how it knows which. Hyphens, spaces and case are ignored on the
+way in; the tag itself is required.
+
+| Tag | Constant | Server | Where |
+| --- | --- | --- | --- |
+| `EU` | `MATCH_SERVER_EU` | `segaonline.net` | Helsinki |
+| `US` | `MATCH_SERVER_US` | `us.segaonline.net` | New York |
+| `JP` | `MATCH_SERVER_JP` | `jp.segaonline.net` | Tokyo |
+
+The constants are in `dpctrl.c`; the port is `MATCH_PORT`, 47625. The
+locations are also in `MATCH_WHERE_*`, which is what the dialog shows.
 
 *Custom* points both sides at a server of their own, `host` or `host:port`.
 Those codes are `XX-ABCDE`: the tag says only that it is not one of ours,

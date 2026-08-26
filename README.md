@@ -261,17 +261,26 @@ forwarding, no VPN. Direct IP is still there for LAN play.
 This is the default, and nobody forwards anything.
 
 1. **Host:** leave the connection on **Matchcode**, pick a **Region** -
-   Europe or America, whichever is nearer the host - then choose **Host a
-   game** and press **OK**.
+   Europe, America or Asia, whichever is nearer the host; the line below
+   the buttons says where each one is - then choose **Host a game** and
+   press **OK**.
 2. The dialog shows a code like `EU-ABCDE`, with a **Copy** button. Send it
    to the other player.
 3. **Guest:** choose **Join a game**, type or paste the code in, and press
    **OK**.
 
-The `EU` or `US` in front is the server the code lives on, so the code is
-all the guest needs; hyphens, spaces and case do not matter. The two
+The `EU`, `US` or `JP` in front is the server the code lives on, so the
+code is all the guest needs; hyphens, spaces and case do not matter. The two
 machines talk directly where the routers allow it and through the server
 where they do not, so it works from anywhere with UDP.
+
+| Region | Code | Server | Where |
+| --- | --- | --- | --- |
+| **Europe** | `EU-` | `segaonline.net` | Helsinki |
+| **America** | `US-` | `us.segaonline.net` | New York |
+| **Asia** | `JP-` | `jp.segaonline.net` | Tokyo |
+
+All three listen on UDP 47625.
 
 The guest keeps trying until you cancel, so there is no rush to press things
 at the same moment. Once a match is running, a player who quits or crashes is
