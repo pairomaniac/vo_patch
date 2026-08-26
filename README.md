@@ -231,8 +231,7 @@ LAN.
 player hosts and gets a short code, the other types it in - no port
 forwarding, no VPN. Direct IP is still there for LAN play.
 
-<img height="360" alt="netplay dialog" src="https://github.com/user-attachments/assets/8b71e77f-42d9-40c0-bd1e-8222fd7c98de" />
-<br /><br />
+<img height="360" alt="netplay dialog" src="https://github.com/user-attachments/assets/aab7d268-e9f5-47bb-810c-83b183f253e5" />
 
 ### Before you start
 
