@@ -87,8 +87,7 @@ remove)
 status)
     systemctl status "$NAME" --no-pager | head -4 || true
     echo
-    journalctl -u "$NAME" --since '24 hours ago' --no-pager 2>/dev/null \
-        | awk '/expired,/ {print $NF}' | sort | uniq -c | sort -rn
+    python3 "$PREFIX/rendezvous.py" status
     ;;
 *)
     sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'

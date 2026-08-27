@@ -8,6 +8,7 @@ their game traffic through the server instead and it forwards each
 datagram to the other side. No state beyond the open codes.
 
     python3 rendezvous.py [port]        default 47625
+    python3 rendezvous.py status        what the journal says it did
 
 Wire format, one UDP datagram each, all starting with the magic "VOR1":
 
@@ -39,6 +40,7 @@ exceed. It forwards only between the two endpoints a code registered.
 
 import secrets
 import socket
+import subprocess
 import sys
 import time
 
@@ -198,7 +200,86 @@ def handle(sock, data, addr, now):
         sock.sendto(MAGIC + b'D' + data[5 + CODE_LEN:], other)
 
 
+UNIT = 'vo-rendezvous'
+VERDICTS = ('punched', 'relayed', 'never joined')
+
+
+def tally(unit=UNIT, days=7):
+    """Every code closed in the last `days`, as (verdict -> count) for the
+    last 24 h and for the whole window, plus how far back the journal
+    actually goes. One code, one line, written when the entry expires."""
+    try:
+        out = subprocess.run(
+            ['journalctl', '-u', unit, '--since', '%d days ago' % days,
+             '-o', 'short-unix', '--no-pager'],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return None, None, None, str(e)
+    if out.returncode:
+        return None, None, None, (out.stderr.strip() or 'journalctl failed')
+
+    now = time.time()
+    day = dict.fromkeys(VERDICTS, 0)
+    week = dict.fromkeys(VERDICTS, 0)
+    first = None
+    for line in out.stdout.splitlines():
+        head = line.split(None, 1)
+        if not head:
+            continue
+        try:
+            ts = float(head[0])
+        except ValueError:
+            continue
+        first = ts if first is None else min(first, ts)
+        if ' expired, ' not in line:
+            continue
+        verdict = line.split(' expired, ', 1)[1].strip()
+        if verdict in week:
+            week[verdict] += 1
+            if now - ts <= 86400:
+                day[verdict] += 1
+    return day, week, first, None
+
+
+def status(unit=UNIT, days=7):
+    day, week, first, err = tally(unit, days)
+    if err:
+        print('cannot read the journal for %s: %s' % (unit, err))
+        return 1
+
+    def cell(counts, keys, share=False):
+        """A count, and for a match outcome its share of matches."""
+        n = sum(counts[k] for k in keys)
+        played = counts['punched'] + counts['relayed']
+        if share and played:
+            return '%d (%d%%)' % (n, round(100.0 * n / played))
+        return '%d' % n
+
+    def row(label, keys, share=False, indent=2):
+        print('%s%-*s%12s%12s'
+              % (' ' * indent, 16 - indent, label,
+                 cell(day, keys, share), cell(week, keys, share)))
+
+    print('%-16s%12s%12s' % (unit, '24 hours', '%d days' % days))
+    row('codes closed', VERDICTS)
+    row('matches', VERDICTS[:2])
+    for v in VERDICTS[:2]:
+        row(v, (v,), share=True, indent=4)
+    row('never joined', ('never joined',))
+
+    if first is None:
+        print('\nNothing in the journal for %s.' % unit)
+    else:
+        covered = (time.time() - first) / 86400.0
+        if covered < days - 0.25:
+            print('\nThe journal goes back %.1f days, so the right-hand column '
+                  'covers\nthat much and not %d.' % (covered, days))
+    return 0
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == 'status':
+        sys.exit(status())
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 47625
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('', port))
