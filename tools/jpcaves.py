@@ -3,12 +3,13 @@
     python3 tools/jpcaves.py path/to/jp/v_on.exe
 
 Zero runs in .rdata (and .rsrc for the movie stub), dword-aligned, usable up
-to the first thing .reloc points at inside them, longest blob first, best
-fit, the rest of a run going back into the pool. The nearest pointer target
-before each run is reported so a structure that runs into it can be checked
-by hand. What it printed is the JAPAN caves table in vo_patch.py.
+to the first thing .reloc points at inside them, with nothing .reloc points
+at and no code pointer in the 64 bytes before them - a run of zeros after a
+code pointer is the NULL tail of a handler table, and the game calls through
+those. Longest blob first, best fit, the rest of a run going back into the
+pool. What it prints is the JAPAN caves table in vo_patch.py.
 """
-import sys, re, bisect, importlib.util, os
+import sys, re, bisect, importlib.util, os, struct
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -33,13 +34,21 @@ def runs(secname, minlen):
         # nothing may point inside
         i = bisect.bisect_left(targets, a)
         inside = [t for t in targets[i:] if t < end]
-        # the nearest pointer target before the run
+        # the nearest pointer target before the run, and whether a code
+        # pointer sits in the 64 bytes before it: a run of zeros after one
+        # is the NULL tail of a handler table, and the game calls through
+        # those slots. The rerelease's nameentry cave was one.
         before = targets[i - 1] if i else 0
         padding = start >= BASE + va0 + vs        # section padding: no field in front
+        o = jp.off(a)                             # from the aligned start: a run
+        after_code = any(                         # often begins inside a pointer
+            jp.text_lo <= struct.unpack_from('<I', jp.d, o - k)[0] < jp.text_hi
+            for k in range(4, 65, 4))
         # usable up to the first thing that points inside
         top = inside[0] if inside else end
         out.append(dict(sec=secname, start=a, end=top, free=top - a,
-                        inside=inside, gap=a - before, padding=padding))
+                        inside=inside, gap=a - before, padding=padding,
+                        after_code=after_code))
     return out
 
 
@@ -50,7 +59,8 @@ def allocate(needs):
     out, notes = {}, {}
     for name, length, sec in sorted(needs, key=lambda n: -n[1]):
         cands = [r for r in pool if r['sec'] == sec and r['free'] >= length + 1
-                 and (r['padding'] or r['gap'] >= 4)]
+                 and (r['padding'] or r.get('ours')
+                      or (r['gap'] >= 64 and not r['after_code']))]
         if not cands:
             notes[name] = 'NO CAVE for %d bytes in %s' % (length, sec)
             continue
@@ -65,6 +75,7 @@ def allocate(needs):
         rest['start'] = (r['start'] + length + 4 + 3) & ~3
         rest['free'] = rest['end'] - rest['start']
         rest['gap'] = 4
+        rest['ours'] = True                  # what precedes it is our own blob
         if rest['free'] >= 24:
             pool.append(rest)
     return out, notes

@@ -27,7 +27,7 @@ import sys
 # Everything ticked, per build: retail, then the Japanese rerelease.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '5b531921069d99d887f18545be80e43c',
-    'd19320bdc3381a48228990907910a391': '8657d8fe8aabfdeb9bee743be999a3e1',
+    'd19320bdc3381a48228990907910a391': '9d3abfbf9c36448430d4089b39ab2a0c',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -127,6 +127,9 @@ def check_caves(vp, original, build):
         va = to_va(secs, off)
         if va is not None:
             spans.append((key, va, length))
+    if not spans:
+        print('cave check: nothing written into a run of zeros')
+        return 0
     # Reach back past each cave as well: an address just before one is a
     # table that may run into it, which is the case a scan of the cave
     # itself cannot see.
@@ -220,6 +223,8 @@ def main(path):
     for key, (label, _tip, sites) in table.items():
         seen = set()
         for off, old, _new in sites or ():
+            if off >= len(original):        # the annex, appended at apply
+                continue
             span = range(off, off + len(old) // 2)
             if not seen.isdisjoint(span):
                 seen.update(span)

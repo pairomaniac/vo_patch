@@ -89,24 +89,27 @@ DISC_IMAGES = {
 # or (blob, label) for a place inside one of ours.
 
 class Build(object):
-    def __init__(self, md5, size, sections, caves, symbols, art, sites=None):
+    def __init__(self, md5, size, sections, caves, symbols, art, sites=None,
+                 annex=None):
         self.md5, self.size = md5, size
         # (file offset, virtual address) of each section, in file order
         self.sections = sections
         self.caves, self.symbols = caves, symbols
+        # Blobs with no safe cave go in a section appended before any patch
+        # is written, in this order, 16-aligned: (virtual address, file
+        # offset, names). Both addresses are fixed by the file's own header
+        # - the first appended section can only land in one place - so they
+        # link at import like any cave.
+        self.annex = annex
+        if annex:
+            va, raw, names = annex
+            self.sections = tuple(sections) + ((raw, va),)
         # the title artwork the banner patch redraws: name, size, MD5 (None
         # when no copy has been through here to take one from)
         self.art = art
         # retail site offset -> (this build's offset, its original bytes),
         # for the sites the table names by retail offset; None for retail
         self.sites = sites
-
-    def with_cave(self, name, va):
-        """This build with one cave decided, for apply time."""
-        other = Build(self.md5, self.size, self.sections, dict(self.caves),
-                      self.symbols, self.art, self.sites)
-        other.caves[name] = va
-        return other
 
     def va(self, off):
         """File offset -> virtual address."""
@@ -322,47 +325,13 @@ JAPAN = Build(JAPAN_MD5, JAPAN_SIZE, sections=(
     (0x005fcc00, 0x0365a000),       # .rsrc
     (0x00606400, 0x03664000),       # .reloc
 ), caves={
-    # Runs of zeros in .rdata that nothing in .reloc points into, picked by
-    # tools/jpcaves.py; .text has 50 bytes of padding here, so the timer
-    # stub lives in .rdata too and needs the section made executable.
-    'TIMER': 0x0063a5c0,
-    # DEBUGBOX rides in the appended .voxt section, there being no run of
-    # 269 bytes in this .rdata: apply_extras_template() places it and
-    # relinks what names it. Until then it is at PENDING.
-    'DEBUGBOX': None,
-    'OVERLAY': 0x00638458,
-    'COMMITDEV': 0x0061f74c,
-    'BINDLIST': 0x00601dbc,
-    'BLOCKCUR': 0x005ff5fc,
-    'BINDMAP': 0x005f87e4,
-    'BINDBLOCK': 0x005fca0c,
-    'INIPARSE': 0x005fca70,
-    'PAGESEC': 0x0061eb88,
-    'PAGESEL': 0x005fcad4,
-    'INISAVE': 0x00636cac,
-    'DEVORDER': 0x005ff72c,
-    'INILOAD': 0x005f6144,
-    'PADX': 0x00602df0,
+    # Two places the game itself looks: the F7 device list's own run, and
+    # the levers tail inside the XInput routine. Everything else is in the
+    # annex: the runs of zeros this .rdata has turned out to be the NULL
+    # tails of handler tables, which the game calls through, and there is
+    # no room in what is left. See tools/jpcaves.py.
+    'PAD_DEVLIST': 0x006693a0,
     'LEVERS': ('PADX', 'end'),
-    'TITLEVER': 0x005f8904,
-    'PAD_SIMPLEDEF': 0x00607c98,
-    'PAD_BINDS': 0x00638b28,
-    'TWIN': 0x005f30e0,
-    'PAD_INIKEYS': 0x005f874c,
-    'PAD_NAMES': 0x005fa254,
-    'PAD_PROFILES': 0x0063737c,
-    'PAD_COND': 0x0061f924,
-    'F11PAUSE': 0x0061f510,
-    'INIALL': 0x0061f868,
-    'CREDITS': 0x0061eb20,
-    'CAMSKIP': 0x005f61a4,
-    'NAMEENTRY': 0x005f6f14,
-    'EXTRAS_DATA': 0x005fcb38,
-    'KBPAGE': 0x00609cf8,
-    'INTROWAIT': 0x0061f5cc,
-    'PAD_DEVLIST': 0x006693a0,      # the F7 device list's own run, in .data
-    'MOVIE': 0x0366365c,            # .rsrc padding, after the F5 template's
-                                    # four extra bytes
 }, symbols={
     # Places inside our own blobs, the same labels as retail
     'DEVCUR': ('BINDLIST', 'devcur'),
@@ -501,7 +470,15 @@ JAPAN = Build(JAPAN_MD5, JAPAN_SIZE, sections=(
     'GETCLIENT': 0x036585e4,       # GetClientRect, the hooked one
     'MOVEWINDOW': 0x036585f0,      # MoveWindow
     'MCISEND': 0x0365864c,         # mciSendCommandA
-}, art=('jscrgame.bin', 4194304, None), sites=None)
+}, art=('jscrgame.bin', 4194304, None), sites=None, annex=(
+    # the first section appended to this file, and where it lands
+    0x036af000, 0x00650a00, (
+        'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
+        'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
+        'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
+        'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
+        'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
+        'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')))
 
 BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN}
 
@@ -1463,18 +1440,25 @@ BLOBS = {
 # BLOBS BLOB END
 
 
-# A cave the build only has at apply time - a blob in an appended section -
-# links here until then, so anything naming it can be relinked once the
-# section exists. Nothing in the image is near it.
-PENDING = 0xEB000000
+def annex_layout(build, blobs=None):
+    """name -> offset into the annex, and the annex's padded length."""
+    blobs = BLOBS if blobs is None else blobs
+    out, at = {}, 0
+    for name in build.annex[2]:
+        out[name] = at
+        length = len(blobs[name][0])
+        if name == 'PADX':
+            length += len(blobs['LEVERS'][0])    # written straight after it
+        at = (at + length + 15) & ~15
+    return out, (at + 0x1ff) & ~0x1ff
 
 
 def cave_va(name, build, blobs=None):
     """Where a blob goes in this build, as a virtual address."""
     blobs = BLOBS if blobs is None else blobs
+    if build.annex and name in build.annex[2]:
+        return build.annex[0] + annex_layout(build, blobs)[0][name]
     at = build.caves[name]
-    if at is None:
-        return PENDING
     if isinstance(at, tuple):
         inner, label = at
         return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
@@ -1509,7 +1493,8 @@ def link(name, build, blobs=None, base=None):
     apply time; None means the blob must not name itself."""
     blobs = BLOBS if blobs is None else blobs
     code, fixups, _labels = blobs[name]
-    if base is None and name in build.caves:
+    if base is None and (name in build.caves
+                         or (build.annex and name in build.annex[2])):
         base = cave_va(name, build, blobs)
     out = bytearray(code)
     for at, kind, sym, addend in fixups:
@@ -1558,8 +1543,6 @@ class At(int):
     goes, or a fixed distance into one."""
     def __new__(cls, sym, build=None):
         va = symbol_va(sym, build or RETAIL)
-        if va >= PENDING:
-            raise KeyError(sym)
         obj = int.__new__(cls, (build or RETAIL).off(va))
         obj.sym = sym
         return obj
@@ -2607,11 +2590,9 @@ BY_KEY['dinput'] = (
 # original check, so it is applied once for whichever patch is ticked.
 RDATA_EXEC = (0x000001c4, '40000040', '40000060')
 # The patches with code in .rdata, per build: ticking any of them sets the
-# flag. The rerelease's .text has no padding to speak of, so its timer stub
-# is in .rdata as well, and framerate being Essential the flag is always set
-# there.
+# flag.
 RETAIL.rdata_exec = ('padxinput', 'movie', 'credits')
-JAPAN.rdata_exec = ('padxinput', 'movie', 'credits', 'framerate')
+JAPAN.rdata_exec = ()                  # nothing of ours is in its .rdata
 
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
@@ -2671,10 +2652,12 @@ def _check_table(build=RETAIL):
                                      % (key, off, len(old) // 2,
                                         len(new) // 2))
             old_b, new_b = bytes.fromhex(old), bytes.fromhex(new)
-            if off + len(old_b) > build.size:
+            end = build.size
+            if build.annex:
+                end = build.annex[1] + annex_layout(build)[1]
+            if off + len(old_b) > end:
                 raise AssertionError('%s at 0x%08x runs %d bytes past the end'
-                                     % (key, off,
-                                        off + len(old_b) - build.size))
+                                     % (key, off, off + len(old_b) - end))
             for i, byte in enumerate(range(off, off + len(old_b))):
                 if owner.setdefault(byte, key) != key:
                     raise AssertionError('%s and %s both patch 0x%08x'
@@ -4529,55 +4512,11 @@ MAGIC_ANNEXREL = 0xEAEAEAEA
 
 def apply_extras_template(buf, build=RETAIL):
     """Append the template-and-annex section, point f11pause at the
-    template and the dialog procedure's call at the annex.
-
-    A build with no cave for the debugbox pair (the rerelease) gets them in
-    the section too, between the template and the annex; f11pause and the
-    window-procedure hook, which the site table linked against PENDING, are
-    relinked here once the section's address is known."""
+    template and the dialog procedure's call at the annex."""
     pe = _PE(buf)
     gap = (-len(EXTRAS_TPL)) % 16
-    appended = build.caves['DEBUGBOX'] is None
-    if appended:
-        # where the section will land: the next section-aligned RVA
-        base = pe.base + pe.next_rva()
-        dbg_va = base + len(EXTRAS_TPL) + gap
-        build = build.with_cave('DEBUGBOX', dbg_va)
-        dbg = link('DEBUGBOX', build)
-        gap2 = (-len(dbg)) % 16
-        body = EXTRAS_TPL + b'\0' * gap + dbg + b'\0' * gap2 + VOXT_CODE
-        annex_off = len(EXTRAS_TPL) + gap + len(dbg) + gap2
-        # the F11 wrapper names the dialog procedure, and the hook site the
-        # hook: both were written for PENDING and are rewritten in place
-        pend = build.with_cave('DEBUGBOX', None)
-        for name in ('F11PAUSE',):
-            at = build.off(cave_va(name, build))
-            was, now = link(name, pend), link(name, build)
-            if pe.d[at:at + len(was)] != was:
-                raise ValueError('the %s blob is not where its site put it'
-                                 % name.lower())
-            pe.d[at:at + len(now)] = now
-        for off, orig, new in by_key(pend)['debugbox'][2]:
-            if isinstance(new, Sym) and str(new) == str(
-                    abs32(('DEBUGBOX', 'hook')).for_build(pend)):
-                was = bytes.fromhex(str(new))
-                now = bytes.fromhex(abs32(('DEBUGBOX', 'hook')).for_build(build))
-                if pe.d[off:off + 4] != was:
-                    raise ValueError('the hook pointer is not where its site '
-                                     'put it')
-                pe.d[off:off + 4] = now
-        dbgproc_va = dbg_va + DEBUGBOX_SPLIT + 1
-    else:
-        body = EXTRAS_TPL + b'\0' * gap + VOXT_CODE
-        annex_off = len(EXTRAS_TPL) + gap
-        dbgproc_at = build.off(cave_va('DEBUGBOX', build)) + DEBUGBOX_SPLIT + 1
-        dbgproc_va = cave_va('DEBUGBOX', build) + DEBUGBOX_SPLIT + 1
-    rva = pe.add_section('.voxt', body, chars=0x60000040)
-    if appended:
-        if pe.base + rva != base:
-            raise ValueError('the .voxt section did not land where it was '
-                             'linked')
-        dbgproc_at = pe.off(dbgproc_va - pe.base)
+    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + VOXT_CODE,
+                         chars=0x60000040)
 
     f11pause_at = build.off(cave_va('F11PAUSE', build))
     f11pause = link('F11PAUSE', build)
@@ -4591,17 +4530,18 @@ def apply_extras_template(buf, build=RETAIL):
                          'f11pause site put it')
     struct.pack_into('<I', pe.d, at, pe.base + rva)
 
+    dbgproc_va = cave_va('DEBUGBOX', build) + DEBUGBOX_SPLIT + 1
     proc = link('DEBUGBOX', build)[DEBUGBOX_SPLIT + 1:]
     pattern = struct.pack('<I', MAGIC_ANNEXREL)
     if proc.count(pattern) != 1:
         raise ValueError('the ANNEXREL placeholder should appear exactly '
                          'once in the dialog procedure blob')
     idx = proc.index(pattern)
-    at = dbgproc_at + idx
+    at = build.off(dbgproc_va) + idx
     if pe.d[at:at + 4] != pattern:
         raise ValueError('the ANNEXREL placeholder is not where the '
                          'dialog procedure site put it')
-    annex = pe.base + rva + annex_off
+    annex = pe.base + rva + len(EXTRAS_TPL) + gap
     struct.pack_into('<i', pe.d, at, annex - (dbgproc_va + idx + 4))
     return pe.d
 
@@ -4929,6 +4869,19 @@ class PatchFailed(Exception):
         self.key = key
 
 
+def apply_annex(buf, build):
+    """Append the build's annex, empty: the site table writes the blobs into
+    it like any cave. It has to land where the tables say, which the file's
+    own headers guarantee for the first section appended."""
+    va, raw, _names = build.annex
+    _layout, length = annex_layout(build)
+    pe = _PE(buf)
+    if len(pe.d) != raw or pe.base + pe.next_rva() != va:
+        raise ValueError('the annex would not land at 0x%08x' % va)
+    pe.add_section('.vojp', b'\0' * length, chars=0xE0000040)
+    return pe.d
+
+
 def apply_selected(buf, wanted, build=RETAIL):
     """Write every wanted patch into buf, in apply_order().
 
@@ -4943,6 +4896,8 @@ def apply_selected(buf, wanted, build=RETAIL):
     """
     applied, skipped = [], []
     table = by_key(build)
+    if build.annex:
+        buf = apply_annex(buf, build)
     shared = [key for key in build.rdata_exec if wanted.get(key)]
     if shared:
         try:

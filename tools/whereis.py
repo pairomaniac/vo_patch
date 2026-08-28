@@ -50,23 +50,17 @@ def main():
     data = open(path, 'rb').read()
     secs = sections(data)
 
-    # every blob's place, the appended ones included
+    # every blob's place: caves, the annex, and the two apply-time sections
     places = {}
     for name in vp.BLOBS:
-        at = build.caves.get(name)
-        if at is not None:
+        try:
             places[name] = vp.cave_va(name, build)
+        except KeyError:
+            pass
     voxt = next((va for n, va, vs, ro in secs if n == '.voxt'), None)
     if voxt is not None:
-        gap = (-len(vp.EXTRAS_TPL)) % 16
-        if build.caves.get('DEBUGBOX') is None:
-            dbg = voxt + len(vp.EXTRAS_TPL) + gap
-            places['DEBUGBOX'] = dbg
-            places['VOXT'] = dbg + len(vp.BLOBS['DEBUGBOX'][0]) \
-                + (-len(vp.BLOBS['DEBUGBOX'][0])) % 16
-        else:
-            places['VOXT'] = voxt + len(vp.EXTRAS_TPL) + gap
         places['EXTRAS_TPL'] = voxt
+        places['VOXT'] = voxt + len(vp.EXTRAS_TPL) + (-len(vp.EXTRAS_TPL)) % 16
     vocd = next((va for n, va, vs, ro in secs if n == '.vocd'), None)
     if vocd is not None:
         places['VOCD'] = vocd
