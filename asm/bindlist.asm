@@ -14,7 +14,10 @@ extern PADLIST                  ; the 16 pad inputs, asm/padtables.py
 KEYCOUNT    equ 0x21
 PADCOUNT    equ 0x10
 extern FILLDONE                 ; where the fill loop's jge went
-extern FILLIDX                  ; the fill loop counter
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; FILLIDX: the fill loop counter
 
 ; ---------------------------------------------------------------- 0x5fd7e4
 ; ZF set when the side being configured is on Keyboard (Simple).
@@ -35,10 +38,10 @@ devcur:
 fillcount:
     call    devcur
     je      .simple
-    cmp     dword [byte ebp + FILLIDX], PADCOUNT
+    cmp     dword [ebp + FILLIDX], PADCOUNT
     jmp     .test
 .simple:
-    cmp     dword [byte ebp + FILLIDX], KEYCOUNT
+    cmp     dword [ebp + FILLIDX], KEYCOUNT
 .test:
     jl      .stay
     add     esp, 4

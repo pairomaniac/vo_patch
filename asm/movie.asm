@@ -47,8 +47,11 @@ PUT_DEST    equ 0x00050000      ; MCI_ANIM_RECT | MCI_ANIM_PUT_DESTINATION
 F_HWND      equ 0x08            ; caller frame
 F_W         equ 0x10
 F_H         equ 0x14
-extern F_X                      ; X and Y, locals of the caller's frame:
-extern F_Y                      ; a recompile keeps them elsewhere
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; F_X: X and Y, locals of the caller's frame:
+                            ; F_Y: a recompile keeps them elsewhere
 
 R_LEFT      equ -0x10           ; our frame: RECT from GetClientRect
 R_TOP       equ -0x0c
@@ -74,9 +77,9 @@ movie_place:
         ; What the replaced code did, first, so every bail below leaves the
         ; game exactly as it was.
         mov     eax, [MOVIEX]
-        mov     [byte edi + F_X], eax
+        mov     [edi + F_X], eax
         mov     eax, [MOVIEY]
-        mov     [byte edi + F_Y], eax
+        mov     [edi + F_Y], eax
 
         ; ddraw.dll's DDGetProcAddress hands back the unhooked user32.
         xor     esi, esi
@@ -160,11 +163,11 @@ movie_place:
         mov     eax, [ebp + C_W]
         sub     eax, [ebp + N_W]
         sar     eax, 1
-        mov     [byte edi + F_X], eax
+        mov     [edi + F_X], eax
         mov     eax, [ebp + C_H]
         sub     eax, [ebp + N_H]
         sar     eax, 1
-        mov     [byte edi + F_Y], eax
+        mov     [edi + F_Y], eax
 
         ; The caller reads these back as words for its own MoveWindow, which
         ; runs after this and repeats the call below with the same values.
@@ -180,8 +183,8 @@ movie_place:
         push    1
         push    dword [ebp + N_H]
         push    dword [ebp + N_W]
-        push    dword [byte edi + F_Y]
-        push    dword [byte edi + F_X]
+        push    dword [edi + F_Y]
+        push    dword [edi + F_X]
         push    dword [MOVIEHWND]
         call    [MOVEWINDOW]
 

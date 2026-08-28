@@ -13,6 +13,10 @@ extern PADLIST
 KEYCOUNT    equ 0x21
 PADCOUNT    equ 0x10
 extern MAPDONE                  ; where the search loop's jge went
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; SELIDX: the preselect loop counter
 
 ; ---------------------------------------------------------------- 0x5fd904
 devcur:
@@ -30,10 +34,10 @@ devcur:
 mapcount:
     call    devcur
     je      .simple
-    cmp     dword [byte ebp + SELIDX], PADCOUNT
+    cmp     dword [ebp + SELIDX], PADCOUNT
     jmp     .test
 .simple:
-    cmp     dword [byte ebp + SELIDX], KEYCOUNT
+    cmp     dword [ebp + SELIDX], KEYCOUNT
 .test:
     jl      .stay
     add     esp, 4
@@ -64,7 +68,6 @@ mapid:
 %include "padtables.inc"    ; SIMPLEDEF, the shipped sets it builds
 extern BLOCKS
 extern MEMCPY
-extern SELIDX                   ; the preselect loop counter
 
     times   0x50 - ($ - devcur) db 0x90
 

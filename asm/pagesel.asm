@@ -7,12 +7,16 @@ bits 32
 extern DEVCUR                   ; ZF set when the pending device is Simple
 extern SELDIGITS, SELLIST       ; the preselect's digit and list loops
 extern SELSET                   ; and where it sets the selection
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; SELIDX: the preselect loop counter
 
 ; The preselect's letter loop entry.
 selsec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [byte ebp + SELIDX], 0x1a
+    cmp     dword [ebp + SELIDX], 0x1a
     jge     .letters_done
     ret
 .letters_done:
@@ -27,7 +31,7 @@ selsec:
 selidx:
     call    DEVCUR
     jne     .flat
-    add     dword [byte ebp + SELIDX], 0x24
+    add     dword [ebp + SELIDX], 0x24
 .flat:
     add     esp, 4
     jmp     SELSET          ; set the selection
@@ -40,7 +44,6 @@ selidx:
 ; loader's zero, so the text is terminated. Clobbers eax only.
 extern DZTHR1                   ; see asm/padxinput.asm
 extern DZSTR1
-extern SELIDX                   ; the preselect loop counter
 
     times   (0x00601c08 - 0x00601bd4) - ($ - $$) db 0
 dzseed:

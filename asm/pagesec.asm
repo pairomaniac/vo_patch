@@ -8,8 +8,11 @@ bits 32
 extern DEVCUR                   ; ZF set when the pending device is Simple
 extern DIGITLOOP, LISTLOOP      ; the fill's digit and list loops
 extern STORESHIFT, STORELIST    ; the store's shift-down and list id paths
-extern FILLIDX                  ; the fill loop counter
-extern STOREIDX                 ; and the store's combo index
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; FILLIDX: the fill loop counter
+                            ; STOREIDX: and the store's combo index
 
 ; The fill's letter loop entry. Simple: the stock compare, letters then
 ; digits. Gamepad: straight to the list section, so its entries start at
@@ -17,7 +20,7 @@ extern STOREIDX                 ; and the store's combo index
 fillsec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [byte ebp + FILLIDX], 0x1a
+    cmp     dword [ebp + FILLIDX], 0x1a
     jge     .letters_done
     ret
 .letters_done:
@@ -32,7 +35,7 @@ fillsec:
 storesec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [byte ebp + STOREIDX], 0x1a
+    cmp     dword [ebp + STOREIDX], 0x1a
     jge     .not_letter
     ret
 .not_letter:

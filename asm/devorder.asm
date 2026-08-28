@@ -9,8 +9,11 @@ bits 32
 ; unchanged, as do out-of-range values.
 
 extern BLOCKS                   ; pending devices, + player * 0x70
-extern DEVSEL                   ; the F7 combo selection
-extern DEVNUM                   ; and the device it maps to
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; DEVSEL: the F7 combo selection
+                            ; DEVNUM: and the device it maps to
 
 posof:  db 3, 0, 1, 2, 4, 5, 6, 7       ; device -> list position
 devof:  db 1, 2, 3, 0, 4, 5, 6, 7       ; list position -> device
@@ -27,10 +30,10 @@ posshim:
 ; The translate: out eax = the chosen device, ecx = the player, both as
 ; the two replaced loads produced them.
 devshim:
-    mov     eax, [byte ebp + DEVSEL]            ; the combo selection
+    mov     eax, [ebp + DEVSEL]            ; the combo selection
     cmp     eax, 7
     ja      .raw
     movzx   eax, byte [devof + eax]
 .raw:
-    mov     ecx, [byte ebp + DEVNUM]
+    mov     ecx, [ebp + DEVNUM]
     ret

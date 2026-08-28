@@ -22,17 +22,20 @@ SIMPLE_OFF  equ 0x38
 extern WRITELINE                ; (key, value): one v_on.ini line
 extern CASEB                    ; the stock device 1 apply-and-serialize
 extern HEXCHAR                  ; in asm/bindblock.asm's tail
-extern SAVEPLAYER               ; the OK handler's player
-extern SAVELINE                 ; and its line buffer
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; SAVEPLAYER: the OK handler's player
+                            ; SAVELINE: and its line buffer
 
 savesimple:
     push    ebx
     push    esi
     push    edi
-    mov     ebx, [dword ebp + SAVEPLAYER]
+    mov     ebx, [ebp + SAVEPLAYER]
     imul    esi, ebx, 0x70
     lea     esi, [esi + BLOCKS + SIMPLE_OFF]
-    mov     edi, [dword ebp + SAVELINE]       ; the frame's line buffer
+    mov     edi, [ebp + SAVELINE]       ; the frame's line buffer
     xor     ecx, ecx
 .byte:                              ; 24 bytes -> 48 hex chars, low first
     mov     al, [esi + ecx]
@@ -47,7 +50,7 @@ savesimple:
     mov     byte [edi], 0           ; stack scratch, so terminate it
     imul    eax, ebx, 17            ; the two key strings, 17 bytes apiece
     add     eax, INIKEYS
-    push    dword [dword ebp + SAVELINE]
+    push    dword [ebp + SAVELINE]
     push    eax
     call    WRITELINE
     add     esp, 8

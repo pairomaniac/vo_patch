@@ -74,25 +74,84 @@ def hexblob(name, raw, indent='    '):
     return ''.join(out)
 
 
-def includes(tmp):
+def frame_symbols():
+    """The retail build's frame-offset symbols: the locals of the game's own
+    functions our stubs read, as name -> offset. They are the negative
+    entries in the symbol table."""
+    spec = importlib.util.spec_from_file_location('vopatch', TARGET)
+    vp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vp)
+    return {name: value for name, value in vp.RETAIL.symbols.items()
+            if isinstance(value, int) and value < 0}
+
+
+def includes(tmp, frames, nudge=None):
     """Write the .inc files the sources include, into nasm's include path.
 
     Each is emitted by the module that owns the labels in it, so a table's
-    name in the assembly and in the blob it points into cannot drift."""
+    name in the assembly and in the blob it points into cannot drift.
+    frames.inc carries the frame offsets as plain constants; `nudge` names
+    one to move by NUDGE, for the probe assembly that finds its bytes."""
     for name, text in (('strings.inc', layout.build()[0]),
                        ('padtables.inc', padtables.build()[0]),
                        ('dialogs.inc', dialogs.build_extras()[0])):
         with open(os.path.join(tmp, name), 'w') as fh:
             fh.write(text)
+    with open(os.path.join(tmp, 'frames.inc'), 'w') as fh:
+        for name, value in frames.items():
+            if name == nudge:
+                value += NUDGE
+            fh.write('%%define %s %d\n' % (name, value))
+
+
+# How far a frame offset is moved for the probe. Small enough that a byte
+# displacement stays a byte, so the two assemblies differ only in the value.
+NUDGE = 0x20
+
+
+def frame_fixups(source, tmp, frames, code, fixups):
+    """Where each frame offset sits in a blob, by assembling the source once
+    more per symbol with that one moved, and diffing.
+
+    Portable where a relocation is not: nasm versions disagree on what an
+    8-bit relocation against an extern should encode, and the check pass
+    exists to catch exactly that kind of drift. A moved constant assembles
+    the same way everywhere."""
+    for name, value in frames.items():
+        includes(tmp, frames, nudge=name)
+        probe, _f, _l = assemble(source, tmp)
+        if len(probe) != len(code):
+            raise SystemExit('%s: moving %s by %d changes the code size'
+                             % (source, name, NUDGE))
+        i = 0
+        while i < len(code):
+            if probe[i] == code[i]:
+                i += 1
+                continue
+            # a dword whose difference is NUDGE, else a byte
+            if (i + 4 <= len(code)
+                    and (struct.unpack_from('<i', probe, i)[0]
+                         - struct.unpack_from('<i', code, i)[0]) == NUDGE):
+                fixups.append((i, 'abs', name,
+                               struct.unpack_from('<i', code, i)[0] - value))
+                i += 4
+            elif (probe[i] - code[i]) & 0xff == NUDGE:
+                fixups.append((i, 'abs8', name,
+                               struct.unpack_from('<b', code, i)[0] - value))
+                i += 1
+            else:
+                raise SystemExit('%s: moving %s by %d changed byte %d in '
+                                 'a way that is not a displacement'
+                                 % (source, name, NUDGE, i))
+    includes(tmp, frames)
+    fixups.sort()
 
 
 def read_obj(path):
     """An ELF32 object from nasm -> (code, fixups, labels).
 
     fixups are (offset, kind, symbol, addend): kind 'abs' for a 32-bit
-    absolute address, 'rel' for one relative to the end of the slot, 'abs8'
-    for a byte - a frame offset written as [byte ebp + SYM], so a build can
-    say where its caller keeps the local; symbol
+    absolute address, 'rel' for one relative to the end of the slot; symbol
     is the extern's name, or '.' for the blob's own base. labels are the
     source's labels and their offsets, which is how another blob or the
     site table names a place inside this one."""
@@ -125,13 +184,10 @@ def read_obj(path):
         for i in range(rsize // 8):
             at, info = struct.unpack_from('<II', d, roff + 8 * i)
             name, _v, typ, shndx = syms[info >> 8]
-            kind = {1: 'abs', 2: 'rel', 22: 'abs8'}[info & 0xff]
+            kind = {1: 'abs', 2: 'rel'}[info & 0xff]
             if typ == 3:                # STT_SECTION: the blob itself
                 name = '.'
-            if kind == 'abs8':
-                addend = struct.unpack_from('<b', code, at)[0]
-            else:
-                addend = struct.unpack_from('<i', code, at)[0]
+            addend = struct.unpack_from('<i', code, at)[0]
             fixups.append((at, kind, name, addend))
     labels = {name: value for name, value, typ, shndx in syms
               if name and shndx == text and typ != 3 and '.' not in name}
@@ -273,8 +329,9 @@ SOURCES = [
 
 def main(check=False):
     blobs = {}
+    frames = frame_symbols()
     with tempfile.TemporaryDirectory() as tmp:
-        includes(tmp)
+        includes(tmp, frames)
         # vocd.asm keeps its magic placeholders: its section is appended at
         # apply time, so it has no cave to link against.
         vocd = assemble('vocd.asm', tmp)
@@ -282,7 +339,10 @@ def main(check=False):
             raise SystemExit('vocd.asm should have no relocations; it '
                              'names its addresses through MAGIC_ placeholders')
         for name, source in SOURCES:
-            blobs[name] = assemble(source, tmp)
+            code, fixups, labels = assemble(source, tmp)
+            if 'frames.inc' in open(os.path.join(HERE, source)).read():
+                frame_fixups(source, tmp, frames, code, fixups)
+            blobs[name] = (code, fixups, labels)
     _inc, data = layout.build()
     (_inc, blobs['PAD_COND'], blobs['PAD_BINDS'], blobs['PAD_NAMES'],
      blobs['PAD_DEVLIST'], blobs['PAD_SIMPLEDEF'],
