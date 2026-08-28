@@ -214,11 +214,18 @@ def check_ceilings(vp, blobs):
 
 
 def check_link(vp, blobs):
-    """Every blob links for the retail build, and every pin the site table
-    relies on is where the assembly put it."""
-    for name in blobs:
-        if name in vp.RETAIL.caves:
-            vp.link(name, vp.RETAIL, blobs=blobs)
+    """Every blob links for every build, and every pin the site table
+    relies on is where the assembly put it. A blob whose cave only exists
+    at apply time is linked there instead, so a KeyError on a missing cave
+    is expected; a missing symbol is not."""
+    for build in vp.BUILDS.values():
+        for name in blobs:
+            try:
+                vp.link(name, build, blobs=blobs)
+            except KeyError as exc:
+                if exc.args[0] not in vp.BLOBS:
+                    raise SystemExit('%s does not resolve %s for build %s'
+                                     % (name, exc, build.md5))
     padx = blobs['PADX'][0]
     if len(padx) != vp.PADX_LEN:
         raise SystemExit('padxinput.asm assembles to %d bytes, not %d'

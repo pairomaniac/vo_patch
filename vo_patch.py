@@ -232,7 +232,7 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'MASK2B': 0x006beb15,
     'HALF': 0x006bf560,            # coordinates on, at 0x5c9a98
     'WIDE': 0x006bf598,            # the two the pause text halves its own
-    'PREV': 0x006c3d48,            # last frame's slot, shared with nameentry.asm
+    'PREV': 0x006c3d48,            # last frame's slot; credits, nameentry
     'HELD': 0x006c3d49,            # and how long this press has lasted
     'CAMERA1': 0x00bf0457,         # and the one Select writes, which is what
     'ACCEPT1': 0x00bf0481,         # 1P's key buffer slot for A and Space
@@ -257,13 +257,13 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'EDGEB': 0x01ed5ec6,           # and lever B's, where 2P's RT is
     'LEV2A': 0x01ee3ee4,           # 2P
     'LEV2B': 0x01ee3ee6,
-    'MOVIEHWND': 0x01ef88c8,       # the mciavi window, from MCI_ANIM_STATUS_HWND
+    'MOVIEHWND': 0x01ef88c8,       # the mciavi window (MCI_ANIM_STATUS_HWND)
     'MOVIEDEV': 0x01ef88f0,        # its device id
     'LIVE': 0x03651470,            # + player * 0x18
     'BINDS1': 0x03651470,          # 1P bind bytes
     'BINDS2': 0x03651488,          # 2P bind bytes
     'DEVICES': 0x03651540,         # 1P's profile, 0 being the keyboard
-    'XIFN': 0x0365cb40,            # resolved XInputGetState: 0 not yet, 1 failed
+    'XIFN': 0x0365cb40,            # XInputGetState; 0 not yet, 1 failed
     'STATE': 0x0365cb44,           # the tick's XINPUT_STATE
     'BTN': 0x0365cb48,             # wButtons in it; the condition table's
     'SCR1': 0x0365cb60,            # scratch the tick keeps per player
@@ -288,6 +288,189 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'MOVEWINDOW': 0x0365d5e0,      # MoveWindow
     'MCISEND': 0x0365d648,         # mciSendCommandA
 })
+
+
+# The Japanese rerelease: the same source through the same toolchain four
+# months on, with every address moved. See docs/NOTES.md, and tools/vomap.py
+# for how the addresses were found.
+JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
+JAPAN_SIZE = 6621696
+JAPAN = Build(JAPAN_MD5, JAPAN_SIZE, sections=(
+    (0x00000400, 0x00401000),       # .text
+    (0x001eec00, 0x005f0000),       # .rdata
+    (0x00239200, 0x0063b000),       # .data
+    (0x005fba00, 0x03658000),       # .idata
+    (0x005fcc00, 0x0365a000),       # .rsrc
+    (0x00606400, 0x03664000),       # .reloc
+), caves={
+    # Runs of zeros in .rdata that nothing in .reloc points into, picked by
+    # tools/jpcaves.py; .text has 50 bytes of padding here, so the timer
+    # stub lives in .rdata too and needs the section made executable.
+    'TIMER': 0x0063a5c0,
+    # DEBUGBOX has no cave here: it rides in the appended .voxt section,
+    # there being no run of 269 bytes in this .rdata.
+    'OVERLAY': 0x00638458,
+    'COMMITDEV': 0x0061f74c,
+    'BINDLIST': 0x00601dbc,
+    'BLOCKCUR': 0x005ff5fc,
+    'BINDMAP': 0x005f87e4,
+    'BINDBLOCK': 0x005fca0c,
+    'INIPARSE': 0x005fca70,
+    'PAGESEC': 0x0061eb88,
+    'PAGESEL': 0x005fcad4,
+    'INISAVE': 0x00636cac,
+    'DEVORDER': 0x005ff72c,
+    'INILOAD': 0x005f6144,
+    'PADX': 0x00602df0,
+    'LEVERS': ('PADX', 'end'),
+    'TITLEVER': 0x005f8904,
+    'PAD_SIMPLEDEF': 0x00607c98,
+    'PAD_BINDS': 0x00638b28,
+    'TWIN': 0x005f30e0,
+    'PAD_INIKEYS': 0x005f874c,
+    'PAD_NAMES': 0x005fa254,
+    'PAD_PROFILES': 0x0063737c,
+    'PAD_COND': 0x0061f924,
+    'F11PAUSE': 0x0061f510,
+    'INIALL': 0x0061f868,
+    'CREDITS': 0x0061eb20,
+    'CAMSKIP': 0x005f61a4,
+    'NAMEENTRY': 0x005f6f14,
+    'EXTRAS_DATA': 0x005fcb38,
+    'KBPAGE': 0x00609cf8,
+    'INTROWAIT': 0x0061f5cc,
+    'PAD_DEVLIST': 0x006693a0,      # the F7 device list's own run, in .data
+    'MOVIE': 0x03663654,
+}, symbols={
+    # Places inside our own blobs, the same labels as retail
+    'DEVCUR': ('BINDLIST', 'devcur'),
+    'PADLIST': ('PAD_BINDS', 0),
+    'DZKEYS': ('PAD_NAMES', 'dzkeys'),
+    'COND': ('PAD_COND', 0),
+    'SIMPLEDEF': ('PAD_SIMPLEDEF', 0),
+    'INIKEYS': ('PAD_INIKEYS', 0),
+    'USER32': ('EXTRAS_DATA', 'user32'),
+    'DLGBOXPROC': ('EXTRAS_DATA', 'dlgboxproc'),
+    'CHECKS': ('EXTRAS_DATA', 'checks'),
+    'F11WRAP': ('F11PAUSE', 'f11wrap'),
+    'F11CHECKS': ('F11PAUSE', 'f11checks'),
+    'DLGPROC': ('DEBUGBOX', 'dlgproc'),
+    'LOADSIMPLE': ('INILOAD', 'loadsimple'),
+    'DZSEED': ('PAGESEL', 'dzseed'),
+    'PARSE12': ('INIPARSE', 'parse12'),
+    'DZSAVE': ('INIPARSE', 'dzsave'),
+    'HEXCHAR': ('BINDBLOCK', 'hexchar'),
+    'POLLPADS': ('PADX', 'pollpads'),
+    'TICK': ('PADX', 'tick'),
+    'CAMSKIP': ('CAMSKIP', 0),
+    # Locals of the game's own functions our stubs read; the frames grew
+    'FILLIDX': -0x18,              # the bind page fill's loop counter
+    'STOREIDX': -0x14,             # its store's combo index
+    'SELIDX': -0xc,                # the preselect's loop counter
+    'DEVSEL': -0x10,               # the F7 page's combo selection
+    'DEVNUM': -0x14,               # and the device it maps to
+    'SAVEPLAYER': -0xc8,           # the OK handler's player
+    'SAVELINE': -0x18c,            # and its line buffer
+    'EXIT1P': 0x00442584,          # where the 1P profile switch resumes
+    'KBD1P': 0x00442734,           # stock keyboard handler, called by the tick
+    'KBHANDLER1': 0x00442734,      # the stock 1P keyboard handler
+    'CASEB': 0x00495682,           # the stock device 1 apply-and-serialize
+    'CROSSCHECK': 0x004962cc,      # look at 1P's key map
+    'KBACCEPT': 0x00496324,        # take the key
+    'RESUME': 0x004963f7,          # what the Default button does next
+    'DEFAULTS': 0x0049646c,        # fill a player's binds from the shipped set
+    'DIGITLOOP': 0x004967cd,       # bind page fill: the digit loop
+    'LISTLOOP': 0x0049680d,        # and the list loop
+    'FILLDONE': 0x00496854,        # where the fill loop's jge went
+    'STORESHIFT': 0x004969d1,      # bind page store: shift down, try digits
+    'STORELIST': 0x004969f6,       # and the list id store
+    'SELDIGITS': 0x00496bb6,       # bind page preselect: the digit loop
+    'SELLIST': 0x00496bfa,         # the list loop
+    'MAPDONE': 0x00496c36,         # where the search loop's jge went
+    'SELSET': 0x00496c36,          # and set the selection
+    'CURSOR': 0x004cb463,          # (column, row), cdecl
+    'PRINT': 0x004cca8b,           # (text), cdecl, from the cursor
+    'WRITELINE': 0x005ac4f3,       # (key, value): one v_on.ini line
+    'FINDLINE': 0x005ac531,        # (key) -> value text, 0 if absent
+    'EXIT2P': 0x005b76c7,          # and the 2P one
+    'KBD2P': 0x005b785d,
+    'KBHANDLER2': 0x005b785d,      # and 2P
+    'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
+    'GRESUME': 0x005c10da,         # and their resume
+    'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
+    'ORIG': 0x005c29ae,            # the call this one is made in place of
+    'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
+    'MEMCPY': 0x005dfb30,
+    'ORIGENTRY': 0x005e1570,       # the entry point this replaces
+    'CDMUTE': 0x0063b430,
+    'NOSHOT': 0x0064efd8,          # F11 check boxes: the flags they toggle
+    'MASK1A': 0x0064f690,          # 1P key masks
+    'MASK1B': 0x0064f69d,
+    'KEYLIST': 0x006693c0,         # the game's 33 named keys
+    'SEMUTE': 0x006b89ac,
+    'MASK2A': 0x006ba820,          # 2P
+    'MASK2B': 0x006ba82d,
+    'HALF': 0x006bb278,            # coordinates on, at 0x5c9a98
+    'WIDE': 0x006bb2b0,            # the two the pause text halves its own
+    'PREV': 0x006bf0d0,            # last frame's slot; credits, nameentry
+    'HELD': 0x006bf0d1,            # and how long this press has lasted
+    'CAMERA1': 0x00beb0af,         # and the one Select writes, which is what
+    'ACCEPT1': 0x00beb0d9,         # 1P's key buffer slot for A and Space
+    'BLOCKS': 0x00bf1730,          # per player: this + player * 0x70; the
+    'CURPLAYER': 0x00bf1590,       # the side being configured, 0 or 1
+    'PHASE': 0x01acb68c,           # where the credits sequence is up to
+    'CAM2': 0x01acba14,
+    'CAMERA2': 0x01acba14,
+    'ACC2': 0x01acba31,
+    'ACCEPT2': 0x01acba31,         # and 2P
+    'FLAG': 0x01adcdf8,            # the displaced write
+    'MODE': 0x01adcdf0,            # game state and sub-state, the pair the
+    'SUBMODE': 0x01addc40,         # tick already gates its bind slots on
+    'MOVIEX': 0x01ae0c1c,          # the offsets the replaced code read
+    'MOVIEY': 0x01ae0c20,
+    'PRIMARY': 0x01ae0c34,         # the surface DRAW paints on, and the one
+    'HWND': 0x01ae0c38,            # the game's window
+    'BACK': 0x01ae0c18,            # that is about to be flipped over it
+    'LEV1A': 0x01b13204,           # 1P lever words, left then right
+    'LEV1B': 0x01b13206,
+    'EDGEA': 0x01ed0b65,           # press edges, lever A byte: bit 0 is LT
+    'EDGEB': 0x01ed0b66,           # and lever B's, where 2P's RT is
+    'LEV2A': 0x01ef3534,           # 2P
+    'LEV2B': 0x01ef3536,
+    'MOVIEHWND': 0x01ef3570,       # the mciavi window (MCI_ANIM_STATUS_HWND)
+    'MOVIEDEV': 0x01ef3590,        # its device id
+    'LIVE': 0x0364c170,            # + player * 0x18
+    'BINDS1': 0x0364c170,          # 1P bind bytes
+    'BINDS2': 0x0364c188,          # 2P bind bytes
+    'DEVICES': 0x0364c580,         # 1P's profile, 0 being the keyboard
+    # scratch in the page slack past .data, as retail's is
+    'XIFN': 0x036577a0,            # XInputGetState; 0 not yet, 1 failed
+    'STATE': 0x036577a4,           # the tick's XINPUT_STATE
+    'BTN': 0x036577a8,             # wButtons in it; the condition table's
+    'SCR1': 0x036577c0,            # scratch the tick keeps per player
+    'SCR2': 0x036577c1,
+    'PSTATE': 0x036577d0,          # the pump's own XINPUT_STATE, so the two
+    'PBTN': 0x036577d4,            # pollers cannot tread on each other
+    'SLEEPFN': 0x036577e0,         # resolved Sleep: 0 not yet, 1 failed
+    'PADPREV': 0x036577e4,         # last polled buttons, one word per pad,
+    'DZTHR1': 0x036577ec,          # stick thresholds out of 32767, 1P then
+    'DZSTR1': 0x036577f4,          # the digit pairs; see asm/padxinput.asm
+    'GETMODULE': 0x036584bc,       # GetModuleHandleA
+    'LOADLIB': 0x03658514,         # LoadLibraryA
+    'GETPROC': 0x03658518,         # GetProcAddress
+    'SENDMSG': 0x03658538,         # SendMessageA
+    'ENDDIALOG': 0x03658548,       # EndDialog
+    'CHECKDLGBTN': 0x03658554,     # CheckDlgButton
+    'GETDLGITEM': 0x0365855c,      # GetDlgItem
+    'POSTMSG': 0x0365857c,         # PostMessageA
+    'GETMSG': 0x0365859c,          # GetMessageA, the call this replaced
+    'PEEKMSG': 0x036585a0,         # PeekMessageA
+    'GETCLIENT': 0x036585e4,       # GetClientRect, the hooked one
+    'MOVEWINDOW': 0x036585f0,      # MoveWindow
+    'MCISEND': 0x0365864c,         # mciSendCommandA
+})
+
+BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN}
 
 # GENERATED - do not edit the hex by hand.
 #
@@ -1005,7 +1188,9 @@ def symbol_va(sym, build, blobs=None):
         inner, label = sym
         return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
     value = build.symbols[sym]
-    return symbol_va(value, build, blobs) if isinstance(value, tuple) else value
+    if isinstance(value, tuple):
+        return symbol_va(value, build, blobs)
+    return value
 
 
 def link(name, build, blobs=None, base=None):
