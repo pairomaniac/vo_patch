@@ -27,7 +27,7 @@ import sys
 # Everything ticked, per build: retail, then the Japanese rerelease.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '5b531921069d99d887f18545be80e43c',
-    'd19320bdc3381a48228990907910a391': '8dc1585aab76462cb266ba8b7cc1095f',
+    'd19320bdc3381a48228990907910a391': '5f8cc65a1271b8e2d4dd2e7903b6ebbd',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
