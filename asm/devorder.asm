@@ -9,6 +9,8 @@ bits 32
 ; unchanged, as do out-of-range values.
 
 extern BLOCKS                   ; pending devices, + player * 0x70
+extern DEVSEL                   ; the F7 combo selection
+extern DEVNUM                   ; and the device it maps to
 
 posof:  db 3, 0, 1, 2, 4, 5, 6, 7       ; device -> list position
 devof:  db 1, 2, 3, 0, 4, 5, 6, 7       ; list position -> device
@@ -25,10 +27,10 @@ posshim:
 ; The translate: out eax = the chosen device, ecx = the player, both as
 ; the two replaced loads produced them.
 devshim:
-    mov     eax, [ebp - 0xc]            ; the combo selection
+    mov     eax, [byte ebp + DEVSEL]            ; the combo selection
     cmp     eax, 7
     ja      .raw
     movzx   eax, byte [devof + eax]
 .raw:
-    mov     ecx, [ebp - 0x14]
+    mov     ecx, [byte ebp + DEVNUM]
     ret

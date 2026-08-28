@@ -8,6 +8,8 @@ bits 32
 extern DEVCUR                   ; ZF set when the pending device is Simple
 extern DIGITLOOP, LISTLOOP      ; the fill's digit and list loops
 extern STORESHIFT, STORELIST    ; the store's shift-down and list id paths
+extern FILLIDX                  ; the fill loop counter
+extern STOREIDX                 ; and the store's combo index
 
 ; The fill's letter loop entry. Simple: the stock compare, letters then
 ; digits. Gamepad: straight to the list section, so its entries start at
@@ -15,7 +17,7 @@ extern STORESHIFT, STORELIST    ; the store's shift-down and list id paths
 fillsec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [ebp - 8], 0x1a
+    cmp     dword [byte ebp + FILLIDX], 0x1a
     jge     .letters_done
     ret
 .letters_done:
@@ -30,7 +32,7 @@ fillsec:
 storesec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [ebp - 0x14], 0x1a
+    cmp     dword [byte ebp + STOREIDX], 0x1a
     jge     .not_letter
     ret
 .not_letter:

@@ -7,10 +7,11 @@ bits 32
 ; into the stock device 1 case, which refreshes the live table (through the
 ; block fork) and writes "Keyboard Assign" from +0x08. Both lines are
 ; always written, so neither profile's set is lost while the other is
-; selected. Runs inside the F7 dialog's frame: [ebp - 0xc8] is the player,
-; and the hex text is built in the frame's own line buffer through the
-; cursor at [ebp - 0xcc] - the caves sit in .rdata, which the loader maps
-; executable but never writable, so no static buffer can be scribbled on.
+; selected. Runs inside the F7 dialog's frame: [ebp + SAVEPLAYER] is the
+; player, and the hex text is built in the frame's own line buffer through
+; the cursor at [ebp + SAVELINE] - the caves sit in .rdata, which the loader
+; maps executable but never writable, so no static buffer can be scribbled
+; on.
 ; The stock case rebuilds that buffer from the start afterwards.
 
 
@@ -21,15 +22,17 @@ SIMPLE_OFF  equ 0x38
 extern WRITELINE                ; (key, value): one v_on.ini line
 extern CASEB                    ; the stock device 1 apply-and-serialize
 extern HEXCHAR                  ; in asm/bindblock.asm's tail
+extern SAVEPLAYER               ; the OK handler's player
+extern SAVELINE                 ; and its line buffer
 
 savesimple:
     push    ebx
     push    esi
     push    edi
-    mov     ebx, [ebp - 0xc8]
+    mov     ebx, [dword ebp + SAVEPLAYER]
     imul    esi, ebx, 0x70
     lea     esi, [esi + BLOCKS + SIMPLE_OFF]
-    mov     edi, [ebp - 0xcc]       ; the frame's line buffer
+    mov     edi, [dword ebp + SAVELINE]       ; the frame's line buffer
     xor     ecx, ecx
 .byte:                              ; 24 bytes -> 48 hex chars, low first
     mov     al, [esi + ecx]
@@ -44,7 +47,7 @@ savesimple:
     mov     byte [edi], 0           ; stack scratch, so terminate it
     imul    eax, ebx, 17            ; the two key strings, 17 bytes apiece
     add     eax, INIKEYS
-    push    dword [ebp - 0xcc]
+    push    dword [dword ebp + SAVELINE]
     push    eax
     call    WRITELINE
     add     esp, 8

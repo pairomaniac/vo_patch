@@ -90,7 +90,9 @@ def read_obj(path):
     """An ELF32 object from nasm -> (code, fixups, labels).
 
     fixups are (offset, kind, symbol, addend): kind 'abs' for a 32-bit
-    absolute address, 'rel' for one relative to the end of the slot; symbol
+    absolute address, 'rel' for one relative to the end of the slot, 'abs8'
+    for a byte - a frame offset written as [byte ebp + SYM], so a build can
+    say where its caller keeps the local; symbol
     is the extern's name, or '.' for the blob's own base. labels are the
     source's labels and their offsets, which is how another blob or the
     site table names a place inside this one."""
@@ -123,10 +125,13 @@ def read_obj(path):
         for i in range(rsize // 8):
             at, info = struct.unpack_from('<II', d, roff + 8 * i)
             name, _v, typ, shndx = syms[info >> 8]
-            kind = {1: 'abs', 2: 'rel'}[info & 0xff]
+            kind = {1: 'abs', 2: 'rel', 22: 'abs8'}[info & 0xff]
             if typ == 3:                # STT_SECTION: the blob itself
                 name = '.'
-            addend = struct.unpack_from('<i', code, at)[0]
+            if kind == 'abs8':
+                addend = struct.unpack_from('<b', code, at)[0]
+            else:
+                addend = struct.unpack_from('<i', code, at)[0]
             fixups.append((at, kind, name, addend))
     labels = {name: value for name, value, typ, shndx in syms
               if name and shndx == text and typ != 3 and '.' not in name}

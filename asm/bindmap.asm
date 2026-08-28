@@ -30,10 +30,10 @@ devcur:
 mapcount:
     call    devcur
     je      .simple
-    cmp     dword [ebp - 0xc], PADCOUNT
+    cmp     dword [byte ebp + SELIDX], PADCOUNT
     jmp     .test
 .simple:
-    cmp     dword [ebp - 0xc], KEYCOUNT
+    cmp     dword [byte ebp + SELIDX], KEYCOUNT
 .test:
     jl      .stay
     add     esp, 4
@@ -64,6 +64,7 @@ mapid:
 %include "padtables.inc"    ; SIMPLEDEF, the shipped sets it builds
 extern BLOCKS
 extern MEMCPY
+extern SELIDX                   ; the preselect loop counter
 
     times   0x50 - ($ - devcur) db 0x90
 

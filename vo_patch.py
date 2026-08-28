@@ -180,6 +180,15 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'POLLPADS': ('PADX', 'pollpads'),
     'TICK': ('PADX', 'tick'),
     'CAMSKIP': ('CAMSKIP', 0),
+    # Locals of the game's own functions our stubs read, as frame offsets;
+    # a recompile lays its frames out differently
+    'FILLIDX': -0x8,                # the bind page fill's loop counter
+    'STOREIDX': -0x14,              # its store's combo index
+    'SELIDX': -0xc,                 # the preselect's loop counter
+    'DEVSEL': -0xc,                 # the F7 page's combo selection
+    'DEVNUM': -0x14,                # and the device it maps to
+    'SAVEPLAYER': -0xc8,            # the OK handler's player
+    'SAVELINE': -0xcc,              # and its line buffer
     # The game
     'EXIT1P': 0x00442ec4,          # where the 1P profile switch resumes
     'KBD1P': 0x00443074,           # stock keyboard handler, called by the tick
@@ -291,9 +300,11 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
 #
 # Each entry is (code, fixups, labels). A fixup is (offset, kind, symbol,
 # addend): 'abs' puts the symbol's address plus the addend at the offset,
-# 'rel' the distance from the end of the slot to it. The symbol '.' is the
-# blob's own address. Labels are offsets into the code, for the symbols
-# above and the site table to name.
+# 'rel' the distance from the end of the slot to it, 'abs8' one byte of it -
+# a frame offset, where the symbol is where the caller keeps a local and
+# differs between compiles of the game. The symbol '.' is the blob's own
+# address. Labels are offsets into the code, for the symbols above and the
+# site table to name.
 
 # BLOBS BLOB BEGIN
 BLOBS = {
@@ -528,12 +539,14 @@ BLOBS = {
     }),
     'BINDLIST': (bytes.fromhex(
         '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
-        '7df810eb04837df8217c0883c404e9fcffffffc390909090e8c3ffffff74088b'
+        '7d0010eb04837d00217c0883c404e9fcffffffc390909090e8c3ffffff74088b'
         '04c500000000c38b04c500000000c390e8abffffff74088a04c504000000c38a'
         '04c504000000c3'
     ), (
         (0x2, 'abs', 'CURPLAYER', 0),
         (0xb, 'abs', 'BLOCKS', 0),
+        (0x21, 'abs8', 'FILLIDX', 0),
+        (0x27, 'abs8', 'FILLIDX', 0),
         (0x2f, 'rel', 'FILLDONE', -4),
         (0x42, 'abs', 'PADLIST', 0),
         (0x4a, 'abs', 'KEYLIST', 0),
@@ -547,12 +560,14 @@ BLOBS = {
     }),
     'BINDMAP': (bytes.fromhex(
         '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
-        '7df410eb04837df4217c0883c404e9fcffffffc390909090e8c3ffffff740839'
+        '7d0010eb04837d00217c0883c404e9fcffffffc390909090e8c3ffffff740839'
         '0cc504000000c3390cc504000000c3908b4424046bc87081c1380000006bc018'
         '05000000006a185051e8fcffffff83c40cc3'
     ), (
         (0x2, 'abs', 'CURPLAYER', 0),
         (0xb, 'abs', 'BLOCKS', 0),
+        (0x21, 'abs8', 'SELIDX', 0),
+        (0x27, 'abs8', 'SELIDX', 0),
         (0x2f, 'rel', 'MAPDONE', -4),
         (0x42, 'abs', 'PADLIST', 4),
         (0x4a, 'abs', 'KEYLIST', 4),
@@ -585,14 +600,17 @@ BLOBS = {
         'hexchar': 0x50,
     }),
     'INISAVE': (bytes.fromhex(
-        '5356578b9d38ffffff6bf3708db6380000008bbd34ffffff31c98a040e88c2c0'
+        '5356578b9d000000006bf3708db6380000008bbd0000000031c98a040e88c2c0'
         'e804e8fcffffff88d0e8fcffffff4183f9187ce6c607006bc3110500000000ff'
-        'b534ffffff50e8fcffffff83c4085f5e5be9fcffffff'
+        'b50000000050e8fcffffff83c4085f5e5be9fcffffff'
     ), (
+        (0x5, 'abs', 'SAVEPLAYER', 0),
         (0xe, 'abs', 'BLOCKS', 56),
+        (0x14, 'abs', 'SAVELINE', 0),
         (0x23, 'rel', 'HEXCHAR', -4),
         (0x2a, 'rel', 'HEXCHAR', -4),
         (0x3b, 'abs', 'INIKEYS', 0),
+        (0x41, 'abs', 'SAVELINE', 0),
         (0x47, 'rel', 'WRITELINE', -4),
         (0x52, 'rel', 'CASEB', -4),
     ), {
@@ -644,13 +662,15 @@ BLOBS = {
         'dzsave': 0x3c,
     }),
     'PAGESEC': (bytes.fromhex(
-        'e8fcffffff750f837df81a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
-        'ffffff750f837dec1a7d01c383c404e9fcffffff83c404e9fcffffff'
+        'e8fcffffff750f837d001a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff750f837d001a7d01c383c404e9fcffffff83c404e9fcffffff'
     ), (
         (0x1, 'rel', 'DEVCUR', -4),
+        (0x9, 'abs8', 'FILLIDX', 0),
         (0x12, 'rel', 'DIGITLOOP', -4),
         (0x1a, 'rel', 'LISTLOOP', -4),
         (0x1f, 'rel', 'DEVCUR', -4),
+        (0x27, 'abs8', 'STOREIDX', 0),
         (0x30, 'rel', 'STORESHIFT', -4),
         (0x38, 'rel', 'STORELIST', -4),
     ), {
@@ -658,14 +678,16 @@ BLOBS = {
         'storesec': 0x1e,
     }),
     'PAGESEL': (bytes.fromhex(
-        'e8fcffffff750f837df41a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
-        'ffffff75048345f42483c404e9fcffffff00000069c14701000089049d000000'
+        'e8fcffffff750f837d001a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff75048345002483c404e9fcffffff00000069c14701000089049d000000'
         '00880c9d0300000088c8d40a6605303086c46689049d00000000c3'
     ), (
         (0x1, 'rel', 'DEVCUR', -4),
+        (0x9, 'abs8', 'SELIDX', 0),
         (0x12, 'rel', 'SELDIGITS', -4),
         (0x1a, 'rel', 'SELLIST', -4),
         (0x1f, 'rel', 'DEVCUR', -4),
+        (0x27, 'abs8', 'SELIDX', 0),
         (0x2d, 'rel', 'SELSET', -4),
         (0x3d, 'abs', 'DZTHR1', 0),
         (0x44, 'abs', 'DZSTR1', 3),
@@ -700,11 +722,13 @@ BLOBS = {
     }),
     'DEVORDER': (bytes.fromhex(
         '030001020405060701020300040506078b800000000083f80777070fb6800000'
-        '0000c38b45f483f80777070fb680080000008b4decc3'
+        '0000c38b450083f80777070fb680080000008b4d00c3'
     ), (
         (0x12, 'abs', 'BLOCKS', 0),
         (0x1e, 'abs', '.', 0),
+        (0x25, 'abs8', 'DEVSEL', 0),
         (0x2e, 'abs', '.', 8),
+        (0x34, 'abs8', 'DEVNUM', 0),
     ), {
         'posof': 0x0,
         'devof': 0x8,
@@ -999,7 +1023,10 @@ def link(name, build, blobs=None, base=None):
         value = target + addend
         if kind == 'rel':
             value -= base + at
-        struct.pack_into('<I', out, at, value & 0xffffffff)
+        if kind == 'abs8':
+            struct.pack_into('<b', out, at, value)
+        else:
+            struct.pack_into('<I', out, at, value & 0xffffffff)
     return bytes(out)
 
 

@@ -12,7 +12,7 @@ extern SELSET                   ; and where it sets the selection
 selsec:
     call    DEVCUR
     jne     .skip
-    cmp     dword [ebp - 0xc], 0x1a
+    cmp     dword [byte ebp + SELIDX], 0x1a
     jge     .letters_done
     ret
 .letters_done:
@@ -27,7 +27,7 @@ selsec:
 selidx:
     call    DEVCUR
     jne     .flat
-    add     dword [ebp - 0xc], 0x24
+    add     dword [byte ebp + SELIDX], 0x24
 .flat:
     add     esp, 4
     jmp     SELSET          ; set the selection
@@ -40,6 +40,7 @@ selidx:
 ; loader's zero, so the text is terminated. Clobbers eax only.
 extern DZTHR1                   ; see asm/padxinput.asm
 extern DZSTR1
+extern SELIDX                   ; the preselect loop counter
 
     times   (0x00601c08 - 0x00601bd4) - ($ - $$) db 0
 dzseed:
