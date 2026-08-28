@@ -277,7 +277,7 @@ def main(check=False):
     _inc, data = layout.build()
     (_inc, blobs['PAD_COND'], blobs['PAD_BINDS'], blobs['PAD_NAMES'],
      blobs['PAD_DEVLIST'], blobs['PAD_SIMPLEDEF'],
-     blobs['PAD_INIKEYS']) = padtables.build()
+     blobs['PAD_INIKEYS'], blobs['PAD_PROFILES']) = padtables.build()
     _inc, extras_tpl, blobs['EXTRAS_DATA'] = dialogs.build_extras()
 
     vocd_out = ['VOCD_MAGICS = {\n']

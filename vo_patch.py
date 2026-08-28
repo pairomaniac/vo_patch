@@ -145,6 +145,7 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'TWIN': 0x006249c4,
     'PAD_INIKEYS': 0x00624ae0,
     'PAD_NAMES': 0x00624b9b,
+    'PAD_PROFILES': 0x00624c08,     # the rest of the same run
     'PAD_COND': 0x00624d1b,
     'F11PAUSE': 0x0063bf24,
     'INIALL': 0x0063c5f4,
@@ -266,9 +267,7 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'STATE': 0x0365cb44,           # the tick's XINPUT_STATE
     'BTN': 0x0365cb48,             # wButtons in it; the condition table's
     'SCR1': 0x0365cb60,            # scratch the tick keeps per player
-    'SCRATCH1': 0x0365cb60,        # a byte of scratch per player, past .data
     'SCR2': 0x0365cb61,
-    'SCRATCH2': 0x0365cb61,
     'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, so the two
     'PBTN': 0x0365cb74,            # pollers cannot tread on each other
     'SLEEPFN': 0x0365cb80,         # resolved Sleep: 0 not yet, 1 failed
@@ -421,7 +420,7 @@ BLOBS = {
         (0x2d2, 'abs', 'MASK1A', 0),
         (0x2d6, 'abs', 'MASK1B', 0),
         (0x2da, 'abs', 'ACCEPT1', 0),
-        (0x2de, 'abs', 'SCRATCH1', 0),
+        (0x2de, 'abs', 'SCR1', 0),
         (0x2e2, 'abs', 'KBHANDLER1', 0),
         (0x2e6, 'abs', 'CAMERA1', 0),
         (0x2ee, 'abs', 'BINDS2', 0),
@@ -430,7 +429,7 @@ BLOBS = {
         (0x2fa, 'abs', 'MASK2A', 0),
         (0x2fe, 'abs', 'MASK2B', 0),
         (0x302, 'abs', 'ACCEPT2', 0),
-        (0x306, 'abs', 'SCRATCH2', 0),
+        (0x306, 'abs', 'SCR2', 0),
         (0x30a, 'abs', 'KBHANDLER2', 0),
         (0x30e, 'abs', 'CAMERA2', 0),
     ), {
@@ -929,21 +928,19 @@ BLOBS = {
     'PAD_NAMES': (bytes.fromhex(
         '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
         '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
-        '005253204c6566740052532052696768740047616d65706164202858496e7075'
-        '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
-        '2853696d706c6529004b6579626f61726420285265616c290031502044656164'
-        '7a6f6e6500325020446561647a6f6e6500'
+        '005253204c65667400525320526967687400315020446561647a6f6e65003250'
+        '20446561647a6f6e6500'
     ), (
     ), {
-        'dzkeys': 0x99,
+        'dzkeys': 0x52,
     }),
     'PAD_DEVLIST': (bytes.fromhex(
         '0000000000000000000000000000000000000000000000000000000000000000'
     ), (
-        (0x0, 'abs', ('PAD_NAMES', 82), 0),
-        (0x4, 'abs', ('PAD_NAMES', 99), 0),
-        (0x8, 'abs', ('PAD_NAMES', 119), 0),
-        (0xc, 'abs', ('PAD_NAMES', 137), 0),
+        (0x0, 'abs', ('PAD_PROFILES', 0), 0),
+        (0x4, 'abs', ('PAD_PROFILES', 17), 0),
+        (0x8, 'abs', ('PAD_PROFILES', 37), 0),
+        (0xc, 'abs', ('PAD_PROFILES', 55), 0),
     ), {
     }),
     'PAD_SIMPLEDEF': (bytes.fromhex(
@@ -956,6 +953,13 @@ BLOBS = {
         '31502053696d706c652041737369676e0032502053696d706c65204173736967'
         '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
         '2041737369676e00'
+    ), (
+    ), {
+    }),
+    'PAD_PROFILES': (bytes.fromhex(
+        '47616d65706164202858496e70757429005477696e2d737469636b202858496e'
+        '70757429004b6579626f617264202853696d706c6529004b6579626f61726420'
+        '285265616c2900'
     ), (
     ), {
     }),
@@ -1087,6 +1091,7 @@ VOXT_CODE = link('VOXT', RETAIL)
 PAD_COND = link('PAD_COND', RETAIL)
 PAD_BINDS = link('PAD_BINDS', RETAIL)
 PAD_NAMES = link('PAD_NAMES', RETAIL)
+PAD_PROFILES = link('PAD_PROFILES', RETAIL)
 PAD_DEVLIST = link('PAD_DEVLIST', RETAIL)
 PAD_SIMPLEDEF = link('PAD_SIMPLEDEF', RETAIL)
 PAD_INIKEYS = link('PAD_INIKEYS', RETAIL)
@@ -1926,6 +1931,7 @@ FEATURES = [
          (site('PAD_COND'), '00' * len(PAD_COND), PAD_COND.hex()),
          (site('PAD_BINDS'), '00' * len(PAD_BINDS), PAD_BINDS.hex()),
          (site('PAD_NAMES'), '00' * len(PAD_NAMES), PAD_NAMES.hex()),
+         (site('PAD_PROFILES'), '00' * len(PAD_PROFILES), PAD_PROFILES.hex()),
          # The win and lose screens read the camera key, not the accept
          # key, which is why Select skips them and A does not. The tick
          # calls this to write the camera slot for A as well, on those

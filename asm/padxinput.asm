@@ -371,17 +371,17 @@ procname:
 ; The blocks' game addresses, in field order: the bind bytes, the two
 ; lever words, the two key masks, the accept slot, a byte of scratch past
 ; .data, the stock keyboard handler and the camera slot.
-extern BINDS1, LEV1A, LEV1B, MASK1A, MASK1B, ACCEPT1, SCRATCH1
+extern BINDS1, LEV1A, LEV1B, MASK1A, MASK1B, ACCEPT1, SCR1
 extern KBHANDLER1, CAMERA1
-extern BINDS2, LEV2A, LEV2B, MASK2A, MASK2B, ACCEPT2, SCRATCH2
+extern BINDS2, LEV2A, LEV2B, MASK2A, MASK2B, ACCEPT2, SCR2
 extern KBHANDLER2, CAMERA2
 
 block1:
     dd  0, BINDS1, LEV1A, LEV1B, MASK1A, MASK1B
-    dd  ACCEPT1, SCRATCH1, KBHANDLER1, CAMERA1
+    dd  ACCEPT1, SCR1, KBHANDLER1, CAMERA1
 block2:
     dd  1, BINDS2, LEV2A, LEV2B, MASK2A, MASK2B
-    dd  ACCEPT2, SCRATCH2, KBHANDLER2, CAMERA2
+    dd  ACCEPT2, SCR2, KBHANDLER2, CAMERA2
 
 dll14:  db 'xinput1_4.dll', 0
 dll13:  db 'xinput1_3.dll', 0

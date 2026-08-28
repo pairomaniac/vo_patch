@@ -82,21 +82,27 @@ def build():
     the bind list, the names, the device list, the Simple defaults and the
     ini keys. A fixup is (offset, kind, symbol, addend) as in vo_patch.link;
     the symbol is ('PAD_NAMES', offset) for a pointer into the names."""
-    names, at = bytearray(), {}
-    for text in ([name for name, _k, _w, _v in INPUTS] + PROFILES
+    # Two string blobs: the inputs' names and the deadzone keys in one, the
+    # profile names in another, so neither needs a run the rerelease has
+    # not got. A pointer names its blob, so the split costs nothing.
+    names, profiles, at = bytearray(), bytearray(), {}
+    for text in ([name for name, _k, _w, _v in INPUTS]
                  + ['1P Deadzone', '2P Deadzone']):
-        at[text] = len(names)
+        at[text] = ('PAD_NAMES', len(names))
         names += text.encode('ascii') + b'\0'
+    for text in PROFILES:
+        at[text] = ('PAD_PROFILES', len(profiles))
+        profiles += text.encode('ascii') + b'\0'
 
     cond, binds, bfix = bytearray(), bytearray(), []
     for i, (name, kind, where, value) in enumerate(INPUTS):
         cond += struct.pack('<BBhi', KIND[kind], 0, where, value)
-        bfix.append((len(binds), 'abs', ('PAD_NAMES', at[name]), 0))
+        bfix.append((len(binds), 'abs', at[name], 0))
         binds += struct.pack('<II', 0, FIRST_ID + i)
 
     devlist, dfix = bytearray(), []
     for p in PROFILES:
-        dfix.append((len(devlist), 'abs', ('PAD_NAMES', at[p]), 0))
+        dfix.append((len(devlist), 'abs', at[p], 0))
         devlist += struct.pack('<I', 0)
     devlist += b'\0' * (DEVLIST_LEN - len(devlist))
 
@@ -112,15 +118,16 @@ def build():
     return (inc,
             (bytes(cond), [], {}),
             (bytes(binds), bfix, {}),
-            (bytes(names), [], {'dzkeys': at['1P Deadzone']}),
+            (bytes(names), [], {'dzkeys': at['1P Deadzone'][1]}),
             (bytes(devlist), dfix, {}),
             (SIMPLEDEF, [], {}),
-            (inikeys, [], {}))
+            (inikeys, [], {}),
+            (bytes(profiles), [], {}))
 
 
 if __name__ == '__main__':
-    _inc, cond, binds, names, devlist, sdef, keys = build()
+    _inc, cond, binds, names, devlist, sdef, keys, profiles = build()
     print('condition table %d, bind list %d, names %d, device list %d, '
-          'simple defaults %d, ini keys %d'
+          'simple defaults %d, ini keys %d, profiles %d'
           % (len(cond[0]), len(binds[0]), len(names[0]), len(devlist[0]),
-             len(sdef[0]), len(keys[0])))
+             len(sdef[0]), len(keys[0]), len(profiles[0])))
