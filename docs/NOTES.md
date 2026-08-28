@@ -64,21 +64,62 @@ language, but that is a guess until a copy is read.
 
 ### The Japanese rerelease
 
-Its `v_on.exe` is a separate compile, not the retail one relaid out, so the
-patch tables do not transfer: of the 152 `original` sites, 9 are still where
-they were, 43 turn up elsewhere at inconsistent distances, and the rest are
-gone. The dinput signature finds nothing.
+Its `v_on.exe` is the same source through the same toolchain four months
+later - link 3.0 in April 1997 against 3.10 in October - with the same
+section order and a `.reloc` in both. It is a recompile, not a relayout:
+data moves by a different delta per region, functions grew or lost locals,
+and a few globals are in a different order. Nothing is a constant shift,
+so no address may be derived from a neighbour's; every one goes through
+the map.
 
-Two things do carry. The ending roll files are byte-identical to retail, so
-the harvested glyphs and the cells stay valid and only the block list in the
-executable would need finding again. And `dpctrl.dll` is imported with the
-same exports, so the netplay replacement is the one patch that does not
-depend on an offset.
+The patcher carries it as a second `Build` beside `RETAIL`: sections,
+caves, symbols, and `JAPAN.sites`, the rerelease's offset and original
+bytes for every site the table names by retail offset. The blobs are the
+same bytes with their addresses linked from that build's tables, and the
+site table's hooks and blob sites are expressions the build fills in. Four
+tools made the tables, all needing the two executables beside them:
 
-The title artwork is `jscrgame.bin` here, not `escrgame.bin`, at the same
-4 MB. The patcher names that file in a dozen places, so the banner patch
-needs a per-build name before it could be tried - and it is why dropping
-the English `v_on.exe` into a Japanese install does not work either.
+- `tools/vomap.py` matches functions by their instruction stream with
+  addresses masked (7291 of 7934 match, 6329 identically) and votes on
+  where every absolute address went.
+- `tools/votrans.py` runs the site table and the asm symbols through it;
+  ten sites were settled by hand where the matcher had split a function
+  at the wrong place or the site sits in a switch table. Those are
+  `MANUAL` in it, with the reason.
+- `tools/jpcaves.py` picks caves: runs of zeros in `.rdata` that nothing
+  in `.reloc` points into, usable up to the first thing that does, longest
+  blob first. Its output is the `JAPAN` caves table.
+- `tools/jpsites.py` writes `JAPAN.sites`.
+
+What differs from retail in the way it is patched:
+
+- `.text` has 50 bytes of padding, not 450, so the timer stub is in
+  `.rdata` and `framerate` sets the executable flag there. The debugbox
+  pair has no run of 269 bytes anywhere clean, so it rides in the appended
+  `.voxt` section between the template and the annex; the F11 wrapper and
+  the window-procedure hook link against `PENDING` until
+  `apply_extras_template()` knows the address and relinks them.
+- Frame layouts differ in the patched functions: the bind page's loop
+  counter is `[ebp-0x18]` for retail's `[ebp-8]`, the F7 combo selection
+  `[ebp-0x10]`, the OK handler's line buffer `[ebp-0x18c]`. Those are the
+  frame-offset symbols.
+- The XInput scratch sits in the page slack past `.data` as it does in
+  retail, at `0x36577a0`; the ending screens' two spare bytes at
+  `0x6bf0d0`. Neither is proven free the way a cave is.
+- The netplay DLL tells the builds apart by the PE timestamp
+  (`0x345107FA`) and fingerprints the rerelease's own two sites.
+- The title artwork is `jscrgame.bin`, at the same 4 MB; the tile layout
+  is assumed to match and no MD5 is pinned for it.
+
+Two caves sit four bytes past something the game points at (`INILOAD` at
+`0x5f6144`, `BLOCKCUR` at `0x5ff5fc`), the same shape retail's device-order
+cave has. If the rerelease misbehaves on the F7 page or at launch, look
+there first.
+
+The ending roll files are byte-identical to retail, so the harvested
+glyphs stay valid, and `dpctrl.dll` is imported with the same exports.
+Dropping the English `v_on.exe` into a Japanese install does not work: it
+looks for `escrgame.bin`.
 
 Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
