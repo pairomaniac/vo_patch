@@ -82,6 +82,205 @@ DISC_IMAGES = {
     '.nrg': 'disc image', '.ccd': 'disc image', '.toc': 'cue sheet',
 }
 
+# Where each blob goes and what it names in the game, per build.
+#
+# The machine code in BLOBS below names no addresses: every place in the
+# game it touches is a symbol, and link() fills the symbol in from these
+# tables when the module loads. A second build is a second Build with its
+# own caves and symbols and the same BLOBS.
+#
+# A cave is the virtual address a blob is written at, or (blob, offset) for
+# one that rides inside another. A symbol is a virtual address in the game,
+# or (blob, label) for a place inside one of ours.
+
+class Build(object):
+    def __init__(self, md5, size, sections, caves, symbols):
+        self.md5, self.size = md5, size
+        # (file offset, virtual address) of each section, in file order
+        self.sections = sections
+        self.caves, self.symbols = caves, symbols
+
+    def va(self, off):
+        """File offset -> virtual address."""
+        for raw, va in reversed(self.sections):
+            if off >= raw:
+                return off - raw + va
+        raise ValueError('0x%x is in the headers' % off)
+
+    def off(self, va):
+        """Virtual address -> file offset."""
+        for raw, vaddr in reversed(self.sections):
+            if va >= vaddr:
+                return va - vaddr + raw
+        raise ValueError('0x%x is below the image' % va)
+
+
+RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
+    (0x00000400, 0x00401000),       # .text
+    (0x001f4400, 0x005f5000),       # .rdata
+    (0x0023de00, 0x0063f000),       # .data
+    (0x00601a00, 0x0365d000),       # .idata
+    (0x00602c00, 0x0365f000),       # .rsrc
+    (0x0060c400, 0x03669000),       # .reloc
+), caves={
+    'TIMER': 0x005f4e3e,            # .text padding past the code
+    'DEBUGBOX': 0x005f4e7c,         # the rest of it; hook, then procedure
+    'OVERLAY': 0x005f80e0,
+    'COMMITDEV': 0x005fd74c,        # runs of zeros in .rdata from here on
+    'BINDLIST': 0x005fd7e4,
+    'BLOCKCUR': 0x005fd864,
+    'BINDMAP': 0x005fd904,
+    'BINDBLOCK': 0x005ff24c,
+    'INIPARSE': 0x00601b0c,
+    'PAGESEC': 0x00601b70,
+    'PAGESEL': 0x00601bd4,
+    'INISAVE': 0x00601c38,
+    'DEVORDER': 0x00604734,
+    'INILOAD': 0x0060702c,
+    'PADX': 0x00608060,
+    'LEVERS': ('PADX', 'end'),      # written straight after the routine
+    'TITLEVER': 0x00623d98,
+    'PAD_SIMPLEDEF': 0x00624788,
+    'PAD_BINDS': 0x00624843,
+    'TWIN': 0x006249c4,
+    'PAD_INIKEYS': 0x00624ae0,
+    'PAD_NAMES': 0x00624b9b,
+    'PAD_COND': 0x00624d1b,
+    'F11PAUSE': 0x0063bf24,
+    'INIALL': 0x0063c5f4,
+    'CREDITS': 0x0063d6d0,
+    'CAMSKIP': 0x0063dda0,
+    'NAMEENTRY': 0x0063ddc4,
+    'EXTRAS_DATA': 0x0063e8e8,
+    'KBPAGE': 0x0063e938,
+    'INTROWAIT': 0x0063e970,        # .rdata raw padding after it
+    'PAD_DEVLIST': 0x0066d418,      # the F7 device list's own run, in .data
+    'MOVIE': 0x0366865c,            # .rsrc padding
+    # VOXT rides in the appended .voxt section and names nothing relative
+    # to itself, so it has no cave: link() is given None.
+}, symbols={
+    # Places inside our own blobs, by label
+    'DEVCUR': ('BINDLIST', 'devcur'),
+    'PADLIST': ('PAD_BINDS', 0),
+    'DZKEYS': ('PAD_NAMES', 'dzkeys'),
+    'COND': ('PAD_COND', 0),
+    'SIMPLEDEF': ('PAD_SIMPLEDEF', 0),
+    'INIKEYS': ('PAD_INIKEYS', 0),
+    'USER32': ('EXTRAS_DATA', 'user32'),
+    'DLGBOXPROC': ('EXTRAS_DATA', 'dlgboxproc'),
+    'CHECKS': ('EXTRAS_DATA', 'checks'),
+    'F11WRAP': ('F11PAUSE', 'f11wrap'),
+    'F11CHECKS': ('F11PAUSE', 'f11checks'),
+    'DLGPROC': ('DEBUGBOX', 'dlgproc'),
+    'LOADSIMPLE': ('INILOAD', 'loadsimple'),
+    'DZSEED': ('PAGESEL', 'dzseed'),
+    'PARSE12': ('INIPARSE', 'parse12'),
+    'DZSAVE': ('INIPARSE', 'dzsave'),
+    'HEXCHAR': ('BINDBLOCK', 'hexchar'),
+    'POLLPADS': ('PADX', 'pollpads'),
+    'TICK': ('PADX', 'tick'),
+    'CAMSKIP': ('CAMSKIP', 0),
+    # The game
+    'EXIT1P': 0x00442ec4,          # where the 1P profile switch resumes
+    'KBD1P': 0x00443074,           # stock keyboard handler, called by the tick
+    'KBHANDLER1': 0x00443074,      # the stock 1P keyboard handler
+    'CASEB': 0x00496b23,           # the stock device 1 apply-and-serialize
+    'CROSSCHECK': 0x0049776e,      # look at 1P's key map
+    'KBACCEPT': 0x004977c6,        # take the key
+    'RESUME': 0x0049789a,          # what the Default button does next
+    'DEFAULTS': 0x0049790f,        # fill a player's binds from the shipped set
+    'DIGITLOOP': 0x00497c70,       # bind page fill: the digit loop
+    'LISTLOOP': 0x00497cb0,        # and the list loop
+    'FILLDONE': 0x00497cf7,        # where the fill loop's jge went
+    'STORESHIFT': 0x00497e74,      # bind page store: shift down, try digits
+    'STORELIST': 0x00497e99,       # and the list id store
+    'SELDIGITS': 0x00498059,       # bind page preselect: the digit loop
+    'SELLIST': 0x0049809d,         # the list loop
+    'MAPDONE': 0x004980d9,         # where the search loop's jge went
+    'SELSET': 0x004980d9,          # and set the selection
+    'CURSOR': 0x004cd8c3,          # (column, row), cdecl
+    'PRINT': 0x004ceeeb,           # (text), cdecl, from the cursor
+    'WRITELINE': 0x005b1833,       # (key, value): one v_on.ini line
+    'FINDLINE': 0x005b1871,        # (key) -> value text, 0 if absent
+    'EXIT2P': 0x005bcd57,          # and the 2P one
+    'KBD2P': 0x005bceed,
+    'KBHANDLER2': 0x005bceed,      # and 2P
+    'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
+    'GRESUME': 0x005c680b,         # and their resume
+    'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
+    'ORIG': 0x005c80df,            # the call this one is made in place of
+    'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
+    'MEMCPY': 0x005e6030,
+    'ORIGENTRY': 0x005e7930,       # the entry point this replaces
+    'CDMUTE': 0x0063f430,
+    'NOSHOT': 0x00652fd8,          # F11 check boxes: the flags they toggle
+    'MASK1A': 0x00653690,          # 1P key masks
+    'MASK1B': 0x0065369d,
+    'KEYLIST': 0x0066d438,         # the game's 33 named keys
+    'SEMUTE': 0x006bcc4c,
+    'MASK2A': 0x006beb08,          # 2P
+    'MASK2B': 0x006beb15,
+    'HALF': 0x006bf560,            # coordinates on, at 0x5c9a98
+    'WIDE': 0x006bf598,            # the two the pause text halves its own
+    'PREV': 0x006c3d48,            # last frame's slot, shared with nameentry.asm
+    'HELD': 0x006c3d49,            # and how long this press has lasted
+    'CAMERA1': 0x00bf0457,         # and the one Select writes, which is what
+    'ACCEPT1': 0x00bf0481,         # 1P's key buffer slot for A and Space
+    'BLOCKS': 0x00bf6838,          # per player: this + player * 0x70; the
+    'CURPLAYER': 0x00bf6bac,       # the side being configured, 0 or 1
+    'PHASE': 0x01ad0964,           # where the credits sequence is up to
+    'CAM2': 0x01ad0d94,
+    'CAMERA2': 0x01ad0d94,
+    'ACC2': 0x01ad0db1,
+    'ACCEPT2': 0x01ad0db1,         # and 2P
+    'FLAG': 0x01ae1c1c,            # the displaced write
+    'MODE': 0x01ae3594,            # game state and sub-state, the pair the
+    'SUBMODE': 0x01ae3690,         # tick already gates its bind slots on
+    'MOVIEX': 0x01ae5f34,          # the offsets the replaced code read
+    'MOVIEY': 0x01ae5f38,
+    'PRIMARY': 0x01ae5f40,         # the surface DRAW paints on, and the one
+    'HWND': 0x01ae5f58,            # the game's window
+    'BACK': 0x01ae5f5c,            # that is about to be flipped over it
+    'LEV1A': 0x01cb14c4,           # 1P lever words, left then right
+    'LEV1B': 0x01cb14c6,
+    'EDGEA': 0x01ed5ec5,           # press edges, lever A byte: bit 0 is LT
+    'EDGEB': 0x01ed5ec6,           # and lever B's, where 2P's RT is
+    'LEV2A': 0x01ee3ee4,           # 2P
+    'LEV2B': 0x01ee3ee6,
+    'MOVIEHWND': 0x01ef88c8,       # the mciavi window, from MCI_ANIM_STATUS_HWND
+    'MOVIEDEV': 0x01ef88f0,        # its device id
+    'LIVE': 0x03651470,            # + player * 0x18
+    'BINDS1': 0x03651470,          # 1P bind bytes
+    'BINDS2': 0x03651488,          # 2P bind bytes
+    'DEVICES': 0x03651540,         # 1P's profile, 0 being the keyboard
+    'XIFN': 0x0365cb40,            # resolved XInputGetState: 0 not yet, 1 failed
+    'STATE': 0x0365cb44,           # the tick's XINPUT_STATE
+    'BTN': 0x0365cb48,             # wButtons in it; the condition table's
+    'SCR1': 0x0365cb60,            # scratch the tick keeps per player
+    'SCRATCH1': 0x0365cb60,        # a byte of scratch per player, past .data
+    'SCR2': 0x0365cb61,
+    'SCRATCH2': 0x0365cb61,
+    'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, so the two
+    'PBTN': 0x0365cb74,            # pollers cannot tread on each other
+    'SLEEPFN': 0x0365cb80,         # resolved Sleep: 0 not yet, 1 failed
+    'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad,
+    'DZTHR1': 0x0365cb8c,          # stick thresholds out of 32767, 1P then
+    'DZSTR1': 0x0365cb94,          # the digit pairs; see asm/padxinput.asm
+    'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
+    'LOADLIB': 0x0365d504,         # LoadLibraryA
+    'GETPROC': 0x0365d508,         # GetProcAddress
+    'SENDMSG': 0x0365d52c,         # SendMessageA
+    'ENDDIALOG': 0x0365d538,       # EndDialog
+    'CHECKDLGBTN': 0x0365d544,     # CheckDlgButton
+    'GETDLGITEM': 0x0365d54c,      # GetDlgItem
+    'POSTMSG': 0x0365d56c,         # PostMessageA
+    'GETMSG': 0x0365d58c,          # GetMessageA, the call this replaced
+    'PEEKMSG': 0x0365d590,         # PeekMessageA
+    'GETCLIENT': 0x0365d5d4,       # GetClientRect, the hooked one
+    'MOVEWINDOW': 0x0365d5e0,      # MoveWindow
+    'MCISEND': 0x0365d648,         # mciSendCommandA
+})
+
 # GENERATED - do not edit the hex by hand.
 #
 # Assembled from the sources in asm/. To change any of them: edit the source
@@ -90,124 +289,793 @@ DISC_IMAGES = {
 # which rewrites everything between the markers below. CI runs
 # `asm/build.py --check` on every push and fails if the two have drifted.
 #
-# padxinput.asm is assembled at a fixed org and padded to a fixed length: five
-# addresses inside it are named from outside, and levers.asm is written at the
-# site immediately after it. The source pins all of that.
+# Each entry is (code, fixups, labels). A fixup is (offset, kind, symbol,
+# addend): 'abs' puts the symbol's address plus the addend at the offset,
+# 'rel' the distance from the end of the slot to it. The symbol '.' is the
+# blob's own address. Labels are offsets into the code, for the symbols
+# above and the site table to name.
 
-# PADX BLOB BEGIN
-PADX_CODE = bytes.fromhex(
-    '6822836000e8ef00000083c404e952aee3ff684a836000e8dd00000083c404e9'
-    'd34cfbff0000000000000000000000000000000000000000e807000000ff2590'
-    'd5650300609ce80f02000083f801767431f683fe02736d6870cb650356ff1540'
-    'cb650385c0755a0fb71d74cb65038d14b584cb65030fb72a66891a31ff83ff02'
-    '733f8d0cbd278160000fb70189da21c221e839c27428b80001000085d2750b80'
-    '7903007419b8010100006a000fb651025250ff35585fae01ff156cd5650347eb'
-    'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
-    '000000000000000000000000000000000000000000000000005589e583ec0453'
-    '56578b5d08c745fc00000000e84901000083f80174416844cb6503ff33ffd085'
-    'c07534c745fc010000000fb70548cb6503a900100000740b8b5318c60280e8fd'
-    '5b03000fb70548cb6503a92000000074068b5324c602808b4320ffd0837dfc00'
-    '0f843c01000031f683fe0c0f83a1000000833d9435ae01047512833d9036ae01'
-    '087c09833d9036ae010c7e0f83fe04747b83fe05747683fe077f778b53040fb6'
-    '04722de0000000726383f810735e8d3cc51b4d62000fb6070fb757028b4f0483'
-    'f800741783f801741d83f802742c0fb68248cb650339c8772eeb310fbf8248cb'
-    '6503f7d8eb070fbf8248cb65038b0b3b048d8ccb65037f0feb120fb70548cb65'
-    '0385c87502eb05e82500000046e956ffffff31f683fe040f83850000000fb705'
-    '48cb65030fa3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb702'
-    '21c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a140cb650385'
-    'c075385631f683fe0373258b04b50783600050ff1504d5650385c0750346ebe6'
-    '681383600050ff1508d5650385c07505b801000000a340cb65035ec300000000'
-    '00005f5e5bc9c372836000808360008e83600058496e70757447657453746174'
-    '65000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb'
-    '6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb'
-    '6b00b10dad0161cb6503edce5b00940dad0178696e707574315f342e646c6c00'
-    '78696e707574315f332e646c6c0078696e707574395f315f302e646c6c00'
-)
-# PADX BLOB END
+# BLOBS BLOB BEGIN
+BLOBS = {
+    'TIMER': (bytes.fromhex(
+        '6824000000ff1500000000682e00000050ff150000000085c074046a01ffd0e9'
+        'fcffffff77696e6d6d2e646c6c0074696d65426567696e506572696f6400'
+    ), (
+        (0x1, 'abs', '.', 36),
+        (0x7, 'abs', 'LOADLIB', 0),
+        (0xc, 'abs', '.', 46),
+        (0x13, 'abs', 'GETPROC', 0),
+        (0x20, 'rel', 'ORIGENTRY', -4),
+    ), {
+        'start': 0x0,
+        'winmm': 0x24,
+        'procname': 0x2e,
+    }),
+    'DEBUGBOX': (bytes.fromhex(
+        '558bec53817d0c000100007532817d107a00000075296800000000ff15000000'
+        '00680000000050ff150000000085c074078bd8e8fcffffff33c05b5dc210005b'
+        '5de9fcffffff00000000000000000000000000000000000000000000558bec53'
+        '56578b450c3d100100007532ff7508e8fcffffff31ff8d475250ff7508ff1500'
+        '0000008d14bd00000000526a006a0c50ff15000000004783ff0272daeb453d11'
+        '01000075450fb74d108d51ae83fa01763283f902740d83f954740881f9419c00'
+        '0075308b5508e8eaeaeaea85c074146a00516811010000ff3500000000ff1500'
+        '000000b801000000eb0233c05f5e5b5dc2100083f9517513833d000000000475'
+        '086a1f8f0500000000ebd8ebc2'
+    ), (
+        (0x17, 'abs', 'USER32', 0),
+        (0x1d, 'abs', 'LOADLIB', 0),
+        (0x22, 'abs', 'DLGBOXPROC', 0),
+        (0x29, 'abs', 'GETPROC', 0),
+        (0x34, 'rel', 'F11WRAP', -4),
+        (0x42, 'rel', 'ORIGWNDPROC', -4),
+        (0x70, 'rel', 'F11CHECKS', -4),
+        (0x7f, 'abs', 'GETDLGITEM', 0),
+        (0x86, 'abs', 'DZSTR1', 0),
+        (0x92, 'abs', 'SENDMSG', 0),
+        (0xd9, 'abs', 'HWND', 0),
+        (0xdf, 'abs', 'POSTMSG', 0),
+        (0xfa, 'abs', 'MODE', 0),
+        (0x105, 'abs', 'SUBMODE', 0),
+    ), {
+        'hook': 0x0,
+        'dlgproc': 0x5c,
+        'credits': 0xf3,
+    }),
+    'PADX': (bytes.fromhex(
+        '68c2020000e8ef00000083c404e9fcffffff68ea020000e8dd00000083c404e9'
+        'fcffffff0000000000000000000000000000000000000000e807000000ff2500'
+        '00000000609ce80f02000083f801767431f683fe02736d680000000056ff1500'
+        '00000085c0755a0fb71d000000008d14b5000000000fb72a66891a31ff83ff02'
+        '733f8d0cbdc70000000fb70189da21c221e839c27428b80001000085d2750b80'
+        '7903007419b8010100006a000fb651025250ff3500000000ff150000000047eb'
+        'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
+        '000000000000000000000000000000000000000000000000005589e583ec0453'
+        '56578b5d08c745fc00000000e84901000083f80174416800000000ff33ffd085'
+        'c07534c745fc010000000fb70500000000a900100000740b8b5318c60280e8fc'
+        'ffffff0fb70500000000a92000000074068b5324c602808b4320ffd0837dfc00'
+        '0f843c01000031f683fe0c0f83a1000000833d00000000047512833d00000000'
+        '087c09833d000000000c7e0f83fe04747b83fe05747683fe077f778b53040fb6'
+        '04722de0000000726383f810735e8d3cc5000000000fb6070fb757028b4f0483'
+        'f800741783f801741d83f802742c0fb6820000000039c8772eeb310fbf820000'
+        '0000f7d8eb070fbf82000000008b0b3b048d000000007f0feb120fb705000000'
+        '0085c87502eb05e82500000046e956ffffff31f683fe040f83850000000fb705'
+        '000000000fa3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb702'
+        '21c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a10000000085'
+        'c075385631f683fe0373258b04b5a702000050ff150000000085c0750346ebe6'
+        '68b302000050ff150000000085c07505b801000000a3000000005ec300000000'
+        '00005f5e5bc9c312030000200300002e03000058496e70757447657453746174'
+        '6500000000000000000000000000000000000000000000000000000000000000'
+        '0000000000000000000001000000000000000000000000000000000000000000'
+        '00000000000000000000000000000000000078696e707574315f342e646c6c00'
+        '78696e707574315f332e646c6c0078696e707574395f315f302e646c6c00'
+    ), (
+        (0x1, 'abs', '.', 706),
+        (0xe, 'rel', 'EXIT1P', -4),
+        (0x13, 'abs', '.', 746),
+        (0x20, 'rel', 'EXIT2P', -4),
+        (0x3f, 'abs', 'PEEKMSG', 0),
+        (0x58, 'abs', 'PSTATE', 0),
+        (0x5f, 'abs', 'XIFN', 0),
+        (0x6a, 'abs', 'PBTN', 0),
+        (0x71, 'abs', 'PADPREV', 0),
+        (0x85, 'abs', '.', 199),
+        (0xb4, 'abs', 'HWND', 0),
+        (0xba, 'abs', 'POSTMSG', 0),
+        (0x117, 'abs', 'STATE', 0),
+        (0x12d, 'abs', 'BTN', 0),
+        (0x13f, 'rel', 'CAMSKIP', -4),
+        (0x146, 'abs', 'BTN', 0),
+        (0x173, 'abs', 'MODE', 0),
+        (0x17c, 'abs', 'SUBMODE', 0),
+        (0x185, 'abs', 'SUBMODE', 0),
+        (0x1b1, 'abs', 'COND', 0),
+        (0x1d1, 'abs', 'BTN', 0),
+        (0x1de, 'abs', 'BTN', 0),
+        (0x1e9, 'abs', 'BTN', 0),
+        (0x1f2, 'abs', 'DZTHR1', 0),
+        (0x1fd, 'abs', 'BTN', 0),
+        (0x220, 'abs', 'BTN', 0),
+        (0x25b, 'abs', 'XIFN', 0),
+        (0x26e, 'abs', '.', 679),
+        (0x275, 'abs', 'LOADLIB', 0),
+        (0x281, 'abs', '.', 691),
+        (0x288, 'abs', 'GETPROC', 0),
+        (0x296, 'abs', 'XIFN', 0),
+        (0x2a7, 'abs', '.', 786),
+        (0x2ab, 'abs', '.', 800),
+        (0x2af, 'abs', '.', 814),
+        (0x2c6, 'abs', 'BINDS1', 0),
+        (0x2ca, 'abs', 'LEV1A', 0),
+        (0x2ce, 'abs', 'LEV1B', 0),
+        (0x2d2, 'abs', 'MASK1A', 0),
+        (0x2d6, 'abs', 'MASK1B', 0),
+        (0x2da, 'abs', 'ACCEPT1', 0),
+        (0x2de, 'abs', 'SCRATCH1', 0),
+        (0x2e2, 'abs', 'KBHANDLER1', 0),
+        (0x2e6, 'abs', 'CAMERA1', 0),
+        (0x2ee, 'abs', 'BINDS2', 0),
+        (0x2f2, 'abs', 'LEV2A', 0),
+        (0x2f6, 'abs', 'LEV2B', 0),
+        (0x2fa, 'abs', 'MASK2A', 0),
+        (0x2fe, 'abs', 'MASK2B', 0),
+        (0x302, 'abs', 'ACCEPT2', 0),
+        (0x306, 'abs', 'SCRATCH2', 0),
+        (0x30a, 'abs', 'KBHANDLER2', 0),
+        (0x30e, 'abs', 'CAMERA2', 0),
+    ), {
+        'entry1p': 0x0,
+        'entry2p': 0x12,
+        'pump': 0x38,
+        'pollpads': 0x44,
+        'keytab': 0xc7,
+        'keytab_end': 0xcf,
+        'tick': 0xf9,
+        'apply': 0x231,
+        'resolve': 0x25a,
+        'epilogue': 0x2a2,
+        'dlltab': 0x2a7,
+        'procname': 0x2b3,
+        'block1': 0x2c2,
+        'block2': 0x2ea,
+        'dll14': 0x312,
+        'dll13': 0x320,
+        'dll910': 0x32e,
+    }),
+    'LEVERS': (bytes.fromhex(
+        '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
+        '40750bf601807506800ab08009705f5e5bc9c3'
+    ), (
+    ), {
+    }),
+    'TWIN': (bytes.fromhex(
+        '6854000000e8fcffffff83c404e9fcffffff687c000000e8fcffffff83c404e9'
+        'fcffffffe800e900ea00eb00ec00ed00ee00ef00e600e700e400e50020108040'
+        '0000000001000200000000002010804000010002000000002400000000000000'
+        '000000003c000000480000000000000000000000000000000000000001000000'
+        '2400000000000000000000003c00000048000000000000000000000000000000'
+        '00000000'
+    ), (
+        (0x1, 'abs', '.', 84),
+        (0x6, 'rel', 'TICK', -4),
+        (0xe, 'rel', 'EXIT1P', -4),
+        (0x13, 'abs', '.', 124),
+        (0x18, 'rel', 'TICK', -4),
+        (0x20, 'rel', 'EXIT2P', -4),
+        (0x58, 'abs', '.', 36),
+        (0x5c, 'abs', 'LEV1A', 0),
+        (0x60, 'abs', 'LEV1B', 0),
+        (0x64, 'abs', '.', 60),
+        (0x68, 'abs', '.', 72),
+        (0x6c, 'abs', 'ACCEPT1', 0),
+        (0x70, 'abs', 'SCR1', 0),
+        (0x74, 'abs', 'KBD1P', 0),
+        (0x78, 'abs', 'CAMERA1', 0),
+        (0x80, 'abs', '.', 36),
+        (0x84, 'abs', 'LEV2A', 0),
+        (0x88, 'abs', 'LEV2B', 0),
+        (0x8c, 'abs', '.', 60),
+        (0x90, 'abs', '.', 72),
+        (0x94, 'abs', 'ACC2', 0),
+        (0x98, 'abs', 'SCR2', 0),
+        (0x9c, 'abs', 'KBD2P', 0),
+        (0xa0, 'abs', 'CAM2', 0),
+    ), {
+        'stub1p': 0x0,
+        'stub2p': 0x12,
+        'binds': 0x24,
+        'maska': 0x3c,
+        'maskb': 0x48,
+        'block1': 0x54,
+        'block2': 0x7c,
+    }),
+    'INTROWAIT': (bytes.fromhex(
+        'e8fcffffff6a006a006a006a00ff742414ff150000000085c07509e80a000000'
+        '85c075dcff2500000000a10000000085c0740f83f801743a6a08ffd0b8010000'
+        '00c36875000000ff150000000085c07417688200000050ff150000000085c074'
+        '07a300000000ebd0c705000000000100000031c0c36b65726e656c33322e646c'
+        '6c00536c65657000'
+    ), (
+        (0x1, 'rel', 'POLLPADS', -4),
+        (0x13, 'abs', 'PEEKMSG', 0),
+        (0x26, 'abs', 'GETMSG', 0),
+        (0x2b, 'abs', 'SLEEPFN', 0),
+        (0x43, 'abs', '.', 117),
+        (0x49, 'abs', 'LOADLIB', 0),
+        (0x52, 'abs', '.', 130),
+        (0x59, 'abs', 'GETPROC', 0),
+        (0x62, 'abs', 'SLEEPFN', 0),
+        (0x6a, 'abs', 'SLEEPFN', 0),
+    ), {
+        'introwait': 0x0,
+        'nap': 0x2a,
+        'kern32': 0x75,
+        'sleepnm': 0x82,
+    }),
+    'KBPAGE': (bytes.fromhex(
+        '833d00000000017510a1000000004883f8017605e9fcffffffe9fcffffff9090'
+        '6a01ff3500000000e8fcffffff83c408e9fcffffff'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xa, 'abs', 'DEVICES', 0),
+        (0x15, 'rel', 'CROSSCHECK', -4),
+        (0x1a, 'rel', 'KBACCEPT', -4),
+        (0x24, 'abs', 'CURPLAYER', 0),
+        (0x29, 'rel', 'DEFAULTS', -4),
+        (0x31, 'rel', 'RESUME', -4),
+    ), {
+        'dupkey': 0x0,
+        'default_button': 0x20,
+    }),
+    'BINDLIST': (bytes.fromhex(
+        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
+        '7df810eb04837df8217c0883c404e9fcffffffc390909090e8c3ffffff74088b'
+        '04c500000000c38b04c500000000c390e8abffffff74088a04c504000000c38a'
+        '04c504000000c3'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xb, 'abs', 'BLOCKS', 0),
+        (0x2f, 'rel', 'FILLDONE', -4),
+        (0x42, 'abs', 'PADLIST', 0),
+        (0x4a, 'abs', 'KEYLIST', 0),
+        (0x5a, 'abs', 'PADLIST', 4),
+        (0x62, 'abs', 'KEYLIST', 4),
+    ), {
+        'devcur': 0x0,
+        'fillcount': 0x18,
+        'fillname': 0x38,
+        'storeid': 0x50,
+    }),
+    'BINDMAP': (bytes.fromhex(
+        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
+        '7df410eb04837df4217c0883c404e9fcffffffc390909090e8c3ffffff740839'
+        '0cc504000000c3390cc504000000c3908b4424046bc87081c1380000006bc018'
+        '05000000006a185051e8fcffffff83c40cc3'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xb, 'abs', 'BLOCKS', 0),
+        (0x2f, 'rel', 'MAPDONE', -4),
+        (0x42, 'abs', 'PADLIST', 4),
+        (0x4a, 'abs', 'KEYLIST', 4),
+        (0x59, 'abs', 'BLOCKS', 56),
+        (0x61, 'abs', 'SIMPLEDEF', 0),
+        (0x6a, 'rel', 'MEMCPY', -4),
+    ), {
+        'devcur': 0x0,
+        'mapcount': 0x18,
+        'mapid': 0x38,
+        'simple_defaults': 0x50,
+    }),
+    'BINDBLOCK': (bytes.fromhex(
+        '83b8000000000374060508000000c30538000000c39090906bd07083ba000000'
+        '00036bc01874060500d66600c30500000000c39083b9000000000374088a8441'
+        '08000000c38a844138000000c3909090240f3c0a720204270430880747c3'
+    ), (
+        (0x2, 'abs', 'BLOCKS', 0),
+        (0xa, 'abs', 'BLOCKS', 8),
+        (0x10, 'abs', 'BLOCKS', 56),
+        (0x1d, 'abs', 'BLOCKS', 0),
+        (0x2e, 'abs', 'SIMPLEDEF', 0),
+        (0x36, 'abs', 'BLOCKS', 0),
+        (0x40, 'abs', 'BLOCKS', 8),
+        (0x48, 'abs', 'BLOCKS', 56),
+    ), {
+        'blockaddr': 0x0,
+        'defsource': 0x18,
+        'preselbind': 0x34,
+        'hexchar': 0x50,
+    }),
+    'INISAVE': (bytes.fromhex(
+        '5356578b9d38ffffff6bf3708db6380000008bbd34ffffff31c98a040e88c2c0'
+        'e804e8fcffffff88d0e8fcffffff4183f9187ce6c607006bc3110500000000ff'
+        'b534ffffff50e8fcffffff83c4085f5e5be9fcffffff'
+    ), (
+        (0xe, 'abs', 'BLOCKS', 56),
+        (0x23, 'rel', 'HEXCHAR', -4),
+        (0x2a, 'rel', 'HEXCHAR', -4),
+        (0x3b, 'abs', 'INIKEYS', 0),
+        (0x47, 'rel', 'WRITELINE', -4),
+        (0x52, 'rel', 'CASEB', -4),
+    ), {
+        'savesimple': 0x0,
+    }),
+    'INILOAD': (bytes.fromhex(
+        '5356578b5c24106bfb708dbf380000006bc3110500000000e8fcffffff83ef30'
+        '6bc3138d8022000000e8fcffffff833c9d000000000375138d77306bfb188dbf'
+        '00000000b906000000f3a55f5e5bc3'
+    ), (
+        (0xc, 'abs', 'BLOCKS', 56),
+        (0x14, 'abs', 'INIKEYS', 0),
+        (0x19, 'rel', 'PARSE12', -4),
+        (0x25, 'abs', 'INIKEYS', 34),
+        (0x2a, 'rel', 'PARSE12', -4),
+        (0x31, 'abs', 'DEVICES', 0),
+        (0x40, 'abs', 'LIVE', 0),
+    ), {
+        'loadsimple': 0x0,
+    }),
+    'BLOCKCUR': (bytes.fromhex(
+        '518b0d000000006bc97083b900000000035974078d8008000000c38d80380000'
+        '00c390909090909050518b45086bc8708b048500000000398100000000595875'
+        '05e9fcffffffc3'
+    ), (
+        (0x3, 'abs', 'CURPLAYER', 0),
+        (0xc, 'abs', 'BLOCKS', 0),
+        (0x16, 'abs', 'BLOCKS', 8),
+        (0x1d, 'abs', 'BLOCKS', 56),
+        (0x33, 'abs', 'DEVICES', 0),
+        (0x39, 'abs', 'BLOCKS', 0),
+        (0x42, 'rel', 'MEMCPY', -4),
+    ), {
+        'blockcur': 0x0,
+        'syncshim': 0x28,
+    }),
+    'INIPARSE': (bytes.fromhex(
+        '50e8fcffffff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
+        '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
+        '04b500000000506bc60c050000000050e8fcffffff83c4084e79e4c3'
+    ), (
+        (0x2, 'rel', 'FINDLINE', -4),
+        (0x42, 'abs', 'DZSTR1', 0),
+        (0x4b, 'abs', 'DZKEYS', 0),
+        (0x51, 'rel', 'WRITELINE', -4),
+    ), {
+        'parse12': 0x0,
+        'nibble': 0x2c,
+        'dzsave': 0x3c,
+    }),
+    'PAGESEC': (bytes.fromhex(
+        'e8fcffffff750f837df81a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff750f837dec1a7d01c383c404e9fcffffff83c404e9fcffffff'
+    ), (
+        (0x1, 'rel', 'DEVCUR', -4),
+        (0x12, 'rel', 'DIGITLOOP', -4),
+        (0x1a, 'rel', 'LISTLOOP', -4),
+        (0x1f, 'rel', 'DEVCUR', -4),
+        (0x30, 'rel', 'STORESHIFT', -4),
+        (0x38, 'rel', 'STORELIST', -4),
+    ), {
+        'fillsec': 0x0,
+        'storesec': 0x1e,
+    }),
+    'PAGESEL': (bytes.fromhex(
+        'e8fcffffff750f837df41a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff75048345f42483c404e9fcffffff00000069c14701000089049d000000'
+        '00880c9d0300000088c8d40a6605303086c46689049d00000000c3'
+    ), (
+        (0x1, 'rel', 'DEVCUR', -4),
+        (0x12, 'rel', 'SELDIGITS', -4),
+        (0x1a, 'rel', 'SELLIST', -4),
+        (0x1f, 'rel', 'DEVCUR', -4),
+        (0x2d, 'rel', 'SELSET', -4),
+        (0x3d, 'abs', 'DZTHR1', 0),
+        (0x44, 'abs', 'DZSTR1', 3),
+        (0x56, 'abs', 'DZSTR1', 0),
+    ), {
+        'selsec': 0x0,
+        'selidx': 0x1e,
+        'dzseed': 0x34,
+    }),
+    'COMMITDEV': (bytes.fromhex(
+        '89048d0000000083f801740583f80375275657516bf1708db60800000083f803'
+        '750383c6306bf9188dbf00000000b906000000f3a5595f5ec3'
+    ), (
+        (0x3, 'abs', 'DEVICES', 0),
+        (0x19, 'abs', 'BLOCKS', 8),
+        (0x2a, 'abs', 'LIVE', 0),
+    ), {
+        'commitdev': 0x0,
+    }),
+    'INIALL': (bytes.fromhex(
+        '6a016a00e8fcffffff6a016a01e8fcffffff83c410536a015b6bc30c05000000'
+        '0050e8fcffffff5a6a285985c0741f668b00662d30303c09771480fc09770f86'
+        'c4d50a3c5f77073c0572030fb6c8e8fcffffff4b79c35bc3'
+    ), (
+        (0x5, 'rel', 'LOADSIMPLE', -4),
+        (0xe, 'rel', 'LOADSIMPLE', -4),
+        (0x1d, 'abs', 'DZKEYS', 0),
+        (0x23, 'rel', 'FINDLINE', -4),
+        (0x4f, 'rel', 'DZSEED', -4),
+    ), {
+        'iniall': 0x0,
+    }),
+    'DEVORDER': (bytes.fromhex(
+        '030001020405060701020300040506078b800000000083f80777070fb6800000'
+        '0000c38b45f483f80777070fb680080000008b4decc3'
+    ), (
+        (0x12, 'abs', 'BLOCKS', 0),
+        (0x1e, 'abs', '.', 0),
+        (0x2e, 'abs', '.', 8),
+    ), {
+        'posof': 0x0,
+        'devof': 0x8,
+        'posshim': 0x10,
+        'devshim': 0x23,
+    }),
+    'F11PAUSE': (bytes.fromhex(
+        '6a00e8fcffffff83c4046a006800000000ff750868e7e7e7e76a00ff15000000'
+        '0050ffd3e8fcffffffc30000be000000006a035f8b068b0031c983f8010f94c1'
+        '51ff7604ff74240cff150000000083c6084f75e0c20400'
+    ), (
+        (0x3, 'rel', 'GPAUSE', -4),
+        (0xd, 'abs', 'DLGPROC', 0),
+        (0x1d, 'abs', 'GETMODULE', 0),
+        (0x25, 'rel', 'GRESUME', -4),
+        (0x2d, 'abs', 'CHECKS', 0),
+        (0x4a, 'abs', 'CHECKDLGBTN', 0),
+    ), {
+        'f11wrap': 0x0,
+        'f11checks': 0x2c,
+    }),
+    'VOXT': (bytes.fromhex(
+        '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff15000000'
+        '008d34bd00000000566a036a0d50ff15000000000fb60683e83083f80977190f'
+        'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba000000'
+        '00803a0074085389c18bdfffd25b4f79a5b8000000008038007402ffd06a0053'
+        'ff150000000031c0c3ba00000000803a0074336a015f536a28598bdfffd25b4f'
+        '79f46a015f8d47525053ff15000000008d14bd00000000526a006a0c50ff1500'
+        '0000004f79df31c0c36a0053ff150000000068419c0000596a0158c3'
+    ), (
+        (0x1d, 'abs', 'GETDLGITEM', 0),
+        (0x24, 'abs', 'DZSTR1', 0),
+        (0x30, 'abs', 'SENDMSG', 0),
+        (0x5d, 'abs', 'DZSEED', 0),
+        (0x72, 'abs', 'DZSAVE', 0),
+        (0x82, 'abs', 'ENDDIALOG', 0),
+        (0x8a, 'abs', 'DZSEED', 0),
+        (0xac, 'abs', 'GETDLGITEM', 0),
+        (0xb3, 'abs', 'DZSTR1', 0),
+        (0xbf, 'abs', 'SENDMSG', 0),
+        (0xce, 'abs', 'ENDDIALOG', 0),
+    ), {
+        'annex': 0x0,
+    }),
+    'MOVIE': (bytes.fromhex(
+        '5589e583ec405356578b7d08a1000000008947f4a1000000008947f031f66858'
+        '010000ff150000000085c0742b686201000050ff150000000085c0741b89c368'
+        '73010000ff150000000085c0740a687e01000050ffd389c685f675068b350000'
+        '00008d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
+        'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
+        'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
+        'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
+        '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
+        '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff3500000000ff15000000'
+        '0031c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
+        '006842080000ff3500000000a100000000ffd05f5e5bc9c364647261772e646c'
+        '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
+        '74436c69656e745265637400'
+    ), (
+        (0xd, 'abs', 'MOVIEX', 0),
+        (0x15, 'abs', 'MOVIEY', 0),
+        (0x1f, 'abs', '.', 344),
+        (0x25, 'abs', 'GETMODULE', 0),
+        (0x2e, 'abs', '.', 354),
+        (0x35, 'abs', 'GETPROC', 0),
+        (0x40, 'abs', '.', 371),
+        (0x46, 'abs', 'GETMODULE', 0),
+        (0x4f, 'abs', '.', 382),
+        (0x5e, 'abs', 'GETCLIENT', 0),
+        (0x117, 'abs', 'MOVIEHWND', 0),
+        (0x11d, 'abs', 'MOVEWINDOW', 0),
+        (0x148, 'abs', 'MOVIEDEV', 0),
+        (0x14d, 'abs', 'MCISEND', 0),
+    ), {
+        'movie_place': 0x0,
+        's_ddraw': 0x158,
+        's_ddgpa': 0x162,
+        's_user32': 0x173,
+        's_getclient': 0x17e,
+    }),
+    'CREDITS': (bytes.fromhex(
+        'a0000000000a05000000008a1500000000a200000000803d0000000002753284'
+        'c0742e84d27421803d00000000007428fe0500000000803d000000003c7219c6'
+        '050000000003eb10c6050000000001eb07c6050000000000c705000000000000'
+        '0000c3'
+    ), (
+        (0x1, 'abs', 'ACCEPT1', 0),
+        (0x7, 'abs', 'CAMERA1', 0),
+        (0xd, 'abs', 'PREV', 0),
+        (0x12, 'abs', 'PREV', 0),
+        (0x18, 'abs', 'PHASE', 0),
+        (0x29, 'abs', 'HELD', 0),
+        (0x32, 'abs', 'HELD', 0),
+        (0x38, 'abs', 'HELD', 0),
+        (0x41, 'abs', 'PHASE', 0),
+        (0x4a, 'abs', 'HELD', 0),
+        (0x53, 'abs', 'HELD', 0),
+        (0x5a, 'abs', 'FLAG', 0),
+    ), {
+        'skip': 0x0,
+    }),
+    'NAMEENTRY': (bytes.fromhex(
+        'a0000000000a0500000000240188c4a0000000000a05000000008a1500000000'
+        'a20000000084e4750884c0740784d27503b001c330c0c3'
+    ), (
+        (0x1, 'abs', 'EDGEA', 0),
+        (0x7, 'abs', 'EDGEB', 0),
+        (0x10, 'abs', 'ACCEPT1', 0),
+        (0x16, 'abs', 'CAMERA1', 0),
+        (0x1c, 'abs', 'PREV', 0),
+        (0x21, 'abs', 'PREV', 0),
+    ), {
+        'confirm': 0x0,
+    }),
+    'CAMSKIP': (bytes.fromhex(
+        '833d00000000047518833d000000000c7409833d000000001475068b5324c602'
+        '80c3'
+    ), (
+        (0x2, 'abs', 'MODE', 0),
+        (0xb, 'abs', 'SUBMODE', 0),
+        (0x14, 'abs', 'SUBMODE', 0),
+    ), {
+        'camskip': 0x0,
+    }),
+    'OVERLAY': (bytes.fromhex(
+        'ff742404e8fcffffff83c404833d0000000004756b833d00000000207562803d'
+        '00000000027559803d00000000007450b840010000bab8010000f60500000000'
+        '04740d833d00000000007404d1f8d1fa8b0d00000000518b0d00000000890d00'
+        '0000006a016800ff000052506881000000e8fcffffff83c41459890d00000000'
+        'c3484f4c4420544f20534b495000'
+    ), (
+        (0x5, 'rel', 'ORIG', -4),
+        (0xe, 'abs', 'MODE', 0),
+        (0x17, 'abs', 'SUBMODE', 0),
+        (0x20, 'abs', 'PHASE', 0),
+        (0x29, 'abs', 'HELD', 0),
+        (0x3c, 'abs', 'WIDE', 0),
+        (0x45, 'abs', 'HALF', 0),
+        (0x52, 'abs', 'PRIMARY', 0),
+        (0x59, 'abs', 'BACK', 0),
+        (0x5f, 'abs', 'PRIMARY', 0),
+        (0x6d, 'abs', '.', 129),
+        (0x72, 'rel', 'DRAW', -4),
+        (0x7c, 'abs', 'PRIMARY', 0),
+    ), {
+        'overlay': 0x0,
+        'prompt': 0x81,
+    }),
+    'TITLEVER': (bytes.fromhex(
+        'a10000000083f8017545a10000000083f806740a83f817740583f8117531ba55'
+        '00000031c9803c0a00740341ebf7b84f00000029c829c86a3250e8fcffffff83'
+        'c4086855000000e8fcffffff83c404a100000000c30000000000000000000000'
+        '00000000000000000000000000'
+    ), (
+        (0x1, 'abs', 'MODE', 0),
+        (0xb, 'abs', 'SUBMODE', 0),
+        (0x1f, 'abs', '.', 85),
+        (0x3b, 'rel', 'CURSOR', -4),
+        (0x43, 'abs', '.', 85),
+        (0x48, 'rel', 'PRINT', -4),
+        (0x50, 'abs', 'PRIMARY', 0),
+    ), {
+        'titlever': 0x0,
+        'text': 0x55,
+    }),
+    'PAD_COND': (bytes.fromhex(
+        '0200000000100000020000000020000002000000004000000200000000800000'
+        '0200000000010000020000000002000003000200400000000300030040000000'
+        '01000600c83200000000060038cdffff0000040038cdffff01000400c8320000'
+        '01000a00c832000000000a0038cdffff0000080038cdffff01000800c8320000'
+    ), (
+    ), {
+    }),
+    'PAD_BINDS': (bytes.fromhex(
+        '00000000e000000000000000e100000000000000e200000000000000e3000000'
+        '00000000e400000000000000e500000000000000e600000000000000e7000000'
+        '00000000e800000000000000e900000000000000ea00000000000000eb000000'
+        '00000000ec00000000000000ed00000000000000ee00000000000000ef000000'
+    ), (
+        (0x0, 'abs', ('PAD_NAMES', 0), 0),
+        (0x8, 'abs', ('PAD_NAMES', 2), 0),
+        (0x10, 'abs', ('PAD_NAMES', 4), 0),
+        (0x18, 'abs', ('PAD_NAMES', 6), 0),
+        (0x20, 'abs', ('PAD_NAMES', 8), 0),
+        (0x28, 'abs', ('PAD_NAMES', 11), 0),
+        (0x30, 'abs', ('PAD_NAMES', 14), 0),
+        (0x38, 'abs', ('PAD_NAMES', 17), 0),
+        (0x40, 'abs', ('PAD_NAMES', 20), 0),
+        (0x48, 'abs', ('PAD_NAMES', 26), 0),
+        (0x50, 'abs', ('PAD_NAMES', 34), 0),
+        (0x58, 'abs', ('PAD_NAMES', 42), 0),
+        (0x60, 'abs', ('PAD_NAMES', 51), 0),
+        (0x68, 'abs', ('PAD_NAMES', 57), 0),
+        (0x70, 'abs', ('PAD_NAMES', 65), 0),
+        (0x78, 'abs', ('PAD_NAMES', 73), 0),
+    ), {
+    }),
+    'PAD_NAMES': (bytes.fromhex(
+        '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
+        '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
+        '005253204c6566740052532052696768740047616d65706164202858496e7075'
+        '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
+        '2853696d706c6529004b6579626f61726420285265616c290031502044656164'
+        '7a6f6e6500325020446561647a6f6e6500'
+    ), (
+    ), {
+        'dzkeys': 0x99,
+    }),
+    'PAD_DEVLIST': (bytes.fromhex(
+        '0000000000000000000000000000000000000000000000000000000000000000'
+    ), (
+        (0x0, 'abs', ('PAD_NAMES', 82), 0),
+        (0x4, 'abs', ('PAD_NAMES', 99), 0),
+        (0x8, 'abs', ('PAD_NAMES', 119), 0),
+        (0xc, 'abs', ('PAD_NAMES', 137), 0),
+    ), {
+    }),
+    'PAD_SIMPLEDEF': (bytes.fromhex(
+        '11001f001e002000100012002e0022002d0013002f002100c700cf00d300d100'
+        'd200c900520051004f004c0053005000'
+    ), (
+    ), {
+    }),
+    'PAD_INIKEYS': (bytes.fromhex(
+        '31502053696d706c652041737369676e0032502053696d706c65204173736967'
+        '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
+        '2041737369676e00'
+    ), (
+    ), {
+    }),
+    'EXTRAS_DATA': (bytes.fromhex(
+        '5553455233322e444c4c004469616c6f67426f78496e64697265637450617261'
+        '6d41000000000000479c0000000000005b9c0000000000005c9c0000'
+    ), (
+        (0x24, 'abs', 'NOSHOT', 0),
+        (0x2c, 'abs', 'SEMUTE', 0),
+        (0x34, 'abs', 'CDMUTE', 0),
+    ), {
+        'user32': 0x0,
+        'dlgboxproc': 0xb,
+        'checks': 0x24,
+    }),
+}
+# BLOBS BLOB END
 
-# levers.asm replaces the input tick's epilogue, so its site sits inside the
-# XInput routine rather than in untouched padding: the table entry below
-# expects the bytes the previous site wrote, not the original file's. Its
-# length is taken from LEVERS_CODE, so the routine may change size freely.
 
-# LEVERS BLOB BEGIN
-LEVERS_CODE = bytes.fromhex(
-    '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
-    '40750bf601807506800ab08009705f5e5bc9c3'
-)
-# LEVERS BLOB END
+def cave_va(name, build, blobs=None):
+    """Where a blob goes in this build, as a virtual address."""
+    blobs = BLOBS if blobs is None else blobs
+    at = build.caves[name]
+    if isinstance(at, tuple):
+        inner, label = at
+        return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
+    return at
 
-# twinstick.asm is assembled at a fixed org, so it only works at the cave
-# its site names. asm/build.py checks the two against each other.
 
-# TWIN BLOB BEGIN
-TWIN_CODE = bytes.fromhex(
-    '68184a6200e88b37feff83c404e9eee4e1ff68404a6200e87937feff83c404e9'
-    '6f83f9ffe800e900ea00eb00ec00ed00ee00ef00e600e700e400e50020108040'
-    '000000000100020000000000201080400001000200000000e8496200c414cb01'
-    'c614cb01004a62000c4a62008104bf0060cb6503743044005704bf0001000000'
-    'e8496200e43eee01e63eee01004a62000c4a6200b10dad0161cb6503edce5b00'
-    '940dad01'
-)
-# TWIN BLOB END
+def label_at(name, label, blobs=None):
+    """A label's offset in a blob; 'end' is its length."""
+    blobs = BLOBS if blobs is None else blobs
+    code, _fixups, labels = blobs[name]
+    if label == 'end':
+        return len(code)
+    return label if isinstance(label, int) else labels[label]
 
-# introwait.asm is assembled at a fixed org too. It goes in the .rdata raw
-# padding after kbpage.asm, not in a zero run inside .rdata: those are live
-# tables and float constants, where a zero is a value.
 
-# INTROWAIT BLOB BEGIN
-INTROWAIT_CODE = bytes.fromhex(
-    'e82f97fcff6a006a006a006a00ff742414ff1590d5650385c07509e80a000000'
-    '85c075dcff258cd56503a180cb650385c0740f83f801743a6a08ffd0b8010000'
-    '00c368e5e96300ff1504d5650385c0741768f2e9630050ff1508d5650385c074'
-    '07a380cb6503ebd0c70580cb65030100000031c0c36b65726e656c33322e646c'
-    '6c00536c65657000'
-)
-# INTROWAIT BLOB END
+def symbol_va(sym, build, blobs=None):
+    """A symbol's address in this build: a place in the game, or (blob,
+    label) for a place in one of ours."""
+    if isinstance(sym, tuple):
+        inner, label = sym
+        return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
+    value = build.symbols[sym]
+    return symbol_va(value, build, blobs) if isinstance(value, tuple) else value
 
-# The gamepad tables and both dialogs are data, packed by asm/padtables.py and
-# asm/dialogs.py from one description each. The pointers between them are
-# computed there.
 
-# PADTABLES BLOB BEGIN
-PAD_COND = bytes.fromhex(
-    '0200000000100000020000000020000002000000004000000200000000800000'
-    '0200000000010000020000000002000003000200400000000300030040000000'
-    '01000600c83200000000060038cdffff0000040038cdffff01000400c8320000'
-    '01000a00c832000000000a0038cdffff0000080038cdffff01000800c8320000'
-)
+def link(name, build, blobs=None, base=None):
+    """A blob's code with its fixups filled in for this build.
 
-PAD_BINDS = bytes.fromhex(
-    '9b4b6200e00000009d4b6200e10000009f4b6200e2000000a14b6200e3000000'
-    'a34b6200e4000000a64b6200e5000000a94b6200e6000000ac4b6200e7000000'
-    'af4b6200e8000000b54b6200e9000000bd4b6200ea000000c54b6200eb000000'
-    'ce4b6200ec000000d44b6200ed000000dc4b6200ee000000e44b6200ef000000'
-)
+    `base` overrides the cave, for a blob whose address is only known at
+    apply time; None means the blob must not name itself."""
+    blobs = BLOBS if blobs is None else blobs
+    code, fixups, _labels = blobs[name]
+    if base is None and name in build.caves:
+        base = cave_va(name, build, blobs)
+    out = bytearray(code)
+    for at, kind, sym, addend in fixups:
+        if sym == '.' or kind == 'rel':
+            if base is None:
+                raise ValueError('%s names its own address, but has none '
+                                 'in this build' % name)
+        target = base if sym == '.' else symbol_va(sym, build, blobs)
+        value = target + addend
+        if kind == 'rel':
+            value -= base + at
+        struct.pack_into('<I', out, at, value & 0xffffffff)
+    return bytes(out)
 
-PAD_NAMES = bytes.fromhex(
-    '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
-    '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
-    '005253204c6566740052532052696768740047616d65706164202858496e7075'
-    '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
-    '2853696d706c6529004b6579626f61726420285265616c290031502044656164'
-    '7a6f6e6500325020446561647a6f6e6500'
-)
 
-PAD_DEVLIST = bytes.fromhex(
-    'ed4b6200fe4b6200124c6200244c620000000000000000000000000000000000'
-)
+def call(off, target, pad=0, op='e8'):
+    """The hex a site writes to call a symbol: the opcode, the rel32 to the
+    target, and `pad` bytes of nop over the rest of what it replaced."""
+    rel = symbol_va(target, RETAIL) - (RETAIL.va(off) + 5)
+    return op + struct.pack('<i', rel).hex() + '90' * pad
 
-PAD_SIMPLEDEF = bytes.fromhex(
-    '11001f001e002000100012002e0022002d0013002f002100c700cf00d300d100'
-    'd200c900520051004f004c0053005000'
-)
 
-PAD_INIKEYS = bytes.fromhex(
-    '31502053696d706c652041737369676e0032502053696d706c65204173736967'
-    '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
-    '2041737369676e00'
-)
-# PADTABLES BLOB END
+def jump(off, target, pad=0):
+    return call(off, target, pad, op='e9')
+
+
+def abs32(target):
+    """A symbol's address as the four bytes an instruction carries, as hex."""
+    return struct.pack('<I', symbol_va(target, RETAIL)).hex()
+
+
+def site(name):
+    """The file offset a blob is written at, from its cave."""
+    return RETAIL.off(cave_va(name, RETAIL))
+
+
+# The blobs as the retail build writes them. The names below are what the
+# site table and the apply code use.
+TIMER_CODE = link('TIMER', RETAIL)
+PADX_CODE = link('PADX', RETAIL)
+# padxinput.asm pins six addresses inside itself and pads to this length,
+# because levers.asm is written at the byte after it.
+PADX_LEN = 830
+LEVERS_CODE = link('LEVERS', RETAIL)
+TWIN_CODE = link('TWIN', RETAIL)
+INTROWAIT_CODE = link('INTROWAIT', RETAIL)
+KBPAGE_CODE = link('KBPAGE', RETAIL)
+BINDLIST_CODE = link('BINDLIST', RETAIL)
+BINDMAP_CODE = link('BINDMAP', RETAIL)
+BINDBLOCK_CODE = link('BINDBLOCK', RETAIL)
+INISAVE_CODE = link('INISAVE', RETAIL)
+INILOAD_CODE = link('INILOAD', RETAIL)
+BLOCKCUR_CODE = link('BLOCKCUR', RETAIL)
+INIPARSE_CODE = link('INIPARSE', RETAIL)
+PAGESEC_CODE = link('PAGESEC', RETAIL)
+PAGESEL_CODE = link('PAGESEL', RETAIL)
+COMMITDEV_CODE = link('COMMITDEV', RETAIL)
+INIALL_CODE = link('INIALL', RETAIL)
+DEVORDER_CODE = link('DEVORDER', RETAIL)
+F11PAUSE_CODE = link('F11PAUSE', RETAIL)
+MOVIE_CODE = link('MOVIE', RETAIL)
+CREDITS_CODE = link('CREDITS', RETAIL)
+NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
+CAMSKIP_CODE = link('CAMSKIP', RETAIL)
+OVERLAY_CODE = link('OVERLAY', RETAIL)
+TITLEVER_CODE = link('TITLEVER', RETAIL)
+# voxt.asm rides in the appended .voxt section and reaches everything through
+# absolute addresses, so it links without a cave.
+VOXT_CODE = link('VOXT', RETAIL)
+PAD_COND = link('PAD_COND', RETAIL)
+PAD_BINDS = link('PAD_BINDS', RETAIL)
+PAD_NAMES = link('PAD_NAMES', RETAIL)
+PAD_DEVLIST = link('PAD_DEVLIST', RETAIL)
+PAD_SIMPLEDEF = link('PAD_SIMPLEDEF', RETAIL)
+PAD_INIKEYS = link('PAD_INIKEYS', RETAIL)
+EXTRAS_DATA = link('EXTRAS_DATA', RETAIL)
+
+# debugbox.asm assembles as one run, but the patch writes it as two sites:
+# the byte in front of the dialog procedure is alignment padding that has
+# never been written, so it is dropped rather than assume what the original
+# file has there.
+DEBUGBOX_SPLIT = label_at('DEBUGBOX', 'dlgproc') - 1
+_dbg = link('DEBUGBOX', RETAIL)
+DEBUGBOX_HOOK = _dbg[:DEBUGBOX_SPLIT]
+DEBUGBOX_PROC = _dbg[DEBUGBOX_SPLIT + 1:]
+DBGPROC_AT = site('DEBUGBOX') + DEBUGBOX_SPLIT + 1
+DBGPROC_VA = cave_va('DEBUGBOX', RETAIL) + DEBUGBOX_SPLIT + 1
+F11PAUSE_AT = site('F11PAUSE')
 
 # DIALOGS BLOB BEGIN
 EXTRAS_TPL = bytes.fromhex(
@@ -237,21 +1105,6 @@ EXTRAS_TPL = bytes.fromhex(
     '00000150000000000a008c003c000e00419cffff800051007500690074002000'
     '470061006d00650000000000000001500000000098008c0032000e000200ffff'
     '800043006c006f007300650000000000'
-)
-
-VOXT_CODE = bytes.fromhex(
-    '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff154cd565'
-    '038d34bd94cb6503566a036a0d50ff152cd565030fb60683e83083f80977190f'
-    'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba081c60'
-    '00803a0074085389c18bdfffd25b4f79a5b8481b60008038007402ffd06a0053'
-    'ff1538d5650331c0c3ba081c6000803a0074336a015f536a28598bdfffd25b4f'
-    '79f46a015f8d47525053ff154cd565038d14bd94cb6503526a006a0c50ff152c'
-    'd565034f79df31c0c36a0053ff1538d5650368419c0000596a0158c3'
-)
-
-EXTRAS_DATA = bytes.fromhex(
-    '5553455233322e444c4c004469616c6f67426f78496e64697265637450617261'
-    '6d410000d82f6500479c00004ccc6b005b9c000030f463005c9c0000'
 )
 
 F5_STOCK = bytes.fromhex(
@@ -293,210 +1146,11 @@ F5_FPS = bytes.fromhex(
 )
 # DIALOGS BLOB END
 
-# TIMER BLOB BEGIN
-TIMER_CODE = bytes.fromhex(
-    '68624e5f00ff1504d56503686c4e5f0050ff1508d5650385c074046a01ffd0e9'
-    'ce2affff77696e6d6d2e646c6c0074696d65426567696e506572696f6400'
-)
-# TIMER BLOB END
-
-# debugbox.asm assembles as one 364-byte run, but the patch writes it as two
-# sites: the byte at 0x1f42d7 is alignment padding in front of the dialog
-# procedure and has never been written, so build.py drops it rather than
-# assume what the original file has there.
-
-# DEBUGBOX BLOB BEGIN
-DEBUGBOX_HOOK = bytes.fromhex(
-    '558bec53817d0c000100007532817d107a000000752968e8e86300ff1504d565'
-    '0368f3e8630050ff1508d5650385c074078bd8e87070040033c05b5dc210005b'
-    '5de99519fdff000000000000000000000000000000000000000000'
-)
-
-DEBUGBOX_PROC = bytes.fromhex(
-    '558bec5356578b450c3d100100007532ff7508e86070040031ff8d475250ff75'
-    '08ff154cd565038d14bd94cb6503526a006a0c50ff152cd565034783ff0272da'
-    'eb453d1101000075450fb74d108d51ae83fa01763283f902740d83f954740881'
-    'f9419c000075308b5508e8eaeaeaea85c074146a00516811010000ff35585fae'
-    '01ff156cd56503b801000000eb0233c05f5e5b5dc2100083f9517513833d9435'
-    'ae010475086a1f8f059036ae01ebd8ebc2'
-)
-# DEBUGBOX BLOB END
-
-# KBPAGE BLOB BEGIN
-KBPAGE_CODE = bytes.fromhex(
-    '833dac6bbf00017510a1401565034883f8017605e91d8ee5ffe9708ee5ff9090'
-    '6a01ff35ac6bbf00e8aa8fe5ff83c408e92d8fe5ff'
-)
-# KBPAGE BLOB END
-
-# BINDLIST BLOB BEGIN
-BINDLIST_CODE = bytes.fromhex(
-    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
-    '7df810eb04837df8217c0883c404e9e0a4e9ffc390909090e8c3ffffff74088b'
-    '04c543486200c38b04c538d46600c390e8abffffff74088a04c547486200c38a'
-    '04c53cd46600c3'
-)
-# BINDLIST BLOB END
-
-# BINDMAP BLOB BEGIN
-BINDMAP_CODE = bytes.fromhex(
-    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
-    '7df410eb04837df4217c0883c404e9a2a7e9ffc390909090e8c3ffffff740839'
-    '0cc547486200c3390cc53cd46600c3908b4424046bc87081c17068bf006bc018'
-    '05884762006a185051e8be86feff83c40cc3'
-)
-# BINDMAP BLOB END
-
-# BINDBLOCK BLOB BEGIN
-BINDBLOCK_CODE = bytes.fromhex(
-    '83b83868bf00037406054068bf00c3057068bf00c39090906bd07083ba3868bf'
-    '00036bc01874060500d66600c30588476200c39083b93868bf000374088a8441'
-    '4068bf00c38a84417068bf00c3909090240f3c0a720204270430880747c3'
-)
-# BINDBLOCK BLOB END
-
-# INISAVE BLOB BEGIN
-INISAVE_CODE = bytes.fromhex(
-    '5356578b9d38ffffff6bf3708db67068bf008bbd34ffffff31c98a040e88c2c0'
-    'e804e83dd6ffff88d0e836d6ffff4183f9187ce6c607006bc31105e04a6200ff'
-    'b534ffffff50e8b0fbfaff83c4085f5e5be9954ee9ff'
-)
-# INISAVE BLOB END
-
-# INILOAD BLOB BEGIN
-INILOAD_CODE = bytes.fromhex(
-    '5356578b5c24106bfb708dbf7068bf006bc31105e04a6200e8c3aaffff83ef30'
-    '6bc3138d80024b6200e8b2aaffff833c9d401565030375138d77306bfb188dbf'
-    '70146503b906000000f3a55f5e5bc3'
-)
-# INILOAD BLOB END
-
-# BLOCKCUR BLOB BEGIN
-BLOCKCUR_CODE = bytes.fromhex(
-    '518b0dac6bbf006bc97083b93868bf00035974078d804068bf00c38d807068bf'
-    '00c390909090909050518b45086bc8708b04854015650339813868bf00595875'
-    '05e98687feffc3'
-)
-# BLOCKCUR BLOB END
-
-# INIPARSE BLOB BEGIN
-INIPARSE_CODE = bytes.fromhex(
-    '50e85ffdfaff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
-    '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
-    '04b594cb6503506bc60c05344c620050e8d2fcfaff83c4084e79e4c3'
-)
-# INIPARSE BLOB END
-
-# PAGESEC BLOB BEGIN
-PAGESEC_CODE = bytes.fromhex(
-    'e86fbcffff750f837df81a7d01c383c404e9ea60e9ff83c404e92261e9ffe851'
-    'bcffff750f837dec1a7d01c383c404e9d062e9ff83c404e9ed62e9ff'
-)
-# PAGESEC BLOB END
-
-# PAGESEL BLOB BEGIN
-PAGESEL_CODE = bytes.fromhex(
-    'e80bbcffff750f837df41a7d01c383c404e96f64e9ff83c404e9ab64e9ffe8ed'
-    'bbffff75048345f42483c404e9d464e9ff00000069c14701000089049d8ccb65'
-    '03880c9d97cb650388c8d40a6605303086c46689049d94cb6503c3'
-)
-# PAGESEL BLOB END
-
-# COMMITDEV BLOB BEGIN
-COMMITDEV_CODE = bytes.fromhex(
-    '89048d4015650383f801740583f80375275657516bf1708db64068bf0083f803'
-    '750383c6306bf9188dbf70146503b906000000f3a5595f5ec3'
-)
-# COMMITDEV BLOB END
-
-# INIALL BLOB BEGIN
-INIALL_CODE = bytes.fromhex(
-    '6a016a00e82faafcff6a016a01e826aafcff83c410536a015b6bc30c05344c62'
-    '0050e85652f7ff5a6a285985c0741f668b00662d30303c09771480fc09770f86'
-    'c4d50a3c5f77073c0572030fb6c8e8c155fcff4b79c35bc3'
-)
-# INIALL BLOB END
-
-# DEVORDER BLOB BEGIN
-DEVORDER_CODE = bytes.fromhex(
-    '030001020405060701020300040506078b803868bf0083f80777070fb6803447'
-    '6000c38b45f483f80777070fb6803c4760008b4decc3'
-)
-# DEVORDER BLOB END
-
-# F11PAUSE BLOB BEGIN
-F11PAUSE_CODE = bytes.fromhex(
-    '6a00e89aa8f8ff83c4046a0068d84e5f00ff750868e7e7e7e76a00ff15a0d465'
-    '0350ffd3e8bea8f8ffc30000be0ce963006a035f8b068b0031c983f8010f94c1'
-    '51ff7604ff74240cff1544d5650383c6084f75e0c20400'
-)
-# F11PAUSE BLOB END
-
-# MOVIE BLOB BEGIN
-MOVIE_CODE = bytes.fromhex(
-    '5589e583ec405356578b7d08a1345fae018947f4a1385fae018947f031f668b4'
-    '876603ff15a0d4650385c0742b68be87660350ff1508d5650385c0741b89c368'
-    'cf876603ff15a0d4650385c0740a68da87660350ffd389c685f675068b35d4d5'
-    '65038d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
-    'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
-    'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
-    'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
-    '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
-    '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff35c888ef01ff15e0d565'
-    '0331c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
-    '006842080000ff35f088ef01a148d66503ffd05f5e5bc9c364647261772e646c'
-    '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
-    '74436c69656e745265637400'
-)
-# MOVIE BLOB END
-
-# CREDITS BLOB BEGIN
-CREDITS_CODE = bytes.fromhex(
-    'a08104bf000a055704bf008a15483d6c00a2483d6c00803d6409ad0102753284'
-    'c0742e84d27421803d493d6c00007428fe05493d6c00803d493d6c003c7219c6'
-    '056409ad0103eb10c605493d6c0001eb07c605493d6c0000c7051c1cae010000'
-    '0000c3'
-)
-# CREDITS BLOB END
-
-# NAMEENTRY BLOB BEGIN
-NAMEENTRY_CODE = bytes.fromhex(
-    'a0c55eed010a05c65eed01240188c4a08104bf000a055704bf008a15483d6c00'
-    'a2483d6c0084e4750884c0740784d27503b001c330c0c3'
-)
-# NAMEENTRY BLOB END
-
-# CAMSKIP BLOB BEGIN
-CAMSKIP_CODE = bytes.fromhex(
-    '833d9435ae01047518833d9036ae010c7409833d9036ae011475068b5324c602'
-    '80c3'
-)
-# CAMSKIP BLOB END
-
-# OVERLAY BLOB BEGIN
-OVERLAY_CODE = bytes.fromhex(
-    'ff742404e8f6fffcff83c404833d9435ae0104756b833d9036ae01207562803d'
-    '6409ad01027559803d493d6c00007450b840010000bab8010000f60598f56b00'
-    '04740d833d60f56b00007404d1f8d1fa8b0d405fae01518b0d5c5fae01890d40'
-    '5fae016a016800ff000052506861815f00e8c617fdff83c41459890d405fae01'
-    'c3484f4c4420544f20534b495000'
-)
-# OVERLAY BLOB END
-
-# TITLEVER BLOB BEGIN
-TITLEVER_CODE = bytes.fromhex(
-    'a19435ae0183f8017545a19036ae0183f806740a83f817740583f8117531baed'
-    '3d620031c9803c0a00740341ebf7b84f00000029c829c86a3250e8ec9aeaff83'
-    'c40868ed3d6200e807b1eaff83c404a1405fae01c30000000000000000000000'
-    '00000000000000000000000000'
-)
-# TITLEVER BLOB END
-
 # Where the blob lands, where the version goes inside it, and how much room
 # it has. The blob carries zeros there: the version comes from the git tag,
 # and the blobs are built from source, so the patcher writes the string in
 # afterwards rather than the patch table carrying it.
-TITLEVER_AT = 0x00223198
+TITLEVER_AT = site('TITLEVER')
 TITLEVER_LEN = 24
 
 
@@ -867,7 +1521,7 @@ FEATURES = [
          # asm/titlever.asm.
          #
          #   call titlever
-         (0x001c5900, 'a1405fae01', 'e893d80500'),
+         (0x001c5900, 'a1405fae01', call(0x001c5900, ('TITLEVER', 'titlever'))),
          (TITLEVER_AT, '00' * len(TITLEVER_CODE),
           TITLEVER_CODE.hex())]),
 
@@ -900,7 +1554,7 @@ FEATURES = [
           '55e8149e110383c404909090909090909090909090909090909090909090'),
          # movie.asm, in the .rsrc padding past VirtualSize - after the
          # four bytes of it the frame rate patch's F5 labels use
-         (0x0060c25c, '00' * len(MOVIE_CODE), MOVIE_CODE.hex()),
+         (site('MOVIE'), '00' * len(MOVIE_CODE), MOVIE_CODE.hex()),
          # "Now Loading . . ." - the first byte to NUL ends the string
          (0x002c7678, '4e', '00'),
          # which the loader maps but does not make executable
@@ -911,8 +1565,8 @@ FEATURES = [
          # the stub only has to put the phase past 2. See asm/credits.asm.
          #
          #   call skip
-         (0x0018fc25, 'c7051c1cae0100000000', 'e8a6ce0a009090909090'),
-         (0x0023cad0, '00' * len(CREDITS_CODE), CREDITS_CODE.hex()),
+         (0x0018fc25, 'c7051c1cae0100000000', call(0x0018fc25, ('CREDITS', 'skip'), 5)),
+         (site('CREDITS'), '00' * len(CREDITS_CODE), CREDITS_CODE.hex()),
          # The initials screen after them takes a letter on the weapon
          # triggers only, LT for 1P and RT for 2P. Both tests go to a call
          # answering the same question with A folded in, so the triggers
@@ -923,15 +1577,15 @@ FEATURES = [
          #   test al, al
          #   jne  take the letter
          #   jmp  carry on
-         (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
-                      'e8f770160084c07511e9fe010000909090909090909090909090'),
-         (0x0023d1c4, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex()),
+         (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000', call(0x000d60c8, ('NAMEENTRY', 'confirm'))
+          + '84c07511e9fe010000909090909090909090909090'),
+         (site('NAMEENTRY'), '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex()),
          # HOLD TO SKIP over the credits, drawn through GDI so it does
          # not scroll with the tilemap. The call five bytes before the
          # surface is flipped is made in the stub instead, which is
          # what puts the text on the frame about to be shown.
-         (0x001c58e7, 'e8f31b0000', 'e8f41b0300'),
-         (0x001f74e0, '00' * len(OVERLAY_CODE), OVERLAY_CODE.hex())]),
+         (0x001c58e7, 'e8f31b0000', call(0x001c58e7, ('OVERLAY', 'overlay'))),
+         (site('OVERLAY'), '00' * len(OVERLAY_CODE), OVERLAY_CODE.hex())]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
@@ -975,7 +1629,7 @@ FEATURES = [
      '\tframes to draw, and wrote it back. It works now.\n'
      'Speed choice\tThe two on F5 never reached 60 fps. They read\n'
      '\t30 FPS and 60 FPS now, and set those.', [
-         (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
+         (site('TIMER'), '00' * len(TIMER_CODE), TIMER_CODE.hex()),
          (0x000000a8, '30791e00', '3e4e1f00'),
          (0x000273c1, '833d0843be0003', '833d0843be0002'),
          (0x000275d3, 'c7050843be0003000000', 'c7050843be0002000000'),
@@ -1017,13 +1671,13 @@ FEATURES = [
      'F11\tExtras, the new dialog', [
          (0x001c4d42, '0f850c000000', '909090909090'),
          (0x001c4d4b, '65000000', '00000000'),
-         (0x001c4d7e, '57685c00', '7c4e5f00'),
-         (0x001f427c, '00' * len(DEBUGBOX_HOOK), DEBUGBOX_HOOK.hex()),
+         (0x001c4d7e, '57685c00', abs32(('DEBUGBOX', 'hook'))),
+         (site('DEBUGBOX'), '00' * len(DEBUGBOX_HOOK), DEBUGBOX_HOOK.hex()),
          # the pause-and-resume wrapper the hook runs the dialog through,
          # matching the built-in F-key dialogs; see asm/f11pause.asm
-         (0x0023b324, '00' * len(F11PAUSE_CODE), F11PAUSE_CODE.hex()),
-         (0x001f42d8, '00' * len(DEBUGBOX_PROC), DEBUGBOX_PROC.hex()),
-         (0x0023dce8, '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex())]),
+         (site('F11PAUSE'), '00' * len(F11PAUSE_CODE), F11PAUSE_CODE.hex()),
+         (DBGPROC_AT, '00' * len(DEBUGBOX_PROC), DEBUGBOX_PROC.hex()),
+         (site('EXTRAS_DATA'), '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex())]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
@@ -1073,39 +1727,39 @@ FEATURES = [
          # asm/bindmap.asm, which pick them by device. The letter and
          # digit sections are Simple's alone; asm/pagesec.asm and
          # asm/pagesel.asm skip them for the gamepad.
-         (0x000970bf, '837df8210f8d2e000000', 'e8385b16009090909090'),
-         (0x000970d5, '8b04c538d46600', 'e8425b16009090'),
-         (0x0009729c, '8a04c53cd46600', 'e8935916009090'),
-         (0x000974ac, '837df4210f8d23000000', 'e86b5816009090909090'),
-         (0x000974be, '390cc53cd46600', 'e8795816009090'),
-         (0x001fcbe4, '00' * len(BINDLIST_CODE), BINDLIST_CODE.hex()),
-         (0x001fcd04, '00' * len(BINDMAP_CODE), BINDMAP_CODE.hex()),
+         (0x000970bf, '837df8210f8d2e000000', call(0x000970bf, ('BINDLIST', 'fillcount'), 5)),
+         (0x000970d5, '8b04c538d46600', call(0x000970d5, ('BINDLIST', 'fillname'), 2)),
+         (0x0009729c, '8a04c53cd46600', call(0x0009729c, ('BINDLIST', 'storeid'), 2)),
+         (0x000974ac, '837df4210f8d23000000', call(0x000974ac, ('BINDMAP', 'mapcount'), 5)),
+         (0x000974be, '390cc53cd46600', call(0x000974be, ('BINDMAP', 'mapid'), 2)),
+         (site('BINDLIST'), '00' * len(BINDLIST_CODE), BINDLIST_CODE.hex()),
+         (site('BINDMAP'), '00' * len(BINDMAP_CODE), BINDMAP_CODE.hex()),
          # Which saved block that page reads and writes is picked the same
          # way: +0x08 for the gamepad, +0x38 - the hidden 2 Joysticks
          # profile's, inside the structure v_on.ini keeps - for Simple.
          # See asm/bindblock.asm; the player comes from the maths in
          # flight, not 0xbf6bac, because the Default copier also runs at
          # startup for both sides.
-         (0x00095f35, '053868bf0083c008', 'e812871600909090'),
-         (0x0009724c, '053868bf0083c008', 'e8135a1600909090'),
-         (0x0009736d, '053868bf0083c008', 'e8da721600909090'),
+         (0x00095f35, '053868bf0083c008', call(0x00095f35, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x0009724c, '053868bf0083c008', call(0x0009724c, ('BLOCKCUR', 'blockcur'), 3)),
+         (0x0009736d, '053868bf0083c008', call(0x0009736d, ('BINDBLOCK', 'blockaddr'), 3)),
          # the Default button's shipped set comes from the same pick:
          # the gamepad's table or SIMPLEDEF, by the pending device
-         (0x00097355, '8d04408d04c500d66600', 'e80a7316009090909090'),
-         (0x00097397, '053868bf0083c008', 'e8b0721600909090'),
-         (0x00097531, '053868bf0083c008', 'e816711600909090'),
-         (0x0009740f, '8a84414068bf00', 'e86c7216009090'),
-         (0x001fe64c, '00' * len(BINDBLOCK_CODE), BINDBLOCK_CODE.hex()),
-         (0x00201038, '00' * len(INISAVE_CODE), INISAVE_CODE.hex()),
-         (0x0020642c, '00' * len(INILOAD_CODE), INILOAD_CODE.hex()),
-         (0x001fcc64, '00' * len(BLOCKCUR_CODE), BLOCKCUR_CODE.hex()),
-         (0x00200f0c, '00' * len(INIPARSE_CODE), INIPARSE_CODE.hex()),
-         (0x00200f70, '00' * len(PAGESEC_CODE), PAGESEC_CODE.hex()),
-         (0x00200fd4, '00' * len(PAGESEL_CODE), PAGESEL_CODE.hex()),
-         (0x001fcb4c, '00' * len(COMMITDEV_CODE), COMMITDEV_CODE.hex()),
-         (0x0023b9f4, '00' * len(INIALL_CODE), INIALL_CODE.hex()),
-         (0x00203b34, '00' * len(DEVORDER_CODE), DEVORDER_CODE.hex()),
-         (0x00223ee0, '00' * len(PAD_INIKEYS), PAD_INIKEYS.hex()),
+         (0x00097355, '8d04408d04c500d66600', call(0x00097355, ('BINDBLOCK', 'defsource'), 5)),
+         (0x00097397, '053868bf0083c008', call(0x00097397, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x00097531, '053868bf0083c008', call(0x00097531, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x0009740f, '8a84414068bf00', call(0x0009740f, ('BINDBLOCK', 'preselbind'), 2)),
+         (site('BINDBLOCK'), '00' * len(BINDBLOCK_CODE), BINDBLOCK_CODE.hex()),
+         (site('INISAVE'), '00' * len(INISAVE_CODE), INISAVE_CODE.hex()),
+         (site('INILOAD'), '00' * len(INILOAD_CODE), INILOAD_CODE.hex()),
+         (site('BLOCKCUR'), '00' * len(BLOCKCUR_CODE), BLOCKCUR_CODE.hex()),
+         (site('INIPARSE'), '00' * len(INIPARSE_CODE), INIPARSE_CODE.hex()),
+         (site('PAGESEC'), '00' * len(PAGESEC_CODE), PAGESEC_CODE.hex()),
+         (site('PAGESEL'), '00' * len(PAGESEL_CODE), PAGESEL_CODE.hex()),
+         (site('COMMITDEV'), '00' * len(COMMITDEV_CODE), COMMITDEV_CODE.hex()),
+         (site('INIALL'), '00' * len(INIALL_CODE), INIALL_CODE.hex()),
+         (site('DEVORDER'), '00' * len(DEVORDER_CODE), DEVORDER_CODE.hex()),
+         (site('PAD_INIKEYS'), '00' * len(PAD_INIKEYS), PAD_INIKEYS.hex()),
          # window title, shared by both pages now
          (0x0026c88c, '4b6579626f617264206f6e6c79202853696d706c652074797065202d2025645020736964652900',
                       '42696e64696e6773202d20256450207369646500000000000000000000000000000000000000'
@@ -1114,13 +1768,13 @@ FEATURES = [
          # 2. Keyboard (Simple)'s shipped set moves to PAD_SIMPLEDEF.
          (0x0026c400, '11001f001e002000100012002e0022002d0013002f002100', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
          (0x0026c418, 'c700cf00d300d100d200c900520051004f004c0053005000', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
-         (0x00223b88, '00' * len(PAD_SIMPLEDEF), PAD_SIMPLEDEF.hex()),
+         (site('PAD_SIMPLEDEF'), '00' * len(PAD_SIMPLEDEF), PAD_SIMPLEDEF.hex()),
          # each player's profile 1 dispatches to the routine
-         (0x000422a8, '502e4400', '60806000'),
-         (0x001bc13b, 'e3cc5b00', '72806000'),
+         (0x000422a8, '502e4400', abs32(('PADX', 'entry1p'))),
+         (0x001bc13b, 'e3cc5b00', abs32(('PADX', 'entry2p'))),
          # PeekMessage: Start and A must reach the game while it is paused,
          # where the input tick does not run
-         (0x001c530e, 'ff1590d56503', 'e88521040090'),
+         (0x001c530e, 'ff1590d56503', call(0x001c530e, ('PADX', 'pump'), 1)),
          # two pads are separate devices, so 2P may reuse 1P's inputs
          (0x000971bd, '0f8558000000', 'e95900000090'),
          # device list: Keyboard (Real), Gamepad (XInput), Twin-stick,
@@ -1131,8 +1785,8 @@ FEATURES = [
          # and slot 3 the stubs Keyboard (Simple) always had, back from
          # slot 1. Slot 1 is the gamepad, repointed above; slot 0 is the
          # game's own keyboard handler and is left alone.
-         (0x000422ac, '5a2e4400', 'c4496200'),
-         (0x001bc13f, 'edcc5b00', 'd6496200'),
+         (0x000422ac, '5a2e4400', abs32(('TWIN', 'stub1p'))),
+         (0x001bc13f, 'edcc5b00', abs32(('TWIN', 'stub2p'))),
          (0x000422b0, '6b2e4400', '502e4400'),
          (0x001bc143, 'fecc5b00', 'e3cc5b00'),
          # The keyboard profile shared its twenty-four bind slots with
@@ -1153,13 +1807,11 @@ FEATURES = [
          # 2P could not take a key 1P had bound, even with 1P on a pad and
          # those binds dormant. Gate that on 1P actually being on the
          # keyboard. Entry only; see asm/kbpage.asm for what that misses.
-         (0x00096b61, '833dac6bbf00010f8558000000',
-                      'e9d2711a009090909090909090'),
+         (0x00096b61, '833dac6bbf00010f8558000000', jump(0x00096b61, ('KBPAGE', 'dupkey'), 8)),
          # and Default passed a hardcoded player 0, so on the 2P side it
          # reset 1P's binds. The other two pages pass ds:0xbf6bac here.
-         (0x00096c8e, '6a016a00e87800000083c408',
-                      'e9c5701a0090909090909090'),
-         (0x0023dd38, '00' * len(KBPAGE_CODE), KBPAGE_CODE.hex()),
+         (0x00096c8e, '6a016a00e87800000083c408', jump(0x00096c8e, ('KBPAGE', 'default_button'), 7)),
+         (site('KBPAGE'), '00' * len(KBPAGE_CODE), KBPAGE_CODE.hex()),
          # Startup defaults every block in a fixed order, and Joystick +
          # Keyboard writes that block after the keyboard profile does. It is
          # hidden, so drop its call; the pushes around it stay balanced.
@@ -1194,12 +1846,12 @@ FEATURES = [
          # run asm/inisave.asm, which writes "NP Simple Assign" from +0x38
          # and falls into the stock device 1 case - so both profiles'
          # lines are always written, whichever is selected.
-         (0x00096253, '236b4900', '381c6000'),
-         (0x0009625b, '2b6e4900', '381c6000'),
+         (0x00096253, '236b4900', abs32(('INISAVE', 'savesimple'))),
+         (0x0009625b, '2b6e4900', abs32(('INISAVE', 'savesimple'))),
          # And the startup call that refilled +0x38 with legacy joystick
          # defaults every launch parses that line back instead. See
          # asm/iniload.asm.
-         (0x00095604, 'e8742c0000', 'e8230e1700'),
+         (0x00095604, 'e8742c0000', call(0x00095604, ('INILOAD', 'loadsimple'))),
          # The ini loader routes each player by saved device, and slot 3's
          # route was "load nothing" - right for 2 Joysticks, whose data was
          # re-derived, wrong for Simple. Route it through the section that
@@ -1207,7 +1859,7 @@ FEATURES = [
          (0x000958a1, '03', '02'),
          # And whatever the saved devices, both keyboard-page blocks load
          # their lines at the loop's exit; see asm/iniall.asm.
-         (0x000958aa, 'e900000000', 'e845611a00'),
+         (0x000958aa, 'e900000000', call(0x000958aa, ('INIALL', 'iniall'))),
          # A last common check demanded the DirectInput joystick subsystem
          # whenever either player's saved device was 3 or 7, or it forced
          # both to Gamepad and skipped the whole ini load. Simple needs no
@@ -1216,12 +1868,12 @@ FEATURES = [
          (0x00095248, '03', '7f'),
          # The list shows gamepad, twin-stick, Simple, Real; positions and
          # device numbers are mapped both ways by asm/devorder.asm.
-         (0x0009651a, '8b803868bf00', 'e825d6160090'),
-         (0x00096784, '8b45f48b4dec', 'e8ced3160090'),
+         (0x0009651a, '8b803868bf00', call(0x0009651a, ('DEVORDER', 'posshim'), 1)),
+         (0x00096784, '8b45f48b4dec', call(0x00096784, ('DEVORDER', 'devshim'), 1)),
          # The device page's plain OK only commits the device number; the
          # shared live table must be reseeded for the new device too. See
          # asm/commitdev.asm.
-         (0x000959f7, '89048d40156503', 'e8507116009090'),
+         (0x000959f7, '89048d40156503', call(0x000959f7, ('COMMITDEV', 'commitdev'), 2)),
          # The shared page's template labels its list "1P side" - baked-in
          # text the original also showed on the 2P pass. Neutral now that
          # the window title carries the side.
@@ -1232,35 +1884,35 @@ FEATURES = [
          # The letter and digit sections belong to the keyboard profile;
          # the gamepad page lists only its pad inputs. Fill, store and
          # preselect skip them together: asm/pagesec.asm, asm/pagesel.asm.
-         (0x0009703f, '837df81a0f8d27000000', 'e82c9f16009090909090'),
-         (0x00097257, '837dec1a0f8d13000000', 'e8329d16009090909090'),
-         (0x00097428, '837df41a0f8d27000000', 'e8a79b16009090909090'),
-         (0x000974cb, '8345f424e905000000', 'e8229b160090909090'),
-         (0x0009753a, 'e8f1de1400', 'e84d571600'),
-         (0x00223dc4, '00' * len(TWIN_CODE), TWIN_CODE.hex()),
+         (0x0009703f, '837df81a0f8d27000000', call(0x0009703f, ('PAGESEC', 'fillsec'), 5)),
+         (0x00097257, '837dec1a0f8d13000000', call(0x00097257, ('PAGESEC', 'storesec'), 5)),
+         (0x00097428, '837df41a0f8d27000000', call(0x00097428, ('PAGESEL', 'selsec'), 5)),
+         (0x000974cb, '8345f424e905000000', call(0x000974cb, ('PAGESEL', 'selidx'), 4)),
+         (0x0009753a, 'e8f1de1400', call(0x0009753a, ('BLOCKCUR', 'syncshim'))),
+         (site('TWIN'), '00' * len(TWIN_CODE), TWIN_CODE.hex()),
          # the intro movie blocks the message loop in GetMessageA, where the
          # pump stub does not run. Poll from the call itself instead, so a
          # pad press reaches the window procedure and Space skips the movie.
-         (0x0023dd70, '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
-         (0x001c52ac, 'ff158cd56503', 'e8bf8a070090'),
+         (site('INTROWAIT'), '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
+         (0x001c52ac, 'ff158cd56503', call(0x001c52ac, ('INTROWAIT', 'introwait'), 1)),
          # what each pad input is and what it is called
-         (0x0022411b, '00' * len(PAD_COND), PAD_COND.hex()),
-         (0x00223c43, '00' * len(PAD_BINDS), PAD_BINDS.hex()),
-         (0x00223f9b, '00' * len(PAD_NAMES), PAD_NAMES.hex()),
+         (site('PAD_COND'), '00' * len(PAD_COND), PAD_COND.hex()),
+         (site('PAD_BINDS'), '00' * len(PAD_BINDS), PAD_BINDS.hex()),
+         (site('PAD_NAMES'), '00' * len(PAD_NAMES), PAD_NAMES.hex()),
          # The win and lose screens read the camera key, not the accept
          # key, which is why Select skips them and A does not. The tick
          # calls this to write the camera slot for A as well, on those
          # screens only. See asm/camskip.asm.
-         (0x0023d1a0, '00' * len(CAMSKIP_CODE), CAMSKIP_CODE.hex()),
+         (site('CAMSKIP'), '00' * len(CAMSKIP_CODE), CAMSKIP_CODE.hex()),
          # the routine itself: entry stubs, pump stub, tick, blocks
-         (0x00207460, '00' * len(PADX_CODE), PADX_CODE.hex()),
+         (site('PADX'), '00' * len(PADX_CODE), PADX_CODE.hex()),
          # the tick ORs every active input together, but the game's
          # gestures are exclusive lever positions, so a held direction
          # contaminates jump and guard. Strip it back off at the end,
          # and only when a pad was actually read, so the keyboard path
          # is left exactly as it was.
-         (0x00207702, '5f5e5bc9c3', 'e997000000'),
-         (0x0020779e, '00' * len(LEVERS_CODE), LEVERS_CODE.hex()),
+         (0x00207702, '5f5e5bc9c3', jump(0x00207702, ('LEVERS', 0x0))),
+         (site('LEVERS'), '00' * len(LEVERS_CODE), LEVERS_CODE.hex()),
          # Two prompts naming a key the pad now covers, so they are only
          # true with this patch on.
          #
@@ -3251,9 +3903,6 @@ def install_ddraw_in_background(gamedir, progress, done):
 # .vocd's.
 MAGIC_TEMPLATE = 0xE7E7E7E7
 MAGIC_ANNEXREL = 0xEAEAEAEA
-F11PAUSE_AT = 0x0023b324        # where the debugbox patch sites the blob
-DBGPROC_AT = 0x001f42d8         # and the dialog procedure
-DBGPROC_VA = 0x005f4ed8
 
 
 def apply_extras_template(buf):

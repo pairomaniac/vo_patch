@@ -165,14 +165,14 @@ hand, once, per blob:
 2. If nothing clean is long enough, read the game at the address the
    middle list names before using one of those. What lives there has to be
    shorter than the gap.
-3. Put the address in the source's `org`, the file offset in the site that
-   writes it, and the cave's last usable byte in `CEILINGS` in
-   `asm/build.py`.
+3. Put the address in the `caves` table in `vo_patch.py` - the site that
+   writes the blob reads it from there through `site()` - and the cave's
+   last usable byte in `CEILINGS` in `asm/build.py`.
 
-Moving one is the same work plus its hooks: `grep` the old address across
-`vo_patch.py` and `asm/`, because every rel32 in the site table is computed
-by hand. `check_calls` catches a call that lands outside `.text` on no
-label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
+Moving one is the same edit: every hook in the site table computes its
+rel32 from the cave through `call()` and `jump()`, and every blob that
+names a place inside another goes through the `symbols` table, so nothing
+else holds the old address.
 
 ## Netplay
 
@@ -407,7 +407,7 @@ GitHub. `git pull`, then push. Pick local *or* web and stick with it.
 **It crashes in the game** - nothing here can catch that; every check reasons
 about where bytes go, not whether the code runs. Get a log with
 `PROTON_LOG=1`, then the forty lines around `dispatch_exception
-code=c0000005`. Subtract the blob's org from the fault address to find it in
+code=c0000005`. Subtract the blob's cave from the fault address to find it in
 the source. Two ways to earn one, both already paid for: writing into a run of
 zeros that is not free, and writing to `.rdata`, which is marked executable
 but not writable - mutable state goes in the `.data` scratch.

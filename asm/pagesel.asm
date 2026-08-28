@@ -4,9 +4,9 @@ bits 32
 ; The tail is unrelated lodging: the deadzone digits formatter, which
 ; asm/iniall.asm's cave had no room for.
 
-org 0x00601bd4          ; a run of zeros in .rdata
-
-DEVCUR      equ 0x005fd7e4      ; ZF set when the pending device is Simple
+extern DEVCUR                   ; ZF set when the pending device is Simple
+extern SELDIGITS, SELLIST       ; the preselect's digit and list loops
+extern SELSET                   ; and where it sets the selection
 
 ; The preselect's letter loop entry.
 selsec:
@@ -17,10 +17,10 @@ selsec:
     ret
 .letters_done:
     add     esp, 4
-    jmp     0x00498059          ; the digit loop
+    jmp     SELDIGITS          ; the digit loop
 .skip:
     add     esp, 4
-    jmp     0x0049809d          ; the list loop
+    jmp     SELLIST          ; the list loop
 
 ; A list hit's combo index: past letters and digits on Simple's page,
 ; bare on the gamepad's.
@@ -30,7 +30,7 @@ selidx:
     add     dword [ebp - 0xc], 0x24
 .flat:
     add     esp, 4
-    jmp     0x004980d9          ; set the selection
+    jmp     SELSET          ; set the selection
 
 ; The deadzone seed: percent in cl, player in ebx, into that player's
 ; threshold, digit pair (tens first) and the percent itself, kept in the
@@ -38,8 +38,8 @@ selidx:
 ; to what is actually in force. asm/iniall.asm and the dialog call this
 ; at the address the times pins; the digits' third byte stays the
 ; loader's zero, so the text is terminated. Clobbers eax only.
-DZTHR1      equ 0x0365cb8c      ; see asm/padxinput.asm
-DZSTR1      equ 0x0365cb94
+extern DZTHR1                   ; see asm/padxinput.asm
+extern DZSTR1
 
     times   (0x00601c08 - 0x00601bd4) - ($ - $$) db 0
 dzseed:

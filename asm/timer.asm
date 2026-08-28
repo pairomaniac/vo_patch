@@ -1,5 +1,4 @@
 bits 32
-org 0x005f4e3e          ; the .text cave, immediately before debugbox.asm
 ; The entry point the frame rate patch redirects to. It asks Windows for a
 ; 1 ms scheduler tick and then goes where the entry point used to go.
 ;
@@ -12,9 +11,9 @@ org 0x005f4e3e          ; the .text cave, immediately before debugbox.asm
 
 STRLEN      equ 62              ; code and both strings, up to debugbox.asm
 
-ORIGENTRY   equ 0x005e7930      ; the entry point this replaces
-LOADLIB     equ 0x0365d504      ; LoadLibraryA
-GETPROC     equ 0x0365d508      ; GetProcAddress
+extern ORIGENTRY                ; the entry point this replaces
+extern LOADLIB                  ; LoadLibraryA
+extern GETPROC                  ; GetProcAddress
 
 start:
     push    winmm

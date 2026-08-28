@@ -1,5 +1,4 @@
 bits 32
-org 0x00623d98          ; a run of zeros in .rdata; 0x623e40 is a qword 480.0
                         ; that 18 sites load, so 168 bytes are free from here
 ; Draws the patcher's version in the bottom right of the title screen.
 ;
@@ -35,9 +34,9 @@ org 0x00623d98          ; a run of zeros in .rdata; 0x623e40 is a qword 480.0
 ; The string is not in here. The patcher writes it in after the blob, since
 ; the version comes from the git tag and the blobs are built from source.
 
-CURSOR      equ 0x004cd8c3      ; (column, row), cdecl
-PRINT       equ 0x004ceeeb      ; (text), cdecl, from the cursor
-PRIMARY     equ 0x01ae5f40      ; what the displaced load reads
+extern CURSOR                   ; (column, row), cdecl
+extern PRINT                    ; (text), cdecl, from the cursor
+extern PRIMARY                  ; what the displaced load reads
 
 ; 0x1ae3594 picks the machine through the table at 0x5fe5e0 and 0x1ae3690 is
 ; its state. All three of these are machine 1, the attract one, whose
@@ -45,8 +44,8 @@ PRIMARY     equ 0x01ae5f40      ; what the displaced load reads
 ; with the blinking banner - 0x17 is 0x44b89d, which calls 6's own handler at
 ; 0x545dfa - and 0x11 is the logo with the menu. 7 is the demo match and is
 ; the reason this is three tests and not a range.
-MODE        equ 0x01ae3594
-SUBMODE     equ 0x01ae3690
+extern MODE
+extern SUBMODE
 ATTRACT     equ 1
 PROMPT      equ 0x06            ; 0x545dfa, the logo and Press A Button
 PROMPT2     equ 0x17            ; 0x44b89d, the same screen later in the loop

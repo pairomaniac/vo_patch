@@ -8,16 +8,14 @@ bits 32
 ; stored as pending. Positions past the four profiles pass through
 ; unchanged, as do out-of-range values.
 
-org 0x00604734          ; a run of zeros in .rdata
-
-BASE        equ 0x00bf6838      ; pending devices, + player * 0x70
+extern BLOCKS                   ; pending devices, + player * 0x70
 
 posof:  db 3, 0, 1, 2, 4, 5, 6, 7       ; device -> list position
 devof:  db 1, 2, 3, 0, 4, 5, 6, 7       ; list position -> device
 
 ; The preselect read: in eax = player * 0x70, out eax = list position.
 posshim:
-    mov     eax, [eax + BASE]
+    mov     eax, [eax + BLOCKS]
     cmp     eax, 7
     ja      .raw
     movzx   eax, byte [posof + eax]

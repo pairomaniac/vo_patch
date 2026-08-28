@@ -10,16 +10,14 @@ bits 32
 ; esi and edi are the caller's to lose, which the dialog procedure
 ; refills after the call.
 
-org 0x0063bf24          ; a run of zeros in .rdata
 
 %include "dialogs.inc"      ; TEMPLATE, CHECKS
 
-GPAUSE      equ 0x005c67c5      ; the built-in dialogs' pause, arg 0
-GRESUME     equ 0x005c680b      ; and their resume
-GETMODULE   equ 0x0365d4a0      ; GetModuleHandleA
-CHECKDLGBTN equ 0x0365d544      ; CheckDlgButton
-DLGPROC     equ 0x005f4ed8      ; asm/debugbox.asm's dialog procedure
-BASE        equ 0x0063bf24      ; the org, for the pin below
+extern GPAUSE                   ; the built-in dialogs' pause, arg 0
+extern GRESUME                  ; and their resume
+extern GETMODULE                ; GetModuleHandleA
+extern CHECKDLGBTN              ; CheckDlgButton
+extern DLGPROC                  ; asm/debugbox.asm's dialog procedure
 
 f11wrap:
     push    0
@@ -38,7 +36,7 @@ f11wrap:
 
 ; CHECKS is one (flag, id) pair per check box; each box is ticked from the
 ; game's own flag, so what the dialog shows is what is on.
-    times   (0x0063bf50 - BASE) - ($ - $$) db 0
+    times   0x2c - ($ - $$) db 0
 f11checks:
     mov     esi, CHECKS
     push    3

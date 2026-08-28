@@ -4,18 +4,16 @@ bits 32
 ; the pair by the device of the side being configured. Slots are pinned: each
 ; site names an address here, and nothing downstream would catch a drift.
 
-org 0x005fd7e4          ; a run of zeros in .rdata
-
-CURPLAYER   equ 0x00bf6bac      ; the side being configured, 0 or 1
-PENDING     equ 0x00bf6838      ; + player * 0x70: the device picked on the
+extern CURPLAYER                ; the side being configured, 0 or 1
+extern BLOCKS                   ; + player * 0x70: the device picked on the
                                 ; F7 screen, live before OK commits it to
                                 ; 0x3651540 - the page opens against this
 SIMPLE      equ 3               ; Keyboard (Simple)'s slot
-KEYLIST     equ 0x0066d438      ; the game's 33 named keys
-PADLIST     equ 0x00624843      ; the 16 pad inputs, asm/padtables.py
+extern KEYLIST                  ; the game's 33 named keys
+extern PADLIST                  ; the 16 pad inputs, asm/padtables.py
 KEYCOUNT    equ 0x21
 PADCOUNT    equ 0x10
-FILLDONE    equ 0x00497cf7      ; where the fill loop's jge went
+extern FILLDONE                 ; where the fill loop's jge went
 
 ; ---------------------------------------------------------------- 0x5fd7e4
 ; ZF set when the side being configured is on Keyboard (Simple).
@@ -23,7 +21,7 @@ devcur:
     push    eax
     mov     eax, [CURPLAYER]
     imul    eax, eax, 0x70
-    cmp     dword [eax + PENDING], SIMPLE
+    cmp     dword [eax + BLOCKS], SIMPLE
     pop     eax
     ret
 

@@ -62,76 +62,59 @@ replaces everything between a pair of comment markers. Nothing outside the
 markers is touched, so the patch tables around them are safe, and nothing is
 written into `asm/` either - nasm works in a temporary directory.
 
-One region per blob, and `build.py` fails if a pair is missing:
+Three regions, and `build.py` fails if a pair is missing:
 
 ```
 # VOCD BLOB BEGIN        <- VOCD_MAGICS, VOCD_CODE, VOCD_DATA
 # VOCD BLOB END
 
-# PADX BLOB BEGIN        <- PADX_CODE
-# PADX BLOB END
+# BLOBS BLOB BEGIN       <- BLOBS: every other .asm file and every packed
+# BLOBS BLOB END            table, one entry each
 
-# LEVERS BLOB BEGIN      <- LEVERS_CODE
-# LEVERS BLOB END
-
-# TWIN BLOB BEGIN        <- TWIN_CODE
-# TWIN BLOB END
-
-# INTROWAIT BLOB BEGIN   <- INTROWAIT_CODE
-# INTROWAIT BLOB END
-
-# KBPAGE BLOB BEGIN      <- KBPAGE_CODE
-# KBPAGE BLOB END
-
-# BINDLIST BLOB BEGIN    <- BINDLIST_CODE, and one pair each for BINDMAP,
-# BINDLIST BLOB END         BINDBLOCK, BLOCKCUR, PAGESEC, PAGESEL, INISAVE,
-                            INILOAD, INIPARSE, INIALL, COMMITDEV, DEVORDER
-                            and F11PAUSE, all single _CODE blobs
-
-# MOVIE BLOB BEGIN       <- MOVIE_CODE
-# MOVIE BLOB END
-
-# DEBUGBOX BLOB BEGIN    <- DEBUGBOX_HOOK, DEBUGBOX_PROC
-# DEBUGBOX BLOB END
-
-# TIMER BLOB BEGIN       <- TIMER_CODE
-# TIMER BLOB END
-
-# PADTABLES BLOB BEGIN   <- PAD_COND, PAD_BINDS, PAD_NAMES, PAD_DEVLIST
-# PADTABLES BLOB END
-
-# DIALOGS BLOB BEGIN     <- EXTRAS_TPL, EXTRAS_DATA, F5_STOCK, F5_FPS,
-# DIALOGS BLOB END          VOXT_CODE
-
-# CREDITS BLOB BEGIN     <- CREDITS_CODE, and one pair each for NAMEENTRY,
-# CREDITS BLOB END          CAMSKIP, OVERLAY and TITLEVER, all single _CODE
-                            blobs
+# DIALOGS BLOB BEGIN     <- EXTRAS_TPL, F5_STOCK, F5_FPS
+# DIALOGS BLOB END
 ```
+
+Each `BLOBS` entry is `(code, fixups, labels)`. The code has its address
+slots empty; a fixup says which slot holds which symbol and how (absolute,
+or relative to the end of the slot); the labels are the offsets of the
+source's labels, for another blob or the site table to name. `vo_patch.py`
+links each one for the retail build as it loads - `PADX_CODE = link('PADX',
+RETAIL)` and so on - and that is what the site table writes.
 
 The three `.py` modules also emit an `.inc` file each, which the assembly
 includes. An address both sides need - the condition table, the Extras
 strings, a control id - is written once, by the module that packs the bytes
 it points at.
 
-## Addresses that cannot move
+## Addresses
 
-Most `.asm` files carry an `org` - `padxinput.asm`, `twinstick.asm`,
-`introwait.asm`, `kbpage.asm`, `debugbox.asm`, `movie.asm`, `credits.asm`,
-`nameentry.asm`, `camskip.asm`, `overlay.asm`, `titlever.asm`, `timer.asm`
-and every bind-page and ini file above. Their stubs
-jump to fixed addresses and their parameter blocks point at tables in the
-same blob, so the code only works where it was assembled to sit. The `.py`
-modules hardcode addresses for the same reason: `COND` and `TEMPLATE` are
-read by the assembly, `NAMES` and `BINDS` are pointed at from inside the
-blobs.
+No `.asm` file names an address in the game. Every place it touches is an
+`extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles the
+file as an ELF object, whose relocations say which bytes want which symbol.
+`build.py` reads those out and writes them into `vo_patch.py` beside the
+code as the fixup list. The addresses themselves live in one place, the
+`RETAIL` build's `symbols` table in `vo_patch.py`: a virtual address for a
+place in the game, or `(blob, label)` for a place in one of ours. Where a
+blob goes is the `caves` table beside it.
 
-So the source names a place as a virtual address and the patch table names
-the same place as a file offset. `build.py` checks the two agree, reading the
-offsets out of the patch table rather than keeping a second copy here, and
-it resolves every call the patch table writes into a cave against the
-assembled labels, so a mistyped rel32 fails the build instead of the game.
-Nothing downstream would notice a mismatch: the bytes would be written, and
-every address into them would be a few bytes out.
+The `.py` modules work the same way: `padtables.py` emits the bind list
+with a fixup on `PAD_NAMES` for every pointer, `dialogs.py` a fixup on each
+check box's game flag. Their `.inc` files declare the labels the assembly
+reads as `extern`.
+
+So one set of machine code serves any build of the game; a second build is
+a second `Build` with its own caves and symbols. The site table names its
+hooks the same way - `call(0x0009703f, ('PAGESEC', 'fillsec'), 5)` computes
+the rel32 from the cave, and `site('PADX')` the file offset a blob is
+written at - so there is no hand-computed address for the two to disagree
+on.
+
+Two things still carry a fixed shape. `padxinput.asm` pins six offsets
+inside itself with `times`, because the site table and other blobs name
+them, and pads to `PADX_LEN` because `levers.asm` is written straight after
+it. `debugbox.asm` pins its dialog procedure one byte past the hook. `build.py`
+checks both against the labels.
 
 ## The loop
 
@@ -215,10 +198,10 @@ each go to one site inside the XInput patch table, at `0x00207460`,
 `0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length
 from the blob, so a routine can change size without the run of `00` beside it
 needing a manual edit - but it
-has to stay inside its cave, and the last two carry an `org`, so growing them
-past the cave is a source edit and not just a rebuild. The thirteen keyboard
-profile and F11 files in the cave table above work the same way: one site
-each, length read from the blob, an `org` naming the cave.
+has to stay inside its cave, so growing one past the cave means a new cave
+in the `caves` table and not just a rebuild. The thirteen keyboard profile
+and F11 files in the cave table above work the same way: one site each,
+length read from the blob, the cave named in the table.
 
 ## Space left in the executable
 
@@ -345,9 +328,8 @@ Six leading zero bytes, so the scan overshoots by six.
 **Its start is a multiple of four.** Every address in this image is below
 `0x01000000`, so every pointer has a zero top byte, and the longest run of
 `00` begins one byte inside the last pointer of a table. Writing there turns
-`0x00623bb0` into `0x11623bb0` and the game dies dereferencing it. `build.py`
-refuses any `org` whose site is not four-aligned, and a cave picked by hand
-needs the same.
+`0x00623bb0` into `0x11623bb0` and the game dies dereferencing it. A cave
+picked by hand needs the same.
 
 All of these sit past their section's VirtualSize but inside SizeOfRawData,
 so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
@@ -608,8 +590,7 @@ named action, so the sticks land straight in the levers and the game works
 out walking, turning, jump and crouch from the pair.
 
 So the file is two entry stubs, a bind list, two mask tables and a parameter
-block per player, mostly tables. It carries an `org` because the stubs jump
-to fixed addresses and the blocks point at its tables.
+block per player, mostly tables.
 
 ## kbpage.asm
 

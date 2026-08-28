@@ -1,5 +1,4 @@
 bits 32
-org 0x0063d6d0          ; a run of zeros in .rdata; 156 bytes of it, and
                         ; nothing in the file points anywhere near it
 ; Makes the ending credits skippable, which they are not in the stock game.
 ;
@@ -27,20 +26,20 @@ org 0x0063d6d0          ; a run of zeros in .rdata; 156 bytes of it, and
 ; Runs in place of the `mov dword [0x1ae1c1c], 0` that opens the handler,
 ; which is why that write is repeated below.
 
-ACCEPT      equ 0x00bf0481      ; 1P's key buffer slot for A and Space
-CAMERA      equ 0x00bf0457      ; and the one Select writes, which is what
+extern ACCEPT1                  ; 1P's key buffer slot for A and Space
+extern CAMERA1                  ; and the one Select writes, which is what
                                 ; skips the win and lose screens
-PHASE       equ 0x01ad0964      ; where the credits sequence is up to
-FLAG        equ 0x01ae1c1c      ; the displaced write
-PREV        equ 0x006c3d48      ; last frame's slot, shared with nameentry.asm
-HELD        equ 0x006c3d49      ; and how long this press has lasted
+extern PHASE                    ; where the credits sequence is up to
+extern FLAG                     ; the displaced write
+extern PREV                     ; last frame's slot, shared with nameentry.asm
+extern HELD                     ; and how long this press has lasted
 
 ROLL        equ 2               ; the phase the credits themselves are
 HOLD        equ 60              ; ticks to hold before it counts
 
 skip:
-    mov     al, [ACCEPT]        ; 0x80 while held, 0 otherwise
-    or      al, [CAMERA]        ; either button, as on the screens before
+    mov     al, [ACCEPT1]        ; 0x80 while held, 0 otherwise
+    or      al, [CAMERA1]        ; either button, as on the screens before
     mov     dl, [PREV]
     mov     [PREV], al          ; tracked in every phase, not just the roll
     cmp     byte [PHASE], ROLL

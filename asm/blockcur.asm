@@ -7,23 +7,21 @@ bits 32
 ; caller built the index from two instructions earlier, and the incoming
 ; eax is used purely as an address.
 
-org 0x005fd864          ; a run of zeros in .rdata
-
-BASE        equ 0x00bf6838
+extern BLOCKS
 SIMPLE      equ 3
-CURPLAYER   equ 0x00bf6bac
+extern CURPLAYER
 
 blockcur:               ; in: eax = player * 0x70 + slot * 2
     push    ecx
     mov     ecx, [CURPLAYER]
     imul    ecx, ecx, 0x70
-    cmp     dword [ecx + BASE], SIMPLE
+    cmp     dword [ecx + BLOCKS], SIMPLE
     pop     ecx
     je      .simple
-    lea     eax, [eax + BASE + 0x08]
+    lea     eax, [eax + BLOCKS + 0x08]
     ret
 .simple:
-    lea     eax, [eax + BASE + 0x38]
+    lea     eax, [eax + BLOCKS + 0x38]
     ret
 
     times   0x28 - ($ - blockcur) db 0x90
@@ -39,8 +37,8 @@ blockcur:               ; in: eax = player * 0x70 + slot * 2
 ; each block's own ini line at launch, so a skipped seed loses nothing.
 ; Runs in the seeder's frame: [ebp + 8] is the player.
 
-MEMCPY      equ 0x005e6030
-DEVICES     equ 0x03651540
+extern MEMCPY
+extern DEVICES
 
 syncshim:
     push    eax
@@ -48,7 +46,7 @@ syncshim:
     mov     eax, [ebp + 8]
     imul    ecx, eax, 0x70
     mov     eax, [eax*4 + DEVICES]
-    cmp     [ecx + BASE], eax
+    cmp     [ecx + BLOCKS], eax
     pop     ecx
     pop     eax
     jne     .skip

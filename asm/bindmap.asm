@@ -5,23 +5,21 @@ bits 32
 ; being configured. The startup defaults writer rides along at the end,
 ; there being no room for it beside its subject in asm/kbpage.asm.
 
-org 0x005fd904          ; a run of zeros in .rdata
-
-CURPLAYER   equ 0x00bf6bac
-PENDING     equ 0x00bf6838      ; + player * 0x70, see asm/bindlist.asm
+extern CURPLAYER
+extern BLOCKS                   ; + player * 0x70, see asm/bindlist.asm
 SIMPLE      equ 3
-KEYLIST     equ 0x0066d438
-PADLIST     equ 0x00624843
+extern KEYLIST
+extern PADLIST
 KEYCOUNT    equ 0x21
 PADCOUNT    equ 0x10
-MAPDONE     equ 0x004980d9      ; where the search loop's jge went
+extern MAPDONE                  ; where the search loop's jge went
 
 ; ---------------------------------------------------------------- 0x5fd904
 devcur:
     push    eax
     mov     eax, [CURPLAYER]
     imul    eax, eax, 0x70
-    cmp     dword [eax + PENDING], SIMPLE
+    cmp     dword [eax + BLOCKS], SIMPLE
     pop     eax
     ret
 
@@ -64,8 +62,8 @@ mapid:
 ; table is seeded by the device apply, out of whichever block the saved
 ; device owns.
 %include "padtables.inc"    ; SIMPLEDEF, the shipped sets it builds
-BLOCKS      equ 0x00bf6838
-MEMCPY      equ 0x005e6030
+extern BLOCKS
+extern MEMCPY
 
     times   0x50 - ($ - devcur) db 0x90
 

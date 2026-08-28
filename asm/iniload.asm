@@ -12,15 +12,14 @@ bits 32
 ; live table is seeded from +0x38, overriding the seed the stock loader
 ; left there for the gamepad. cdecl (player, flag), flag unused.
 
-org 0x0060702c          ; a run of zeros in .rdata
 
 %include "padtables.inc"    ; INIKEYS
 
-BLOCKS      equ 0x00bf6838
+extern BLOCKS
 SIMPLE      equ 3
-DEVICES     equ 0x03651540
-LIVE        equ 0x03651470      ; + player * 0x18
-PARSE12     equ 0x00601b0c      ; asm/iniparse.asm
+extern DEVICES
+extern LIVE                     ; + player * 0x18
+extern PARSE12                  ; asm/iniparse.asm
 
 loadsimple:
     push    ebx

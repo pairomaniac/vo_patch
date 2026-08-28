@@ -1,5 +1,4 @@
 bits 32
-org 0x005f80e0          ; a run of zeros in .rdata; 0x5f8188 near its end is
                         ; a live address, so 168 bytes are free from here
 ; Draws HOLD TO SKIP over the credits while the button is down.
 ;
@@ -14,18 +13,18 @@ org 0x005f80e0          ; a run of zeros in .rdata; 0x5f8188 near its end is
 ; zeroed whenever the roll is not running or the button is not down, so a
 ; press anywhere else in the game cannot put text on the screen.
 
-ORIG        equ 0x005c80df      ; the call this one is made in place of
-DRAW        equ 0x005c991c      ; (text, x, y, colour, flag), cdecl
-MODE        equ 0x01ae3594      ; 4 while a match is running
-SUBMODE     equ 0x01ae3690      ; 0x20 is the ending sequence
-PHASE       equ 0x01ad0964      ; 2 is the roll itself
-HELD        equ 0x006c3d49      ; credits.asm's hold count
+extern ORIG                     ; the call this one is made in place of
+extern DRAW                     ; (text, x, y, colour, flag), cdecl
+extern MODE                     ; 4 while a match is running
+extern SUBMODE                  ; 0x20 is the ending sequence
+extern PHASE                    ; 2 is the roll itself
+extern HELD                     ; credits.asm's hold count
 
-PRIMARY     equ 0x01ae5f40      ; the surface DRAW paints on, and the one
-BACK        equ 0x01ae5f5c      ; that is about to be flipped over it
+extern PRIMARY                  ; the surface DRAW paints on, and the one
+extern BACK                     ; that is about to be flipped over it
 
-WIDE        equ 0x006bf598      ; the two the pause text halves its own
-HALF        equ 0x006bf560      ; coordinates on, at 0x5c9a98
+extern WIDE                     ; the two the pause text halves its own
+extern HALF                     ; coordinates on, at 0x5c9a98
 
 X           equ 320             ; of 640 by 480, halved in low resolution
 Y           equ 440

@@ -9,12 +9,10 @@ bits 32
 ; the OK loop. In: eax = the device, ecx = the player; both are reloaded
 ; by the caller afterwards.
 
-org 0x005fd74c          ; a run of zeros in .rdata
-
-BLOCKS      equ 0x00bf6838
+extern BLOCKS
 SIMPLE      equ 3
-DEVICES     equ 0x03651540
-LIVE        equ 0x03651470      ; + player * 0x18
+extern DEVICES
+extern LIVE                     ; + player * 0x18
 
 commitdev:
     mov     [ecx*4 + DEVICES], eax

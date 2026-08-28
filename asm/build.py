@@ -9,18 +9,24 @@ readable description.
     python3 asm/build.py            # assemble and write
     python3 asm/build.py --check    # verify only, writes nothing
 
-Besides matching the blobs, the check pass validates the hand-computed
-parts of the site table: each source's org against the site that writes it
-(check_org), blob growth against pinned ceilings (check_ceilings), and
-every call or jump a site writes whose target lands inside a cave against
-the assembled labels (check_calls) - a slipped rel32 is caught here rather
-than in the game.
+The sources name no addresses. Everything in the game they touch is an
+`extern`, and nasm assembles them as ELF objects whose relocations say where
+each address goes and how (absolute, or relative to the instruction). What
+lands in vo_patch.py is the blob with those slots empty, the fixup list, and
+the offsets of its labels; vo_patch.link() fills the slots for a build from
+that build's CAVES and SYMBOLS tables. So one set of machine code serves every
+build, and the retail addresses live in one table in the patcher rather than
+in twenty-eight files here.
+
+Besides matching the blobs, the check pass links every blob for the retail
+build and checks blob growth against pinned ceilings (check_ceilings). It
+runs vo_patch.py --selfcheck afterwards, which is where the site table is
+validated.
 
 vo_patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
 in when the assembly changes, and --check catches assembly edited without them
-being regenerated. It also reads the patch table back, so each blob's site and
-the address its source names for it are checked against each other.
+being regenerated.
 
 Everything nasm needs is built in a temporary directory, so neither mode
 leaves anything behind in the tree.
@@ -44,14 +50,11 @@ import dialogs                                            # noqa: E402
 import layout                                             # noqa: E402
 import padtables                                          # noqa: E402
 
-# debugbox.asm is one run assembled at 0x5f4e7c; the dialog procedure inside
-# it is pinned at 0x5f4ed8, one byte further on than the hook ends.
-DEBUGBOX_SPLIT = 0x5f4ed8 - 0x5f4e7c - 1
-
-# Virtual address minus file offset. Every section this project writes into
-# shares one delta except .rsrc, which sits further along in the file.
-VA_DELTA = 0x400c00
-VA_DELTA_RSRC = 0x305c400
+# debugbox.asm is one run; the dialog procedure inside it is pinned 0x5c
+# bytes in, one byte further on than the hook ends. vo_patch.py splits the
+# linked blob there (DEBUGBOX_SPLIT), so the two halves must be checked as
+# one here.
+DEBUGBOX_SPLIT = 0x5c - 1
 
 MAGICS = [
     ('MAGIC_ORIGENTRY', 0xE1E1E1E1, 'VA of the entry point we chain to'),
@@ -62,11 +65,11 @@ MAGICS = [
 ]
 
 
-def hexblob(name, raw):
+def hexblob(name, raw, indent='    '):
     out = ['%s = bytes.fromhex(\n' % name]
     text = raw.hex()
     for i in range(0, len(text), 64):
-        out.append("    '%s'\n" % text[i:i + 64])
+        out.append("%s'%s'\n" % (indent, text[i:i + 64]))
     out.append(')\n')
     return ''.join(out)
 
@@ -74,9 +77,8 @@ def hexblob(name, raw):
 def includes(tmp):
     """Write the .inc files the sources include, into nasm's include path.
 
-    Each is emitted by the module that owns the addresses in it, so an
-    address cannot be named one thing by the assembly and another by the
-    blob it points into."""
+    Each is emitted by the module that owns the labels in it, so a table's
+    name in the assembly and in the blob it points into cannot drift."""
     for name, text in (('strings.inc', layout.build()[0]),
                        ('padtables.inc', padtables.build()[0]),
                        ('dialogs.inc', dialogs.build_extras()[0])):
@@ -84,49 +86,62 @@ def includes(tmp):
             fh.write(text)
 
 
+def read_obj(path):
+    """An ELF32 object from nasm -> (code, fixups, labels).
+
+    fixups are (offset, kind, symbol, addend): kind 'abs' for a 32-bit
+    absolute address, 'rel' for one relative to the end of the slot; symbol
+    is the extern's name, or '.' for the blob's own base. labels are the
+    source's labels and their offsets, which is how another blob or the
+    site table names a place inside this one."""
+    d = open(path, 'rb').read()
+    shoff = struct.unpack_from('<I', d, 32)[0]
+    shentsize, shnum, shstrndx = struct.unpack_from('<HHH', d, 46)
+    secs = []
+    for i in range(shnum):
+        name, _typ, _flags, _addr, off, size, link, _info, _al, _es = \
+            struct.unpack_from('<10I', d, shoff + i * shentsize)
+        secs.append((name, off, size, link))
+
+    def cstr(at):
+        return d[at:d.index(b'\0', at)].decode()
+
+    names = {cstr(secs[shstrndx][1] + n): i for i, (n, *_r) in enumerate(secs)}
+    text = names['.text']
+    _n, off, size, _l = secs[text]
+    code = d[off:off + size]
+    _n, soff, ssize, slink = secs[names['.symtab']]
+    stroff = secs[slink][1]
+    syms = []
+    for i in range(ssize // 16):
+        n, value, _sz, info, _other, shndx = struct.unpack_from(
+            '<IIIBBH', d, soff + 16 * i)
+        syms.append((cstr(stroff + n), value, info & 0xf, shndx))
+    fixups = []
+    if '.rel.text' in names:
+        _n, roff, rsize, _l = secs[names['.rel.text']]
+        for i in range(rsize // 8):
+            at, info = struct.unpack_from('<II', d, roff + 8 * i)
+            name, _v, typ, shndx = syms[info >> 8]
+            kind = {1: 'abs', 2: 'rel'}[info & 0xff]
+            if typ == 3:                # STT_SECTION: the blob itself
+                name = '.'
+            addend = struct.unpack_from('<i', code, at)[0]
+            fixups.append((at, kind, name, addend))
+    labels = {name: value for name, value, typ, shndx in syms
+              if name and shndx == text and typ != 3 and '.' not in name}
+    return code, fixups, labels
+
+
 def assemble(source, tmp):
-    """nasm -f bin, against the .inc files written by includes(). Label
-    offsets from the listing are collected into LABELS for check_calls."""
+    """nasm -f elf32, against the .inc files written by includes()."""
     if not shutil.which('nasm'):
         raise SystemExit('nasm not found. Install it: dnf install nasm, '
                          'apt install nasm.')
-    args = ['nasm', '-f', 'bin', '-I', tmp + os.sep]
-    out = os.path.join(tmp, os.path.basename(source) + '.bin')
-    lst = out + '.lst'
-    args += ['-o', out, '-l', lst, os.path.join(HERE, source)]
-    subprocess.check_call(args)
-    org = None
-    with open(os.path.join(HERE, source), encoding='utf-8') as fh:
-        m = re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read())
-        org = int(m.group(1), 16) if m else None
-    if org is not None:
-        offset = None
-        with open(lst, encoding='utf-8') as fh:
-            for line in fh:
-                m = re.match(r'\s*\d+ ([0-9A-F]{8}) ', line)
-                if m:
-                    offset = int(m.group(1), 16)
-                m = re.match(r'\s*\d+\s+([a-z_][a-z0-9_]*):\s*(?:;.*)?$', line)
-                if m:
-                    # a label line carries no address; the next coded line
-                    # does, so remember the name until one arrives
-                    LABELS.setdefault(source, {})[m.group(1)] = None
-                elif offset is not None:
-                    for name, at in LABELS.get(source, {}).items():
-                        if at is None:
-                            LABELS[source][name] = org + offset
-        LABELS.setdefault(source, {})
-        ORGS[source] = org
-    with open(out, 'rb') as fh:
-        return fh.read()
-
-
-LABELS = {}     # source -> {label: VA}, filled by assemble()
-TEXT_END = 0x005f4e3e   # where the executable's own code stops; past this
-                        # is .rdata and the caves, so a call landing there
-                        # is a call into ours
-
-ORGS = {}       # source -> org VA
+    out = os.path.join(tmp, os.path.basename(source) + '.o')
+    subprocess.check_call(['nasm', '-f', 'elf32', '-I', tmp + os.sep,
+                           '-o', out, os.path.join(HERE, source)])
+    return read_obj(out)
 
 
 def replace(text, name, body):
@@ -139,49 +154,23 @@ def replace(text, name, body):
     return new
 
 
-def blob_sites(names):
-    """Blob name -> the offset in vo_patch.py's table that writes it.
-
-    Read out of the patch table rather than repeated here, so each site is
-    written down once. A blob is matched by its own hex, which is what the
-    `new` column of its site holds."""
-    spec = importlib.util.spec_from_file_location('vopatch', TARGET)
-    vp = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(vp)                 # runs _check_table
-
-    at = {}
-    for name in names:
-        want = getattr(vp, name).hex()
-        hits = [off for _k, _l, _t, sites in vp.FEATURES
-                for off, _old, new in sites or () if new == want]
-        if len(hits) != 1:
-            raise SystemExit('%s is written at %d sites in vo_patch.py, and '
-                             'this check needs exactly one' % (name, len(hits)))
-        at[name] = hits[0]
-    return at
-
-
-def check_org(at, wanted, padding=()):
-    """Sources assembled at a fixed org, where the source and the site that
-    writes it have to name the same address. Nothing downstream would
-    notice: the code would be written, and every jump in it would land a
-    few hundred bytes off.
-
-    `padding` names the sources whose cave is section padding rather than a
-    run of zeros cut out of live data, where the four-alignment rule below
-    has nothing to protect."""
-    for name, (blob, delta) in wanted.items():
-        site = at[blob]
-        with open(os.path.join(HERE, name), encoding='utf-8') as fh:
-            org = int(re.search(r'(?m)^org\s+(0x[0-9a-f]+)', fh.read()).group(1), 16)
-        if site % 4 and name not in padding:
-            raise SystemExit('%s is written at 0x%08x, which is not a multiple '
-                             'of four. A run of zeros starting off a dword '
-                             'boundary starts inside the last field before it.'
-                             % (name, site))
-        if org != site + delta:
-            raise SystemExit('%s is assembled at 0x%08x but its site puts it '
-                             'at 0x%08x' % (name, org, site + delta))
+def emit_blobs(blobs):
+    """The BLOBS table: name -> (code, fixups, labels)."""
+    out = ['BLOBS = {\n']
+    for name, (code, fixups, labels) in blobs.items():
+        out.append("    '%s': (bytes.fromhex(\n" % name)
+        text = code.hex()
+        for i in range(0, len(text), 64):
+            out.append("        '%s'\n" % text[i:i + 64])
+        out.append('    ), (\n')
+        for at, kind, sym, addend in fixups:
+            out.append('        (0x%x, %r, %r, %d),\n' % (at, kind, sym, addend))
+        out.append('    ), {\n')
+        for label, at in sorted(labels.items(), key=lambda kv: kv[1]):
+            out.append("        '%s': 0x%x,\n" % (label, at))
+        out.append('    }),\n')
+    out.append('}\n')
+    return ''.join(out)
 
 
 # A cave's last usable byte, for the ones where something live sits close
@@ -189,22 +178,22 @@ def check_org(at, wanted, padding=()):
 # `selftest.py` finds them against a real v_on.exe, this pins what it found
 # so a blob cannot grow into one without CI saying so.
 CEILINGS = {
-    'DEBUGBOX_PROC': (0x005f5000, 'a qword 0.0 that 0x401ce4 compares '
-                                  'depth against'),
-    'INISAVE_CODE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
-                                 'what scans as a longer run'),
-    'INIALL_CODE': (0x0063c64c, 'the end of its run; the deadzone seed '
-                                'took most of the slack'),
-    'F11PAUSE_CODE': (0x0063bf7c, 'the end of its run; the check-box loop '
-                                  'took nearly all of it'),
-    'INIPARSE_CODE': (0x00601b6c, 'the end of its run; the deadzone '
-                                  'write-back sits in its tail'),
-    'OVERLAY_CODE': (0x005f8188, 'a live address 18 sites point at'),
-    'TITLEVER_CODE': (0x00623e40, 'a qword 480.0 that 18 sites load'),
+    'DEBUGBOX': (0x005f5000, 'a qword 0.0 that 0x401ce4 compares '
+                             'depth against'),
+    'INISAVE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
+                            'what scans as a longer run'),
+    'INIALL': (0x0063c64c, 'the end of its run; the deadzone seed '
+                           'took most of the slack'),
+    'F11PAUSE': (0x0063bf7c, 'the end of its run; the check-box loop '
+                             'took nearly all of it'),
+    'INIPARSE': (0x00601b6c, 'the end of its run; the deadzone '
+                             'write-back sits in its tail'),
+    'OVERLAY': (0x005f8188, 'a live address 18 sites point at'),
+    'TITLEVER': (0x00623e40, 'a qword 480.0 that 18 sites load'),
 }
 
 
-def check_ceilings(at, blobs):
+def check_ceilings(vp, blobs):
     """Blobs whose cave ends before its run of zeros does.
 
     A blob that outgrows its cave writes onto whatever follows it, and if
@@ -212,278 +201,120 @@ def check_ceilings(at, blobs):
     dialog procedure did this in v0.8.5: two bytes over the end, onto a
     constant the game reads."""
     for name, (limit, what) in CEILINGS.items():
-        end = at[name] + len(blobs[name]) + VA_DELTA
+        end = vp.cave_va(name, vp.RETAIL) + len(blobs[name][0])
         if end > limit:
             raise SystemExit('%s ends at 0x%08x, %d bytes past 0x%08x, where '
                              'the cave stops: %s'
                              % (name, end, end - limit, limit, what))
 
 
-def check_follows(at, name, after, length):
-    """A blob written straight after another one, with no org of its own.
+def check_link(vp, blobs):
+    """Every blob links for the retail build, and every pin the site table
+    relies on is where the assembly put it."""
+    for name in blobs:
+        if name in vp.RETAIL.caves:
+            vp.link(name, vp.RETAIL, blobs=blobs)
+    padx = blobs['PADX'][0]
+    if len(padx) != vp.PADX_LEN:
+        raise SystemExit('padxinput.asm assembles to %d bytes, not %d'
+                         % (len(padx), vp.PADX_LEN))
+    dbg = blobs['DEBUGBOX'][0]
+    if dbg[DEBUGBOX_SPLIT]:
+        raise SystemExit('debugbox.asm puts %#04x at the byte between the '
+                         'hook and the dialog procedure, which the patch '
+                         'does not write' % dbg[DEBUGBOX_SPLIT])
+    if blobs['DEBUGBOX'][2]['dlgproc'] != DEBUGBOX_SPLIT + 1:
+        raise SystemExit('debugbox.asm has the dialog procedure at 0x%x, '
+                         'not 0x%x' % (blobs['DEBUGBOX'][2]['dlgproc'],
+                                       DEBUGBOX_SPLIT + 1))
+    for blob, magic in (('F11PAUSE', dialogs.TEMPLATE),
+                        ('DEBUGBOX', vp.MAGIC_ANNEXREL)):
+        pattern = struct.pack('<I', magic)
+        if blobs[blob][0].count(pattern) != 1:
+            raise SystemExit('the 0x%08x placeholder should appear exactly '
+                             'once in %s' % (magic, blob))
+        for other, (code, _f, _l) in blobs.items():
+            if other != blob and pattern in code:
+                raise SystemExit('the 0x%08x placeholder occurs in %s'
+                                 % (magic, other))
 
-    levers.asm replaces the tail of the XInput routine, and the jump into it
-    is a distance nasm worked out from the routine's own layout. So its site
-    is not free: it is the routine's site plus the routine's length, and a
-    site a few bytes off would leave that jump pointing into padding."""
-    if at[name] != at[after] + length:
-        raise SystemExit('%s is written at 0x%08x but %s ends at 0x%08x'
-                         % (name, at[name], after, at[after] + length))
 
-
-def check_addr(at, wanted):
-    """The same check for the addresses the .py packers hardcode.
-
-    They name these places as virtual addresses, because the assembly reads
-    them or the pointers inside the blobs point at them; the patch table
-    names the same places as file offsets. Nothing else compares the two, and
-    a blob written a few bytes off is a table every pointer misses."""
-    for name, (va, blob, delta) in wanted.items():
-        if va != at[blob] + delta:
-            raise SystemExit('%s is 0x%08x but %s is written at 0x%08x, which '
-                             'is 0x%08x' % (name, va, blob, at[blob],
-                                            at[blob] + delta))
-
-
-def check_calls(blobs):
-    """Every call or jump a site writes whose target lands inside one of
-    the caves must land exactly on an assembled label. The rel32s in the
-    site table are computed by hand, and a slip lands mid-cave or in
-    unrelated data with nothing else to notice - the class of mistake this
-    exists to catch. Targets outside every cave are the executable's own
-    code and not judged here."""
-    ranges = [(ORGS[src], ORGS[src] + len(blob), src)
-              for src, blob in blobs.items() if src in ORGS]
-    labels = set(ORGS.values())         # the org is always an entry point
-    # levers.asm carries no org of its own: it is appended to padxinput and
-    # entered at the byte after it, so every blob's end is an entry too.
-    labels.update(hi for _lo, hi, _src in ranges)
-    for per in LABELS.values():
-        labels.update(va for va in per.values() if va is not None)
-    with open(TARGET, encoding='utf-8') as fh:
-        text = fh.read()
-    for m in re.finditer(r"\(0x([0-9a-f]{8}),\s*'[0-9a-f]*',\s*"
-                         r"'((?:e8|e9)[0-9a-f]{8})[0-9a-f]*'\)", text):
-        off = int(m.group(1), 16)
-        va = off + (0x400c00 if off < 0x23de00 else 0x401200)
-        rel = int.from_bytes(bytes.fromhex(m.group(2)[2:]), 'little', signed=True)
-        target = (va + 5 + rel) & 0xffffffff
-        for lo, hi, src in ranges:
-            if lo <= target < hi and target not in labels:
-                raise SystemExit(
-                    'the site at 0x%08x calls 0x%08x, inside %s but on no '
-                    'label - a hand-computed rel32 gone wrong'
-                    % (off, target, src))
-        # The game's own code is all in .text. A call that leaves it is a
-        # call into one of ours, so it has to land on a label: a blob that
-        # moves leaves its hook behind otherwise, and the target is then
-        # neither in a cave nor anywhere this loop was looking.
-        if (target >= TEXT_END and target not in labels
-                and len(m.group(0)) - len(m.group(2)) < 60):   # a hook, not a
-                                                               # blob that
-                                                               # opens with e8
-            raise SystemExit(
-                'the site at 0x%08x calls 0x%08x, which is outside .text '
-                'and on no label - a blob that moved without its hook?'
-                % (off, target))
+SOURCES = [
+    ('TIMER', 'timer.asm'), ('DEBUGBOX', 'debugbox.asm'),
+    ('PADX', 'padxinput.asm'), ('LEVERS', 'levers.asm'),
+    ('TWIN', 'twinstick.asm'), ('INTROWAIT', 'introwait.asm'),
+    ('KBPAGE', 'kbpage.asm'), ('BINDLIST', 'bindlist.asm'),
+    ('BINDMAP', 'bindmap.asm'), ('BINDBLOCK', 'bindblock.asm'),
+    ('INISAVE', 'inisave.asm'), ('INILOAD', 'iniload.asm'),
+    ('BLOCKCUR', 'blockcur.asm'), ('INIPARSE', 'iniparse.asm'),
+    ('PAGESEC', 'pagesec.asm'), ('PAGESEL', 'pagesel.asm'),
+    ('COMMITDEV', 'commitdev.asm'), ('INIALL', 'iniall.asm'),
+    ('DEVORDER', 'devorder.asm'), ('F11PAUSE', 'f11pause.asm'),
+    ('VOXT', 'voxt.asm'), ('MOVIE', 'movie.asm'),
+    ('CREDITS', 'credits.asm'), ('NAMEENTRY', 'nameentry.asm'),
+    ('CAMSKIP', 'camskip.asm'), ('OVERLAY', 'overlay.asm'),
+    ('TITLEVER', 'titlever.asm'),
+]
 
 
 def main(check=False):
+    blobs = {}
     with tempfile.TemporaryDirectory() as tmp:
         includes(tmp)
-        code = assemble('vocd.asm', tmp)
-        timer = assemble('timer.asm', tmp)
-        dbgbox = assemble('debugbox.asm', tmp)
-        padx = assemble('padxinput.asm', tmp)
-        levers = assemble('levers.asm', tmp)
-        twin = assemble('twinstick.asm', tmp)
-        introwait = assemble('introwait.asm', tmp)
-        kbpage = assemble('kbpage.asm', tmp)
-        bindlist = assemble('bindlist.asm', tmp)
-        bindmap = assemble('bindmap.asm', tmp)
-        bindblock = assemble('bindblock.asm', tmp)
-        inisave = assemble('inisave.asm', tmp)
-        iniload = assemble('iniload.asm', tmp)
-        blockcur = assemble('blockcur.asm', tmp)
-        iniparse = assemble('iniparse.asm', tmp)
-        pagesec = assemble('pagesec.asm', tmp)
-        pagesel = assemble('pagesel.asm', tmp)
-        commitdev = assemble('commitdev.asm', tmp)
-        iniall = assemble('iniall.asm', tmp)
-        devorder = assemble('devorder.asm', tmp)
-        f11pause = assemble('f11pause.asm', tmp)
-        voxt = assemble('voxt.asm', tmp)
-        movie = assemble('movie.asm', tmp)
-        credits = assemble('credits.asm', tmp)
-        nameentry = assemble('nameentry.asm', tmp)
-        camskip = assemble('camskip.asm', tmp)
-        overlay = assemble('overlay.asm', tmp)
-        titlever = assemble('titlever.asm', tmp)
+        # vocd.asm keeps its magic placeholders: its section is appended at
+        # apply time, so it has no cave to link against.
+        vocd = assemble('vocd.asm', tmp)
+        if vocd[1]:
+            raise SystemExit('vocd.asm should have no relocations; it '
+                             'names its addresses through MAGIC_ placeholders')
+        for name, source in SOURCES:
+            blobs[name] = assemble(source, tmp)
     _inc, data = layout.build()
-    (_inc, cond, pbinds, pnames, devlist, sdef,
-     inikeys) = padtables.build()
-    _inc, extras_tpl, extras_data = dialogs.build_extras()
+    (_inc, blobs['PAD_COND'], blobs['PAD_BINDS'], blobs['PAD_NAMES'],
+     blobs['PAD_DEVLIST'], blobs['PAD_SIMPLEDEF'],
+     blobs['PAD_INIKEYS']) = padtables.build()
+    _inc, extras_tpl, blobs['EXTRAS_DATA'] = dialogs.build_extras()
 
-    # One run in the source, two sites in the patcher. The byte between them
-    # is padding in front of the dialog procedure that nothing writes.
-    if dbgbox[DEBUGBOX_SPLIT]:
-        raise SystemExit('debugbox.asm puts %#04x at 0x1f42d7, which the '
-                         'patch does not write' % dbgbox[DEBUGBOX_SPLIT])
-    dbghook = dbgbox[:DEBUGBOX_SPLIT]
-    dbgproc = dbgbox[DEBUGBOX_SPLIT + 1:]
-
-    vocd = ['VOCD_MAGICS = {\n']
+    vocd_out = ['VOCD_MAGICS = {\n']
     for name, value, note in MAGICS:
         # Pad to a fixed column: the generated file is linted like any other.
-        vocd.append('%-38s # %s\n'
-                    % ("    '%s': 0x%08X," % (name, value), note))
-    vocd.append('}\n\n')
-    vocd.append(hexblob('VOCD_CODE', code))
-    vocd.append('\n')
-    vocd.append(hexblob('VOCD_DATA', data))
+        vocd_out.append('%-38s # %s\n'
+                        % ("    '%s': 0x%08X," % (name, value), note))
+    vocd_out.append('}\n\n')
+    vocd_out.append(hexblob('VOCD_CODE', vocd[0]))
+    vocd_out.append('\n')
+    vocd_out.append(hexblob('VOCD_DATA', data))
 
     with open(TARGET, encoding='utf-8') as fh:
         src = fh.read()
-    new = replace(src, 'VOCD', ''.join(vocd))
-    new = replace(new, 'PADX', hexblob('PADX_CODE', padx))
-    new = replace(new, 'LEVERS', hexblob('LEVERS_CODE', levers))
-    new = replace(new, 'TWIN', hexblob('TWIN_CODE', twin))
-    new = replace(new, 'INTROWAIT', hexblob('INTROWAIT_CODE', introwait))
-    new = replace(new, 'KBPAGE', hexblob('KBPAGE_CODE', kbpage))
-    new = replace(new, 'BINDLIST', hexblob('BINDLIST_CODE', bindlist))
-    new = replace(new, 'BINDMAP', hexblob('BINDMAP_CODE', bindmap))
-    new = replace(new, 'BINDBLOCK', hexblob('BINDBLOCK_CODE', bindblock))
-    new = replace(new, 'INISAVE', hexblob('INISAVE_CODE', inisave))
-    new = replace(new, 'INILOAD', hexblob('INILOAD_CODE', iniload))
-    new = replace(new, 'BLOCKCUR', hexblob('BLOCKCUR_CODE', blockcur))
-    new = replace(new, 'INIPARSE', hexblob('INIPARSE_CODE', iniparse))
-    new = replace(new, 'PAGESEC', hexblob('PAGESEC_CODE', pagesec))
-    new = replace(new, 'PAGESEL', hexblob('PAGESEL_CODE', pagesel))
-    new = replace(new, 'COMMITDEV', hexblob('COMMITDEV_CODE', commitdev))
-    new = replace(new, 'INIALL', hexblob('INIALL_CODE', iniall))
-    new = replace(new, 'DEVORDER', hexblob('DEVORDER_CODE', devorder))
-    new = replace(new, 'F11PAUSE', hexblob('F11PAUSE_CODE', f11pause))
-    new = replace(new, 'MOVIE', hexblob('MOVIE_CODE', movie))
-    new = replace(new, 'CREDITS', hexblob('CREDITS_CODE', credits))
-    new = replace(new, 'NAMEENTRY', hexblob('NAMEENTRY_CODE', nameentry))
-    new = replace(new, 'CAMSKIP', hexblob('CAMSKIP_CODE', camskip))
-    new = replace(new, 'OVERLAY', hexblob('OVERLAY_CODE', overlay))
-    new = replace(new, 'TITLEVER', hexblob('TITLEVER_CODE', titlever))
-    new = replace(new, 'TIMER', hexblob('TIMER_CODE', timer))
-    new = replace(new, 'PADTABLES',
-                  hexblob('PAD_COND', cond) + '\n'
-                  + hexblob('PAD_BINDS', pbinds) + '\n'
-                  + hexblob('PAD_NAMES', pnames) + '\n'
-                  + hexblob('PAD_DEVLIST', devlist) + '\n'
-                  + hexblob('PAD_SIMPLEDEF', sdef) + '\n'
-                  + hexblob('PAD_INIKEYS', inikeys))
+    new = replace(src, 'VOCD', ''.join(vocd_out))
+    new = replace(new, 'BLOBS', emit_blobs(blobs))
     new = replace(new, 'DIALOGS',
                   hexblob('EXTRAS_TPL', extras_tpl) + '\n'
-                  + hexblob('VOXT_CODE', voxt) + '\n'
-                  + hexblob('EXTRAS_DATA', extras_data) + '\n'
                   + hexblob('F5_STOCK', dialogs.build_f5(dialogs.F5_STOCK))
                   + '\n'
                   + hexblob('F5_FPS', dialogs.build_f5(dialogs.F5_NEW)))
-    new = replace(new, 'DEBUGBOX', hexblob('DEBUGBOX_HOOK', dbghook) + '\n'
-                  + hexblob('DEBUGBOX_PROC', dbgproc))
-    at = blob_sites(('TIMER_CODE', 'DEBUGBOX_HOOK', 'DEBUGBOX_PROC',
-                     'PADX_CODE', 'LEVERS_CODE',
-                     'TWIN_CODE', 'INTROWAIT_CODE', 'KBPAGE_CODE',
-                     'MOVIE_CODE', 'CREDITS_CODE', 'NAMEENTRY_CODE',
-                     'CAMSKIP_CODE', 'OVERLAY_CODE', 'TITLEVER_CODE',
-                     'BINDLIST_CODE', 'BINDMAP_CODE', 'BINDBLOCK_CODE',
-                     'INISAVE_CODE', 'INILOAD_CODE', 'BLOCKCUR_CODE', 'INIPARSE_CODE', 'PAGESEC_CODE', 'PAGESEL_CODE', 'COMMITDEV_CODE', 'INIALL_CODE', 'DEVORDER_CODE', 'F11PAUSE_CODE', 'PAD_INIKEYS',
-                     'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_SIMPLEDEF',
-                     'EXTRAS_DATA'))
-    check_ceilings(at, {'DEBUGBOX_PROC': dbgproc, 'INISAVE_CODE': inisave,
-                        'INIALL_CODE': iniall, 'F11PAUSE_CODE': f11pause,
-                        'INIPARSE_CODE': iniparse,
-                        'OVERLAY_CODE': overlay,
-                        'TITLEVER_CODE': titlever})
-    check_org(at, {'timer.asm': ('TIMER_CODE', VA_DELTA),
-                   'debugbox.asm': ('DEBUGBOX_HOOK', VA_DELTA),
-                   'padxinput.asm': ('PADX_CODE', VA_DELTA),
-                   'twinstick.asm': ('TWIN_CODE', VA_DELTA),
-                   'introwait.asm': ('INTROWAIT_CODE', VA_DELTA),
-                   'kbpage.asm': ('KBPAGE_CODE', VA_DELTA),
-                   'bindlist.asm': ('BINDLIST_CODE', VA_DELTA),
-                   'bindmap.asm': ('BINDMAP_CODE', VA_DELTA),
-                   'bindblock.asm': ('BINDBLOCK_CODE', VA_DELTA),
-                   'inisave.asm': ('INISAVE_CODE', VA_DELTA),
-                   'iniload.asm': ('INILOAD_CODE', VA_DELTA),
-                   'blockcur.asm': ('BLOCKCUR_CODE', VA_DELTA),
-                   'iniparse.asm': ('INIPARSE_CODE', VA_DELTA),
-                   'pagesec.asm': ('PAGESEC_CODE', VA_DELTA),
-                   'pagesel.asm': ('PAGESEL_CODE', VA_DELTA),
-                   'commitdev.asm': ('COMMITDEV_CODE', VA_DELTA),
-                   'iniall.asm': ('INIALL_CODE', VA_DELTA),
-                   'devorder.asm': ('DEVORDER_CODE', VA_DELTA),
-                   'f11pause.asm': ('F11PAUSE_CODE', VA_DELTA),
-                   'movie.asm': ('MOVIE_CODE', VA_DELTA_RSRC),
-                   'credits.asm': ('CREDITS_CODE', VA_DELTA),
-                   'nameentry.asm': ('NAMEENTRY_CODE', VA_DELTA),
-                   'camskip.asm': ('CAMSKIP_CODE', VA_DELTA),
-                   'overlay.asm': ('OVERLAY_CODE', VA_DELTA),
-                   'titlever.asm': ('TITLEVER_CODE', VA_DELTA)},
-              # The .text and .rsrc caves are padding past VirtualSize, so
-              # there is no field in front of them for an unaligned start
-              # to land in.
-              padding=('timer.asm', 'debugbox.asm', 'movie.asm'))
-    check_follows(at, 'LEVERS_CODE', 'PADX_CODE', len(padx))
-    check_addr(at, {
-        'padtables.COND': (padtables.COND, 'PAD_COND', VA_DELTA),
-        'padtables.BINDS': (padtables.BINDS, 'PAD_BINDS', VA_DELTA),
-        'padtables.NAMES': (padtables.NAMES, 'PAD_NAMES', VA_DELTA),
-        'padtables.SIMPLEDEF_AT':
-            (padtables.SIMPLEDEF_AT, 'PAD_SIMPLEDEF', VA_DELTA),
-        'padtables.INIKEYS_AT':
-            (padtables.INIKEYS_AT, 'PAD_INIKEYS', VA_DELTA),
-        'dialogs.DATA': (dialogs.DATA, 'EXTRAS_DATA', VA_DELTA),
-    })
-    # The template is not sited: it rides in its own section and f11pause
-    # carries a placeholder for its address, filled at apply time. The
-    # placeholder must appear exactly once, and only there.
-    magic = struct.pack('<I', dialogs.TEMPLATE)
-    if f11pause.count(magic) != 1:
-        raise SystemExit('the TEMPLATE placeholder should appear exactly '
-                         'once in f11pause.asm')
-    for other in (dbgbox, padx, extras_tpl, extras_data, voxt):
-        if magic in other:
-            raise SystemExit('the TEMPLATE placeholder pattern occurs '
-                             'outside f11pause.asm')
-    rel = struct.pack('<I', 0xEAEAEAEA)
-    if dbgbox.count(rel) != 1:
-        raise SystemExit('the ANNEXREL placeholder should appear exactly '
-                         'once in debugbox.asm')
-    for other in (f11pause, padx, extras_tpl, extras_data, voxt):
-        if rel in other:
-            raise SystemExit('the ANNEXREL placeholder pattern occurs '
-                             'outside debugbox.asm')
-    check_calls({'debugbox.asm': dbgbox, 'padxinput.asm': padx,
-                 'levers.asm': levers, 'twinstick.asm': twin,
-                 'introwait.asm': introwait, 'kbpage.asm': kbpage,
-                 'bindlist.asm': bindlist, 'bindmap.asm': bindmap,
-                 'bindblock.asm': bindblock, 'inisave.asm': inisave,
-                 'iniload.asm': iniload, 'blockcur.asm': blockcur,
-                 'iniparse.asm': iniparse, 'pagesec.asm': pagesec,
-                 'pagesel.asm': pagesel, 'commitdev.asm': commitdev,
-                 'iniall.asm': iniall, 'devorder.asm': devorder,
-                 'f11pause.asm': f11pause, 'movie.asm': movie,
-                 'credits.asm': credits, 'nameentry.asm': nameentry,
-                 'camskip.asm': camskip, 'overlay.asm': overlay,
-                 'titlever.asm': titlever, 'timer.asm': timer,
-                 'vocd.asm': code})
 
-    sizes = ('vocd %d + %d bytes, timer %d, debugbox %d, padxinput %d, '
-             'levers %d, twinstick %d, introwait %d, kbpage %d, movie %d, '
-             'credits %d, nameentry %d, camskip %d, overlay %d, '
-             'titlever %d, tables %d, dialogs %d'
-             % (len(code), len(data), len(timer), len(dbgbox), len(padx),
-                len(levers), len(twin), len(introwait), len(kbpage),
-                len(movie), len(credits), len(nameentry), len(camskip),
-                len(overlay), len(titlever),
-                len(cond) + len(pbinds) + len(pnames) + len(devlist),
-                len(extras_tpl) + len(extras_data) + 2 * dialogs.F5_LEN))
+    # Import the patcher as it will be written, which links every blob for
+    # the retail build on the way in.
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'vo_patch.py')
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(new)
+        spec = importlib.util.spec_from_file_location('vopatch', path)
+        vp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(vp)
+    check_link(vp, blobs)
+    check_ceilings(vp, blobs)
+
+    sizes = ', '.join('%s %d' % (name.lower(), len(code))
+                      for name, (code, _f, _l) in blobs.items()
+                      if not name.startswith('PAD_') and name != 'EXTRAS_DATA')
+    sizes = 'vocd %d + %d bytes, %s, tables %d, dialogs %d' % (
+        len(vocd[0]), len(data), sizes,
+        sum(len(blobs[n][0]) for n in ('PAD_COND', 'PAD_BINDS', 'PAD_NAMES',
+                                       'PAD_DEVLIST')),
+        len(extras_tpl) + len(blobs['EXTRAS_DATA'][0]) + 2 * dialogs.F5_LEN)
     if check:
         if new != src:
             raise SystemExit('asm/ does not match the blobs in '

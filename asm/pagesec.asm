@@ -5,9 +5,9 @@ bits 32
 ; consistently in the fill and the store here, and in the preselect in
 ; asm/pagesel.asm. All four forks lean on asm/bindlist.asm's device check.
 
-org 0x00601b70          ; a run of zeros in .rdata
-
-DEVCUR      equ 0x005fd7e4      ; ZF set when the pending device is Simple
+extern DEVCUR                   ; ZF set when the pending device is Simple
+extern DIGITLOOP, LISTLOOP      ; the fill's digit and list loops
+extern STORESHIFT, STORELIST    ; the store's shift-down and list id paths
 
 ; The fill's letter loop entry. Simple: the stock compare, letters then
 ; digits. Gamepad: straight to the list section, so its entries start at
@@ -20,10 +20,10 @@ fillsec:
     ret
 .letters_done:
     add     esp, 4
-    jmp     0x00497c70          ; the digit loop
+    jmp     DIGITLOOP          ; the digit loop
 .skip:
     add     esp, 4
-    jmp     0x00497cb0          ; the list loop
+    jmp     LISTLOOP          ; the list loop
 
 ; The store's letter threshold. Gamepad: every selection is a list entry,
 ; index unshifted.
@@ -35,7 +35,7 @@ storesec:
     ret
 .not_letter:
     add     esp, 4
-    jmp     0x00497e74          ; shift down, try digits
+    jmp     STORESHIFT          ; shift down, try digits
 .skip:
     add     esp, 4
-    jmp     0x00497e99          ; the list id store
+    jmp     STORELIST          ; the list id store

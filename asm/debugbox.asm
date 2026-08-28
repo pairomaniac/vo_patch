@@ -1,6 +1,4 @@
 bits 32
-org 0x005f4e7c          ; the .text cave the F11 dialog patch drops this into
-BASE        equ 0x005f4e7c      ; the org again, for the pins below
 ; The F11 Extras dialog: a window-procedure hook, the dialog procedure, and
 ; the Credits case that did not fit before the end of the second cave.
 ;
@@ -25,18 +23,18 @@ BOXLEN      equ 388             ; the cave from here to 0x5f5000. The zeros
 ; the control ids.
 %include "dialogs.inc"
 
-MODE        equ 0x01ae3594      ; game state; 4 is a match in progress
-SUBMODE     equ 0x01ae3690      ; and its sub-state, 0x1f the ending
-HWND        equ 0x01ae5f58      ; the game's window
-ORIGWNDPROC equ 0x005c6857      ; the handler the hook falls through to
+extern MODE                     ; game state; 4 is a match in progress
+extern SUBMODE                  ; and its sub-state, 0x1f the ending
+extern HWND                     ; the game's window
+extern ORIGWNDPROC              ; the handler the hook falls through to
 
-LOADLIB     equ 0x0365d504      ; LoadLibraryA
-GETPROC     equ 0x0365d508      ; GetProcAddress
-GETMODULE   equ 0x0365d4a0      ; GetModuleHandleA
-SENDMSG     equ 0x0365d52c      ; SendMessageA
-GETDLGITEM  equ 0x0365d54c      ; GetDlgItem
-CHECKDLGBTN equ 0x0365d544      ; CheckDlgButton
-POSTMSG     equ 0x0365d56c      ; PostMessageA
+extern LOADLIB                  ; LoadLibraryA
+extern GETPROC                  ; GetProcAddress
+extern GETMODULE                ; GetModuleHandleA
+extern SENDMSG                  ; SendMessageA
+extern GETDLGITEM               ; GetDlgItem
+extern CHECKDLGBTN              ; CheckDlgButton
+extern POSTMSG                  ; PostMessageA
 
 WM_KEYDOWN  equ 0x0100
 WM_SETTEXT  equ 0x000c
@@ -49,16 +47,16 @@ WM_COMMAND  equ 0x0111
 ; it the boxes show empty and their values land in scratch nothing reads,
 ; which is harmless - the addresses are free in the stock executable
 ; whatever is installed.
-DZTHR1      equ 0x0365cb8c
-DZSTR1      equ 0x0365cb94
+extern DZTHR1
+extern DZSTR1
 
-F11CHECKS   equ 0x0063bf50      ; asm/f11pause.asm's tail: the check boxes
+extern F11CHECKS                ; asm/f11pause.asm's tail: the check boxes
 ANNEXREL    equ 0xEAEAEAEA      ; a placeholder: the rel32 to asm/voxt.asm's
                                 ; annex at the end of the .voxt section,
                                 ; whose address only exists at apply time -
                                 ; vo_patch.py computes and fills it
 VK_F11      equ 0x7a
-F11WRAP     equ 0x0063bf24      ; asm/f11pause.asm
+extern F11WRAP                  ; asm/f11pause.asm
 
 ; nasm assembles `mov r32, r32` and `xor r32, r32` as 89 and 31; the code
 ; this replaces used the 8b and 33 encodings. The `db` lines below keep the
@@ -95,7 +93,7 @@ hook:
     pop     ebp
     jmp     ORIGWNDPROC
 
-    times   (0x005f4ed8 - BASE) - ($ - $$) db 0
+    times   0x5c - ($ - $$) db 0
 
 ; ---------------------------------------------------------------- 0x5f4ed8
 ; Dialog procedure. Control ids are the game's own command ids, so a click

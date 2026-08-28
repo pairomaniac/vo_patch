@@ -16,12 +16,11 @@ bits 32
 ; the lines back when the dialog closes, through asm/iniparse.asm's
 ; tail.
 
-org 0x0063c5f4          ; a run of zeros in .rdata with nothing pointing
                         ; into it and no table ending against it
 
-LOADSIMPLE  equ 0x0060702c      ; asm/iniload.asm, cdecl (player, flag)
-FINDLINE    equ 0x005b1871      ; (key) -> value text, 0 if absent
-DZSEED      equ 0x00601c08      ; asm/pagesel.asm's tail: (cl, ebx)
+extern LOADSIMPLE               ; asm/iniload.asm, cdecl (player, flag)
+extern FINDLINE                 ; (key) -> value text, 0 if absent
+extern DZSEED                   ; asm/pagesel.asm's tail: (cl, ebx)
 
 %include "padtables.inc"    ; DZKEYS
 

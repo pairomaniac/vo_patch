@@ -3,14 +3,12 @@ bits 32
 ; second cannot move when the first is edited: its site names an address, and
 ; nothing downstream would catch a drift.
 
-org 0x0063e938          ; .rdata past VirtualSize, after the F11 dialog
-
-CURPLAYER   equ 0x00bf6bac      ; the side being configured, 0 or 1
-DEVICE1P    equ 0x03651540      ; 1P's profile, 0 being the keyboard
-CROSSCHECK  equ 0x0049776e      ; look at 1P's key map
-ACCEPT      equ 0x004977c6      ; take the key
-DEFAULTS    equ 0x0049790f      ; fill a player's binds from the shipped set
-RESUME      equ 0x0049789a      ; what the Default button does next
+extern CURPLAYER                ; the side being configured, 0 or 1
+extern DEVICES                  ; 1P's profile, 0 being the keyboard
+extern CROSSCHECK               ; look at 1P's key map
+extern KBACCEPT                 ; take the key
+extern DEFAULTS                 ; fill a player's binds from the shipped set
+extern RESUME                   ; what the Default button does next
 
 ; ---------------------------------------------------------------- 0x63e938
 ; The page refuses a key for 2P if 1P already has it. Sensible when both are
@@ -24,13 +22,13 @@ RESUME      equ 0x0049789a      ; what the Default button does next
 dupkey:
     cmp     dword [CURPLAYER], 1
     jne     .accept             ; configuring 1P: never cross checked
-    mov     eax, [DEVICE1P]
+    mov     eax, [DEVICES]
     dec     eax
     cmp     eax, 1
     jbe     .accept             ; 1P is on a pad, so its keys are dormant
     jmp     CROSSCHECK          ; devices 0 and 3 are both keyboards
 .accept:
-    jmp     ACCEPT
+    jmp     KBACCEPT
 
     times   32 - ($ - dupkey) db 0x90
 

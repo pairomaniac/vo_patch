@@ -1,5 +1,4 @@
 bits 32
-org 0x0063ddc4          ; the run of zeros camskip.asm sits in, after it and
                         ; on the next four-byte boundary. 156 bytes from
                         ; 0x63dda0, so 65 are still free past the end of
                         ; this; credits.asm has 57 left in the other one.
@@ -19,20 +18,20 @@ org 0x0063ddc4          ; the run of zeros camskip.asm sits in, after it and
 ; shared PREV is what stops that press being taken as the first letter as
 ; well. Releasing A and pressing it again is a fresh press to both.
 
-ACCEPT      equ 0x00bf0481      ; 1P's key buffer slot for A and Space
-CAMERA      equ 0x00bf0457      ; and the one Select writes, which is what
+extern ACCEPT1                  ; 1P's key buffer slot for A and Space
+extern CAMERA1                  ; and the one Select writes, which is what
                                 ; skips the win and lose screens
-EDGEA       equ 0x01ed5ec5      ; press edges, lever A byte: bit 0 is LT
-EDGEB       equ 0x01ed5ec6      ; and lever B's, where 2P's RT is
-PREV        equ 0x006c3d48      ; last frame's slot, shared with credits.asm
+extern EDGEA                    ; press edges, lever A byte: bit 0 is LT
+extern EDGEB                    ; and lever B's, where 2P's RT is
+extern PREV                     ; last frame's slot, shared with credits.asm
 
 confirm:
     mov     al, [EDGEA]
     or      al, [EDGEB]
     and     al, 1               ; either trigger, as the stock tests did
     mov     ah, al
-    mov     al, [ACCEPT]        ; 0x80 while held, 0 otherwise
-    or      al, [CAMERA]        ; either button, as on the screens before
+    mov     al, [ACCEPT1]        ; 0x80 while held, 0 otherwise
+    or      al, [CAMERA1]        ; either button, as on the screens before
     mov     dl, [PREV]
     mov     [PREV], al          ; every frame, so the edge is not missed
     test    ah, ah

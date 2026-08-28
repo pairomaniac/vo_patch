@@ -13,15 +13,14 @@ bits 32
 ; executable but never writable, so no static buffer can be scribbled on.
 ; The stock case rebuilds that buffer from the start afterwards.
 
-org 0x00601c38          ; a run of zeros in .rdata
 
 %include "padtables.inc"    ; INIKEYS
 
-BLOCKS      equ 0x00bf6838
+extern BLOCKS
 SIMPLE_OFF  equ 0x38
-WRITELINE   equ 0x005b1833      ; (key, value): one v_on.ini line
-CASEB       equ 0x00496b23      ; the stock device 1 apply-and-serialize
-HEXCHAR     equ 0x005ff29c      ; in asm/bindblock.asm's tail
+extern WRITELINE                ; (key, value): one v_on.ini line
+extern CASEB                    ; the stock device 1 apply-and-serialize
+extern HEXCHAR                  ; in asm/bindblock.asm's tail
 
 savesimple:
     push    ebx
