@@ -198,6 +198,8 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'DEVNUM': -0x14,                # and the device it maps to
     'SAVEPLAYER': -0xc8,            # the OK handler's player
     'SAVELINE': -0xcc,              # and its line buffer
+    'F_X': -0xc,                    # the movie placer's X and Y
+    'F_Y': -0x10,
     # The game
     'SPEEDSEL': 0x00be4308,        # the F5 speed choice
     'FRAMEDIV': 0x006c84d0,        # frames per draw, which it set
@@ -397,7 +399,9 @@ JAPAN = Build(JAPAN_MD5, JAPAN_SIZE, sections=(
     'DEVSEL': -0x10,               # the F7 page's combo selection
     'DEVNUM': -0x14,               # and the device it maps to
     'SAVEPLAYER': -0xc8,           # the OK handler's player
-    'SAVELINE': -0x18c,            # and its line buffer
+    'SAVELINE': -0x18c,
+    'F_X': -0x14,
+    'F_Y': -0x18,
     'EXIT1P': 0x00442584,          # where the 1P profile switch resumes
     'KBD1P': 0x00442734,           # stock keyboard handler, called by the tick
     'KBHANDLER1': 0x00442734,      # the stock 1P keyboard handler
@@ -1244,22 +1248,24 @@ BLOBS = {
         'annex': 0x0,
     }),
     'MOVIE': (bytes.fromhex(
-        '5589e583ec405356578b7d08a1000000008947f4a1000000008947f031f66858'
+        '5589e583ec405356578b7d08a100000000894700a10000000089470031f66858'
         '010000ff150000000085c0742b686201000050ff150000000085c0741b89c368'
         '73010000ff150000000085c0740a687e01000050ffd389c685f675068b350000'
         '00008d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
         'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
         'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
         'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
-        '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
-        '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff3500000000ff15000000'
+        '7dcc8945c88b45d82b45c8d1f88947008b45d42b45c4d1f88947008b45c88947'
+        '108b45c48947146a01ff75c4ff75c8ff7700ff7700ff3500000000ff15000000'
         '0031c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
         '006842080000ff3500000000a100000000ffd05f5e5bc9c364647261772e646c'
         '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
         '74436c69656e745265637400'
     ), (
         (0xd, 'abs', 'MOVIEX', 0),
+        (0x13, 'abs8', 'F_X', 0),
         (0x15, 'abs', 'MOVIEY', 0),
+        (0x1b, 'abs8', 'F_Y', 0),
         (0x1f, 'abs', '.', 344),
         (0x25, 'abs', 'GETMODULE', 0),
         (0x2e, 'abs', '.', 354),
@@ -1268,6 +1274,10 @@ BLOBS = {
         (0x46, 'abs', 'GETMODULE', 0),
         (0x4f, 'abs', '.', 382),
         (0x5e, 'abs', 'GETCLIENT', 0),
+        (0xef, 'abs8', 'F_X', 0),
+        (0xfa, 'abs8', 'F_Y', 0),
+        (0x111, 'abs8', 'F_Y', 0),
+        (0x114, 'abs8', 'F_X', 0),
         (0x117, 'abs', 'MOVIEHWND', 0),
         (0x11d, 'abs', 'MOVEWINDOW', 0),
         (0x148, 'abs', 'MOVIEDEV', 0),
@@ -2378,7 +2388,7 @@ FEATURES = [
          # device list: Keyboard (Real), Gamepad (XInput), Twin-stick,
          # Keyboard (Simple)
          (0x0026c218, 'ecd36600d4d36600c0d36600b4d3660090d3660080d3660068d3660058d36600',
-          PAD_DEVLIST.hex()),
+          blob('PAD_DEVLIST')),
          # profile switch, both players: slot 2 gets the twin-stick stubs
          # and slot 3 the stubs Keyboard (Simple) always had, back from
          # slot 1. Slot 1 is the gamepad, repointed above; slot 0 is the
