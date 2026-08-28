@@ -201,6 +201,7 @@ RETAIL = Build(ORIGINAL_MD5, EXE_SIZE, sections=(
     'F_X': -0xc,                    # the movie placer's X and Y
     'F_Y': -0x10,
     # The game
+    'GAMEPADDEF': 0x0066d600,      # the gamepad's shipped binds
     'SPEEDSEL': 0x00be4308,        # the F5 speed choice
     'FRAMEDIV': 0x006c84d0,        # frames per draw, which it set
     'SIMPLESTUB1': 0x00442e50,     # Keyboard (Simple)'s profile stubs
@@ -384,6 +385,7 @@ JAPAN = Build(JAPAN_MD5, JAPAN_SIZE, sections=(
     'POLLPADS': ('PADX', 'pollpads'),
     'TICK': ('PADX', 'tick'),
     'CAMSKIP': ('CAMSKIP', 0),
+    'GAMEPADDEF': 0x00669588,
     'SPEEDSEL': 0x00bdef5c,
     'FRAMEDIV': 0x006c41e8,
     'SIMPLESTUB1': 0x00442510,
@@ -1056,13 +1058,14 @@ BLOBS = {
     }),
     'BINDBLOCK': (bytes.fromhex(
         '83b8000000000374060508000000c30538000000c39090906bd07083ba000000'
-        '00036bc01874060500d66600c30500000000c39083b9000000000374088a8441'
+        '00036bc01874060500000000c30500000000c39083b9000000000374088a8441'
         '08000000c38a844138000000c3909090240f3c0a720204270430880747c3'
     ), (
         (0x2, 'abs', 'BLOCKS', 0),
         (0xa, 'abs', 'BLOCKS', 8),
         (0x10, 'abs', 'BLOCKS', 56),
         (0x1d, 'abs', 'BLOCKS', 0),
+        (0x28, 'abs', 'GAMEPADDEF', 0),
         (0x2e, 'abs', 'SIMPLEDEF', 0),
         (0x36, 'abs', 'BLOCKS', 0),
         (0x40, 'abs', 'BLOCKS', 8),

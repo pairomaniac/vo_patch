@@ -13,6 +13,7 @@ bits 32
 
 
 SIMPLE      equ 3
+extern GAMEPADDEF               ; the gamepad's shipped binds, 1P then 2P
 extern BLOCKS                   ; per player: this + player * 0x70; the
                                 ; pending device sits at +0x00
 GAMEPAD_OFF equ 0x08
@@ -41,7 +42,7 @@ defsource:                      ; edx is free at the site
     cmp     dword [edx + BLOCKS], SIMPLE
     imul    eax, eax, 0x18
     je      .simple
-    add     eax, 0x66d600
+    add     eax, GAMEPADDEF
     ret
 .simple:
     add     eax, SIMPLEDEF
