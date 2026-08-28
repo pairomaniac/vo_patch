@@ -222,6 +222,8 @@ def check_link(vp, blobs):
         for name in blobs:
             try:
                 vp.link(name, build, blobs=blobs)
+            except ValueError:
+                pass                    # its own cave is an apply-time one
             except KeyError as exc:
                 if exc.args[0] not in vp.BLOBS:
                     raise SystemExit('%s does not resolve %s for build %s'
