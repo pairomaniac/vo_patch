@@ -24,7 +24,11 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-EXPECTED_ALL = '5b531921069d99d887f18545be80e43c'
+# Everything ticked, per build: retail, then the Japanese rerelease.
+EXPECTED_ALL = {
+    'a464b0ff32d5bab499f265e45658504e': '5b531921069d99d887f18545be80e43c',
+    'd19320bdc3381a48228990907910a391': 'ffffb5c8ae5df7e94bf3393b7bb7a4ee',
+}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHER = os.path.join(os.path.dirname(HERE), 'vo_patch.py')
@@ -41,8 +45,7 @@ def pristine(path, vp):
                 data = fh.read()
         except OSError:
             continue
-        if (len(data) == vp.EXE_SIZE
-                and hashlib.md5(data).hexdigest() == vp.ORIGINAL_MD5):
+        if hashlib.md5(data).hexdigest() in vp.BUILDS:
             return data, candidate
     return None, None
 
@@ -85,20 +88,20 @@ LOOKBACK = 0x60         # how far before a cave a table may start and still
                         # reach into it
 
 
-def cave_writes(vp):
+def cave_writes(vp, build):
     """Every site that fills a run of zeros, as (key, offset, length).
 
     A byte being zero is not the same as a byte being free. These are the
     sites where the 'original' column proves nothing, so they are the only
     ones worth scanning."""
-    for key, (_label, _tip, sites) in vp.BY_KEY.items():
+    for key, (_label, _tip, sites) in vp.by_key(build).items():
         for off, old, _new in sites or ():
             blob = bytes.fromhex(old)
             if len(blob) >= 8 and not any(blob):
                 yield key, off, len(blob)
 
 
-def check_caves(vp, original):
+def check_caves(vp, original, build):
     """Does any cave write land on an address the game still reads?
 
     A blob that outgrows its cave writes into whatever follows it, and if
@@ -120,7 +123,7 @@ def check_caves(vp, original):
     hands to another is out of scope."""
     secs = sections(original)
     spans = []
-    for key, off, length in sorted(cave_writes(vp), key=lambda w: w[1]):
+    for key, off, length in sorted(cave_writes(vp, build), key=lambda w: w[1]):
         va = to_va(secs, off)
         if va is not None:
             spans.append((key, va, length))
@@ -171,14 +174,15 @@ def check_caves(vp, original):
     return bad
 
 
-def apply(vp, original, keys):
+def apply(vp, original, keys, build):
     """The patcher's own apply loop, so this tests what it ships.
 
     A skip is a failure here: the patcher tolerates dinput's signature going
     missing because a live install is better than none, but if a combination
     of patches can destroy that signature, that is what this run is for."""
     buf, _applied, skipped = vp.apply_selected(bytearray(original),
-                                               dict.fromkeys(keys, True))
+                                               dict.fromkeys(keys, True),
+                                               build)
     if skipped:
         raise AssertionError('skipped %s: %s' % (skipped[0][0], skipped[0][1]))
     return buf
@@ -202,14 +206,18 @@ def main(path):
                                   vp.ORIGINAL_MD5, path))
     if read != path:
         print('note: read %s, not the patched file beside it' % read)
-    print('original: %d bytes, MD5 %s'
-          % (len(original), hashlib.md5(original).hexdigest()))
+    digest = hashlib.md5(original).hexdigest()
+    build = vp.BUILDS[digest]
+    table = vp.by_key(build)
+    print('original: %d bytes, MD5 %s%s'
+          % (len(original), digest,
+             '' if build is vp.RETAIL else ' (Japanese rerelease)'))
 
     # Every 'original' column against the untouched file. Sites that overlap
     # an earlier site in the same patch are skipped: they expect what that
     # site wrote, not what is in the file.
     bad = 0
-    for key, (label, _tip, sites) in vp.BY_KEY.items():
+    for key, (label, _tip, sites) in table.items():
         seen = set()
         for off, old, _new in sites or ():
             span = range(off, off + len(old) // 2)
@@ -222,14 +230,14 @@ def main(path):
                 bad += 1
     print('site check: %d mismatches' % bad)
 
-    bad += check_caves(vp, original)
+    bad += check_caves(vp, original, build)
 
     hits = len(list(vp.DI_FIND.finditer(bytearray(original))))
     print('dinput signature: %d hit(s)' % hits)
     if hits != 1:
         bad += 1
 
-    keys = list(vp.BY_KEY)
+    keys = list(table)
     failures, tested = [], 0
     trials = [set(c) for r in (1, 2) for c in itertools.combinations(keys, r)]
     random.seed(1)
@@ -239,15 +247,17 @@ def main(path):
     for sel in trials:
         tested += 1
         try:
-            result = apply(vp, original, sel)
+            result = apply(vp, original, sel, build)
         except Exception as exc:                # noqa: BLE001
             failures.append((sorted(sel), exc))
             continue
         if sel == set(keys):
             digest = hashlib.md5(bytes(result)).hexdigest()
             print('all patches: %d bytes, MD5 %s' % (len(result), digest))
-            if digest != EXPECTED_ALL:
-                print('  CHANGED - expected %s' % EXPECTED_ALL)
+            if EXPECTED_ALL[build.md5] is None:
+                print('  not pinned for this build yet')
+            elif digest != EXPECTED_ALL[build.md5]:
+                print('  CHANGED - expected %s' % EXPECTED_ALL[build.md5])
                 bad += 1
     print('combinations: %d tested, %d failed' % (tested, len(failures)))
     for sel, exc in failures[:10]:

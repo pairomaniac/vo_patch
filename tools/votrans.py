@@ -122,7 +122,8 @@ MANUAL = {
     0x00096b61: 0x000956bf,                           # 2P-key check, retail split this function in two
     0x000958aa: 0x0009440a,                           # jmp +0 at loop exit
     0x00189546: 0x0018491a, 0x00058189: 0x0005749d,   # sound: same code, no aligned insn
-    0x006035ac: 0x005fd5ac,                           # .rsrc, whole section is -0x6000
+    0x006035ac: 0x005fd5ac, 0x0060b34e: 0x0060534e,   # .rsrc, whole section is -0x6000
+    0x0009703f: 0x00096665,                           # bind page fill: the letter loop entry
     0x0000023f: 0x0000023f, 0x000000a8: 0x000000a8,   # PE header: same section order, same field
 }
 MANUAL_VA = {
