@@ -2,7 +2,10 @@ name: "Build"
 
 on:
   push:
-    branches: [main]
+    # Long-lived work branches build too: a branch that only meets CI at
+    # the pull request finds out about a missing tool or a stale blob at
+    # the worst moment.
+    branches: [main, mediakite]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -44,13 +47,14 @@ jobs:
       # One runner, the same one used locally, so the two cannot drift.
       # It skips the checks that need a copy of the game and says so.
       #
-      # tables   patch tables, blobs and the banner bitmap: lengths, bounds,
-      #          cross-patch collisions, the intra-patch overlap the XInput
-      #          routine relies on, and every banner tile index in range.
+      # tables   patch tables, blobs and the banner bitmap, for every build
+      #          the patcher has tables for: lengths, bounds, cross-patch
+      #          collisions, the intra-patch overlap the XInput routine
+      #          relies on, and every banner tile index in range.
       # asm      reassembles asm/ and compares against the committed blobs,
-      #          links every blob for every build, and checks the pins the
-      #          site table relies on - the mistakes nothing downstream
-      #          notices.
+      #          links every blob for every build, and checks the two
+      #          placeholders the apply-time sections fill - the mistakes
+      #          nothing downstream notices.
       #          Writes nothing; nasm works in a temporary directory.
       # net      two mingw versions do not produce identical bytes, so the
       #          blob records a hash of net/dpctrl.c and this compares
@@ -88,18 +92,21 @@ jobs:
           echo "ok"
 
       # What this job cannot do is touch a real copy of the game, so the
-      # checks that need one are skipped here. Run them by hand before tagging:
+      # checks that need one are skipped here. Run them by hand before
+      # tagging, once per build - each runs against every folder given and
+      # is named by build, because a table can only be wrong on the build
+      # it is for:
       #
-      #     python3 tools/check.py /path/to/VIRTUAL-ON
+      #     python3 tools/check.py RETAIL/ OEM/ JP/
       #
       # offsets  the only check that catches a wrong offset
       # banner   the only check that proves the title prompt reads back as
-      #          it was written, since escrgame.bin is not here either
+      #          it was written, since the artwork is not here either
       # credit   the same proof for the credit line in the ending roll
 
-  # Builds on every push to main, on a tag, and on demand from the Actions
-  # tab. Pull requests are left out: the push that follows the merge builds
-  # the same tree, and PyInstaller takes minutes.
+  # Builds on every push to a branch above, on a tag, and on demand from
+  # the Actions tab. Pull requests are left out: the push that follows the
+  # merge builds the same tree, and PyInstaller takes minutes.
   #
   # A push build is an artifact and nothing else - only a tag reaches the
   # release page. Artifacts keep for 90 days, so the last few commits are
