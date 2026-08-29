@@ -57,7 +57,7 @@
 #define MATCH_SERVER_US  "us.segaonline.net"
 #define MATCH_SERVER_JP  "jp.segaonline.net"
 /* Shown under the radios, so the choice names a place and not just a
-   continent. MATCH_WHERE_EU must match wherever 01 actually is. */
+   continent. Keep these in step with where the servers really are. */
 #define MATCH_WHERE_EU   "Europe: Helsinki (segaonline.net)"
 #define MATCH_WHERE_US   "America: New York (us.segaonline.net)"
 #define MATCH_WHERE_JP   "Asia: Tokyo (jp.segaonline.net)"
@@ -826,8 +826,7 @@ static int parse_code(const char *text, int *region, char *code)
     }
     t[n] = 0;
 
-    /* Longest tag first, so US does not swallow a code beginning with S.
-       No one-letter forms: a code typed one character short would then
+    /* Every tag is two letters, so a code typed one character short cannot
        parse as a different, valid-looking one. */
     for (i = 0; i < (int)(sizeof(tags) / sizeof(tags[0])); i++) {
         int len = lstrlenA(tags[i].tag);
@@ -1448,7 +1447,10 @@ static int negotiate_delay(void)
    If a future patch changes the simulation, add its site to this list. */
 /* Per build, told apart by the PE timestamp: the frame divisor site
    (03 vs 01) and a continuefix site (8b vs 90). The retail entry is the
-   fallback for a timestamp not listed. See docs/NOTES.md. */
+   fallback for a timestamp not listed, where the two bytes read are
+   arbitrary: the handshake still runs, it just cannot catch a mismatch.
+   The patcher's SYNC_SITES reads the same bytes from disk; change both.
+   See docs/NOTES.md. */
 static const struct { unsigned long stamp, divisor, cont; } fp_builds[] = {
     { 0x334D33FCu, 0x0050bbc4u, 0x00478b5au },   /* English retail      */
     { 0x345107FAu, 0x0050834au, 0x0047770au },   /* Japanese rerelease  */
