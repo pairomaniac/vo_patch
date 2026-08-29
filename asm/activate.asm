@@ -26,6 +26,7 @@ extern HAVESURF                 ; the game's own "surfaces exist" flag: the
                                 ; activation handler recreates only if set
 extern ISICONIC                 ; IsIconic
 extern HWND                     ; the game window
+extern MOVEWINDOW               ; MoveWindow: the window follows the mode
 extern DDRAW                    ; the IDirectDraw; its cooperative level is
                                 ; set once at start-up, and a DirectDraw
                                 ; that let it lapse on a switch away draws
@@ -64,8 +65,32 @@ made:
     mov     dword [HAVESURF], 1 ; and let WM_ACTIVATEAPP try again: it
                                 ; recreates only when this is set, and a
                                 ; failed recreate leaves it clear
-.ok:
     jmp     [RETADDR]
+.ok:
+    call    dims                ; the window to the mode: a DirectDraw that
+    push    1                   ; let the cooperative level lapse shrank it
+    push    edx
+    push    eax
+    push    0
+    push    0
+    push    dword [HWND]
+    call    [MOVEWINDOW]        ; stdcall
+    mov     eax, 1
+    jmp     [RETADDR]
+
+; The mode the handler would pick: eax = width, edx = height.
+dims:
+    test    byte [FSFLAGS], 4
+    jz      .full
+    cmp     dword [FSMODE], 0
+    je      .full
+    mov     eax, 0x140
+    mov     edx, 0xf0
+    ret
+.full:
+    mov     eax, 0x280
+    mov     edx, 0x1e0
+    ret
 
 ; setactive's entry. Letting the loop run with no back buffer is what
 ; crashes, so that one call is refused; pausing always goes through.
@@ -93,18 +118,10 @@ idle:
     call    [ISICONIC]
     test    eax, eax
     jnz     .out
+    call    dims
     push    0x10
-    test    byte [FSFLAGS], 4
-    jz      .full
-    cmp     dword [FSMODE], 0
-    je      .full
-    push    0xf0
-    push    0x140
-    jmp     .make
-.full:
-    push    0x1e0
-    push    0x280
-.make:
+    push    edx
+    push    eax
     call    RECREATE
     add     esp, 12
     test    eax, eax
