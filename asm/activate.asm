@@ -26,6 +26,10 @@ extern HAVESURF                 ; the game's own "surfaces exist" flag: the
                                 ; activation handler recreates only if set
 extern ISICONIC                 ; IsIconic
 extern HWND                     ; the game window
+extern DDRAW                    ; the IDirectDraw; its cooperative level is
+                                ; set once at start-up, and a DirectDraw
+                                ; that let it lapse on a switch away draws
+                                ; the recreated surfaces into a plain window
 extern PENDING                  ; scratch: 1 while a recreate is owed
 extern RETADDR                  ; scratch: where a recreate returns to
 
@@ -37,6 +41,15 @@ recreate:
     pop     eax
     mov     [RETADDR], eax
     push    made
+    mov     eax, [DDRAW]
+    test    eax, eax
+    jz      .body
+    push    0x11                ; DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN, as the
+    push    dword [HWND]        ; game set it
+    push    eax
+    mov     eax, [eax]
+    call    [eax + 0x50]        ; IDirectDraw::SetCooperativeLevel, stdcall
+.body:
     push    ebp                 ; the nine bytes the jump displaced
     mov     ebp, esp
     sub     esp, 0xe0

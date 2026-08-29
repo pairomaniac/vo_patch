@@ -231,6 +231,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'FSMODE': 0x006bf560,          # and 320x240 among them
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
+    'DDRAW': 0x01ae5f64,           # the IDirectDraw
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
     'ORIG': 0x005c80df,            # the call this one is made in place of
     'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
@@ -402,6 +403,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'FSMODE': 0x006bb278,
     'HAVESURF': 0x006bb288,
     'ISICONIC': 0x036585a4,
+    'DDRAW': 0x01ae0c08,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
     'ORIG': 0x005c29ae,            # the call this one is made in place of
     'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
@@ -567,6 +569,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'FSMODE': 0x006bf4f8,
     'HAVESURF': 0x006bf508,
     'ISICONIC': 0x0365d5c8,
+    'DDRAW': 0x01ae5ef4,
     'ORIGWNDPROC': 0x005c6370,   # func
     'ORIG': 0x005c7bf8,   # func
     'DRAW': 0x005c9454,   # func
@@ -1778,39 +1781,42 @@ BLOBS = {
         'text': 0x55,
     }),
     'ACTIVATE': (bytes.fromhex(
-        '58a30000000068190000005589e581ece0000000e90500000085c0751ec70500'
-        '00000001000000c7050000000001000000c7050000000001000000ff25000000'
-        '00837c240400751e833d00000000007515c7050000000001000000c705000000'
-        '0001000000c35589e55356e901000000e8fcffffff833d00000000007455ff35'
-        '00000000ff150000000085c075456a10f60500000000047415833d0000000000'
-        '740c68f00000006840010000eb0a68e00100006880020000e8fcffffff83c40c'
-        '85c0740fc7050000000000000000e8fcffffffb801000000c3'
+        '58a3000000006830000000a10000000085c0740e6a11ff3500000000508b00ff'
+        '50505589e581ece0000000e90500000085c0751ec7050000000001000000c705'
+        '0000000001000000c7050000000001000000ff2500000000837c240400751e83'
+        '3d00000000007515c7050000000001000000c7050000000001000000c35589e5'
+        '5356e901000000e8fcffffff833d00000000007455ff3500000000ff15000000'
+        '0085c075456a10f60500000000047415833d0000000000740c68f00000006840'
+        '010000eb0a68e00100006880020000e8fcffffff83c40c85c0740fc705000000'
+        '0000000000e8fcffffffb801000000c3'
     ), (
         (0x2, 'abs', 'RETADDR', 0),
-        (0x7, 'abs', '.', 25),
-        (0x15, 'rel', 'RECREATE', 5),
-        (0x1f, 'abs', 'PENDING', 0),
-        (0x29, 'abs', 'INACTIVE', 0),
-        (0x33, 'abs', 'HAVESURF', 0),
-        (0x3d, 'abs', 'RETADDR', 0),
-        (0x4a, 'abs', 'BACK', 0),
-        (0x53, 'abs', 'PENDING', 0),
-        (0x5d, 'abs', 'INACTIVE', 0),
-        (0x6c, 'rel', 'SETACTIVE', 1),
-        (0x71, 'rel', 'IDLE', -4),
-        (0x77, 'abs', 'PENDING', 0),
-        (0x80, 'abs', 'HWND', 0),
-        (0x86, 'abs', 'ISICONIC', 0),
-        (0x92, 'abs', 'FSFLAGS', 0),
-        (0x9b, 'abs', 'FSMODE', 0),
-        (0xb9, 'rel', 'RECREATE', -4),
-        (0xc6, 'abs', 'PENDING', 0),
-        (0xcf, 'rel', 'GRESUME', -4),
+        (0x7, 'abs', '.', 48),
+        (0xc, 'abs', 'DDRAW', 0),
+        (0x18, 'abs', 'HWND', 0),
+        (0x2c, 'rel', 'RECREATE', 5),
+        (0x36, 'abs', 'PENDING', 0),
+        (0x40, 'abs', 'INACTIVE', 0),
+        (0x4a, 'abs', 'HAVESURF', 0),
+        (0x54, 'abs', 'RETADDR', 0),
+        (0x61, 'abs', 'BACK', 0),
+        (0x6a, 'abs', 'PENDING', 0),
+        (0x74, 'abs', 'INACTIVE', 0),
+        (0x83, 'rel', 'SETACTIVE', 1),
+        (0x88, 'rel', 'IDLE', -4),
+        (0x8e, 'abs', 'PENDING', 0),
+        (0x97, 'abs', 'HWND', 0),
+        (0x9d, 'abs', 'ISICONIC', 0),
+        (0xa9, 'abs', 'FSFLAGS', 0),
+        (0xb2, 'abs', 'FSMODE', 0),
+        (0xd0, 'rel', 'RECREATE', -4),
+        (0xdd, 'abs', 'PENDING', 0),
+        (0xe6, 'rel', 'GRESUME', -4),
     ), {
         'recreate': 0x0,
-        'made': 0x19,
-        'resume': 0x41,
-        'idle': 0x70,
+        'made': 0x30,
+        'resume': 0x58,
+        'idle': 0x87,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
