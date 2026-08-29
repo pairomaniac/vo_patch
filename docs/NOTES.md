@@ -258,9 +258,12 @@ hooks at function entries: `0x5c56a2` has its caller's return address
 swapped for the stub's, re-asserts the cooperative level the game set once
 at start-up - `SetCooperativeLevel(hwnd, EXCLUSIVE | FULLSCREEN)`, which a
 DirectDraw that let it lapse on the switch would otherwise leave lapsed
-and draw the new surfaces into a plain window at the top left - moves
-the window to the mode's size after a recreate that worked, the same
-DirectDraw having shrunk it, and on a zero result sets the inactive flag
+and draw the new surfaces into a plain window at the top left - records
+the window's client size at the first recreate and, after a recovery,
+moves the window back to it, the same DirectDraw having shrunk it (the
+mode's size is not the answer: on Wine the window is the desktop's size
+with the surface presented into it), and on a zero result sets the
+inactive flag
 `0x1add128` (the loop idles on it), `PENDING`, and `0x6bf570`, the
 "surfaces exist" flag the activation handler's own recreate is gated on
 and a failed recreate leaves clear; `setactive` (`0x5c6326`, the pause on

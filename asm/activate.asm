@@ -26,7 +26,12 @@ extern HAVESURF                 ; the game's own "surfaces exist" flag: the
                                 ; activation handler recreates only if set
 extern ISICONIC                 ; IsIconic
 extern HWND                     ; the game window
-extern MOVEWINDOW               ; MoveWindow: the window follows the mode
+extern MOVEWINDOW               ; MoveWindow
+extern GETCLIENT                ; GetClientRect
+extern SAVEDSIZE                ; scratch: the client size at start-up,
+                                ; width then height, to put back after a
+                                ; recovery - a DirectDraw that let the
+                                ; cooperative level lapse shrinks the window
 extern DDRAW                    ; the IDirectDraw; its cooperative level is
                                 ; set once at start-up, and a DirectDraw
                                 ; that let it lapse on a switch away draws
@@ -67,14 +72,29 @@ made:
                                 ; failed recreate leaves it clear
     jmp     [RETADDR]
 .ok:
-    call    dims                ; the window to the mode: a DirectDraw that
-    push    1                   ; let the cooperative level lapse shrank it
-    push    edx
-    push    eax
+    cmp     dword [PENDING], 0
+    jne     .restore
+    cmp     dword [SAVEDSIZE], 0
+    jne     .done               ; start-up: remember the window as made
+    sub     esp, 16
+    push    esp
+    push    dword [HWND]
+    call    [GETCLIENT]         ; stdcall; RECT left, top, right, bottom
+    mov     eax, [esp + 8]
+    mov     [SAVEDSIZE], eax
+    mov     eax, [esp + 12]
+    mov     [SAVEDSIZE + 4], eax
+    add     esp, 16
+    jmp     .done
+.restore:                       ; recovered: the window back to that size
+    push    1
+    push    dword [SAVEDSIZE + 4]
+    push    dword [SAVEDSIZE]
     push    0
     push    0
     push    dword [HWND]
     call    [MOVEWINDOW]        ; stdcall
+.done:
     mov     eax, 1
     jmp     [RETADDR]
 
