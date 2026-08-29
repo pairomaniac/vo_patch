@@ -20,7 +20,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **Fix crash on ALT+TAB** | `0x1c616a`, `0x1c6183`, `0x1c5c0b`, `0x1c5412` | the activation handler's recreate calls and the loop's idle call wrapped, `GRESUME` hooked at its entry: no resume without surfaces, the recreate retried until it takes |
+| **Fix crash on ALT+TAB** | `0x1c616a`, `0x1c6183`, `0x1c5726`, `0x1c5412` | the activation handler's recreate calls and the loop's idle call wrapped, `setactive` hooked at its entry: no resume without surfaces, the recreate retried until it takes |
 | **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, thirteen `.rdata` caves, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
@@ -247,11 +247,12 @@ The patch is `asm/activate.asm`, three pieces. The two recreate calls in
 the handler (`0x5c6d6a`, `0x5c6d83`, one per resolution) go through a
 wrap that, on failure, sets the inactive flag `0x1add128` itself - the
 intro movie's deactivation does not pause the game, so nothing else
-would. `GRESUME` (`0x5c680b`) is hooked at its entry, which covers its
-twelve callers and `f11pause.asm`'s: with the back buffer null it sets
-the flag and returns instead of resuming, because `WM_ACTIVATE` and the
-focus messages resume on the flag alone and would clear it straight after
-the failed recreate. And the idle pass the main loop makes each iteration
+would. `setactive` (`0x5c6326`, the pause on 1 and the resume on 0 that
+`GRESUME`, the dialog runners and the movie player all call) is hooked at
+its entry: a resume with the back buffer null sets the flag and returns
+instead, because `WM_ACTIVATE` resumes on the flag alone and the movie
+player resumes when the movie ends, either of which would clear it
+straight after the failed recreate. And the idle pass the main loop makes each iteration
 while inactive (`0x5c6012` calling `0x5c63aa`) retries the recreate,
 choosing the resolution from the same two flags the handler does, and
 resumes when it takes. The flag is the game's own: the loop already

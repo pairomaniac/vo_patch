@@ -283,6 +283,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'PENDING': 0x0365cb9c,         # a recreate owed, and its arguments
     'RECREATE': 0x005c56a2,        # release and create the surfaces
     'IDLE': 0x005c63aa,            # the loop's pass while inactive
+    'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
     'INACTIVE': 0x01add128,        # the flag it idles on
     'FSFLAGS': 0x006bf598,          # bit 2: the low-resolution modes
     'FSMODE': 0x006bf560,           # and 320x240 among them
@@ -451,6 +452,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'PENDING': 0x036577fc,
     'RECREATE': 0x005bff42,
     'IDLE': 0x005c0c79,
+    'SETACTIVE': 0x005c0bf5,
     'INACTIVE': 0x01ad7db0,
     'FSFLAGS': 0x006bb2b0,
     'FSMODE': 0x006bb278,
@@ -611,6 +613,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'PENDING': 0x0365cb1c,
     'RECREATE': 0x005c5172,
     'IDLE': 0x005c5ec3,
+    'SETACTIVE': 0x005c5e3f,
     'INACTIVE': 0x01add0c0,
     'FSFLAGS': 0x006bf530,
     'FSMODE': 0x006bf4f8,
@@ -730,7 +733,7 @@ JAPAN.sites = {
     0x00107930: (0x001040f0, '830d5031bf0001'),
     0x001c616a: (0x001c0a39, 'e804e9ffff'),
     0x001c6183: (0x001c0a52, 'e8ebe8ffff'),
-    0x001c5c0b: (0x001c04da, '558bec5356'),
+    0x001c5726: (0x001bfff5, '558bec5356'),
     0x001c5412: (0x001bfce1, 'e893030000'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
@@ -989,7 +992,7 @@ OEM.sites = {
     0x00107930: None,  # nocpucheck
     0x001c616a: (0x001c5c83, 'e8eae8ffff'),
     0x001c6183: (0x001c5c9c, 'e8d1e8ffff'),
-    0x001c5c0b: (0x001c5724, '558bec5356'),
+    0x001c5726: (0x001c523f, '558bec5356'),
     0x001c5412: (0x001c4ee1, 'e8dd030000'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
@@ -1769,31 +1772,30 @@ BLOBS = {
     }),
     'ACTIVATE': (bytes.fromhex(
         'ff74240cff74240cff74240ce8fcffffff83c40c85c07514c705000000000100'
-        '0000c7050000000001000000c3833d00000000007515c7050000000001000000'
-        'c7050000000001000000c3c70500000000000000005589e55356e901000000e8'
-        'fcffffff833d000000000074456a10f60500000000047415833d000000000074'
-        '0c68f00000006840010000eb0a68e00100006880020000e8fcffffff83c40c85'
-        'c0740fc7050000000000000000e8fcffffffb801000000c3'
+        '0000c7050000000001000000c3837c240400751e833d00000000007515c70500'
+        '00000001000000c7050000000001000000c35589e55356e901000000e8fcffff'
+        'ff833d000000000074456a10f60500000000047415833d0000000000740c68f0'
+        '0000006840010000eb0a68e00100006880020000e8fcffffff83c40c85c0740f'
+        'c7050000000000000000e8fcffffffb801000000c3'
     ), (
         (0xd, 'rel', 'RECREATE', -4),
         (0x1a, 'abs', 'PENDING', 0),
         (0x24, 'abs', 'INACTIVE', 0),
-        (0x2f, 'abs', 'BACK', 0),
-        (0x38, 'abs', 'PENDING', 0),
-        (0x42, 'abs', 'INACTIVE', 0),
-        (0x4d, 'abs', 'PENDING', 0),
-        (0x5b, 'rel', 'GRESUME', 1),
-        (0x60, 'rel', 'IDLE', -4),
-        (0x66, 'abs', 'PENDING', 0),
-        (0x71, 'abs', 'FSFLAGS', 0),
-        (0x7a, 'abs', 'FSMODE', 0),
-        (0x98, 'rel', 'RECREATE', -4),
-        (0xa5, 'abs', 'PENDING', 0),
-        (0xae, 'rel', 'GRESUME', -4),
+        (0x36, 'abs', 'BACK', 0),
+        (0x3f, 'abs', 'PENDING', 0),
+        (0x49, 'abs', 'INACTIVE', 0),
+        (0x58, 'rel', 'SETACTIVE', 1),
+        (0x5d, 'rel', 'IDLE', -4),
+        (0x63, 'abs', 'PENDING', 0),
+        (0x6e, 'abs', 'FSFLAGS', 0),
+        (0x77, 'abs', 'FSMODE', 0),
+        (0x95, 'rel', 'RECREATE', -4),
+        (0xa2, 'abs', 'PENDING', 0),
+        (0xab, 'rel', 'GRESUME', -4),
     ), {
         'recreate': 0x0,
         'resume': 0x2d,
-        'idle': 0x5f,
+        'idle': 0x5c,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
@@ -2679,8 +2681,8 @@ FEATURES = [
          # WM_ACTIVATEAPP: the two recreate calls, one per resolution
          (0x001c616a, 'e833e9ffff', call(0x001c616a, ('ACTIVATE', 'recreate'))),
          (0x001c6183, 'e81ae9ffff', call(0x001c6183, ('ACTIVATE', 'recreate'))),
-         # GRESUME's entry: push ebp; mov ebp,esp; push ebx; push esi
-         (0x001c5c0b, '558bec5356', jump(0x001c5c0b, ('ACTIVATE', 'resume'))),
+         # setactive's entry: push ebp; mov ebp,esp; push ebx; push esi
+         (0x001c5726, '558bec5356', jump(0x001c5726, ('ACTIVATE', 'resume'))),
          # the loop's idle pass while inactive
          (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle')))]),
     ('framerate', 'Fix frame rate (60 FPS)',

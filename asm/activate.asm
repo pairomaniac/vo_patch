@@ -11,7 +11,9 @@ bits 32
 
 extern RECREATE                 ; release and create the surfaces; (w, h,
                                 ; bpp) cdecl, 1 on success
-extern GRESUME                  ; the resume; its first five bytes jump here
+extern GRESUME                  ; the resume: sound, cursor, setactive(0)
+extern SETACTIVE                ; (pause) cdecl: 1 stops the loop, 0 lets it
+                                ; run; its first five bytes jump here
 extern IDLE                     ; what the loop does per pass while inactive
 extern BACK                     ; the back buffer, null while there is none
 extern INACTIVE                 ; the flag GPAUSE sets and GRESUME clears;
@@ -37,20 +39,22 @@ recreate:
 .done:
     ret
 
-; GRESUME's entry. With no back buffer there is nothing to resume onto.
+; setactive's entry. Letting the loop run with no back buffer is what
+; crashes, so that one call is refused; pausing always goes through.
 resume:
+    cmp     dword [esp + 4], 0
+    jne     .go                 ; setactive(1): pause, always
     cmp     dword [BACK], 0
     jne     .go
     mov     dword [PENDING], 1
     mov     dword [INACTIVE], 1
     ret
 .go:
-    mov     dword [PENDING], 0
     push    ebp                 ; the five bytes the jump displaced
     mov     ebp, esp
     push    ebx
     push    esi
-    jmp     GRESUME + 5
+    jmp     SETACTIVE + 5
 
 ; The loop's pass while inactive.
 idle:
