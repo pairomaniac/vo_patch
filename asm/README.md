@@ -33,10 +33,10 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `f11pause.asm` | F11 Extras: pauses the game and music around the dialog, and ticks its check boxes |
 | `voxt.asm` | F11 Extras: the dialog's long paths - deadzone read, ini save, Defaults, Quit - at the end of the `.voxt` section |
 | `movie.asm` | intro movie: measures the real window and fits the movie to it |
+| `activate.asm` | ALT+TAB: a surface recreate that fails pauses the game, and is retried until it takes |
 | `credits.asm` | ending screens: ends the credits once the button has been held a second |
 | `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
-| `activate.asm` | ALT+TAB: a surface recreate that fails pauses the game, and is retried until it takes |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
@@ -53,9 +53,9 @@ with **Intro, loading and ending screens**.
 ## How the assembly gets into the patcher
 
 `vo_patch.py` never reads these files. It carries the finished machine code as
-hex strings, because it ships as a single file - bundled into the exe, and
-downloaded on its own by Linux users - and has to run from a fresh checkout
-with nothing installed.
+hex strings, because it ships as a single file - bundled into the exe, or
+downloaded on its own - and has to run from a fresh checkout with nothing
+installed.
 
 `build.py` copies one into the other. It runs nasm on each `.asm` file, calls
 `build()` on each `.py` one, formats the output as `bytes.fromhex(...)`, and
@@ -244,9 +244,9 @@ play, and a data-only ISO has no audio tracks either, so the game runs silent.
 This impersonates the CD drive and plays WAV files instead. Two entry points.
 
 **Setup** runs at the entry point, before the game's own start-up. It resolves
-what it needs through the game's `LoadLibraryA` and `GetProcAddress` imports -
-adding to the import table would have meant rebuilding it - then finds the
-game folder from `GetModuleFileNameA`, and walks `music\track02.wav` up to
+what it needs through the game's `LoadLibraryA` and `GetProcAddress` imports,
+because adding to the import table means rebuilding it, then finds the game
+folder from `GetModuleFileNameA` and walks `music\track02.wav` up to
 `track99.wav`.
 
 It never opens a track. Redbook audio is 44100 Hz 16-bit stereo and a CD frame
@@ -254,11 +254,10 @@ is 2352 bytes, so after the 44-byte WAV header the file size is the track
 length. The whole table of contents comes from `GetFileSize`, with no WAV
 parsing.
 
-It installs nothing: the call sites already point at the hook. Finding no
-tracks just leaves the track count at zero, which the hook reads as "forward
-everything", and the game reads a disc as it always did. Last thing it does is
-jump to whatever the entry point used to be, which is why this patch has to be
-applied after all the others.
+It installs nothing: the call sites already point at the hook. With no tracks
+the count stays zero, which the hook reads as "forward everything", and the
+game reads a disc as it always did. It ends by jumping to the entry point it
+displaced, which is why this patch is applied after all the others.
 
 **The hook** sees every `mciSendCommandA` the game makes. It watches for an
 open of the `cdaudio` device and hands back a fake device ID, `0xFACE`. From
@@ -363,29 +362,30 @@ into the condition table. Reordering the list moves everyone's saved binds.
 `DEADZONE` is what a stick axis has to pass to count as pushed, out of 32767.
 It is per axis rather than radial, so a 45 degree push puts 23170 on each and
 diagonals have room to spare. 13000 is about 40%, above Microsoft's own 7849
-and 8689, which are loose enough to pick up drift on a worn stick. Since the
-threshold went runtime - `asm/iniall.asm` seeds it, the F11 boxes change it
-per player, and the tick indexes the pair by the parameter block's player -
-the table's axis values only pick the side of zero, and this constant is the
-shipped default's ancestor rather than what the tick compares.
+and 8689, which are loose enough to pick up drift on a worn stick.
+
+The tick does not compare against this constant. The threshold is per player
+at runtime - `asm/iniall.asm` seeds it, the F11 boxes change it - so the sign
+of each axis value here is all that is read, and the constant only sets the
+shipped default.
 
 ## dialogs.py
 
 Both dialogs, from a control list each.
 
-The Extras box is built outright, and the ids in it are the game's own command
-ids, so the dialog procedure can post a click to the main window with no
-lookup table. The same list carries the flag each check box reflects, which
-becomes the table `debugbox.asm` walks on `WM_INITDIALOG`. `dialogs.inc` gives
-the assembly the addresses of both. The template goes to the `.voxt` section
-the patch appends, so nothing prices the labels any more: the font block is
-back, the buttons carry their full names, and the deadzone group -
-*Stick Deadzone % [ XInput ]* - holds `1P`, `2P` and `%` labels around the
-two digits-only edits, its own Defaults button, and the min/max hint below
-in the dialog's one font, templates carrying a single font block. The bottom
-row keeps the dangerous away from the habitual: Quit Game at the left, Close
-alone at the right where the closing hand goes. The
-dead menu resource the template used to squeeze into is left as it came.
+The Extras box is built outright. Its control ids are the game's own command
+ids, so the dialog procedure posts a click to the main window with no lookup
+table, and the same list carries the flag each check box reflects - the table
+`debugbox.asm` walks on `WM_INITDIALOG`. `dialogs.inc` gives the assembly the
+addresses of both.
+
+The template goes in the `.voxt` section the patch appends, so its size is
+not a constraint. It carries a font block, full button names, and a deadzone
+group - *Stick Deadzone % [ XInput ]* - with `1P`, `2P` and `%` labels around
+two digits-only edits, a Defaults button of its own, and a min/max hint
+below. The hint is the same size as everything else: a template carries one
+font block. In the bottom row Quit Game sits at the left and Close alone at
+the right, where the closing hand goes.
 
 The F5 frame rate labels are the other case: an edit to a resource the game
 already has. Sega's *Fast* and *Smooth* read **30 FPS** and **60 FPS** now.
@@ -517,32 +517,34 @@ and nothing downstream would notice.
 
 ## The bind page files
 
-Six files, one concern: the bind page Simple and the gamepad share, told
-apart by the pending device. `bindlist.asm` picks the (name, id) input
-list the fill and store walk - the game's 33 named keys or the 16 pad
-inputs. `bindmap.asm` is the same pick for the preselect that maps a saved
-bind back to a combo index, and carries the startup defaults writer for
-Simple's block in its tail. `bindblock.asm` picks which saved block a
-route touches, `+0x08` or `+0x38`, and the Default button's source table;
-`blockcur.asm` is the same pick for the store, whose call site passes a
-fused player-and-slot index the shared check cannot use. `pagesec.asm`
-and `pagesel.asm` keep the letter and digit sections off the gamepad
-page - fill and store in the first, preselect in the second, split only
-because no free run held both. The mechanism is in NOTES.md under *The
-shared bind page*.
+Six files, one concern: Simple and the gamepad share a bind page, and every
+routine on it has to know which device it is serving. They all make the same
+decision from the pending device, in different places.
+
+| File | Picks |
+| --- | --- |
+| `bindlist.asm` | the input list the fill and store walk: 33 named keys or 16 pad inputs |
+| `bindmap.asm` | the same, for the preselect that maps a saved bind back to a combo index; its tail writes Simple's startup defaults |
+| `bindblock.asm` | which saved block a route touches, `+0x08` or `+0x38`, and the Default button's source |
+| `blockcur.asm` | the same block, for the store - whose call site passes a fused player-and-slot index the shared check cannot use |
+| `pagesec.asm` | keeps the letter and digit sections off the gamepad page, in the fill and the store |
+| `pagesel.asm` | the same, in the preselect |
+
+The mechanism is in NOTES.md under *The shared bind page*.
 
 ## The ini files
 
 Four files, one concern: Keyboard (Simple)'s binds surviving a restart,
-which the stock game never had to do for that slot. `inisave.asm` writes
-the "NP Simple Assign" line when OK commits, then falls into the stock
-serializer. `iniload.asm` runs at launch in place of the call that used
-to overwrite the block with joystick defaults, parsing each keyboard-page
-block's line back through `iniparse.asm`, the 48-hex-character parser it
-runs twice. `iniall.asm` is a trampoline at the ini loader's exit that
-runs the same loader for both players whatever the saved devices, since
-the stock loader runs one device-picked section per player and would skip
-it otherwise. The full story is in NOTES.md under *Saving and loading*.
+which the stock game never had to do for that slot.
+
+| File | Does |
+| --- | --- |
+| `inisave.asm` | writes the "NP Simple Assign" line when OK commits, then falls into the stock serializer |
+| `iniload.asm` | at launch, replaces the call that overwrites the block with joystick defaults, and parses each keyboard-page block's line back |
+| `iniparse.asm` | the 48-hex-character parser, run twice by the above |
+| `iniall.asm` | a trampoline at the ini loader's exit that runs the loader for both players whatever their saved devices, since the stock one runs a single device-picked section per player |
+
+The full story is in NOTES.md under *Saving and loading*.
 
 ## commitdev.asm and devorder.asm
 

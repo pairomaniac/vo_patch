@@ -104,8 +104,11 @@ the top of `tools/selftest.py`, deliberately.
 
 ## The by-hand tools
 
-Neither runs in CI: both need the game's files, which are not in the
-repository. Their output is committed.
+Two tools that draw things, run by hand because they need the game's files
+and their output is committed. The tools that build a new build's tables are
+under [Adding a build](#adding-a-build); `tools/whereis.py`, which turns a
+crash address into a blob and label, is under
+[Troubleshooting](#troubleshooting).
 
 **`tools/vonbanner.py`** redraws the title screen prompt. It rasterises text
 into the banner's 42x3 cells and, with `--write`, writes the game's own
@@ -219,15 +222,17 @@ The match runs in lockstep: each machine simulates from both players' input
 frames, so the two must step the simulation identically. The handshake tag's
 last byte is a fingerprint of the patches that change how the game plays,
 read straight from the running exe by `sync_fingerprint()`, and a mismatch is
-refused at connect. If you add a patch that changes the simulation - a rule,
-a timing, a physics value, anything that alters what the game computes from a
-given input - add its site beside `FP_DIVISOR_VA` and `FP_CONTINUE_VA`
-there, and the same site to `SYNC_SITES` in `vo_patch.py`, which is what
-warns when the netplay add-on is installed beside an executable an older
-release patched without it. Miss one and two builds with and without it
-desync instead of refusing to link. A
-patch that only changes what a machine shows or how it reads its own controls
-stays out of the fingerprint: those are each player's own business.
+refused at connect.
+
+So if you add a patch that changes the simulation - a rule, a timing, a
+physics value, anything that alters what the game computes from a given
+input - it needs two entries: one in `fp_builds` in `dpctrl.c`, per build,
+and one in `SYNC_SITES` in `vo_patch.py`, which is what warns when the
+netplay add-on is installed beside an executable an older release patched
+without it. Miss either and two copies, one with the patch and one without,
+desync mid-match instead of refusing to connect. A patch that only changes
+what a machine shows, or how it reads its own controls, stays out: those are
+each player's own business.
 
 Two scripts under `tools/` build the DLL and put it in a game folder. Both
 read `~/.vo-test`, which is yours and is not in the repository:
@@ -408,11 +413,12 @@ and the tiles in `scrstfcg.bin`, and all three have to agree. A block list
 naming cells the map does not have sends the renderer off the end of it, so
 the patcher checks both files before it writes either half.
 
-**`offsets` says "is 6653952 bytes, expected 6650880"** - that is the patched
-file. Point it at `v_on.exe.bak`.
+**`offsets` says a file is not a build it knows** - it is probably the
+patched file, not the original. Point it at `v_on.exe.bak`. The message
+lists every build it does know, with size and MD5.
 
-**`banner` fails** - the tile indices in `v_on.exe` and the artwork in
-`escrgame.bin` have come apart. Both offsets are in `tools/vonbanner.py`.
+**`banner` fails** - the tile indices in `v_on.exe` and the tiles in the
+title artwork have come apart. Both offsets are in `tools/vonbanner.py`.
 
 **`nasm not found`** - the `asm` check needs it. Everything else runs without.
 
@@ -446,6 +452,10 @@ python3 tools/check.py --only asm  # run one of them
 
 python3 tools/vonbanner.py DIR     # redraw the title prompt
 python3 tools/vocredits.py DIR     # redraw the credit line
+
+python3 tools/whereis.py EXE ADDR  # a crash address -> which blob and label
+python3 tools/vomap.py A.exe B.exe MAP.pkl    # match two builds
+python3 tools/votrans.py sites MAP.pkl        # and read addresses across
 ```
 
 `DIR` is the game folder. Without `--write` both only preview; with it
