@@ -21,7 +21,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **Fix crash on ALT+TAB** | `0x1b0920`, `0x1c4aa2`, `0x1c5726`, `0x1c5412` | the intro movie's exit recreates the surfaces however the movie ended (`jne` → `jmp`); a recreate that fails pauses the game, arms the activation handler, and is retried from the idle pass |
-| **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, the annex, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, the title artwork at `0x21c000` | routine, twin-stick tables and lever cleanup in the annex; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
+| **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, the annex, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, the title artwork at `0x21c000` | routine, twin-stick tables and lever cleanup in the annex; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; a soft reset on LB, RB, Start and both triggers; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
 | **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
@@ -114,28 +114,32 @@ fingerprints each one's own two sites (`fp_builds` in `net/dpctrl.c`).
 The ending roll files are byte-identical across builds, so the harvested
 glyphs stay valid.
 
-**The USA OEM pressing** (March 1997, `0x3317246A`) is the closest to
-retail: 7852 of 7934 functions match, 7593 identically, every frame is
-laid out the same, and the map placed all but four sites. Its processor
-check is a different one. Retail tests for `GenuineIntel`; the OEM has
-`cpuid32.dll` classify the CPU and accepts two classes, neither of which a
-modern CPU is, so its version of the processor check patch makes the
-accept branch unconditional and sets the MMX flag the game would set for
-the class that has it. Its title artwork and roll files are retail's,
-byte for byte.
+**The USA OEM pressing** (March 1997, PE timestamp `0x3317246A`) is the
+closest to retail: 7852 of 7934 functions match, 7593 identically, every
+frame is laid out the same, and the map placed all but four sites. Its
+title artwork and roll files are retail's, byte for byte.
 
-**The Japanese rerelease** (October 1997, `0x345107FA`): 7291 of 7934
-functions match, 6329 identically. Frame layouts differ in the patched
-functions - the bind page's loop counter is `[ebp-0x18]` for retail's
-`[ebp-8]`, the F7 combo selection `[ebp-0x10]`, the OK handler's line
-buffer `[ebp-0x18c]`, the movie placer's X and Y `[ebp-0x14]` and
-`[ebp-0x18]` - which is what the frame-offset symbols are for. Its title
-artwork is `jscrgame.bin`: the same 4 MB, 2304 tiles of it redrawn for
-the Japanese logo, and the slots the banner patch writes identical to
-retail's. Its roll files are retail's. It is also the only build that
-reports a failed surface recreate with a message box, which the ALT+TAB
-patch has to silence; see below. Dropping the English `v_on.exe` into a
-Japanese install does not work: it looks for `escrgame.bin`.
+Its processor check is a different one, and the only thing that needed a
+patch of its own. Retail tests for `GenuineIntel`; the OEM has `cpuid32.dll`
+classify the CPU and accepts two classes, neither of which a modern CPU is.
+So its version of the processor check patch makes the accept branch
+unconditional and sets the MMX flag the game would set for the class that
+has it.
+
+**The Japanese rerelease** (October 1997, `0x345107FA`) is the furthest:
+7291 of 7934 functions match, 6329 identically. Frame layouts differ in
+several of the patched functions - the bind page's loop counter is
+`[ebp-0x18]` for retail's `[ebp-8]`, the F7 combo selection `[ebp-0x10]`,
+the OK handler's line buffer `[ebp-0x18c]`, the movie placer's X and Y
+`[ebp-0x14]` and `[ebp-0x18]` - which is what the frame-offset symbols are
+for.
+
+Its title artwork is `jscrgame.bin`: the same 4 MB, 2304 tiles of it
+redrawn for the Japanese logo, with the slots the banner patch writes
+identical to retail's. Its roll files are retail's. It is also the only
+build that reports a failed surface recreate with a message box, which the
+ALT+TAB patch silences. Dropping the English `v_on.exe` into a Japanese
+install does not work: it looks for `escrgame.bin`.
 
 ### Why no v_on.ini
 
@@ -237,40 +241,46 @@ ini says. The OEM's check is a different one, above.
 ### Crash on switching away and back
 
 The intro movie is played by `mciavi` in the game's window, with the
-DirectDraw surfaces released (`0x5b1320`) so the player can have the
-screen, and recreated when the movie ends (`0x5b1510`). The window
-procedure handles a switch away during the movie itself: `0x54ea39` stops
-the movie and sets `0x6bead4`, "stopped by deactivation"; coming back,
-`0x54e516` resumes it and clears the flag. Between the two, the intro
-state polls the movie, finds it stopped, takes that for the end, and
-calls `0x5b1510` - whose first test is that flag: set, it clears it and
-returns without recreating. Movie mode ends, the normal loop runs, and no
-surface is ever created again: the activation handler's own recreate
-(`0x5c6d2d`) is gated on `0x6bf570`, which the movie's release cleared and
-only a successful recreate sets. The next frame reads a null back buffer
-at `0x5c8103`; guarded, it would read a null primary at `0x5c650b`, then
-a null `IDirectSound` at `0x58a244`. cnc-ddraw does not see it because the
-window does not lose the display, so the movie is never stopped.
+DirectDraw surfaces released (`0x5b1320`) so the player can have the screen
+and recreated when the movie ends (`0x5b1510`).
 
-The patch is in two parts. The `jne` at `0x5b1520` is made a `jmp`, so
-the movie's exit recreates the surfaces however the movie ended. But that
-recreate runs the instant the stop is noticed, with the window still in
-the background, and a DirectDraw that will not give exclusive mode to a
-background window returns from `0x5c56a2` with a plain primary and no
-back buffer - it tries three surface descriptions and takes the first
-that works - and a zero result nobody reads. So `asm/activate.asm`, three
-hooks at function entries: `0x5c56a2` has its caller's return address
-swapped for the stub's, and a zero result sets the inactive flag
-`0x1add128` (the loop idles on it), `PENDING`, and `0x6bf570`, the
-"surfaces exist" flag the activation handler's own recreate is gated on
-and a failed recreate leaves clear; `setactive` (`0x5c6326`, the pause on
-1 and the resume on 0 that `GRESUME`, the dialogs and the movie player
-all call) refuses a resume while the back buffer is null; and the idle
-pass the loop makes each iteration while inactive (`0x5c6012` calling
-`0x5c63aa`) retries the recreate, choosing the resolution from the same
-two flags the handler does and skipping while the window is iconic, and
-resumes when it takes. cnc-ddraw sees none of it: the window never loses
-the display, so the movie is never stopped.
+Switching away during the movie stops it: `0x54ea39` stops the movie and
+sets `0x6bead4`, "stopped by deactivation", and coming back `0x54e516`
+resumes it and clears the flag. Between those two the intro state polls the
+movie, finds it stopped and takes that for the end, so it calls the exit
+routine - whose first test is that same flag. Set, it clears it and returns
+without recreating anything. Movie mode ends, the normal loop starts, and
+nothing creates a surface again: the activation handler's own recreate
+(`0x5c6d2d`) is gated on `0x6bf570`, which the release cleared and only a
+successful recreate sets. The next frame reads a null back buffer at
+`0x5c8103`; guarded, it would read a null primary at `0x5c650b`, then a
+null `IDirectSound` at `0x58a244`.
+
+Making the exit recreate anyway - the `jne` at `0x5b1520` becomes a `jmp` -
+is half the fix. That recreate runs the moment the stop is noticed, with the
+window still in the background, and a DirectDraw that will not give
+exclusive mode to a background window returns from `0x5c56a2` with a plain
+primary and no back buffer, and a zero result nobody reads. So
+`asm/activate.asm` covers the other half, three hooks at the entries of the
+game's own functions:
+
+| Hook | Does |
+| --- | --- |
+| `0x5c56a2`, the recreate | its caller's return address is swapped for the stub's, so a zero result can set the inactive flag `0x1add128` (the loop idles on it), `PENDING`, and `0x6bf570`, so the next switch tries again |
+| `0x5c6326`, `setactive` | refuses a resume while the back buffer is null - `GRESUME`, the dialogs and the movie player all resume through here |
+| `0x5c6012`, the idle pass | retries the recreate each iteration while inactive, taking the resolution from the two flags the handler reads, skipping while the window is iconic, and letting the resume through once it works |
+
+The rerelease alone reports each failure inside its recreate with a
+`MessageBoxA` - "SetDisplayMode() Failed", "CreateSurface() Failed",
+"GetAttachedSurface() Failed" - which the retry turns into a box per
+attempt, and under Proton an invisible one behind the fullscreen window;
+those three calls are nopped in that build.
+
+cnc-ddraw never sees any of this: the window does not lose the display, so
+the movie is never stopped. What the patch does not touch is how Wine's own
+DirectDraw shows the game without cnc-ddraw - the 640x480 surface in a
+window at the desktop's size, top left, before any switch - which is Wine's
+behaviour, not the game's.
 
 ### Frame rate
 
@@ -459,19 +469,22 @@ and neither profile loses its binds while the other is selected. The hex
 text is built in the dialog frame's own line buffer rather than a static
 one of its own.
 
-On launch, the loader routes each player by saved device, and slot 3's
-route was "load nothing" - right for 2 Joysticks, whose data was re-derived
-from the pad type, wrong for a profile with saved binds. One index byte
-routes it through the padtype section instead, where the old re-fill call
-now runs `asm/iniload.asm`: each block's own line is parsed back through
-`asm/iniparse.asm`, "NP Simple Assign" into `+0x38` and "NP Keyboard
-Assign" into `+0x08` too, which the stock loader only parses into the live
-table. A missing line keeps the shipped set. When the saved device is
-Simple, the live table is then seeded from `+0x38`, overriding the seed
-the Keyboard Assign line left for the gamepad. And whatever the saved
-devices, `asm/iniall.asm` runs the same loader for both players at the
-load loop's exit, so an inactive profile's saved set survives restarts
-spent on other devices.
+On launch the loader routes each player by saved device, and slot 3's route
+was "load nothing" - right for 2 Joysticks, whose data was re-derived from
+the pad type, wrong for a profile with saved binds. One index byte routes it
+through the padtype section instead, where the old re-fill call now runs
+`asm/iniload.asm`.
+
+That parses each block's own line back through `asm/iniparse.asm`: "NP
+Simple Assign" into `+0x38`, and "NP Keyboard Assign" into `+0x08` as well,
+which the stock loader only parses into the live table. A missing line keeps
+the shipped set. When the saved device is Simple, the live table is then
+seeded from `+0x38`, overriding the seed the Keyboard Assign line left for
+the gamepad.
+
+Whatever the saved devices, `asm/iniall.asm` runs the same loader for both
+players at the load loop's exit, so an inactive profile's saved set survives
+restarts spent on other devices.
 
 It lives at `0x63c5f4`. Through v0.10.1 it sat at `0x5fb144`, which is
 zeros in the file but not free: the attract loop's scoreboard state copies
@@ -510,26 +523,27 @@ is ignored while it plays, so Start does not.
 **Soft reset.** The state tick at `0x49f965` tests the mode word `0x1ae3594`
 for a negative value and, finding one, runs the teardown (`0x49fb9b`) and
 the boot routine (`0x49f82c`), which sets mode 0 and starts over into the
-title. Nothing in the game sets it negative any more - the only two stores
-are non-negative - so it is a debug path they left in. The second player
-has a state machine of their own: a copy of the code with its own globals
-(`0x1ef8a90` the mode word, `0x1ef9eb0` the sub-state), its own tick
-(`0x40f528`, which the loop's two-player branch calls), teardown and boot,
-and the same negative-mode path. The pad poll writes `-1` to the first
-mode word on the press of LB, RB and Start with both triggers past
-XInput's threshold, on either pad, and to the second as well when the
-loop mode `0x6bc94c` reads 1 (two players); not while it reads 2, as the
-F-key handlers refuse a network match. While the combination is down the
-poll posts no key for that pad: Start alone is F3, pause, and a paused
-game never runs the tick.
+title. Nothing in the game sets it negative - the only two stores are
+non-negative - so it is a debug path they left in.
+
+The second player has a state machine of their own: a copy of the code with
+its own globals (`0x1ef8a90` the mode word, `0x1ef9eb0` the sub-state), its
+own tick at `0x40f528` that the loop's two-player branch calls, and its own
+teardown, boot and negative-mode path.
+
+So the pad poll writes `-1` to both. The first always, on the press of LB,
+RB and Start with both triggers past XInput's threshold, on either pad; the
+second as well when the loop mode `0x6bc94c` reads 1, two players. Neither
+while it reads 2, a network match, as the F-key handlers refuse there. While
+the combination is down the poll posts no key at all for that pad, because
+Start alone is F3, pause, and a paused game never runs the tick.
 
 ### F11 dialog
 
-No dialog resource ever existed, so one is built at runtime
-from a template written into unused space - over the old menu, which this same
-patch unhooks. Every control carries the game's own command ID, so clicks go
-straight to the main window; the
-check boxes read the game's own flags. **Credits** is the one control with no
+No dialog resource ever existed, so one is built at runtime from a template
+in the `.voxt` section this patch appends. Every control carries the game's
+own command ID, so clicks go straight to the main window, and the check
+boxes read the game's own flags. **Credits** is the one control with no
 menu item behind it, so the dialog procedure writes the sub-state itself -
 the title machine's, so it shows that sequence rather than the one a finished
 game runs. It is in the *Debug* box with the rest all the same, since what it
