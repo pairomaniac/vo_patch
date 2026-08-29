@@ -220,7 +220,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBD2P': 0x005bceed,
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
-    'GRESUME': 0x005c680b,
+    'GRESUME': 0x005c680b,         # and their resume
     'PENDING': 0x0365cb9c,         # a recreate owed
     'RETADDR': 0x0365cba0,         # where one returns to
     'RECREATE': 0x005c56a2,        # release and create the surfaces
@@ -231,8 +231,6 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'FSMODE': 0x006bf560,          # and 320x240 among them
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
-    'LOCKBACK': 0x005c8108,        # the frame's back buffer lock, its result test
-    'FLIPBACK': 0x005c6510,        # and its flip of the primary, the same         # and their resume
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
     'ORIG': 0x005c80df,            # the call this one is made in place of
     'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
