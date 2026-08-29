@@ -13,7 +13,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `vocd.asm` | CD audio: setup, the `mciSendCommandA` hook, the handlers |
 | `timer.asm` | frame rate: the entry point stub that asks for a 1 ms tick |
 | `debugbox.asm` | F11 Extras: the window procedure hook and the dialog procedure |
-| `padxinput.asm` | gamepad: the entry stubs, the message-pump stub and the input tick |
+| `padxinput.asm` | gamepad: the entry stubs, the message-pump stub, the input tick and the soft reset |
 | `levers.asm` | gamepad: the lever cleanup that runs after each input tick |
 | `twinstick.asm` | gamepad: the arcade twin-stick profile, two stubs and its tables |
 | `introwait.asm` | gamepad: polls the pad while the intro movie blocks the message loop |
@@ -36,7 +36,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `credits.asm` | ending screens: ends the credits once the button has been held a second |
 | `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
-| `activate.asm` | a surface recreate that fails: pause, and retry until it takes |
+| `activate.asm` | ALT+TAB: a surface recreate that fails pauses the game, and is retried until it takes |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
@@ -120,9 +120,9 @@ rel32 from where the blob is, and `site('PADX')` the file offset a blob is
 written at - so there is no hand-computed address for the two to disagree
 on.
 
-Nothing carries a fixed shape any more: every place another blob or the
-site table reaches is a label, `levers.asm` is written at `('PADX', 'end')`
-whatever that comes to, and a blob grows by being rebuilt.
+Nothing in here has a fixed shape. Every place another blob or the site
+table reaches is a label, `levers.asm` goes at `('PADX', 'end')` whatever
+that comes to, and a blob that grows only needs rebuilding.
 
 ## The loop
 
@@ -143,15 +143,15 @@ edit anyway.
 
 ## What CI checks
 
-The `verify` job in `.github/workflows/build.yml` runs on every push to main,
-every `v*` tag and every pull request, and the Windows build will not start
-until it passes. It installs nasm and runs `python3 tools/check.py`, the same
-runner you would run locally:
+The `verify` job in `.github/workflows/build.yml` runs on every push to a
+work branch, every `v*` tag and every pull request, and the Windows build
+will not start until it passes. It installs nasm and runs
+`python3 tools/check.py`, the same runner you would run locally:
 
 | Check | Catches |
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
-| `asm` | a source edited without the blobs being regenerated; a blob failing to link for a build; a pin the site table relies on moved |
+| `asm` | a source edited without the blobs being regenerated; a blob that fails to link for one of the builds; a placeholder the apply-time sections fill gone missing or duplicated |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -160,46 +160,21 @@ runner you would run locally:
 self-consistent while the shipped patcher installs last week's code - nothing
 else in the project would notice.
 
-What CI cannot do is touch a real `v_on.exe` or `escrgame.bin`, because the
-game is not in the repository, so two checks are skipped there. Run them
-before tagging by giving the runner a game folder:
+What CI cannot do is touch a real game, because it is not in the
+repository, so three checks are skipped there. Run them before tagging by
+giving the runner a folder per build:
 
 ```
-python3 tools/check.py /path/to/VIRTUAL-ON
+python3 tools/check.py RETAIL/ OEM/ JP/
 ```
 
-`offsets` is the only check that catches a wrong offset. It verifies every
-`original` column against the real file, applies 350-odd combinations of
-patches, and compares the fully patched MD5 against `EXPECTED_ALL` in
-`tools/selftest.py`. `banner` is the only one that proves the tile indices in
-the executable and the artwork in `escrgame.bin` still line up.
-
-## Where each blob lands
-
-**`vocd.asm`** becomes a blob of its own in a new `.vocd` section that
-`apply_cdaudio` appends to the executable. The code starts with two thunks:
-`+0` is the hook, which the game's 37 `mciSendCommandA` call sites are
-rewritten to call, and `+5` is the setup the entry point is repointed at. The
-data blob is the string table plus the space the code works in - track table,
-path and command buffers.
-
-The hook reads the winmm import slot to forward what it does not answer,
-but does not own it: any DLL hooking the same import overwrites the slot,
-whereas rewritten call sites cannot be undone. Forwarding through the slot as
-it stands leaves whoever does own it in the chain below.
-
-Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
-`apply_cdaudio` fills in once it has read the executable: import slots, the
-previous entry point, and where the blobs landed. Everything else is self
-relative, so the section can go anywhere.
-
-**`padtables.py`** fills the condition table, the bind list and the strings
-both point at, and the device list in `.data`. **`dialogs.py`** fills the
-strings and tables the Extras box reads, the template payload for the
-`.voxt` section the patch appends, and the tail of the F5
-resource that the frame rate labels live in. That last one is the only site
-whose `original` column is generated too: the stock labels packed by the same
-code, which is the check that this packing matches the resource compiler's.
+Each runs once per folder and is named by build - `offsets/jp` - because a
+table can only be wrong on the build it is for. `offsets` is the only check
+that catches a wrong offset: it verifies every `original` column against the
+real file, applies 350-odd combinations of patches, and compares the fully
+patched MD5 against `EXPECTED_ALL` in `tools/selftest.py`. `banner` and
+`credit` are the only proof that what the patcher writes into the artwork
+and the ending roll reads back as it was written.
 
 ## Where the blobs go
 
@@ -224,8 +199,38 @@ reference the file shows, and both have crashed the game before. Two
 runs, at `0x5f80e0` and `0x623d98`, are `qword` constants that scan as
 zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 
-Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
-worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
+Two patches append a section of their own rather than use the annex,
+because what they carry is too big for it and only exists once the patch
+is applied.
+
+**`vocd.asm`** is the CD audio routine, in a new `.vocd` section that
+`apply_cdaudio` appends to the executable. The code starts with two thunks:
+`+0` is the hook, which the game's 37 `mciSendCommandA` call sites are
+rewritten to call, and `+5` is the setup the entry point is repointed at. The
+data blob is the string table plus the space the code works in - track table,
+path and command buffers.
+
+The hook reads the winmm import slot to forward what it does not answer,
+but does not own it: any DLL hooking the same import overwrites the slot,
+whereas rewritten call sites cannot be undone. Forwarding through the slot as
+it stands leaves whoever does own it in the chain below.
+
+Absolute addresses are placeholders (`0xE1E1E1E1` and friends) that
+`apply_cdaudio` fills in once it has read the executable: import slots, the
+previous entry point, and where the blobs landed. Everything else is self
+relative, so the section can go anywhere.
+
+**`dialogs.py`** fills the F11 dialog's strings and tables, which go in the
+annex, the template payload for the `.voxt` section that patch appends, and
+the tail of the F5 resource the frame rate labels live in. That last one is
+the only site whose `original` column is generated too: the stock labels
+packed by the same code, which is the check that this packing matches the
+resource compiler's. **`padtables.py`** fills the condition table, the bind
+list and the strings both point at, and the F7 device list, the one thing
+written into the game's own `.data`.
+
+Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against
+a worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
 `layout.py` costs nothing in the file until the section passes 3 KB, because
 it is page aligned.
 
@@ -299,15 +304,14 @@ after every other patch.
 
 ## debugbox.asm
 
-During a network match the game's own F-key handlers return before doing
-anything - `cmp [0x6bc94c], 2` at the top of each, the loop's mode - and
-the hook does the same test in the same place, so F11 is as inert as F5.
-
 The Debug options only ever existed as menu items, so once the menu bar goes
 there is nothing to open them with. This builds a dialog instead.
 
 **The hook** replaces the window procedure pointer at `0x1c4d7e`. It watches
-for F11 and passes everything else to the handler that was there before. On
+for F11 and passes everything else to the handler that was there before.
+During a network match it passes F11 on as well: the game's own F-key
+handlers each begin `cmp [0x6bc94c], 2` - the loop's mode - and return, so
+the hook does the same test in the same place and F11 is as inert as F5. On
 F11 it fetches `DialogBoxIndirectParamA` through `LoadLibraryA` and
 `GetProcAddress` - the import table has no room and rebuilding it for one
 export is not worth it - and opens the template from the `.voxt` section
@@ -426,13 +430,21 @@ hang off.
 Both pollers read the same resolved import but keep separate `XINPUT_STATE`
 buffers and separate edge state, so neither can eat the other's press.
 
-Several addresses in the file are named from outside it: the entry stubs by
-the profile dispatch, the pump stub by the `PeekMessageA` call site, the poll
-by `introwait.asm`, the tick by `twinstick.asm`, and the epilogue by
-`levers.asm`, whose site expects those five bytes where they are. The blob is
-also padded to a fixed 830 bytes, because `levers.asm` is written immediately
-after it. `times` pins all of it, so nasm fails rather than quietly shifting
-anything.
+Five places in the file are named from outside it, all by label: the entry
+stubs by the profile dispatch, the pump stub by the `PeekMessageA` call
+site, the poll by `introwait.asm`, the tick by `twinstick.asm`, and the
+epilogue by `levers.asm`, which replaces it and is written at the blob's
+end.
+
+The **soft reset** is in the poll, because that is where both pads are
+read. LB, RB and Start held together with both triggers past XInput's
+threshold, on the press, writes `-1` to the game's mode word - and to the
+second player's, which is a separate state machine, when two are playing.
+The game's own tick sees the negative value and reboots to the title along
+a path it already has; see [NOTES.md](../docs/NOTES.md). While the
+combination is down no key is posted for that pad, since Start alone is
+F3 and a paused game never runs the tick, and nothing happens at all
+during a network match, which is what the game's F-key handlers do.
 
 ## levers.asm
 
@@ -677,6 +689,32 @@ count. The count alone is not enough: `HELD` sits in a run of zeros in
 `.data` that something else in the game writes through, so it reads nonzero
 on the title screen and in a match. `credits.asm` owns it while the roll is
 running, which is the only place this looks at it.
+
+## activate.asm
+
+Switching away during the intro movie stops it, and the game treats that
+as the movie ending: it leaves the movie without rebuilding the screen it
+had handed to the player. A six-byte site makes it rebuild anyway, and
+this file is what happens when that rebuild fails - which it does when
+the window is still in the background and DirectDraw will not give
+exclusive mode back, leaving a primary surface with no back buffer for
+the next frame to draw on.
+
+Three hooks, each at the entry of the game's own function so that every
+caller goes through it. The **recreate** swaps its caller's return address
+for the stub's, so the stub sees the result: a failure sets the game's
+inactive flag, which its main loop already idles on, and the "surfaces
+exist" flag the activation handler tests before recreating, so the next
+switch tries again. **setactive** refuses a resume while the back buffer
+is null, since the movie player and the F-key dialogs resume through it
+and either would start the loop on nothing. The **idle pass** the loop
+makes each iteration while inactive retries the recreate, choosing the
+resolution from the same two flags the handler does and skipping while
+the window is minimised, and lets the resume through once it works.
+
+The rerelease reports each failure inside its recreate with a message
+box, which the retry turns into one box per attempt; those three calls
+are nopped in that build alone. See [NOTES.md](../docs/NOTES.md).
 
 ## titlever.asm
 

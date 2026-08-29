@@ -21,7 +21,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **Fix crash on ALT+TAB** | `0x1b0920`, `0x1c4aa2`, `0x1c5726`, `0x1c5412` | the intro movie's exit recreates the surfaces however the movie ended (`jne` → `jmp`); a recreate that fails pauses the game, arms the activation handler, and is retried from the idle pass |
-| **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, thirteen `.rdata` caves, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
+| **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, the annex, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, the title artwork at `0x21c000` | routine, twin-stick tables and lever cleanup in the annex; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
 | **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
@@ -79,19 +79,21 @@ each build carries its own.
 
 A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
 what every symbol the blobs name resolves to there, its title artwork,
-and for a build other than retail a site map - that build's offset and
-original bytes for every site the table names by retail offset, `None`
-where the build has no such code - and an annex. The blobs are one set of
-bytes for all builds, linked from the build's tables when the patcher
-loads; the site table's hooks and blob sites are expressions the build
-fills in, and a site one build has and retail has not is written as
-`In(md5, offset)`. The tables come from `tools/vomap.py`, which matches
-the two executables function by function with addresses masked and votes
-on where every address went, and `tools/votrans.py`, which runs the site
-table, the asm symbols and the symbol table through the map; what the map
-cannot settle - a function split at the wrong place, a site in a switch
-table, ten bytes that occur twice - is in `HAND` there, per build, with a
-reason each. `docs/DEVELOPING.md` has the recipe.
+and for a build other than retail a site map and an annex. The site map is
+that build's offset and original bytes for every site the table names by
+retail offset, or `None` where the build has no such code; a site one
+build has and retail has not is written the other way round, as
+`In(md5, offset)`. The blobs are one set of bytes for all builds, linked
+from the build's tables when the patcher loads, and the site table's hooks
+and blob sites are expressions the build fills in.
+
+The tables are made, not typed. `tools/vomap.py` matches the two
+executables function by function with addresses masked and votes on where
+every address went; `tools/votrans.py` runs the site table, the asm
+symbols and the symbol table through the map. What the map cannot settle -
+a function split at the wrong place, a site in a switch table, ten bytes
+that occur twice - is in `HAND` there, per build, with a reason each.
+`docs/DEVELOPING.md` has the recipe.
 
 Two things are the same in every build:
 
@@ -130,8 +132,10 @@ buffer `[ebp-0x18c]`, the movie placer's X and Y `[ebp-0x14]` and
 `[ebp-0x18]` - which is what the frame-offset symbols are for. Its title
 artwork is `jscrgame.bin`: the same 4 MB, 2304 tiles of it redrawn for
 the Japanese logo, and the slots the banner patch writes identical to
-retail's. Its roll files are retail's. Dropping the English `v_on.exe`
-into a Japanese install does not work: it looks for `escrgame.bin`.
+retail's. Its roll files are retail's. It is also the only build that
+reports a failed surface recreate with a message box, which the ALT+TAB
+patch has to silence; see below. Dropping the English `v_on.exe` into a
+Japanese install does not work: it looks for `escrgame.bin`.
 
 ### Why no v_on.ini
 
@@ -178,9 +182,10 @@ installed.
 ## How each patch works
 
 In the order of the table above; rows that are a single obvious byte edit are
-skipped. The CD audio and gamepad patches install assembled machine code
-rather than editing bytes, and the sources and a longer account of both are
-in [asm/](../asm/).
+skipped. Addresses are the English retail build's, which is what the site
+table is keyed on - each other build maps them through its own site map.
+Most patches install assembled machine code rather than editing bytes; the
+sources and a longer account of each are in [asm/](../asm/).
 
 ### Sample rate
 
@@ -229,7 +234,7 @@ the game switching it *on*. One `or` sets the flag the MMX, Pentium and
 vendor branches all read; nopping it leaves the flag clear whatever the
 ini says. The OEM's check is a different one, above.
 
-### Crash on ALT+TAB
+### Crash on switching away and back
 
 The intro movie is played by `mciavi` in the game's window, with the
 DirectDraw surfaces released (`0x5b1320`) so the player can have the
@@ -325,11 +330,11 @@ That address was readable on Windows 9x and is not now. Each block only undoes
 a translation the routine has already reset, so `nop` is safe. The ten are
 similar but not identical, hence listed out one by one.
 
-### Alt-tab
+### Keyboard after a switch away
 
-The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and
-never re-acquires it after losing focus. `DISCL_BACKGROUND` removes the
-condition.
+The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and never
+re-acquires it after losing focus, so the keys stop working for the rest of
+the session. `DISCL_BACKGROUND` removes the condition.
 
 ### Gamepad
 

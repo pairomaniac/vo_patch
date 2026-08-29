@@ -1,7 +1,4 @@
 bits 32
-                        ; on the next four-byte boundary. 156 bytes from
-                        ; 0x63dda0, so 65 are still free past the end of
-                        ; this; credits.asm has 57 left in the other one.
 ; Adds A to the initials screen, which stock takes only on the weapon
 ; triggers - LT for 1P at 0x4d6cc8, RT for 2P just after it. 1P's slot is
 ; the one read, so 2P still enters initials on RT alone.

@@ -3,10 +3,11 @@
 Where each string the patcher touches actually lives, and why some of them
 are not strings at all.
 
-The tables give file offsets into `v_on.exe`, unless another file is named,
-because that is what the patch tables use. Routines and globals are named by
-virtual address, the way a debugger shows them: add `0x400c00` to a `.text`
-or `.rdata` offset and `0x401200` to a `.data` one.
+The tables give file offsets into the English retail `v_on.exe`, unless
+another file is named, because that is what the patch tables use; the other
+builds' offsets come from their site maps in `vo_patch.py`. Routines and
+globals are named by virtual address, the way a debugger shows them: add
+`0x400c00` to a `.text` or `.rdata` offset and `0x401200` to a `.data` one.
 
 ## Three ways the game draws text
 
@@ -92,12 +93,17 @@ Not text. 42x3 cells of 8x8 pixels, 16bpp RGB565.
 | Piece | Where |
 | --- | --- |
 | Tile indices | `v_on.exe` `0x269b60`, 126 entries of 16 bits |
-| Artwork | `escrgame.bin` `0x21c000`, 109 tiles of 128 bytes |
-| Spare tiles | `escrgame.bin` tile 24845, a run of 116 empty ones |
+| Artwork | the title artwork, `0x21c000`, 109 tiles of 128 bytes |
+| Spare tiles | the same file, tile 24845, a run of 116 empty ones |
+
+The artwork is `escrgame.bin` in the English retail and OEM builds and
+`jscrgame.bin` in the Japanese rerelease; the tiles this touches are in
+the same place in each, and each `Build` in `vo_patch.py` names its own.
+Addresses below are the retail build's.
 
 The loader adds `0x380` to every index at start-up, so the values in the
 executable are 0-based. The renderer ORs `0xc000` into each entry, which
-selects tile bank B; bank B is `scradd1.bin` followed by `escrgame.bin`,
+selects tile bank B; bank B is `scradd1.bin` followed by the title artwork,
 based at `0x345d420`. Bank A holds `escradv.bin` and the title logo, which
 is why painting that file changes the logo and not the prompt.
 
@@ -108,12 +114,12 @@ being 1 to 3. It sits at column 10, row 40 of the 82-wide tilemap at
 Renaming it needs both halves, so it rides with **XInput gamepad support**:
 the patcher carries a 1bpp 336x24 bitmap, expands it into tiles at apply
 time, writes the indices into the executable with every other patch, and
-writes the tiles into `escrgame.bin` afterwards. That file is backed up to
-`escrgame.bin.bak` and **Restore original** puts it back.
+writes the tiles into the artwork afterwards. That file is backed up to
+`.bak` and **Restore original** puts it back.
 
-The two halves have to match. The executable holds the indices and
-`escrgame.bin` holds the tiles, so restoring one alone draws the prompt as
-scrambled letters. The patcher refuses to write anything if `escrgame.bin` is
+The two halves have to match. The executable holds the indices and the
+artwork holds the tiles, so restoring one alone draws the prompt as
+scrambled letters. The patcher refuses to write anything if the artwork is
 missing or has been modified with no backup beside it, and **Restore
 original** puts both back together.
 
@@ -138,7 +144,7 @@ does not try. What `--selfcheck` does check, at import:
 | table is 126 entries | a bitmap of the wrong shape |
 | unique tiles fit 109 + 116 spare | wording too detailed to fit |
 | every index inside 14 bits | an index the renderer would mask into another tile |
-| every tile inside the file | an offset past the end of `escrgame.bin` |
+| every tile inside the file | an offset past the end of the artwork |
 
 ## Left alone
 

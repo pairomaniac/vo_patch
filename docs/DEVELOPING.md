@@ -153,15 +153,22 @@ one is not a thing that happens.
 
 ## Adding a blob or a site
 
-A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a
-name in `ANNEX_BLOBS`, its symbols in every build's table, and a site in
-the table. Then
-`python3 asm/build.py`, and for a site by retail offset, every other
-build's map regenerated: `buildsites.py NAME retail.exe other.exe map.pkl`
-per build, `vomap.py` first if there is no map. Both tools import the
-patcher in bootstrap mode (`VO_PATCH_BOOTSTRAP`), where a blob, label or
-site that does not exist yet reads as empty rather than failing the
-import, so the order of the edits does not matter.
+A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a name
+in `ANNEX_BLOBS`, its symbols in every build's table, and a site in the
+table. Then `python3 asm/build.py`.
+
+A new site named by retail offset needs every other build's map
+regenerated, one command per build, with `vomap.py` run first if there is
+no map:
+
+```bash
+python3 tools/buildsites.py JAPAN retail.exe jp.exe jp.pkl
+python3 tools/buildsites.py OEM   retail.exe oem.exe oem.pkl
+```
+
+The order of the edits does not matter: both tools import the patcher in
+bootstrap mode (`VO_PATCH_BOOTSTRAP`), where a blob, label, symbol or site
+that does not exist yet reads as empty instead of failing the import.
 
 ## Adding a build
 
@@ -297,7 +304,7 @@ for everyone, so it is written after the patch table rather than from it and
 
 ```bash
 git pull
-python3 tools/check.py /path/to/VIRTUAL-ON     # everything, nothing skipped
+python3 tools/check.py RETAIL/ OEM/ JP/        # everything, nothing skipped
 
 git tag v0.8.4
 git push && git push --tags
@@ -322,7 +329,8 @@ Keep the notes to what a player would notice. Internal changes go in the diff.
 
 The checks prove the files are consistent with each other. They cannot
 prove the game still runs, and both v0.10.2 bugs passed everything green.
-Patch a clean copy and walk these once:
+Patch a clean copy of each build and walk these once - a table can be
+well-formed and wrong on one build only:
 
 - **the attract loop**: skip the intro movie, then leave it alone through
   the demo match and the scoreboards until the title screen comes back.
@@ -330,10 +338,14 @@ Patch a clean copy and walk these once:
 - a match to the win screen, and the replay after it
 - the F5, F7 and F11 dialogs, and a deadzone edit that survives a restart
 - the ending credits and the initials screen after them
+- the pad's soft reset, from a match and from a two-player match, since it
+  runs the game's own teardown from wherever you are
 - one matchcode match against a second machine, direct and forced through
-  the relay, since the netplay DLL ships in the same build
+  the relay, since the netplay DLL ships in the same build; and one match
+  between two different builds, which is the only test of whether two
+  compiles stay in lockstep
 
-Ten minutes, and it covers the state machines no check reaches.
+Ten minutes per build, and it covers the state machines no check reaches.
 
 ### Bad tag
 
@@ -356,7 +368,10 @@ gh release delete v0.8.4 --yes     # if a release was created
 | reordered a site list | `tables` | CI, every push |
 | two patches on one byte | `tables` | CI, every push |
 | typo'd an offset | `offsets` | **only if you run it** |
+| a site the map placed in the wrong function | `offsets`, if the bytes differ | **only if you run it** |
+| a site the map placed in the wrong copy of the same code | nothing | only playing that build |
 | wrong offset in the banner or its artwork | `banner` | **only if you run it** |
+| a symbol translated to the wrong address | nothing | only playing that build |
 | hand-edited a generated blob | nothing | next build eats it |
 | a button armed when it should not be | `gui` | CI, every push |
 | a card or column that lays out wrong | `gui` | CI, every push |

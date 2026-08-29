@@ -79,9 +79,10 @@ the `.bin` itself - choose a folder in **Install to**, and press **Install
 game**. About 95 MB.
 
 The **Manual** box picks which `readme.txt`, `von.hlp` and `von.cnt` are
-copied, not the language of the game: every pressing carries one `v_on.exe`
-and it is English. `von.hlp` is 1997 WinHelp, which Windows has not opened
-since WinHlp32 stopped shipping for Windows 10; the readme is plain text.
+copied, not the language of the game: a pressing carries one `v_on.exe`,
+whichever manuals it ships. `von.hlp` is 1997 WinHelp, which Windows has
+not opened since WinHlp32 stopped shipping for Windows 10; the readme is
+plain text.
 
 Or from a terminal:
 
@@ -365,7 +366,7 @@ game ignores F3 while the movie plays.
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
-last one is artwork rather than text, so `escrgame.bin` is rewritten too -
+last one is artwork rather than text, so the title artwork is rewritten too -
 see [TEXT.md](docs/TEXT.md). Applying the patch also moves `v_on.ini` aside,
 because binds saved by the unpatched game do not fit the new device list. See
 [What gets written](#what-gets-written).
