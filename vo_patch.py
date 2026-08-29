@@ -137,7 +137,7 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
 
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
@@ -280,6 +280,9 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad,
     'DZTHR1': 0x0365cb8c,          # stick thresholds out of 32767, 1P then
     'DZSTR1': 0x0365cb94,          # the digit pairs; see asm/padxinput.asm
+    'PENDING': 0x0365cb9c,         # a recreate owed, and its arguments
+    'RECREATE': 0x005c56a2,        # release and create the surfaces
+    'IDLE': 0x005c63aa,            # the loop's pass while inactive
     'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
     'LOADLIB': 0x0365d504,         # LoadLibraryA
     'GETPROC': 0x0365d508,         # GetProcAddress
@@ -442,6 +445,9 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'PADPREV': 0x036577e4,         # last polled buttons, one word per pad,
     'DZTHR1': 0x036577ec,          # stick thresholds out of 32767, 1P then
     'DZSTR1': 0x036577f4,          # the digit pairs; see asm/padxinput.asm
+    'PENDING': 0x036577fc,
+    'RECREATE': 0x005bff42,
+    'IDLE': 0x005c0c79,
     'GETMODULE': 0x036584bc,       # GetModuleHandleA
     'LOADLIB': 0x03658514,         # LoadLibraryA
     'GETPROC': 0x03658518,         # GetProcAddress
@@ -596,6 +602,9 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'PADPREV': 0x0365cb04,
     'DZTHR1': 0x0365cb0c,
     'DZSTR1': 0x0365cb14,
+    'PENDING': 0x0365cb1c,
+    'RECREATE': 0x005c5172,
+    'IDLE': 0x005c5ec3,
     'GETMODULE': 0x0365d4c8,   # iat GetModuleHandleA
     'LOADLIB': 0x0365d544,   # iat LoadLibraryA
     'GETPROC': 0x0365d548,   # iat GetProcAddress
@@ -710,6 +719,10 @@ JAPAN.sites = {
     0x0010b1c4: (0x0010794a, '00000000'),
     0x001c76d4: (0x001c1fa3, '0f840a000000'),
     0x00107930: (0x001040f0, '830d5031bf0001'),
+    0x001c616a: (0x001c0a39, 'e804e9ffff'),
+    0x001c6183: (0x001c0a52, 'e8ebe8ffff'),
+    0x001c61b0: (0x001c0a7f, 'e856faffff'),
+    0x001c5412: (0x001bfce1, 'e893030000'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
     0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
@@ -965,6 +978,10 @@ OEM.sites = {
     0x0010b1c4: (0x0010ad34, '00000000'),
     0x001c76d4: (0x001c71ed, '0f840a000000'),
     0x00107930: None,  # nocpucheck
+    0x001c616a: (0x001c5c83, 'e8eae8ffff'),
+    0x001c6183: (0x001c5c9c, 'e8d1e8ffff'),
+    0x001c61b0: (0x001c5cc9, 'e856faffff'),
+    0x001c5412: (0x001c4ee1, 'e8dd030000'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
     0x000275d3: (0x00027533, 'c705c842be0003000000'),
@@ -1741,6 +1758,33 @@ BLOBS = {
         'titlever': 0x0,
         'text': 0x55,
     }),
+    'ACTIVATE': (bytes.fromhex(
+        '8b442404a3040000008b442408a3080000008b44240ca30c000000ff74240cff'
+        '74240cff74240ce8fcffffff83c40c83f001a300000000c3833d000000000075'
+        '05e9fcffffffc3e8fcffffff833d0000000000742dff350c000000ff35080000'
+        '00ff3504000000e8fcffffff83c40c85c0740fc7050000000000000000e8fcff'
+        'ffffb801000000c3'
+    ), (
+        (0x5, 'abs', 'PENDING', 4),
+        (0xe, 'abs', 'PENDING', 8),
+        (0x17, 'abs', 'PENDING', 12),
+        (0x28, 'rel', 'RECREATE', -4),
+        (0x33, 'abs', 'PENDING', 0),
+        (0x3a, 'abs', 'PENDING', 0),
+        (0x42, 'rel', 'GRESUME', -4),
+        (0x48, 'rel', 'IDLE', -4),
+        (0x4e, 'abs', 'PENDING', 0),
+        (0x57, 'abs', 'PENDING', 12),
+        (0x5d, 'abs', 'PENDING', 8),
+        (0x63, 'abs', 'PENDING', 4),
+        (0x68, 'rel', 'RECREATE', -4),
+        (0x75, 'abs', 'PENDING', 0),
+        (0x7e, 'rel', 'GRESUME', -4),
+    ), {
+        'recreate': 0x0,
+        'resume': 0x38,
+        'idle': 0x47,
+    }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
         '0200000000010000020000000002000003000200400000000300030040000000'
@@ -2055,6 +2099,7 @@ NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
 CAMSKIP_CODE = link('CAMSKIP', RETAIL)
 OVERLAY_CODE = link('OVERLAY', RETAIL)
 TITLEVER_CODE = link('TITLEVER', RETAIL)
+ACTIVATE_CODE = link('ACTIVATE', RETAIL)
 # voxt.asm rides in the appended .voxt section and reaches everything through
 # absolute addresses, so it links without a cave.
 VOXT_CODE = link('VOXT', RETAIL)
@@ -2614,6 +2659,20 @@ FEATURES = [
          # set the MMX flag it would set for one of them.
          (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
          (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
+    ('activate', 'Fix crash on ALT+TAB',
+     'Coming back to the window, the game recreates its DirectDraw surfaces\n'
+     'and resumes whether or not that worked. If the display cannot be\n'
+     'reclaimed at that instant it resumed with no surfaces and crashed on\n'
+     'the next frame. It waits and retries now, and resumes when it has\n'
+     'them. Seen on Wine without cnc-ddraw, during the intro movie.', [
+         (site('ACTIVATE'), zeros('ACTIVATE'), blob('ACTIVATE')),
+         # WM_ACTIVATEAPP: the two recreate calls, one per resolution
+         (0x001c616a, 'e833e9ffff', call(0x001c616a, ('ACTIVATE', 'recreate'))),
+         (0x001c6183, 'e81ae9ffff', call(0x001c6183, ('ACTIVATE', 'recreate'))),
+         # and the resume after them
+         (0x001c61b0, 'e856faffff', call(0x001c61b0, ('ACTIVATE', 'resume'))),
+         # the loop's idle pass while inactive
+         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle')))]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
@@ -2997,7 +3056,7 @@ BY_KEY['dinput'] = (
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
-ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
 # Every Essential patch, shown without a tick box. Unticking any of them
 # produced a game that is broken in a way nobody was choosing on purpose:
 # no start on a modern CPU, a crash on a lost round, a third of the frame
