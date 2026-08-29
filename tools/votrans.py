@@ -159,7 +159,7 @@ if __name__ == '__main__':
             for off, orig, new in sites:
                 o = bytes.fromhex(orig)
                 if set(o) == {0}:
-                    print('%-11s %08x cave %4d' % (key, off, len(o)))
+                    print('%-11s %08x blob %4d' % (key, off, len(o)))
                     continue
                 jo, how = translate_off(off)
                 if off in MANUAL:

@@ -1,9 +1,9 @@
-"""Data cave layout and string table, shared by vocd.asm and the blob."""
+"""The .vocd data blob: its layout and string table, shared by vocd.asm."""
 
 import os
 import struct
 
-# Data cave layout, offsets from the data cave base.
+# Layout of the data blob, offsets from its base.
 FIELDS = [
     # 0x0C, 0x24 and 0x30 held D_ORIGMCI, D_VPROTECT and D_SCRATCH, which went
     # with the IAT redirect. Left as gaps rather than closed up: the section is
@@ -67,4 +67,4 @@ if __name__ == '__main__':
     inc, data = build()
     open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'strings.inc'), 'w').write(inc)
     open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data.bin'), 'wb').write(data)
-    print('data cave: %d bytes, strings from 0x%x' % (len(data), STRBASE))
+    print('data blob: %d bytes, strings from 0x%x' % (len(data), STRBASE))
