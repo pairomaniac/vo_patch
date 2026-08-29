@@ -43,6 +43,9 @@ def main():
             jo, how = votrans.translate_off(off)
             if off in votrans.MANUAL:
                 jo, how = votrans.MANUAL[off], 'manual'
+                if jo is None:                # the build has no such code
+                    rows.append((off, None, None, key, how, False))
+                    continue
             if jo is None and len(o) == 4:
                 # a code pointer in a table: find the translated target
                 p = struct.unpack('<I', o)[0]
@@ -82,6 +85,9 @@ def main():
 
     out = ['%s.sites = {\n' % name]
     for off, jo, jorig, key, how, own in rows:
+        if jo is None:
+            out.append("    0x%08x: None,  # %s\n" % (off, key))
+            continue
         note = '  # %s' % 'written by an earlier site' if own else ''
         if len(jorig) <= 40:
             out.append("    0x%08x: (0x%08x, '%s'),%s\n" % (off, jo, jorig, note))

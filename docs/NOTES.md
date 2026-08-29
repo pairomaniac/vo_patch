@@ -132,6 +132,17 @@ Sector layout is found by looking rather than by trusting `TRACK 01` - the
 four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
 so a cue sheet that names the wrong mode still reads.
 
+### The USA OEM pressing
+
+The same toolchain a month before retail, and the closest of the builds
+to it: 7852 of 7934 functions match, 7593 identically, every frame is
+laid out the same, and the map placed all but four sites. It is carried
+like the rerelease - a `Build` with an annex - and differs in one thing:
+it has no vendor check. Retail's `GenuineIntel` test, which the processor
+check patch removes, is not in it; its check is an MMX test through the
+`cpuid32.dll` it ships, which a modern CPU passes. The patch's site is
+`None` in its map and the box does nothing.
+
 ### Why no v_on.ini
 
 `setup.exe` at `0x408acf` builds the three paths, asks a dialog in the

@@ -544,7 +544,7 @@ fixed file offset, and on another build it would write into unrelated code.
 | Build | Size | MD5 | Patcher |
 | --- | --- | --- | --- |
 | English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
-| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | installs, does not patch |
+| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | patches |
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
 | Japanese original | not known | not known | not seen |
 
@@ -553,13 +553,13 @@ checksum for it. The patcher calls that build an unrecognised file and
 prints the size and MD5 it found. That is what the row needs.
 
 The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches. The
-Japanese rerelease is a different compile of the same game and patches
-with the same patches; its title artwork is `jscrgame.bin`, which the
-banner patch redraws as it does `escrgame.bin`. Anything else is named if
-it is one of the builds above and unrecognised if not, with the checksums
-side by side either way - in **GAME FILE** for a file you picked, in
-**INSTALL** for a disc image.
+carry the same `v_on.exe` byte for byte, so any of them patches. The OEM
+pressing and the Japanese rerelease are different compiles of the same
+game and patch with the same patches; the OEM has no processor check to
+skip, so that box does nothing there, and the rerelease's title artwork is
+`jscrgame.bin`, which the banner patch redraws as it does `escrgame.bin`.
+Anything else is unrecognised, with the checksums side by side - in
+**GAME FILE** for a file you picked, in **INSTALL** for a disc image.
 
 Installing and ripping the soundtrack work whichever build the disc holds.
 Only patching needs one of the builds marked "patches", and copying a

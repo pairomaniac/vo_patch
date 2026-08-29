@@ -134,6 +134,14 @@ HAND = {'d19320bdc3381a48228990907910a391': ({           # Japanese rerelease
     0x00497c70: 0x004967cd, 0x00497cb0: 0x0049680d,   # pagesec: bind page loop heads
     0x00497cf7: 0x00496854,                           # bindlist: loop exit
     0x005c680b: 0x005c10da,                           # f11pause: GRESUME
+}), '4c70f780a7f0d98d74be62304fb99021': ({            # USA OEM
+    0x00107930: None,                                 # no vendor check: its processor
+                                                      # check is an MMX test via cpuid32.dll
+    0x000958aa: 0x0009574a,                           # jmp +0 at loop exit
+    0x006035ac: 0x00602fac,                           # .rsrc, whole section is -0x600
+    0x0000023f: 0x0000023f, 0x000000a8: 0x000000a8,   # PE header: same section order
+}, {
+    0x004977c6: 0x00497664,                           # kbpage: the 2P-key accept label
 })}
 
 import hashlib                                                  # noqa: E402

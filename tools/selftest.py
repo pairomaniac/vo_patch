@@ -24,10 +24,11 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-# Everything ticked, per build: retail, then the Japanese rerelease.
+# Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '5b531921069d99d887f18545be80e43c',
     'd19320bdc3381a48228990907910a391': 'a714a5ff2f042673ed62296c26fdc9ea',
+    '4c70f780a7f0d98d74be62304fb99021': '7d3f2e56f43a243bfea9820aaec51523',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -258,7 +259,7 @@ def main(path):
         if sel == set(keys):
             digest = hashlib.md5(bytes(result)).hexdigest()
             print('all patches: %d bytes, MD5 %s' % (len(result), digest))
-            if EXPECTED_ALL[build.md5] is None:
+            if EXPECTED_ALL.get(build.md5) is None:
                 print('  not pinned for this build yet')
             elif digest != EXPECTED_ALL[build.md5]:
                 print('  CHANGED - expected %s' % EXPECTED_ALL[build.md5])
