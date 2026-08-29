@@ -151,6 +151,19 @@ the NULL slots of a handler table, and the game reads or calls through it
 without any reference the file shows. Growing a blob is a rebuild; moving
 one is not a thing that happens.
 
+## Adding a blob or a site
+
+A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a
+name in `ANNEX_BLOBS`, a `NAME_CODE = link(...)` beside the others, and a
+site in the table. Run `build.py` before the last three: it imports the
+patcher to link, and the patcher links every blob in the annex. A new site
+by retail offset then needs every other build's map regenerated -
+`buildsites.py NAME retail.exe other.exe map.pkl` per build, with
+`vomap.py` run first if there is no map - and any symbol the blob names
+added to every build's table. Until the maps have the site, the patcher
+refuses to import; `buildsites.py` sets `VO_PATCH_BOOTSTRAP` to get past
+that for itself.
+
 ## Adding a build
 
 A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,

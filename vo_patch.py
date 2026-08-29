@@ -137,7 +137,7 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'LOCKGUARD')
 
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
@@ -220,7 +220,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBD2P': 0x005bceed,
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
-    'GRESUME': 0x005c680b,         # and their resume
+    'GRESUME': 0x005c680b,
+    'LOCKBACK': 0x005c8108,        # the frame's back buffer lock, its result test         # and their resume
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
     'ORIG': 0x005c80df,            # the call this one is made in place of
     'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
@@ -382,6 +383,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'KBHANDLER2': 0x005b785d,      # and 2P
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
+    'LOCKBACK': 0x005c29d7,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
     'ORIG': 0x005c29ae,            # the call this one is made in place of
     'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
@@ -537,6 +539,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'KBHANDLER2': 0x005bc9bd,   # func
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
+    'LOCKBACK': 0x005c7c21,
     'ORIGWNDPROC': 0x005c6370,   # func
     'ORIG': 0x005c7bf8,   # func
     'DRAW': 0x005c9454,   # func
@@ -708,6 +711,7 @@ JAPAN.sites = {
     0x0010b1c4: (0x0010794a, '00000000'),
     0x001c76d4: (0x001c1fa3, '0f840a000000'),
     0x00107930: (0x001040f0, '830d5031bf0001'),
+    0x001c7500: (0x001c1dcf, '8b45088b00ff5064'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
     0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
@@ -963,6 +967,7 @@ OEM.sites = {
     0x0010b1c4: (0x0010ad34, '00000000'),
     0x001c76d4: (0x001c71ed, '0f840a000000'),
     0x00107930: None,  # nocpucheck
+    0x001c7500: (0x001c7019, '8b45088b00ff5064'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
     0x000275d3: (0x00027533, 'c705c842be0003000000'),
@@ -1739,6 +1744,14 @@ BLOBS = {
         'titlever': 0x0,
         'text': 0x55,
     }),
+    'LOCKGUARD': (bytes.fromhex(
+        '8b450885c0740a8b00ff5064e9fcffffff83c414b8c2017688e9fcffffff'
+    ), (
+        (0xd, 'rel', 'LOCKBACK', -4),
+        (0x1a, 'rel', 'LOCKBACK', -4),
+    ), {
+        'lockguard': 0x0,
+    }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
         '0200000000010000020000000002000003000200400000000300030040000000'
@@ -2040,6 +2053,7 @@ NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
 CAMSKIP_CODE = link('CAMSKIP', RETAIL)
 OVERLAY_CODE = link('OVERLAY', RETAIL)
 TITLEVER_CODE = link('TITLEVER', RETAIL)
+LOCKGUARD_CODE = link('LOCKGUARD', RETAIL)
 # voxt.asm rides in the appended .voxt section and reaches everything through
 # absolute addresses, so it links without a cave.
 VOXT_CODE = link('VOXT', RETAIL)
@@ -2599,6 +2613,15 @@ FEATURES = [
          # set the MMX flag it would set for one of them.
          (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
          (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
+    ('lockguard', 'Fix crash on ALT+TAB',
+     'The game locks its back buffer every frame, and after a switch away\n'
+     'and back the surface can be gone for a frame. That frame is skipped\n'
+     'now instead of the game dereferencing nothing. Retail under cnc-ddraw\n'
+     'never hit it; the other builds, and retail without cnc-ddraw, did.', [
+         (site('LOCKGUARD'), zeros('LOCKGUARD'), blob('LOCKGUARD')),
+         # the lock: mov eax,[ebp+8]; mov eax,[eax]; call [eax+0x64]
+         (0x001c7500, '8b45088b00ff5064',
+          jump(0x001c7500, ('LOCKGUARD', 'lockguard'), 3))]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
@@ -2982,7 +3005,7 @@ BY_KEY['dinput'] = (
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
-ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'lockguard')
 # Every Essential patch, shown without a tick box. Unticking any of them
 # produced a game that is broken in a way nobody was choosing on purpose:
 # no start on a modern CPU, a crash on a lost round, a third of the frame
@@ -3054,7 +3077,13 @@ def _check_table(build=RETAIL):
 
 for _build in BUILDS.values():
     if _build is RETAIL or _build.sites:
-        _check_table(_build)
+        try:
+            _check_table(_build)
+        except KeyError:
+            # A site the build's map has no entry for yet: tools/buildsites.py
+            # is about to write one, and imports this module to do it.
+            if not os.environ.get('VO_PATCH_BOOTSTRAP'):
+                raise
 
 
 def default_state():

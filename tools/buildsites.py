@@ -27,6 +27,7 @@ def main():
     name, retail_path, jp_path = sys.argv[1], sys.argv[2], sys.argv[3]
     sys.argv = ['votrans', 'one'] + sys.argv[4:]
     import votrans                                       # noqa: E402
+    os.environ['VO_PATCH_BOOTSTRAP'] = '1'      # a site may be missing here
     spec = importlib.util.spec_from_file_location('vp', TARGET)
     vp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(vp)
