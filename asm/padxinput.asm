@@ -36,7 +36,8 @@ extern PEEKMSG                  ; PeekMessageA, the call this stub replaced
 
 extern CAMSKIP                  ; camskip.asm, called from the tick
 
-extern GAMEMODE                 ; 2 during a network match
+extern GAMEMODE                 ; 1 with two players, 2 in a network match
+extern MODE2                    ; the second player's mode word
 extern MODE                     ; game state and sub-state. The pair the
 extern SUBMODE                  ; stock keyboard handler gates its bind
                                 ; slots on; see the tick.
@@ -103,10 +104,12 @@ pollpads:
     ; Soft reset: LB, RB and Start together with both triggers past
     ; XInput's own threshold, on the press. A negative mode word makes the
     ; game's next state tick tear down and boot again, to the title - its
-    ; own path, which nothing else sets any more. Not in a network match,
-    ; as the F keys. While the combination is down no key is posted for
-    ; this pad: Start alone would pause the game, and a paused game never
-    ; runs the tick.
+    ; own path, which nothing else sets any more. The second player has a
+    ; state machine of their own, a copy with its own mode word and its
+    ; own tick, run only in two-player mode: it gets the same. Not in a
+    ; network match, as the F keys. While the combination is down no key
+    ; is posted for this pad: Start alone would pause the game, and a
+    ; paused game never runs the tick.
     mov     eax, ebx
     and     eax, RESETMASK
     cmp     eax, RESETMASK
@@ -122,6 +125,9 @@ pollpads:
     cmp     dword [GAMEMODE], 2
     je      .nextpad
     mov     dword [MODE], -1
+    cmp     dword [GAMEMODE], 1
+    jne     .nextpad
+    mov     dword [MODE2], -1
     jmp     .nextpad
 .keys:
     xor     edi, edi

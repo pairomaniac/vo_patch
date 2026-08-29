@@ -506,17 +506,17 @@ is ignored while it plays, so Start does not.
 for a negative value and, finding one, runs the teardown (`0x49fb9b`) and
 the boot routine (`0x49f82c`), which sets mode 0 and starts over into the
 title. Nothing in the game sets it negative any more - the only two stores
-are non-negative - so it is a debug path they left in. It tears one side
-down; two instructions on, the tick's debug key reaches `0x49fa26`, the
-full reset, which tears each side down (the same three calls twice, the
-player context switched between) and then boots - the one that leaves a
-two-player match cleanly. So the negative-mode branch calls `0x49fa26`
-instead (`0x49f972`), and the pad poll writes `-1` to the mode word on
-the press of LB, RB and Start with both triggers past XInput's threshold,
-on either pad, and not while `0x6bc94c` reads 2, as the F-key handlers
-refuse a network match. While the combination is down the poll posts no
-key for that pad: Start alone is F3, pause, and a paused game never runs
-the tick.
+are non-negative - so it is a debug path they left in. The second player
+has a state machine of their own: a copy of the code with its own globals
+(`0x1ef8a90` the mode word, `0x1ef9eb0` the sub-state), its own tick
+(`0x40f528`, which the loop's two-player branch calls), teardown and boot,
+and the same negative-mode path. The pad poll writes `-1` to the first
+mode word on the press of LB, RB and Start with both triggers past
+XInput's threshold, on either pad, and to the second as well when the
+loop mode `0x6bc94c` reads 1 (two players); not while it reads 2, as the
+F-key handlers refuse a network match. While the combination is down the
+poll posts no key for that pad: Start alone is F3, pause, and a paused
+game never runs the tick.
 
 ### F11 dialog
 

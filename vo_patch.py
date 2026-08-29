@@ -221,9 +221,10 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c680b,         # and their resume
-    'GAMEMODE': 0x006bc94c,        # the loop's mode; 2 is a network match
-    'FULLRESET': 0x0049fa26,       # the tick's full reset: both sides torn
-                                   # down, then the boot routine
+    'GAMEMODE': 0x006bc94c,        # the loop's mode; 1 is two players, 2 a
+                                   # network match
+    'MODE2': 0x01ef8a90,           # the second player's own state machine's
+                                   # mode word; its tick runs in mode 1
     'PENDING': 0x0365cb9c,         # a recreate owed
     'RETADDR': 0x0365cba0,         # where one returns to
     'RECREATE': 0x005c56a2,        # release and create the surfaces
@@ -396,7 +397,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
     'GAMEMODE': 0x006b86ac,
-    'FULLRESET': 0x0049e566,
+    'MODE2': 0x01ef4230,
     'PENDING': 0x036577fc,
     'RETADDR': 0x03657800,
     'RECREATE': 0x005bff42,
@@ -563,7 +564,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
     'GAMEMODE': 0x006bc8e4,
-    'FULLRESET': 0x0049f8c6,
+    'MODE2': 0x01ef8a20,
     'PENDING': 0x0365cb1c,
     'RETADDR': 0x0365cb20,
     'RECREATE': 0x005c5172,
@@ -848,7 +849,6 @@ JAPAN.sites = {
     0x0026c418: (0x002677a0,
         'c700cf00d300d100d200c900520051004f004c0053005000'
     ),
-    0x0009ed72: (0x0009d8b2, 'e824020000e8b0feffff'),
     0x000422a8: (0x00041968, '10254400'),
     0x001bc13b: (0x001b6aab, '53765b00'),
     0x001c530e: (0x001bfbdd, 'ff15a0856503'),
@@ -1108,7 +1108,6 @@ OEM.sites = {
     0x0026c418: (0x0026be10,
         'c700cf00d300d100d200c900520051004f004c0053005000'
     ),
-    0x0009ed72: (0x0009ec12, 'e824020000e8b0feffff'),
     0x000422a8: (0x00042208, 'b02d4400'),
     0x001bc13b: (0x001bbc0b, 'b3c75b00'),
     0x001c530e: (0x001c4ddd, 'ff15c4d56503'),
@@ -1239,37 +1238,37 @@ BLOBS = {
         'credits': 0xf3,
     }),
     'PADX': (bytes.fromhex(
-        '68cb020000e80201000083c404e9fcffffff68f3020000e8f000000083c404e9'
-        'fcffffffe806000000ff2500000000609ce83302000083f8010f86c200000031'
-        'f683fe020f83b7000000680000000056ff150000000085c00f859d0000000fb7'
-        '1d000000008d14b5000000000fb72a66891a89d825100300003d100300007535'
-        '803d060000001e722c803d070000001e722389e825100300003d10030000745b'
-        '833d00000000027452c70500000000ffffffffeb4631ff83ff02733f8d0cbd04'
-        '0100000fb70189da21c221e839c27428b80001000085d2750b807903007419b8'
-        '010100006a000fb651025250ff3500000000ff150000000047ebbc46e940ffff'
-        'ff9d61c310007200001020005589e583ec045356578b5d08c745fc00000000e8'
-        '4501000083f80174416800000000ff33ffd085c07534c745fc010000000fb705'
-        '00000000a900100000740b8b5318c60280e8fcffffff0fb70500000000a92000'
-        '000074068b5324c602808b4320ffd0837dfc000f843201000031f683fe0c0f83'
-        'a1000000833d00000000047512833d00000000087c09833d000000000c7e0f83'
-        'fe04747b83fe05747683fe077f778b53040fb604722de0000000726383f81073'
-        '5e8d3cc5000000000fb6070fb757028b4f0483f800741783f801741d83f80274'
-        '2c0fb6820000000039c8772eeb310fbf8200000000f7d8eb070fbf8200000000'
-        '8b0b3b048d000000007f0feb120fb7050000000085c87502eb05e82100000046'
-        'e956ffffff31f683fe04737f0fb705000000000fa3f07305e80300000046ebe7'
-        '8b53100fb60c32f7d18b53080fb70221c86689028b53140fb60c32f7d18b530c'
-        '0fb70221c8668902c3a10000000085c075385631f683fe0373258b04b5b00200'
-        '0050ff150000000085c0750346ebe668bc02000050ff150000000085c07505b8'
-        '01000000a3000000005ec35f5e5bc9c31b030000290300003703000058496e70'
-        '7574476574537461746500000000000000000000000000000000000000000000'
-        '0000000000000000000000000000000000000001000000000000000000000000'
-        '00000000000000000000000000000000000000000000000000000078696e7075'
-        '74315f342e646c6c0078696e707574315f332e646c6c0078696e707574395f31'
-        '5f302e646c6c00'
+        '68de020000e81501000083c404e9fcffffff6806030000e80301000083c404e9'
+        'fcffffffe806000000ff2500000000609ce84602000083f8010f86d500000031'
+        'f683fe020f83ca000000680000000056ff150000000085c00f85b00000000fb7'
+        '1d000000008d14b5000000000fb72a66891a89d825100300003d100300007548'
+        '803d060000001e723f803d070000001e723689e825100300003d10030000746e'
+        '833d00000000027465c70500000000ffffffff833d00000000017552c7050000'
+        '0000ffffffffeb4631ff83ff02733f8d0cbd170100000fb70189da21c221e839'
+        'c27428b80001000085d2750b807903007419b8010100006a000fb651025250ff'
+        '3500000000ff150000000047ebbc46e92dffffff9d61c3100072000010200055'
+        '89e583ec045356578b5d08c745fc00000000e84501000083f801744168000000'
+        '00ff33ffd085c07534c745fc010000000fb70500000000a900100000740b8b53'
+        '18c60280e8fcffffff0fb70500000000a92000000074068b5324c602808b4320'
+        'ffd0837dfc000f843201000031f683fe0c0f83a1000000833d00000000047512'
+        '833d00000000087c09833d000000000c7e0f83fe04747b83fe05747683fe077f'
+        '778b53040fb604722de0000000726383f810735e8d3cc5000000000fb6070fb7'
+        '57028b4f0483f800741783f801741d83f802742c0fb6820000000039c8772eeb'
+        '310fbf8200000000f7d8eb070fbf82000000008b0b3b048d000000007f0feb12'
+        '0fb7050000000085c87502eb05e82100000046e956ffffff31f683fe04737f0f'
+        'b705000000000fa3f07305e80300000046ebe78b53100fb60c32f7d18b53080f'
+        'b70221c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a1000000'
+        '0085c075385631f683fe0373258b04b5c302000050ff150000000085c0750346'
+        'ebe668cf02000050ff150000000085c07505b801000000a3000000005ec35f5e'
+        '5bc9c32e0300003c0300004a03000058496e7075744765745374617465000000'
+        '0000000000000000000000000000000000000000000000000000000000000000'
+        '0000000000000100000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000078696e707574315f342e646c6c0078696e70'
+        '7574315f332e646c6c0078696e707574395f315f302e646c6c00'
     ), (
-        (0x1, 'abs', '.', 715),
+        (0x1, 'abs', '.', 734),
         (0xe, 'rel', 'EXIT1P', -4),
-        (0x13, 'abs', '.', 755),
+        (0x13, 'abs', '.', 774),
         (0x20, 'rel', 'EXIT2P', -4),
         (0x2b, 'abs', 'PEEKMSG', 0),
         (0x4b, 'abs', 'PSTATE', 0),
@@ -1280,68 +1279,70 @@ BLOBS = {
         (0x8b, 'abs', 'PSTATE', 7),
         (0xa2, 'abs', 'GAMEMODE', 0),
         (0xab, 'abs', 'MODE', 0),
-        (0xbf, 'abs', '.', 260),
-        (0xee, 'abs', 'HWND', 0),
-        (0xf4, 'abs', 'POSTMSG', 0),
-        (0x12a, 'abs', 'STATE', 0),
-        (0x140, 'abs', 'BTN', 0),
-        (0x152, 'rel', 'CAMSKIP', -4),
-        (0x159, 'abs', 'BTN', 0),
-        (0x186, 'abs', 'MODE', 0),
-        (0x18f, 'abs', 'SUBMODE', 0),
-        (0x198, 'abs', 'SUBMODE', 0),
-        (0x1c4, 'abs', 'COND', 0),
-        (0x1e4, 'abs', 'BTN', 0),
-        (0x1f1, 'abs', 'BTN', 0),
-        (0x1fc, 'abs', 'BTN', 0),
-        (0x205, 'abs', 'DZTHR1', 0),
-        (0x210, 'abs', 'BTN', 0),
-        (0x22f, 'abs', 'BTN', 0),
-        (0x26a, 'abs', 'XIFN', 0),
-        (0x27d, 'abs', '.', 688),
-        (0x284, 'abs', 'LOADLIB', 0),
-        (0x290, 'abs', '.', 700),
-        (0x297, 'abs', 'GETPROC', 0),
-        (0x2a5, 'abs', 'XIFN', 0),
-        (0x2b0, 'abs', '.', 795),
-        (0x2b4, 'abs', '.', 809),
-        (0x2b8, 'abs', '.', 823),
-        (0x2cf, 'abs', 'BINDS1', 0),
-        (0x2d3, 'abs', 'LEV1A', 0),
-        (0x2d7, 'abs', 'LEV1B', 0),
-        (0x2db, 'abs', 'MASK1A', 0),
-        (0x2df, 'abs', 'MASK1B', 0),
-        (0x2e3, 'abs', 'ACCEPT1', 0),
-        (0x2e7, 'abs', 'SCR1', 0),
-        (0x2eb, 'abs', 'KBHANDLER1', 0),
-        (0x2ef, 'abs', 'CAMERA1', 0),
-        (0x2f7, 'abs', 'BINDS2', 0),
-        (0x2fb, 'abs', 'LEV2A', 0),
-        (0x2ff, 'abs', 'LEV2B', 0),
-        (0x303, 'abs', 'MASK2A', 0),
-        (0x307, 'abs', 'MASK2B', 0),
-        (0x30b, 'abs', 'ACCEPT2', 0),
-        (0x30f, 'abs', 'SCR2', 0),
-        (0x313, 'abs', 'KBHANDLER2', 0),
-        (0x317, 'abs', 'CAMERA2', 0),
+        (0xb5, 'abs', 'GAMEMODE', 0),
+        (0xbe, 'abs', 'MODE2', 0),
+        (0xd2, 'abs', '.', 279),
+        (0x101, 'abs', 'HWND', 0),
+        (0x107, 'abs', 'POSTMSG', 0),
+        (0x13d, 'abs', 'STATE', 0),
+        (0x153, 'abs', 'BTN', 0),
+        (0x165, 'rel', 'CAMSKIP', -4),
+        (0x16c, 'abs', 'BTN', 0),
+        (0x199, 'abs', 'MODE', 0),
+        (0x1a2, 'abs', 'SUBMODE', 0),
+        (0x1ab, 'abs', 'SUBMODE', 0),
+        (0x1d7, 'abs', 'COND', 0),
+        (0x1f7, 'abs', 'BTN', 0),
+        (0x204, 'abs', 'BTN', 0),
+        (0x20f, 'abs', 'BTN', 0),
+        (0x218, 'abs', 'DZTHR1', 0),
+        (0x223, 'abs', 'BTN', 0),
+        (0x242, 'abs', 'BTN', 0),
+        (0x27d, 'abs', 'XIFN', 0),
+        (0x290, 'abs', '.', 707),
+        (0x297, 'abs', 'LOADLIB', 0),
+        (0x2a3, 'abs', '.', 719),
+        (0x2aa, 'abs', 'GETPROC', 0),
+        (0x2b8, 'abs', 'XIFN', 0),
+        (0x2c3, 'abs', '.', 814),
+        (0x2c7, 'abs', '.', 828),
+        (0x2cb, 'abs', '.', 842),
+        (0x2e2, 'abs', 'BINDS1', 0),
+        (0x2e6, 'abs', 'LEV1A', 0),
+        (0x2ea, 'abs', 'LEV1B', 0),
+        (0x2ee, 'abs', 'MASK1A', 0),
+        (0x2f2, 'abs', 'MASK1B', 0),
+        (0x2f6, 'abs', 'ACCEPT1', 0),
+        (0x2fa, 'abs', 'SCR1', 0),
+        (0x2fe, 'abs', 'KBHANDLER1', 0),
+        (0x302, 'abs', 'CAMERA1', 0),
+        (0x30a, 'abs', 'BINDS2', 0),
+        (0x30e, 'abs', 'LEV2A', 0),
+        (0x312, 'abs', 'LEV2B', 0),
+        (0x316, 'abs', 'MASK2A', 0),
+        (0x31a, 'abs', 'MASK2B', 0),
+        (0x31e, 'abs', 'ACCEPT2', 0),
+        (0x322, 'abs', 'SCR2', 0),
+        (0x326, 'abs', 'KBHANDLER2', 0),
+        (0x32a, 'abs', 'CAMERA2', 0),
     ), {
         'entry1p': 0x0,
         'entry2p': 0x12,
         'pump': 0x24,
         'pollpads': 0x2f,
-        'keytab': 0x104,
-        'keytab_end': 0x10c,
-        'tick': 0x10c,
-        'apply': 0x240,
-        'resolve': 0x269,
-        'epilogue': 0x2ab,
-        'dlltab': 0x2b0,
-        'procname': 0x2bc,
-        'block1': 0x2cb,
-        'block2': 0x2f3,
-        'dll14': 0x31b,
-        'dll13': 0x329,
-        'dll910': 0x337,
+        'keytab': 0x117,
+        'keytab_end': 0x11f,
+        'tick': 0x11f,
+        'apply': 0x253,
+        'resolve': 0x27c,
+        'epilogue': 0x2be,
+        'dlltab': 0x2c3,
+        'procname': 0x2cf,
+        'block1': 0x2de,
+        'block2': 0x306,
+        'dll14': 0x32e,
+        'dll13': 0x33c,
+        'dll910': 0x34a,
     }),
     'LEVERS': (bytes.fromhex(
         '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
@@ -2879,11 +2880,6 @@ FEATURES = [
          (0x0026c418, 'c700cf00d300d100d200c900520051004f004c0053005000', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
          (site('PAD_SIMPLEDEF'), zeros('PAD_SIMPLEDEF'), blob('PAD_SIMPLEDEF')),
          # each player's profile 1 dispatches to the routine
-         # The soft reset: the state tick's branch for a negative mode word
-         # tears one side down and boots; the game's full reset, which its
-         # debug key reaches two instructions later, tears both down first.
-         # The branch calls that instead.
-         (0x0009ed72, 'e824020000e8b0feffff', call(0x0009ed72, 'FULLRESET', 5)),
          (0x000422a8, '502e4400', abs32(('PADX', 'entry1p'))),
          (0x001bc13b, 'e3cc5b00', abs32(('PADX', 'entry2p'))),
          # PeekMessage: Start and A must reach the game while it is paused,
