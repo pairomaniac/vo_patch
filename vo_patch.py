@@ -4515,7 +4515,9 @@ def apply_extras_template(buf, build=RETAIL):
     template and the dialog procedure's call at the annex."""
     pe = _PE(buf)
     gap = (-len(EXTRAS_TPL)) % 16
-    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + VOXT_CODE,
+    # linked for this build: it names the build's IAT slots and scratch
+    voxt = link('VOXT', build)
+    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + voxt,
                          chars=0x60000040)
 
     f11pause_at = build.off(cave_va('F11PAUSE', build))
