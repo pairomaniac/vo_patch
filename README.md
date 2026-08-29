@@ -153,10 +153,10 @@ Removes the check, so `ProcessorCheck=Off` in `v_on.ini` is not needed.
 Viper II, Apharmd or Raiden.
 - **Fix keyboard input after ALT+TAB** - alt-tabbing away, or opening an
 F-key dialog, kills the keyboard for the rest of the session.
-- **Fix crash on ALT+TAB** - switching away during the intro movie stops
-it, and the game treated that as the movie ending without rebuilding the
-screen it had handed to the player; the next frame crashed. It rebuilds it
-now, and waits until that has worked before it carries on.
+- **Fix crash on ALT+TAB** - switching away during the intro movie crashes
+the game on the way back. Stopping the movie is taken for the movie ending,
+and the screen it had handed to the movie player is never rebuilt. It is
+rebuilt now, and the game waits until that has worked before carrying on.
 
 ### Extra
 
@@ -378,9 +378,9 @@ sticks are read as eight directions. Defaults on both sides: left stick
 moves, right stick turns, LT and RB fire left and right, RT fires both, LB
 dashes, A jumps, X guards. **Default** on the F7 page puts them back.
 
-**LB + RB + LT + RT + Start** together resets the game to the title
-screen from anywhere, on either pad. It does nothing during an internet
-match, like the F keys.
+**LB + RB + LT + RT + Start** held together is a soft reset: the game
+returns to the title screen from wherever it is, on either player's pad.
+Like the F keys, it does nothing during an internet match.
 
 ### Twin-stick (XInput)
 
@@ -542,16 +542,23 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 ## Builds
 
-| Build | Size | MD5 | |
+Four builds of the game exist. Three of them patch:
+
+| Build | Size | MD5 | Patcher |
 | --- | --- | --- | --- |
 | English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | patches |
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
-| Japanese original | | | not seen - a disc image would be welcome: pairo@segaonline.net |
+| Japanese original | not sourced | not sourced | not supported |
 
-The USA, USA Alt and European pressings all carry the English retail
-`v_on.exe`. Every patch works on every build above, and the window says
-which one it has.
+The USA, USA Alt and European discs all carry the same English retail
+`v_on.exe`, so any of them will do. Every patch works on all three builds
+above, and the window names the one it is looking at.
+
+The Japanese original has not been sourced, so there is nothing to write
+tables against and the patcher treats it as an unknown file. If you have a
+disc image of it, please get in touch - see [Credits and
+licence](#credits-and-licence).
 
 A repack, a bad rip or a copy already modified is refused, with its size
 and MD5 shown beside a supported build's - in **GAME FILE** for a file you
@@ -614,8 +621,9 @@ and run `python3 net/build.py`, which compiles it with mingw and bakes it back
 into `vo_patch.py`. [net/README.md](net/README.md) covers the protocol and
 the matchcode server.
 
-`python3 tools/check.py` runs every check in the project - give it your game
-folder and it runs the ones that need one.
+`python3 tools/check.py` runs every check in the project. Give it a game
+folder and it runs the ones that need one; give it a folder per build and
+each of those runs once per build.
 [docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
 ## AI Disclaimer
@@ -624,8 +632,9 @@ LLMs are part of the toolchain here. The scope, the disc dumps, the testing
 and the debugging are human, and nothing ships without a thorough read of the
 code and a run on the real game. Offsets and byte sequences are verified
 against the original executable before anything is written, and the patcher
-refuses any file that is not an unmodified build it has tables for - but this
-is a hobby project poking at a nearly 30-year-old binary, so expect bugs.
+refuses any file that is not an unmodified build it has tables for. It is
+still a hobby project poking at a nearly 30-year-old binary, so expect
+bugs.
 
 ## Credits and licence
 
@@ -634,3 +643,7 @@ Some of the byte edits come from the original VO_Patch 0.43 (2008) by
 SEGA. `LICENSE` (MIT) covers the patcher, its tools and its documentation -
 not the game, not the bytes quoted from it, and not the letterforms traced
 from its artwork.
+
+Bug reports and patches are welcome as issues and pull requests. For
+anything else - a disc image of a build the patcher does not know, or a
+question that does not fit an issue - write to pairo@segaonline.net.
