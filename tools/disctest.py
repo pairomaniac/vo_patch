@@ -52,7 +52,6 @@ LangExeclusive  =
 LangExeclusive  =
 """
 
-# The Ultra 2000 pressing: OEM shape, Japanese section first.
 # The Japanese rerelease, trimmed from the disc's own ssp.ini. Both language
 # sections are empty, so no language directory is copied and none is offered.
 JP_SSP = b"""[option]
@@ -422,6 +421,21 @@ def main():
             check('a disc with no ssp.ini refused', False, 'it was accepted')
         except vp.DiscError as exc:
             check('a disc with no ssp.ini refused', 'ssp.ini' in str(exc), exc)
+
+        # A name that would leave the install folder is refused before
+        # anything is copied. ISO9660 forbids the characters, so only a
+        # crafted image has one; the guard is what makes that a message.
+        here = os.path.join(tmp, 'traversal')
+        os.makedirs(here)
+        tree = retail_tree(exe)
+        tree['v_on']['../escape.exe'] = b'x'
+        bad = write_disc(here, 'X', build_iso(tree), 'MODE1/2352')
+        try:
+            vp.probe_disc(bad)
+            check('a file name with ../ refused', False, 'it was accepted')
+        except vp.DiscError as exc:
+            check('a file name with ../ refused', 'will not write' in str(exc),
+                  exc)
 
         here = os.path.join(tmp, 'blank')
         os.makedirs(here)

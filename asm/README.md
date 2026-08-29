@@ -479,9 +479,8 @@ stack it is entered on is already the frame `GetMessageA` expects, so the
 last step is a jump and not a call.
 
 `Sleep` is not imported and comes through `GetProcAddress`; the pointer is
-cached in the `.data` scratch rather than in the blob, which is executable
-here but not writable. If it cannot be resolved the stub falls through to the
-blocking call, which is what the game did before.
+cached in the scratch, `SLEEPFN`. If it cannot be resolved the stub falls
+through to the blocking call, which is what the game did before.
 
 ## twinstick.asm
 
@@ -687,10 +686,8 @@ that global is pointed at the back buffer, `0x1ae5f5c`, across the call and
 put back after.
 
 The gate is `MODE` 4, `SUBMODE` `0x20` and phase 2, and only then the hold
-count. The count alone is not enough: `HELD` sits in a run of zeros in
-`.data` that something else in the game writes through, so it reads nonzero
-on the title screen and in a match. `credits.asm` owns it while the roll is
-running, which is the only place this looks at it.
+count. `HELD` only means anything while the roll is running, where
+`credits.asm` owns it.
 
 ## activate.asm
 

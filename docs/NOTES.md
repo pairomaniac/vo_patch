@@ -105,9 +105,10 @@ Two things are the same in every build:
   used: one long enough for a blob is the NULL tail of a handler table -
   a code pointer just before it, and the game calling through the slots -
   or a constant that happens to be zero, and both have crashed the game.
-- The XInput scratch sits in the page slack past `.data`, and the ending
-  screens' two spare bytes in a run of `.data` nothing points at. Neither
-  is proven free the way an appended section is.
+- The patcher's scratch - the XInput state, the recreate flags, the two
+  bytes the ending screens track a press with - sits in the page slack
+  past `.data`'s VirtualSize. Nothing in the file references it; it is
+  not proven free the way an appended section is.
 
 The netplay DLL tells the builds apart by the PE timestamp and
 fingerprints each one's own two sites (`fp_builds` in `net/dpctrl.c`).

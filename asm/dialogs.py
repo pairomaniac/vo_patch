@@ -1,7 +1,8 @@
 """The two dialogs the patches build, and the data the Extras box reads.
 
-    build_extras()  the F11 template, and the strings and tables
-                    debugbox.asm reads. Both are written into padding.
+    build_extras()  the F11 template, which goes in the .voxt section
+                    the patch appends, and the strings and tables
+                    debugbox.asm reads, which go in the annex.
     build_f5()      the frame rate radio buttons on the F5 page. That is a
                     resource the game already has, so this rewrites part of
                     one rather than building it, and emits both columns of
@@ -20,8 +21,8 @@ TEMPLATE = 0xE7E7E7E7   # a placeholder: the template lives in its own
                         # appended section, whose address only exists at
                         # apply time - vo_patch.py fills it in the way it
                         # fills .vocd's, at apply_extras_template()
-# Its strings and tables go in a cave the build names (EXTRAS_DATA in
-# vo_patch.py's CAVES); the check-box flags are game globals, as fixups.
+# Its strings and tables are the EXTRAS_DATA blob in the annex; the
+# check-box flags are game globals, as fixups.
 
 # Window styles. WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME |
 # DS_SETFONT, which is what the game's own dialogs use. The font block is
@@ -49,7 +50,8 @@ ID_DZDEF = 0x54         # the Defaults button, handled in asm/voxt.asm
 #
 # Three are check boxes, and the dialog procedure ticks each from the game's
 # own flag when the box opens, so what it shows is what is on. The rest are
-# one-shot buttons and have nothing to read.
+# one-shot buttons and have nothing to read. asm/f11pause.asm's loop counts
+# three; a fourth box means changing it.
 GROUP = 0x50000007      # BS_GROUPBOX, the box the F5 page draws its own with
 
 # Credits has no menu item to post, so it is the one id the dialog acts on

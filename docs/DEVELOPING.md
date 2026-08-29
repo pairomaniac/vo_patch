@@ -185,9 +185,8 @@ committed:
    function by function and votes on where every address went.
 2. `python3 tools/votrans.py symbols map.pkl` prints `RETAIL.symbols` as
    the other build has them, with the unresolved ones commented out. Frame
-   offsets, the scratch past `.data` and the two spare bytes are always by
-   hand: read the disassembly at each hook (`votrans.py one VA`) and pick
-   free memory.
+   offsets and the scratch past `.data` are always by hand: read the
+   disassembly at each hook (`votrans.py one VA`) and pick free memory.
 3. Add the `Build` with `sites=None` and `annex=ANNEX_BLOBS`; the two
    caves are the game's own device list, translated like any symbol, and
    the levers tail, as in every build. `SYNC_SITES` follows from the site

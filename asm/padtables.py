@@ -15,8 +15,8 @@ everyone's saved binds.
 
 import struct
 
-# Where the tables land is the build's business (the CAVES table in
-# vo_patch.py). The pointers between them are fixups on PAD_NAMES.
+# Where the tables land is the build's business (the annex in vo_patch.py).
+# The pointers between them are fixups on PAD_NAMES.
 FIRST_ID = 0xe0         # a bind byte this or over is a pad input
 
 # How the tick decides an input is active. `where` is a byte offset from
@@ -35,9 +35,9 @@ WBUTTONS = 0
 LTRIGGER, RTRIGGER = 2, 3
 LX, LY, RX, RY = 4, 6, 8, 10
 
-DEADZONE = 13000        # what a stick has to pass to count as pushed. Per
-                        # axis, not radial: a 45 degree push puts 23170 on
-                        # each, so diagonals stay comfortable
+DEADZONE = 13000        # only its sign is read: the tick compares each
+                        # axis against the player's DZTHR threshold, seeded
+                        # from v_on.ini and the F11 box
 PULL = 0x40             # and a trigger
 
 # (name, kind, where, value). Sixteen entries, ids 0xe0 to 0xef.
@@ -82,8 +82,7 @@ def build():
     ini keys. A fixup is (offset, kind, symbol, addend) as in vo_patch.link;
     the symbol is ('PAD_NAMES', offset) for a pointer into the names."""
     # Two string blobs: the inputs' names and the deadzone keys in one, the
-    # profile names in another, so neither needs a run the rerelease has
-    # not got. A pointer names its blob, so the split costs nothing.
+    # profile names in another. A pointer names its blob.
     names, profiles, at = bytearray(), bytearray(), {}
     for text in ([name for name, _k, _w, _v in INPUTS]
                  + ['1P Deadzone', '2P Deadzone']):
@@ -108,10 +107,9 @@ def build():
     inikeys = (b'1P Simple Assign\0' + b'2P Simple Assign\0'
                + b'1P Keyboard Assign\0' + b'2P Keyboard Assign\0')
 
-    # The deadzone keys ride in the names blob: the INIKEYS run turned out
-    # to end within nine bytes of the four Assign keys - the real file has
-    # live data past it, which the offsets check caught - and the names
-    # cave has room to spare.
+    # The deadzone keys ride in the names blob; asm/iniall.asm and
+    # asm/iniparse.asm index them at 12 bytes apiece, and the Assign keys
+    # above at 17 and 19.
 
     inc = 'extern COND, SIMPLEDEF, INIKEYS, DZKEYS\n'
     return (inc,
