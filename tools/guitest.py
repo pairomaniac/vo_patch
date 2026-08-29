@@ -105,7 +105,7 @@ def main():
     here = os.path.join(tmp, 'disc')
     os.makedirs(here)
 
-    # A stand-in reads as an unsupported build, which is what the check
+    # A stand-in reads as a build without tables, which is what the check
     # below wants; the real one is what the copy is exercised on.
     #
     # pristine, because a development copy of the game is normally patched -

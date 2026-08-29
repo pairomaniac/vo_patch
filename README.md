@@ -18,7 +18,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
-  <a href="#which-build">Which build</a>
+  <a href="#builds">Builds</a>
 </h4>
 
 ## Virus warnings
@@ -51,7 +51,7 @@ The sections are numbered in the order to work through them.
    [Music](#music).
 2. **GAME FILE** - installing fills this in for you. Otherwise browse to
    your `v_on.exe`; only the unmodified disc file is accepted, and if yours
-   is refused see [Which build](#which-build).
+   is refused see [Builds](#builds).
 3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
 4. **EXTRA PATCHES** - starts ticked and is yours to change. Click the ⓘ
@@ -79,9 +79,10 @@ the `.bin` itself - choose a folder in **Install to**, and press **Install
 game**. About 95 MB.
 
 The **Manual** box picks which `readme.txt`, `von.hlp` and `von.cnt` are
-copied, not the language of the game: every pressing carries one `v_on.exe`
-and it is English. `von.hlp` is 1997 WinHelp, which Windows has not opened
-since WinHlp32 stopped shipping for Windows 10; the readme is plain text.
+copied, not the language of the game: a pressing carries one `v_on.exe`,
+whichever manuals it ships. `von.hlp` is 1997 WinHelp, which Windows has
+not opened since WinHlp32 stopped shipping for Windows 10; the readme is
+plain text.
 
 Or from a terminal:
 
@@ -152,6 +153,10 @@ Removes the check, so `ProcessorCheck=Off` in `v_on.ini` is not needed.
 Viper II, Apharmd or Raiden.
 - **Fix keyboard input after ALT+TAB** - alt-tabbing away, or opening an
 F-key dialog, kills the keyboard for the rest of the session.
+- **Fix crash on ALT+TAB** - switching away during the intro movie crashes
+the game on the way back. Stopping the movie is taken for the movie ending,
+and the screen it had handed to the movie player is never rebuilt. It is
+rebuilt now, and the game waits until that has worked before carrying on.
 
 ### Extra
 
@@ -165,7 +170,8 @@ the Debug options to a new F11 dialog: No shot, SE, CD, Kill 1P, Kill 2P,
 Scorekeeping and Quit Game. **Credits** is new - it jumps to the credit roll
 from any match, so you can see it without finishing the game. Motion has
 moved to F5. With the gamepad patch in, F11 also sets each player's
-[stick deadzone](#stick-deadzone). Every other menu was already on a key:
+[stick deadzone](#stick-deadzone). Like the other F keys, it does nothing
+during an internet match. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |
@@ -360,7 +366,7 @@ game ignores F3 while the movie plays.
 
 The prompts follow the pad: the pause screen reads **PRESS START TO
 UNPAUSE**, and the title and scoreboard screens read **Press A Button**. That
-last one is artwork rather than text, so `escrgame.bin` is rewritten too -
+last one is artwork rather than text, so the title artwork is rewritten too -
 see [TEXT.md](docs/TEXT.md). Applying the patch also moves `v_on.ini` aside,
 because binds saved by the unpatched game do not fit the new device list. See
 [What gets written](#what-gets-written).
@@ -371,6 +377,10 @@ Sticks, triggers, bumpers and face buttons are all in the bind list; the
 sticks are read as eight directions. Defaults on both sides: left stick
 moves, right stick turns, LT and RB fire left and right, RT fires both, LB
 dashes, A jumps, X guards. **Default** on the F7 page puts them back.
+
+**LB + RB + LT + RT + Start** held together is a soft reset: the game
+returns to the title screen from wherever it is, on either player's pad.
+Like the F keys, it does nothing during an internet match.
 
 ### Twin-stick (XInput)
 
@@ -530,37 +540,30 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 `-S fit` fills more of the screen without whole-number scaling.
 
-## Which build
+## Builds
 
-The patcher works on one build and refuses everything else: every patch is a
-fixed file offset, and on another build it would write into unrelated code.
-
-<kbd><img height="220" alt="oem" src="https://github.com/user-attachments/assets/9825b5cb-7c3a-43fc-873b-e1c78ae5660a" />
-</kbd>
-&nbsp;
-<kbd><img height="220" alt="error" src="https://github.com/user-attachments/assets/808bb2cc-0c14-4922-bd64-f9db9af2963f" />
-</kbd>
+Four builds of the game exist. Three of them patch:
 
 | Build | Size | MD5 | Patcher |
 | --- | --- | --- | --- |
 | English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
-| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | installs, does not patch |
-| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | installs, does not patch |
-| Japanese original | not known | not known | not seen |
+| USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | patches |
+| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
+| Japanese original | not sourced | not sourced | not supported |
 
-I have not been able to acquire the Japanese original, so there is no
-checksum for it. The patcher calls that build an unrecognised file and
-prints the size and MD5 it found. That is what the row needs.
+The USA, USA Alt and European discs all carry the same English retail
+`v_on.exe`, so any of them will do. Every patch works on all three builds
+above, and the window names the one it is looking at.
 
-The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches. Anything
-else is named if it is one of the builds above and unrecognised if not,
-with both checksums side by side either way - in **GAME FILE** for a file
-you picked, in **INSTALL** for a disc image.
+The Japanese original has not been sourced, so there is nothing to write
+tables against and the patcher treats it as an unknown file. If you have a
+disc image of it, please get in touch - see [Credits and
+licence](#credits-and-licence).
 
-Installing and ripping the soundtrack work whichever build the disc holds.
-Only patching needs the English retail build, and copying its `v_on.exe`
-into another build's install is not a way round that.
+A repack, a bad rip or a copy already modified is refused, with its size
+and MD5 shown beside a supported build's - in **GAME FILE** for a file you
+picked, in **INSTALL** for a disc image. Installing and ripping work
+whichever build the disc holds; only patching needs one from the table.
 
 ### What gets written
 
@@ -570,12 +573,13 @@ was.
 
 **XInput gamepad support** touches two more files. `v_on.ini` is moved to
 `v_on.ini.bak` and the game writes a fresh one, because binds saved by the
-unpatched game do not fit the new device list. `escrgame.bin` is rewritten
-with the new title artwork, after a copy is kept as `escrgame.bin.bak`.
+unpatched game do not fit the new device list. The title artwork -
+`escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
+with the new title prompt, after a copy is kept as `.bak`.
 
 **Restore original** puts all three back, keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
-hand: `escrgame.bin` and `v_on.exe` have to match, and restoring one alone
+hand: the artwork and `v_on.exe` have to match, and restoring one alone
 draws the title prompt as scrambled letters.
 
 ## Running from source
@@ -617,8 +621,9 @@ and run `python3 net/build.py`, which compiles it with mingw and bakes it back
 into `vo_patch.py`. [net/README.md](net/README.md) covers the protocol and
 the matchcode server.
 
-`python3 tools/check.py` runs every check in the project - give it your game
-folder and it runs the ones that need one.
+`python3 tools/check.py` runs every check in the project. Give it a game
+folder and it runs the ones that need one; give it a folder per build and
+each of those runs once per build.
 [docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
 ## AI Disclaimer
@@ -627,8 +632,9 @@ LLMs are part of the toolchain here. The scope, the disc dumps, the testing
 and the debugging are human, and nothing ships without a thorough read of the
 code and a run on the real game. Offsets and byte sequences are verified
 against the original executable before anything is written, and the patcher
-refuses any file that is not the unmodified English retail build - but this
-is a hobby project poking at a nearly 30-year-old binary, so expect bugs.
+refuses any file that is not an unmodified build it has tables for. It is
+still a hobby project poking at a nearly 30-year-old binary, so expect
+bugs.
 
 ## Credits and licence
 
@@ -637,3 +643,7 @@ Some of the byte edits come from the original VO_Patch 0.43 (2008) by
 SEGA. `LICENSE` (MIT) covers the patcher, its tools and its documentation -
 not the game, not the bytes quoted from it, and not the letterforms traced
 from its artwork.
+
+Bug reports and patches are welcome as issues and pull requests. For
+anything else - a disc image of a build the patcher does not know, or a
+question that does not fit an issue - write to pairo@segaonline.net.

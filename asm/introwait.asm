@@ -1,6 +1,4 @@
 bits 32
-org 0x0063e970          ; .rdata raw padding, past VirtualSize, after
-BASE        equ 0x0063e970  ; kbpage.asm; 144 bytes to the end of the section
 ; Runs in place of the `call GetMessageA` at 0x5c5eac.
 ;
 ; The intro movie plays asynchronously and leaves 0x6bc598 at 1, which sends
@@ -21,17 +19,17 @@ BASE        equ 0x0063e970  ; kbpage.asm; 144 bytes to the end of the section
 ; which is what GetMessageA expects, so the tail jump below returns straight
 ; to 0x5c5eb2 and lets GetMessageA do the stdcall cleanup.
 
-LOADLIB     equ 0x0365d504      ; LoadLibraryA
-GETPROC     equ 0x0365d508      ; GetProcAddress
-GETMSG      equ 0x0365d58c      ; GetMessageA, the call this replaced
-PEEKMSG     equ 0x0365d590      ; PeekMessageA
+extern LOADLIB                  ; LoadLibraryA
+extern GETPROC                  ; GetProcAddress
+extern GETMSG                   ; GetMessageA, the call this replaced
+extern PEEKMSG                  ; PeekMessageA
 
-POLLPADS    equ 0x006080a4      ; padxinput.asm, pinned there for this
+extern POLLPADS                 ; padxinput.asm, pinned there for this
 
 ; .rdata is executable here but not writable, so the resolved pointer cannot
 ; be cached in this blob. It goes in the four bytes between PSTATE and PREV,
 ; in the scratch the routine already owns.
-SLEEPFN     equ 0x0365cb80      ; resolved Sleep: 0 not yet, 1 failed
+extern SLEEPFN                  ; resolved Sleep: 0 not yet, 1 failed
 
 PM_NOREMOVE equ 0
 NAP         equ 8               ; ms; the movie is not interactive, so this
@@ -90,11 +88,3 @@ nap:
 
 kern32:     db 'kernel32.dll', 0
 sleepnm:    db 'Sleep', 0
-
-; This is the raw padding past .rdata's VirtualSize, not a run of zeros
-; inside it: nothing can reference it, because it is past the size the image
-; declares. The zero runs at 0x5f80e0 and 0x623d98 are data, not space - see
-; the cave rules in asm/README.md.
-;
-; It ends at file offset 0x23de00. Growing past that runs into .data, where
-; the site's expected bytes stop being zeros, so selftest.py catches it.

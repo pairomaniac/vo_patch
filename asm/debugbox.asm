@@ -1,42 +1,29 @@
 bits 32
-org 0x005f4e7c          ; the .text cave the F11 dialog patch drops this into
-BASE        equ 0x005f4e7c      ; the org again, for the pins below
 ; The F11 Extras dialog: a window-procedure hook, the dialog procedure, and
-; the Credits case that did not fit before the end of the second cave.
-;
-; Two addresses in here are named from outside this file and cannot move:
-;
-;   0x5f4e7c  the window procedure pointer at 0x1c4d7e is repointed here
-;   0x5f4ed8  the hook passes the dialog procedure to DialogBoxIndirectParamA
-;
-; `times` pins the second one, so nasm fails rather than shifting it.
+; the Credits case, out of line. The window procedure pointer in the game
+; is repointed at `hook`, by label.
 ;
 ; The strings, the tables and the dialog template are data, built by
 ; asm/dialogs.py, which also emits the addresses and control ids below.
 
-BOXLEN      equ 388             ; the cave from here to 0x5f5000. The zeros
-                                ; run fourteen bytes further, to 0x5f500e,
-                                ; but 0x5f5000 is a qword 0.0 that 0x401ce4
-                                ; compares against and 0x5f5008 a qword 1.0
-                                ; that three sites read. Zero is not free.
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
 ; TEMPLATE, the dialog itself; and CMD_QUIT, IDCANCEL and ID_DZ, three of
 ; the control ids.
 %include "dialogs.inc"
 
-MODE        equ 0x01ae3594      ; game state; 4 is a match in progress
-SUBMODE     equ 0x01ae3690      ; and its sub-state, 0x1f the ending
-HWND        equ 0x01ae5f58      ; the game's window
-ORIGWNDPROC equ 0x005c6857      ; the handler the hook falls through to
+extern MODE                     ; game state; 4 is a match in progress
+extern SUBMODE                  ; and its sub-state, 0x1f the ending
+extern HWND                     ; the game's window
+extern ORIGWNDPROC              ; the handler the hook falls through to
 
-LOADLIB     equ 0x0365d504      ; LoadLibraryA
-GETPROC     equ 0x0365d508      ; GetProcAddress
-GETMODULE   equ 0x0365d4a0      ; GetModuleHandleA
-SENDMSG     equ 0x0365d52c      ; SendMessageA
-GETDLGITEM  equ 0x0365d54c      ; GetDlgItem
-CHECKDLGBTN equ 0x0365d544      ; CheckDlgButton
-POSTMSG     equ 0x0365d56c      ; PostMessageA
+extern LOADLIB                  ; LoadLibraryA
+extern GETPROC                  ; GetProcAddress
+extern GETMODULE                ; GetModuleHandleA
+extern SENDMSG                  ; SendMessageA
+extern GETDLGITEM               ; GetDlgItem
+extern CHECKDLGBTN              ; CheckDlgButton
+extern POSTMSG                  ; PostMessageA
 
 WM_KEYDOWN  equ 0x0100
 WM_SETTEXT  equ 0x000c
@@ -49,22 +36,25 @@ WM_COMMAND  equ 0x0111
 ; it the boxes show empty and their values land in scratch nothing reads,
 ; which is harmless - the addresses are free in the stock executable
 ; whatever is installed.
-DZTHR1      equ 0x0365cb8c
-DZSTR1      equ 0x0365cb94
+extern DZTHR1
+extern DZSTR1
 
-F11CHECKS   equ 0x0063bf50      ; asm/f11pause.asm's tail: the check boxes
+extern F11CHECKS                ; asm/f11pause.asm's tail: the check boxes
 ANNEXREL    equ 0xEAEAEAEA      ; a placeholder: the rel32 to asm/voxt.asm's
                                 ; annex at the end of the .voxt section,
                                 ; whose address only exists at apply time -
                                 ; vo_patch.py computes and fills it
 VK_F11      equ 0x7a
-F11WRAP     equ 0x0063bf24      ; asm/f11pause.asm
+extern F11WRAP                  ; asm/f11pause.asm
+extern GAMEMODE                 ; 2 during a network match, when every F-key
+                                ; command handler returns before doing
+                                ; anything; so does this
 
 ; nasm assembles `mov r32, r32` and `xor r32, r32` as 89 and 31; the code
 ; this replaces used the 8b and 33 encodings. The `db` lines below keep the
 ; blob byte-identical to the hex it was reconstructed from.
 
-; ---------------------------------------------------------------- 0x5f4e7c
+; ----------------------------------------------------------------
 ; Window procedure hook. Everything except F11 goes on to the original.
 hook:
     push    ebp
@@ -74,6 +64,8 @@ hook:
     jne     .pass
     cmp     dword [ebp + 0x10], strict dword VK_F11
     jne     .pass
+    cmp     dword [GAMEMODE], 2         ; a network match: as F5 to F8
+    je      .pass
 
     ; DialogBoxIndirectParamA is not in the import table, so it is fetched.
     push    USER32
@@ -95,9 +87,8 @@ hook:
     pop     ebp
     jmp     ORIGWNDPROC
 
-    times   (0x005f4ed8 - BASE) - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x5f4ed8
+; ----------------------------------------------------------------
 ; Dialog procedure. Control ids are the game's own command ids, so a click
 ; is posted to the main window as the menu item it replaces.
 dlgproc:
@@ -111,7 +102,7 @@ dlgproc:
     jne     .command
 
     ; The check boxes are ticked in asm/f11pause.asm's tail, where the loop
-    ; moved when the second deadzone box needed this cave's room.
+    ; kept there for room.
     push    dword [ebp + 8]
     call    F11CHECKS
 
@@ -150,8 +141,8 @@ dlgproc:
 .tail:
     ; Close and Quit are the long paths - the deadzone read, the ini save,
     ; the teardown order - and live in asm/voxt.asm at the end of the
-    ; template's section, this cave being six bytes from full when they
-    ; grew. The annex says what to do with its answer.
+    ; template's section, for room. The annex says what to do with its
+    ; answer.
     mov     edx, dword [ebp + 8]
     db      0xe8                        ; call rel32; nasm would subtract the
     dd      ANNEXREL                    ; site from a plain call, and the
@@ -180,7 +171,7 @@ dlgproc:
 ; Credits is the one button with no menu item behind it, so it is handled
 ; here rather than posted; everything else is forwarded as the menu item
 ; it replaces. Out of line from when the dialog procedure ran to the end
-; of its cave. 0x1f is the state that sets the ending up and steps to the
+; of the blob. 0x1f is the state that sets the ending up and steps to the
 ; credits itself; it only means that during a match, so pressing this
 ; anywhere else does nothing. The Quit case that lived above this is
 ; gone with its button - the window X quits the game the same way.
@@ -196,6 +187,3 @@ credits:
 .fwd:
     jmp     dlgproc.post
 
-%if ($ - $$) > BOXLEN
-%error the dialog procedure has grown past the end of the cave
-%endif

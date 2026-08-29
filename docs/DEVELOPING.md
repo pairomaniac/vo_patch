@@ -73,24 +73,27 @@ cannot drift apart.
 ```bash
 python3 tools/check.py                        # the ones CI can run
 python3 tools/check.py /path/to/VIRTUAL-ON    # and the ones that need the game
+python3 tools/check.py RETAIL/ OEM/ JP/       # those once per build
 python3 tools/check.py --list                 # what they are
 python3 tools/check.py --only asm,net         # just those
 ```
 
-`VO_GAME` works instead of the argument, and either a folder or any file
-inside one will do.
+`VO_GAME` works instead of one argument, and either a folder or any file
+inside one will do. The checks that need the game run once per folder
+given and are named by build - `offsets/jp` - because a table can only be
+wrong on the build it is for; before tagging, give all three.
 
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
+| `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
-| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5 |
-| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
+| `offsets` | `selftest.py`: every `original` column against a real file, hundreds of patch combinations applied, and the fully patched MD5, on whichever build the file is |
+| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte, on whichever build the folder holds |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 
 Some need a copy of the game, which is not in the repository, so CI skips
@@ -114,28 +117,6 @@ python3 tools/vonbanner.py DIR --text 'Press Start'    # preview
 python3 tools/vonbanner.py DIR --text 'Press Start' --write
 ```
 
-**`tools/freespace.py`** answers where a blob of a given length can go.
-
-```bash
-python3 tools/freespace.py DIR 91
-```
-
-It reads the runs of zeros in `.rdata` and `.rsrc`'s padding, drops what
-patch sites already use, and sorts the rest: clean, ones with something
-pointing just before them, and ones something reads inside. `.data` is left
-out entirely - it is full of arrays the game fills at runtime, and each one
-scans as a perfectly good cave.
-
-Both the original and a fully patched copy are read. The original says what
-the game points at; the patched copy says what the patches point at, and a
-blob's scratch addresses and entry points appear in no original file. Hits
-only the patched copy has are marked `from a patch`.
-
-The middle list is the one to read. A run of zeros with a pointer just
-before it may be the tail of a structure, and that is how `iniall.asm` came
-to sit on the attract loop's scoreboard template: 84 bytes of zeros copied
-into a record every time the demo match ended.
-
 **`tools/vocredits.py`** builds the credit lines out of the roll's own
 letters. The roll is pre-rendered text chopped into cells rather than a font,
 so a new line cannot be typed - but the columns of each block separate into
@@ -154,25 +135,79 @@ Edit `LINES` at the top to change what it says. The result goes between the
 `CREDITLINE BLOB` markers - not the `CREDITS BLOB` ones, which belong to
 `asm/credits.asm` and are a different thing entirely.
 
-## Placing a blob
+## Where the blobs live
 
-Nothing downstream checks that a cave is really free, so this is done by
-hand, once, per blob:
+Every blob but two is in the annex: a section, `.vojp`, appended before
+any patch is written, executable, and filled through the site table like
+any other site. Where it lands is fixed by the file's own headers, so its
+addresses are known at import and nothing is relinked at apply time. The
+two exceptions are places the game itself reaches - the F7 device list's
+own run in `.data`, and the levers routine written straight after the
+XInput routine - and those are the `caves` table of each `Build`.
 
-1. `python3 tools/freespace.py DIR <length>` and take a clean candidate.
-   The address has to be a multiple of four - `build.py` refuses otherwise,
-   because a run starting off a boundary starts inside the field before it.
-2. If nothing clean is long enough, read the game at the address the
-   middle list names before using one of those. What lives there has to be
-   shorter than the gap.
-3. Put the address in the source's `org`, the file offset in the site that
-   writes it, and the cave's last usable byte in `CEILINGS` in
-   `asm/build.py`.
+Nothing lives in a run of zeros in `.rdata`. Such a run is never known to
+be free: a pointer just before it means it is the tail of a structure or
+the NULL slots of a handler table, and the game reads or calls through it
+without any reference the file shows. Growing a blob is a rebuild; moving
+one is not a thing that happens.
 
-Moving one is the same work plus its hooks: `grep` the old address across
-`vo_patch.py` and `asm/`, because every rel32 in the site table is computed
-by hand. `check_calls` catches a call that lands outside `.text` on no
-label, which is what a stale hook looks like, but only for `e8`/`e9` sites.
+## Adding a blob or a site
+
+A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a name
+in `ANNEX_BLOBS`, its symbols in every build's table, and a site in the
+table. Then `python3 asm/build.py`.
+
+A new site named by retail offset needs every other build's map
+regenerated, one command per build, with `vomap.py` run first if there is
+no map:
+
+```bash
+python3 tools/buildsites.py JAPAN retail.exe jp.exe jp.pkl
+python3 tools/buildsites.py OEM   retail.exe oem.exe oem.pkl
+```
+
+The order of the edits does not matter: both tools import the patcher in
+bootstrap mode (`VO_PATCH_BOOTSTRAP`), where a blob, label, symbol or site
+that does not exist yet reads as empty instead of failing the import.
+
+## Adding a build
+
+A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
+what every symbol the blobs name resolves to, its title artwork, and for
+any build but retail a site map and an annex. The tables come from the
+retail executable and the new one side by side, none of which is
+committed:
+
+1. `python3 tools/vomap.py retail.exe other.exe map.pkl` matches the two
+   function by function and votes on where every address went.
+2. `python3 tools/votrans.py symbols map.pkl` prints `RETAIL.symbols` as
+   the other build has them, with the unresolved ones commented out. Frame
+   offsets, the scratch past `.data` and the two spare bytes are always by
+   hand: read the disassembly at each hook (`votrans.py one VA`) and pick
+   free memory.
+3. Add the `Build` with `sites=None` and `annex=ANNEX_BLOBS`; the two
+   caves are the game's own device list, translated like any symbol, and
+   the levers tail, as in every build. `SYNC_SITES` follows from the site
+   map.
+4. Put `# SITES NAME BEGIN` / `END` markers after the JAPAN ones and run
+   `python3 tools/buildsites.py NAME retail.exe other.exe map.pkl`. What
+   it cannot place is listed; those go in `HAND` in `votrans.py`, keyed by
+   the build's MD5, with a reason each.
+5. A row in `fp_builds` in `net/dpctrl.c` with the PE timestamp and the
+   two sync sites as virtual addresses, then `net/build.py`.
+6. `python3 asm/build.py --check`, then `selftest.py` on the new file and
+   pin its all-patches MD5 in `EXPECTED_ALL`; `bannertest.py` and
+   `credittest.py` on an install of it once its artwork MD5 is in `art`.
+   Then someone has to play it.
+
+Two things to check by eye before anyone runs it. A site the matcher has
+placed by its bytes may be in the wrong function - ten bytes of
+`cmp [ebp-8], 0x1a; jge` occur in more than one place, and only the
+disassembly says which copy has the recompiled frame. And anything the
+apply code writes outside the site table - the annex code in `.voxt` -
+must be linked for the build being patched, not taken from a module-level
+constant, which is retail's. `tools/whereis.py` turns a crash address into
+a blob and label.
 
 ## Netplay
 
@@ -219,7 +254,7 @@ two installs with two prefixes - both write `v_on.ini` and save state, and
 sharing either produces failures that look like netcode bugs and are not.
 
 ```bash
-tools/vo-loopback.sh build install
+tools/vo-loopback.sh build install status
 tools/vo-loopback.sh a            # hosts on 127.0.0.1
 tools/vo-loopback.sh b            # joins
 tools/vo-loopback.sh restore
@@ -269,7 +304,7 @@ for everyone, so it is written after the patch table rather than from it and
 
 ```bash
 git pull
-python3 tools/check.py /path/to/VIRTUAL-ON     # everything, nothing skipped
+python3 tools/check.py RETAIL/ OEM/ JP/        # everything, nothing skipped
 
 git tag v0.8.4
 git push && git push --tags
@@ -294,7 +329,8 @@ Keep the notes to what a player would notice. Internal changes go in the diff.
 
 The checks prove the files are consistent with each other. They cannot
 prove the game still runs, and both v0.10.2 bugs passed everything green.
-Patch a clean copy and walk these once:
+Patch a clean copy of each build and walk these once - a table can be
+well-formed and wrong on one build only:
 
 - **the attract loop**: skip the intro movie, then leave it alone through
   the demo match and the scoreboards until the title screen comes back.
@@ -302,10 +338,14 @@ Patch a clean copy and walk these once:
 - a match to the win screen, and the replay after it
 - the F5, F7 and F11 dialogs, and a deadzone edit that survives a restart
 - the ending credits and the initials screen after them
+- the pad's soft reset, from a match and from a two-player match, since it
+  runs the game's own teardown from wherever you are
 - one matchcode match against a second machine, direct and forced through
-  the relay, since the netplay DLL ships in the same build
+  the relay, since the netplay DLL ships in the same build; and one match
+  between two different builds, which is the only test of whether two
+  compiles stay in lockstep
 
-Ten minutes, and it covers the state machines no check reaches.
+Ten minutes per build, and it covers the state machines no check reaches.
 
 ### Bad tag
 
@@ -327,14 +367,12 @@ gh release delete v0.8.4 --yes     # if a release was created
 | dpctrl.c stopped exporting something | mingw build step | CI, every push |
 | reordered a site list | `tables` | CI, every push |
 | two patches on one byte | `tables` | CI, every push |
-| a blob grown past a pinned cave | `asm` | CI, every push |
-| a blob grown into live data | `offsets` | **only if you run it** |
 | typo'd an offset | `offsets` | **only if you run it** |
+| a site the map placed in the wrong function | `offsets`, if the bytes differ | **only if you run it** |
+| a site the map placed in the wrong copy of the same code | nothing | only playing that build |
 | wrong offset in the banner or its artwork | `banner` | **only if you run it** |
+| a symbol translated to the wrong address | nothing | only playing that build |
 | hand-edited a generated blob | nothing | next build eats it |
-| a cave whose end nobody has pinned | nothing until `offsets` runs | before tagging |
-| a cave that was live data to begin with | `offsets`, as a note to read | before tagging |
-| picked a cave that was never free | `freespace.py` | only when placing a blob |
 | a button armed when it should not be | `gui` | CI, every push |
 | a card or column that lays out wrong | `gui` | CI, every push |
 | a state machine left in a state nothing handles | nothing | only playing the game |
@@ -370,22 +408,6 @@ and the tiles in `scrstfcg.bin`, and all three have to agree. A block list
 naming cells the map does not have sends the renderer off the end of it, so
 the patcher checks both files before it writes either half.
 
-**`offsets` reports OVERRUN** - a blob has outgrown its cave and is writing
-onto something the game reads. The run of zeros carried on past the end of
-the cave, so nothing else noticed. It names the address and the instruction
-that reads it; shorten the blob or move it, then add the cave's real ceiling
-to `CEILINGS` in `asm/build.py` so CI catches the next one without a game
-file. Bare dwords in range are counted and ignored - four bytes of tile data
-can equal an address, and only an operand means the game reads it.
-
-**`offsets` prints a note about a cave** - something points at an address
-shortly before it, and a table there could run into the cave. Most are
-bytes that happen to look like an address; the rest are short structures
-that stop where the cave starts. Read the game at that address once, and
-if what lives there is shorter than the gap the note is noise. A cave
-that is zeros in the file can still be a template the game copies, and
-only this catches it.
-
 **`offsets` says "is 6653952 bytes, expected 6650880"** - that is the patched
 file. Point it at `v_on.exe.bak`.
 
@@ -407,23 +429,10 @@ GitHub. `git pull`, then push. Pick local *or* web and stick with it.
 **It crashes in the game** - nothing here can catch that; every check reasons
 about where bytes go, not whether the code runs. Get a log with
 `PROTON_LOG=1`, then the forty lines around `dispatch_exception
-code=c0000005`. Subtract the blob's org from the fault address to find it in
-the source. Two ways to earn one, both already paid for: writing into a run of
-zeros that is not free, and writing to `.rdata`, which is marked executable
-but not writable - mutable state goes in the `.data` scratch.
-
-A run of zeros that is not free will not always crash, which is the awkward
-part. The F11 dialog outgrew its cave by two bytes in v0.8.5 and landed on a
-`qword` 0.0 the projection routine compares depth against; nothing faulted
-and nothing looked wrong. That is what the cave check in `selftest.py` and
-`CEILINGS` in `asm/build.py` are between them for.
-
-A stub in `.rdata` needs that mark, and the site that sets it is `RDATA_EXEC`
-in `vo_patch.py` rather than any one patch's site list, because a site written
-twice fails its own original check. Add the patch's key to `RDATA_EXEC_KEYS`
-and it is applied once for whichever of them is ticked. `_check_table` seeds
-its collision map with those four bytes, so putting them in a patch's list as
-well is caught at import rather than in someone's game.
+code=c0000005`. `python3 tools/whereis.py v_on.exe <address>` says which
+blob and label it is in, or which part of the game. A fault *at* an address
+that is the first bytes of a blob means the game called through a pointer
+that our bytes overwrote; a fault inside a blob is the blob's.
 
 ## Useful commands
 

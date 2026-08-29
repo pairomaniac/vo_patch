@@ -51,23 +51,8 @@ EXE_SIZE = 6650880
 
 ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 
-# Other builds that turn up. None of them can be patched - they are listed
-# only so the patcher can name what it was handed instead of saying "not the
-# original". md5 -> (size, name, why).
-OTHER_BUILDS = {
-    '4c70f780a7f0d98d74be62304fb99021': (
-        6649344, 'USA OEM',
-        'A different release of the same game. Everything here is written '
-        'for the English retail build.'),
-    'd19320bdc3381a48228990907910a391': (
-        6621696, 'Japanese rerelease',
-        'A separate compile of the same game, so the offsets here do not '
-        'line up with it. Everything is written for the English retail '
-        'build.'),
-}
-
-RETAIL_HINT = ('Install from an English retail disc image above, or pick a '
-               'copy installed from one. Its v_on.exe alone will not do: the '
+RETAIL_HINT = ('Install from a retail disc image above, or pick a copy '
+               'installed from one. Its v_on.exe alone will not do: the '
                'patcher writes to files beside it.')
 
 # Patcher.load has no idea how many boxes are ticked, so it returns this and
@@ -82,6 +67,1115 @@ DISC_IMAGES = {
     '.nrg': 'disc image', '.ccd': 'disc image', '.toc': 'cue sheet',
 }
 
+# Where each blob goes and what it names in the game, per build.
+#
+# The machine code in BLOBS below names no addresses: every place in the
+# game it touches is a symbol, and link() fills the symbol in from these
+# tables when the module loads. A second build is a second Build with its
+# own tables and the same BLOBS.
+#
+# Where a blob goes is the annex, a section appended before any patch is
+# written, in ANNEX_BLOBS order; or a cave, the virtual address of a place
+# the game itself reaches, or (blob, offset) for a blob that rides inside
+# another. A symbol is a virtual address in the game, or (blob, label) for
+# a place inside one of ours.
+
+class Build(object):
+    def __init__(self, name, short, md5, size, sections, caves, symbols, art,
+                 sites=None, annex=None):
+        # the name on screen, and a word for a label or a log line
+        self.name, self.short = name, short
+        self.md5, self.size = md5, size
+        # (file offset, virtual address) of each section, in file order
+        self.sections = sections
+        self.caves, self.symbols = caves, symbols
+        # The blobs live in a section appended before any patch is written,
+        # in this order, 16-aligned. Where it lands is fixed by the file's
+        # own headers - the first appended section can only go in one
+        # place - so they link at import: (virtual address, file offset,
+        # names). The two caves are the places the game itself reaches.
+        self.annex = None
+        if annex:
+            va, raw = annex_place(size, sections)
+            self.annex = (va, raw, tuple(annex))
+            self.sections = tuple(sections) + ((raw, va),)
+        # the title artwork the banner patch redraws: name, size, MD5 (None
+        # when no copy has been through here to take one from)
+        self.art = art
+        # retail site offset -> (this build's offset, its original bytes),
+        # for the sites the table names by retail offset; None for retail
+        self.sites = sites
+
+    def va(self, off):
+        """File offset -> virtual address."""
+        for raw, va in reversed(self.sections):
+            if off >= raw:
+                return off - raw + va
+        raise ValueError('0x%x is in the headers' % off)
+
+    def off(self, va):
+        """Virtual address -> file offset."""
+        for raw, vaddr in reversed(self.sections):
+            if va >= vaddr:
+                return va - vaddr + raw
+        raise ValueError('0x%x is below the image' % va)
+
+
+def annex_place(size, sections):
+    """Where a section appended to a file of this shape lands: the next
+    0x1000-aligned address after the last section, at the next 0x200 of
+    the file. The section table gives the last section's start; its size
+    is the distance to the file's end, which is what add_section rounds."""
+    raw, va = sections[-1]
+    length = size - raw
+    return (va + length + 0xfff) & ~0xfff, (size + 0x1ff) & ~0x1ff
+
+
+# Every blob but the two the game reaches itself, in the order a build's
+# annex lays them out. A build other than retail keeps them all there.
+ANNEX_BLOBS = (
+    'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
+    'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
+    'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
+    'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
+    'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
+
+RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
+    (0x00000400, 0x00401000),       # .text
+    (0x001f4400, 0x005f5000),       # .rdata
+    (0x0023de00, 0x0063f000),       # .data
+    (0x00601a00, 0x0365d000),       # .idata
+    (0x00602c00, 0x0365f000),       # .rsrc
+    (0x0060c400, 0x03669000),       # .reloc
+), caves={
+    # Two places the game itself looks: the F7 device list's own run in
+    # .data, and the levers tail inside the XInput routine. Everything else
+    # is in the annex, a section appended before any patch is written.
+    'PAD_DEVLIST': 0x0066d418,
+    'LEVERS': ('PADX', 'end'),
+}, symbols={
+    # Places inside our own blobs, by label
+    'DEVCUR': ('BINDLIST', 'devcur'),
+    'PADLIST': ('PAD_BINDS', 0),
+    'DZKEYS': ('PAD_NAMES', 'dzkeys'),
+    'COND': ('PAD_COND', 0),
+    'SIMPLEDEF': ('PAD_SIMPLEDEF', 0),
+    'INIKEYS': ('PAD_INIKEYS', 0),
+    'USER32': ('EXTRAS_DATA', 'user32'),
+    'DLGBOXPROC': ('EXTRAS_DATA', 'dlgboxproc'),
+    'CHECKS': ('EXTRAS_DATA', 'checks'),
+    'F11WRAP': ('F11PAUSE', 'f11wrap'),
+    'F11CHECKS': ('F11PAUSE', 'f11checks'),
+    'DLGPROC': ('DEBUGBOX', 'dlgproc'),
+    'LOADSIMPLE': ('INILOAD', 'loadsimple'),
+    'DZSEED': ('PAGESEL', 'dzseed'),
+    'PARSE12': ('INIPARSE', 'parse12'),
+    'DZSAVE': ('INIPARSE', 'dzsave'),
+    'HEXCHAR': ('BINDBLOCK', 'hexchar'),
+    'POLLPADS': ('PADX', 'pollpads'),
+    'TICK': ('PADX', 'tick'),
+    'CAMSKIP': ('CAMSKIP', 0),
+    # Locals of the game's own functions our stubs read, as frame offsets;
+    # a recompile lays its frames out differently
+    'FILLIDX': -0x8,                # the bind page fill's loop counter
+    'STOREIDX': -0x14,              # its store's combo index
+    'SELIDX': -0xc,                 # the preselect's loop counter
+    'DEVSEL': -0xc,                 # the F7 page's combo selection
+    'DEVNUM': -0x14,                # and the device it maps to
+    'SAVEPLAYER': -0xc8,            # the OK handler's player
+    'SAVELINE': -0xcc,              # and its line buffer
+    'F_X': -0xc,                    # the movie placer's X and Y
+    'F_Y': -0x10,
+    # The game
+    'GAMEPADDEF': 0x0066d600,      # the gamepad's shipped binds
+    'SPEEDSEL': 0x00be4308,        # the F5 speed choice
+    'FRAMEDIV': 0x006c84d0,        # frames per draw, which it set
+    'SIMPLESTUB1': 0x00442e50,     # Keyboard (Simple)'s profile stubs
+    'SIMPLESTUB2': 0x005bcce3,
+    'JOYCHECKOK': 0x00495e23,      # startup device check: passes
+    'SPENDNONE': 0x00497349,       # F7 OK: a device that spends no joystick
+    'NODIALOG': 0x004967a9,        # F7 page table: no dialog, success
+    'BINDPAGE12': 0x004966e9,      # and the twelve-bind page
+    'EXIT1P': 0x00442ec4,          # where the 1P profile switch resumes
+    'KBD1P': 0x00443074,           # stock keyboard handler, called by the tick
+    'KBHANDLER1': 0x00443074,      # the stock 1P keyboard handler
+    'CASEB': 0x00496b23,           # the stock device 1 apply-and-serialize
+    'CROSSCHECK': 0x0049776e,      # look at 1P's key map
+    'KBACCEPT': 0x004977c6,        # take the key
+    'RESUME': 0x0049789a,          # what the Default button does next
+    'DEFAULTS': 0x0049790f,        # fill a player's binds from the shipped set
+    'DIGITLOOP': 0x00497c70,       # bind page fill: the digit loop
+    'LISTLOOP': 0x00497cb0,        # and the list loop
+    'FILLDONE': 0x00497cf7,        # where the fill loop's jge went
+    'STORESHIFT': 0x00497e74,      # bind page store: shift down, try digits
+    'STORELIST': 0x00497e99,       # and the list id store
+    'SELDIGITS': 0x00498059,       # bind page preselect: the digit loop
+    'SELLIST': 0x0049809d,         # the list loop
+    'MAPDONE': 0x004980d9,         # where the search loop's jge went
+    'SELSET': 0x004980d9,          # and set the selection
+    'CURSOR': 0x004cd8c3,          # (column, row), cdecl
+    'PRINT': 0x004ceeeb,           # (text), cdecl, from the cursor
+    'WRITELINE': 0x005b1833,       # (key, value): one v_on.ini line
+    'FINDLINE': 0x005b1871,        # (key) -> value text, 0 if absent
+    'EXIT2P': 0x005bcd57,          # and the 2P one
+    'KBD2P': 0x005bceed,
+    'KBHANDLER2': 0x005bceed,      # and 2P
+    'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
+    'GRESUME': 0x005c680b,         # and their resume
+    'GAMEMODE': 0x006bc94c,        # the loop's mode; 1 is two players, 2 a
+                                   # network match
+    'MODE2': 0x01ef8a90,           # the second player's own state machine's
+                                   # mode word; its tick runs in mode 1
+    'PENDING': 0x0365cb9c,         # a recreate owed
+    'RETADDR': 0x0365cba0,         # where one returns to
+    'RECREATE': 0x005c56a2,        # release and create the surfaces
+    'IDLE': 0x005c63aa,            # the loop's pass while inactive
+    'INACTIVE': 0x01add128,        # the flag it idles on
+    'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
+    'FSFLAGS': 0x006bf598,         # bit 2: the low-resolution modes
+    'FSMODE': 0x006bf560,          # and 320x240 among them
+    'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
+    'ISICONIC': 0x0365d594,        # IAT: IsIconic
+    'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
+    'ORIG': 0x005c80df,            # the call this one is made in place of
+    'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
+    'MEMCPY': 0x005e6030,
+    'ORIGENTRY': 0x005e7930,       # the entry point this replaces
+    'CDMUTE': 0x0063f430,
+    'NOSHOT': 0x00652fd8,          # F11 check boxes: the flags they toggle
+    'MASK1A': 0x00653690,          # 1P key masks
+    'MASK1B': 0x0065369d,
+    'KEYLIST': 0x0066d438,         # the game's 33 named keys
+    'SEMUTE': 0x006bcc4c,
+    'MASK2A': 0x006beb08,          # 2P
+    'MASK2B': 0x006beb15,
+    'HALF': 0x006bf560,            # coordinates on, at 0x5c9a98
+    'WIDE': 0x006bf598,            # the two the pause text halves its own
+    'PREV': 0x006c3d48,            # last frame's slot; credits, nameentry
+    'HELD': 0x006c3d49,            # and how long this press has lasted
+    'CAMERA1': 0x00bf0457,         # and the one Select writes, which is what
+    'ACCEPT1': 0x00bf0481,         # 1P's key buffer slot for A and Space
+    'BLOCKS': 0x00bf6838,          # per player: this + player * 0x70; the
+    'CURPLAYER': 0x00bf6bac,       # the side being configured, 0 or 1
+    'PHASE': 0x01ad0964,           # where the credits sequence is up to
+    'CAM2': 0x01ad0d94,
+    'CAMERA2': 0x01ad0d94,
+    'ACC2': 0x01ad0db1,
+    'ACCEPT2': 0x01ad0db1,         # and 2P
+    'FLAG': 0x01ae1c1c,            # the displaced write
+    'MODE': 0x01ae3594,            # game state and sub-state, the pair the
+    'SUBMODE': 0x01ae3690,         # tick already gates its bind slots on
+    'MOVIEX': 0x01ae5f34,          # the offsets the replaced code read
+    'MOVIEY': 0x01ae5f38,
+    'PRIMARY': 0x01ae5f40,         # the surface DRAW paints on, and the one
+    'HWND': 0x01ae5f58,            # the game's window
+    'BACK': 0x01ae5f5c,            # that is about to be flipped over it
+    'LEV1A': 0x01cb14c4,           # 1P lever words, left then right
+    'LEV1B': 0x01cb14c6,
+    'EDGEA': 0x01ed5ec5,           # press edges, lever A byte: bit 0 is LT
+    'EDGEB': 0x01ed5ec6,           # and lever B's, where 2P's RT is
+    'LEV2A': 0x01ee3ee4,           # 2P
+    'LEV2B': 0x01ee3ee6,
+    'MOVIEHWND': 0x01ef88c8,       # the mciavi window (MCI_ANIM_STATUS_HWND)
+    'MOVIEDEV': 0x01ef88f0,        # its device id
+    'LIVE': 0x03651470,            # + player * 0x18
+    'BINDS1': 0x03651470,          # 1P bind bytes
+    'BINDS2': 0x03651488,          # 2P bind bytes
+    'DEVICES': 0x03651540,         # 1P's profile, 0 being the keyboard
+    'XIFN': 0x0365cb40,            # XInputGetState; 0 not yet, 1 failed
+    'STATE': 0x0365cb44,           # the tick's XINPUT_STATE
+    'BTN': 0x0365cb48,             # wButtons in it; the condition table's
+    'SCR1': 0x0365cb60,            # scratch the tick keeps per player
+    'SCR2': 0x0365cb61,
+    'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, so the two
+    'PBTN': 0x0365cb74,            # pollers cannot tread on each other
+    'SLEEPFN': 0x0365cb80,         # resolved Sleep: 0 not yet, 1 failed
+    'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad,
+    'DZTHR1': 0x0365cb8c,          # stick thresholds out of 32767, 1P then
+    'DZSTR1': 0x0365cb94,          # the digit pairs; see asm/padxinput.asm
+    'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
+    'LOADLIB': 0x0365d504,         # LoadLibraryA
+    'GETPROC': 0x0365d508,         # GetProcAddress
+    'SENDMSG': 0x0365d52c,         # SendMessageA
+    'ENDDIALOG': 0x0365d538,       # EndDialog
+    'CHECKDLGBTN': 0x0365d544,     # CheckDlgButton
+    'GETDLGITEM': 0x0365d54c,      # GetDlgItem
+    'POSTMSG': 0x0365d56c,         # PostMessageA
+    'GETMSG': 0x0365d58c,          # GetMessageA, the call this replaced
+    'PEEKMSG': 0x0365d590,         # PeekMessageA
+    'GETCLIENT': 0x0365d5d4,       # GetClientRect, the hooked one
+    'MOVEWINDOW': 0x0365d5e0,      # MoveWindow
+    'MCISEND': 0x0365d648,         # mciSendCommandA
+}, art=('escrgame.bin', 4194304, 'f0c2b33c6d32e8e25cee840a0de65dc0'),
+    annex=ANNEX_BLOBS)
+
+
+# The Japanese rerelease: the same source through the same toolchain four
+# months on, with every address moved. See docs/NOTES.md, and tools/vomap.py
+# for how the addresses were found.
+JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
+JAPAN_SIZE = 6621696
+JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
+    (0x00000400, 0x00401000),       # .text
+    (0x001eec00, 0x005f0000),       # .rdata
+    (0x00239200, 0x0063b000),       # .data
+    (0x005fba00, 0x03658000),       # .idata
+    (0x005fcc00, 0x0365a000),       # .rsrc
+    (0x00606400, 0x03664000),       # .reloc
+), caves={
+    # Two places the game itself looks: the F7 device list's own run, and
+    # the levers tail inside the XInput routine. Everything else is in the
+    # annex: the runs of zeros this .rdata offered turned out to be the
+    # NULL tails of handler tables, which the game calls through, and there
+    # is no room in what is left. See docs/NOTES.md.
+    'PAD_DEVLIST': 0x006693a0,
+    'LEVERS': ('PADX', 'end'),
+}, symbols={
+    # Places inside our own blobs, the same labels as retail
+    'DEVCUR': ('BINDLIST', 'devcur'),
+    'PADLIST': ('PAD_BINDS', 0),
+    'DZKEYS': ('PAD_NAMES', 'dzkeys'),
+    'COND': ('PAD_COND', 0),
+    'SIMPLEDEF': ('PAD_SIMPLEDEF', 0),
+    'INIKEYS': ('PAD_INIKEYS', 0),
+    'USER32': ('EXTRAS_DATA', 'user32'),
+    'DLGBOXPROC': ('EXTRAS_DATA', 'dlgboxproc'),
+    'CHECKS': ('EXTRAS_DATA', 'checks'),
+    'F11WRAP': ('F11PAUSE', 'f11wrap'),
+    'F11CHECKS': ('F11PAUSE', 'f11checks'),
+    'DLGPROC': ('DEBUGBOX', 'dlgproc'),
+    'LOADSIMPLE': ('INILOAD', 'loadsimple'),
+    'DZSEED': ('PAGESEL', 'dzseed'),
+    'PARSE12': ('INIPARSE', 'parse12'),
+    'DZSAVE': ('INIPARSE', 'dzsave'),
+    'HEXCHAR': ('BINDBLOCK', 'hexchar'),
+    'POLLPADS': ('PADX', 'pollpads'),
+    'TICK': ('PADX', 'tick'),
+    'CAMSKIP': ('CAMSKIP', 0),
+    'GAMEPADDEF': 0x00669588,
+    'SPEEDSEL': 0x00bdef5c,
+    'FRAMEDIV': 0x006c41e8,
+    'SIMPLESTUB1': 0x00442510,
+    'SIMPLESTUB2': 0x005b7653,
+    'JOYCHECKOK': 0x00494944,
+    'SPENDNONE': 0x00495ea8,
+    'NODIALOG': 0x00495308,
+    'BINDPAGE12': 0x00495248,
+    # Locals of the game's own functions our stubs read; the frames grew
+    'FILLIDX': -0x18,              # the bind page fill's loop counter
+    'STOREIDX': -0x14,             # its store's combo index
+    'SELIDX': -0xc,                # the preselect's loop counter
+    'DEVSEL': -0x10,               # the F7 page's combo selection
+    'DEVNUM': -0x14,               # and the device it maps to
+    'SAVEPLAYER': -0xc8,           # the OK handler's player
+    'SAVELINE': -0x18c,
+    'F_X': -0x14,
+    'F_Y': -0x18,
+    'EXIT1P': 0x00442584,          # where the 1P profile switch resumes
+    'KBD1P': 0x00442734,           # stock keyboard handler, called by the tick
+    'KBHANDLER1': 0x00442734,      # the stock 1P keyboard handler
+    'CASEB': 0x00495682,           # the stock device 1 apply-and-serialize
+    'CROSSCHECK': 0x004962cc,      # look at 1P's key map
+    'KBACCEPT': 0x00496324,        # take the key
+    'RESUME': 0x004963f7,          # what the Default button does next
+    'DEFAULTS': 0x0049646c,        # fill a player's binds from the shipped set
+    'DIGITLOOP': 0x004967cd,       # bind page fill: the digit loop
+    'LISTLOOP': 0x0049680d,        # and the list loop
+    'FILLDONE': 0x00496854,        # where the fill loop's jge went
+    'STORESHIFT': 0x004969d1,      # bind page store: shift down, try digits
+    'STORELIST': 0x004969f6,       # and the list id store
+    'SELDIGITS': 0x00496bb6,       # bind page preselect: the digit loop
+    'SELLIST': 0x00496bfa,         # the list loop
+    'MAPDONE': 0x00496c36,         # where the search loop's jge went
+    'SELSET': 0x00496c36,          # and set the selection
+    'CURSOR': 0x004cb463,          # (column, row), cdecl
+    'PRINT': 0x004cca8b,           # (text), cdecl, from the cursor
+    'WRITELINE': 0x005ac4f3,       # (key, value): one v_on.ini line
+    'FINDLINE': 0x005ac531,        # (key) -> value text, 0 if absent
+    'EXIT2P': 0x005b76c7,          # and the 2P one
+    'KBD2P': 0x005b785d,
+    'KBHANDLER2': 0x005b785d,      # and 2P
+    'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
+    'GRESUME': 0x005c10da,         # and their resume
+    'GAMEMODE': 0x006b86ac,
+    'MODE2': 0x01ef4230,
+    'PENDING': 0x036577fc,
+    'RETADDR': 0x03657800,
+    'RECREATE': 0x005bff42,
+    'IDLE': 0x005c0c79,
+    'INACTIVE': 0x01ad7db0,
+    'SETACTIVE': 0x005c0bf5,
+    'FSFLAGS': 0x006bb2b0,
+    'FSMODE': 0x006bb278,
+    'HAVESURF': 0x006bb288,
+    'ISICONIC': 0x036585a4,
+    'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
+    'ORIG': 0x005c29ae,            # the call this one is made in place of
+    'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
+    'MEMCPY': 0x005dfb30,
+    'ORIGENTRY': 0x005e1570,       # the entry point this replaces
+    'CDMUTE': 0x0063b430,
+    'NOSHOT': 0x0064efd8,          # F11 check boxes: the flags they toggle
+    'MASK1A': 0x0064f690,          # 1P key masks
+    'MASK1B': 0x0064f69d,
+    'KEYLIST': 0x006693c0,         # the game's 33 named keys
+    'SEMUTE': 0x006b89ac,
+    'MASK2A': 0x006ba820,          # 2P
+    'MASK2B': 0x006ba82d,
+    'HALF': 0x006bb278,            # coordinates on, at 0x5c9a98
+    'WIDE': 0x006bb2b0,            # the two the pause text halves its own
+    'PREV': 0x006bf0d0,            # last frame's slot; credits, nameentry
+    'HELD': 0x006bf0d1,            # and how long this press has lasted
+    'CAMERA1': 0x00beb0af,         # and the one Select writes, which is what
+    'ACCEPT1': 0x00beb0d9,         # 1P's key buffer slot for A and Space
+    'BLOCKS': 0x00bf1730,          # per player: this + player * 0x70; the
+    'CURPLAYER': 0x00bf1590,       # the side being configured, 0 or 1
+    'PHASE': 0x01acb68c,           # where the credits sequence is up to
+    'CAM2': 0x01acba14,
+    'CAMERA2': 0x01acba14,
+    'ACC2': 0x01acba31,
+    'ACCEPT2': 0x01acba31,         # and 2P
+    'FLAG': 0x01adcdf8,            # the displaced write
+    'MODE': 0x01adcdf0,            # game state and sub-state, the pair the
+    'SUBMODE': 0x01addc40,         # tick already gates its bind slots on
+    'MOVIEX': 0x01ae0c1c,          # the offsets the replaced code read
+    'MOVIEY': 0x01ae0c20,
+    'PRIMARY': 0x01ae0c34,         # the surface DRAW paints on, and the one
+    'HWND': 0x01ae0c38,            # the game's window
+    'BACK': 0x01ae0c18,            # that is about to be flipped over it
+    'LEV1A': 0x01b13204,           # 1P lever words, left then right
+    'LEV1B': 0x01b13206,
+    'EDGEA': 0x01ed0b65,           # press edges, lever A byte: bit 0 is LT
+    'EDGEB': 0x01ed0b66,           # and lever B's, where 2P's RT is
+    'LEV2A': 0x01ef3534,           # 2P
+    'LEV2B': 0x01ef3536,
+    'MOVIEHWND': 0x01ef3570,       # the mciavi window (MCI_ANIM_STATUS_HWND)
+    'MOVIEDEV': 0x01ef3590,        # its device id
+    'LIVE': 0x0364c170,            # + player * 0x18
+    'BINDS1': 0x0364c170,          # 1P bind bytes
+    'BINDS2': 0x0364c188,          # 2P bind bytes
+    'DEVICES': 0x0364c580,         # 1P's profile, 0 being the keyboard
+    # scratch in the page slack past .data, as retail's is
+    'XIFN': 0x036577a0,            # XInputGetState; 0 not yet, 1 failed
+    'STATE': 0x036577a4,           # the tick's XINPUT_STATE
+    'BTN': 0x036577a8,             # wButtons in it; the condition table's
+    'SCR1': 0x036577c0,            # scratch the tick keeps per player
+    'SCR2': 0x036577c1,
+    'PSTATE': 0x036577d0,          # the pump's own XINPUT_STATE, so the two
+    'PBTN': 0x036577d4,            # pollers cannot tread on each other
+    'SLEEPFN': 0x036577e0,         # resolved Sleep: 0 not yet, 1 failed
+    'PADPREV': 0x036577e4,         # last polled buttons, one word per pad,
+    'DZTHR1': 0x036577ec,          # stick thresholds out of 32767, 1P then
+    'DZSTR1': 0x036577f4,          # the digit pairs; see asm/padxinput.asm
+    'GETMODULE': 0x036584bc,       # GetModuleHandleA
+    'LOADLIB': 0x03658514,         # LoadLibraryA
+    'GETPROC': 0x03658518,         # GetProcAddress
+    'SENDMSG': 0x03658538,         # SendMessageA
+    'ENDDIALOG': 0x03658548,       # EndDialog
+    'CHECKDLGBTN': 0x03658554,     # CheckDlgButton
+    'GETDLGITEM': 0x0365855c,      # GetDlgItem
+    'POSTMSG': 0x0365857c,         # PostMessageA
+    'GETMSG': 0x0365859c,          # GetMessageA, the call this replaced
+    'PEEKMSG': 0x036585a0,         # PeekMessageA
+    'GETCLIENT': 0x036585e4,       # GetClientRect, the hooked one
+    'MOVEWINDOW': 0x036585f0,      # MoveWindow
+    'MCISEND': 0x0365864c,         # mciSendCommandA
+}, art=('jscrgame.bin', 4194304, '1d892aeb30bb517f57e7d289ed2f4389'),
+   sites=None, annex=ANNEX_BLOBS)
+
+# The USA OEM pressing: the same toolchain a month before retail, and the
+# closest of the builds to it - 7852 of 7934 functions match, 7593
+# identically, every frame is laid out the same. It has no vendor check
+# to remove: its processor check is an MMX test through cpuid32.dll.
+OEM_MD5 = '4c70f780a7f0d98d74be62304fb99021'
+OEM_SIZE = 6649344
+OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
+    (0x00000400, 0x00401000),       # .text
+    (0x001f3e00, 0x005f5000),       # .rdata
+    (0x0023d800, 0x0063f000),       # .data
+    (0x00601400, 0x0365d000),       # .idata
+    (0x00602600, 0x0365f000),       # .rsrc
+    (0x0060be00, 0x03669000),       # .reloc
+), caves={
+    'PAD_DEVLIST': 0x0066d3d4,      # the F7 device list's own run, in .data
+    'LEVERS': ('PADX', 'end'),
+}, symbols={
+    'DEVCUR': ('BINDLIST', 'devcur'),
+    'PADLIST': ('PAD_BINDS', 0),
+    'DZKEYS': ('PAD_NAMES', 'dzkeys'),
+    'COND': ('PAD_COND', 0),
+    'SIMPLEDEF': ('PAD_SIMPLEDEF', 0),
+    'INIKEYS': ('PAD_INIKEYS', 0),
+    'USER32': ('EXTRAS_DATA', 'user32'),
+    'DLGBOXPROC': ('EXTRAS_DATA', 'dlgboxproc'),
+    'CHECKS': ('EXTRAS_DATA', 'checks'),
+    'F11WRAP': ('F11PAUSE', 'f11wrap'),
+    'F11CHECKS': ('F11PAUSE', 'f11checks'),
+    'DLGPROC': ('DEBUGBOX', 'dlgproc'),
+    'LOADSIMPLE': ('INILOAD', 'loadsimple'),
+    'DZSEED': ('PAGESEL', 'dzseed'),
+    'PARSE12': ('INIPARSE', 'parse12'),
+    'DZSAVE': ('INIPARSE', 'dzsave'),
+    'HEXCHAR': ('BINDBLOCK', 'hexchar'),
+    'POLLPADS': ('PADX', 'pollpads'),
+    'TICK': ('PADX', 'tick'),
+    'CAMSKIP': ('CAMSKIP', 0),
+    'FILLIDX': -0x8,
+    'STOREIDX': -0x14,
+    'SELIDX': -0xc,
+    'DEVSEL': -0xc,
+    'DEVNUM': -0x14,
+    'SAVEPLAYER': -0xc8,
+    'SAVELINE': -0xcc,
+    'F_X': -0xc,
+    'F_Y': -0x10,
+    'GAMEPADDEF': 0x0066d5f8,   # data 1 votes
+    'SPEEDSEL': 0x00be42c8,
+    'FRAMEDIV': 0x006c8468,
+    'SIMPLESTUB1': 0x00442db0,   # func
+    'SIMPLESTUB2': 0x005bc7b3,   # func
+    'JOYCHECKOK': 0x00495cc3,   # insn
+    'SPENDNONE': 0x004971e8,   # insn
+    'NODIALOG': 0x00496648,   # func
+    'BINDPAGE12': 0x00496588,   # func
+    'EXIT1P': 0x00442e24,   # insn
+    'KBD1P': 0x00442fd4,   # func
+    'KBHANDLER1': 0x00442fd4,   # func
+    'CASEB': 0x004969c2,   # func
+    'CROSSCHECK': 0x0049760c,   # insn
+    'KBACCEPT': 0x00497664,
+    'RESUME': 0x00497737,   # insn
+    'DEFAULTS': 0x004977ac,   # func
+    'DIGITLOOP': 0x00497b0d,   # insn
+    'LISTLOOP': 0x00497b4d,   # insn
+    'FILLDONE': 0x00497b94,   # insn
+    'STORESHIFT': 0x00497d0f,   # insn
+    'STORELIST': 0x00497d34,   # insn
+    'SELDIGITS': 0x00497ef4,   # insn
+    'SELLIST': 0x00497f38,   # insn
+    'MAPDONE': 0x00497f74,   # insn
+    'SELSET': 0x00497f74,   # insn
+    'CURSOR': 0x004cd763,   # func
+    'PRINT': 0x004ced8b,   # func
+    'WRITELINE': 0x005b1303,   # func
+    'FINDLINE': 0x005b1341,   # func
+    'EXIT2P': 0x005bc827,   # insn
+    'KBD2P': 0x005bc9bd,   # func
+    'KBHANDLER2': 0x005bc9bd,   # func
+    'GPAUSE': 0x005c62de,   # func
+    'GRESUME': 0x005c6324,   # func
+    'GAMEMODE': 0x006bc8e4,
+    'MODE2': 0x01ef8a20,
+    'PENDING': 0x0365cb1c,
+    'RETADDR': 0x0365cb20,
+    'RECREATE': 0x005c5172,
+    'IDLE': 0x005c5ec3,
+    'INACTIVE': 0x01add0c0,
+    'SETACTIVE': 0x005c5e3f,
+    'FSFLAGS': 0x006bf530,
+    'FSMODE': 0x006bf4f8,
+    'HAVESURF': 0x006bf508,
+    'ISICONIC': 0x0365d5c8,
+    'ORIGWNDPROC': 0x005c6370,   # func
+    'ORIG': 0x005c7bf8,   # func
+    'DRAW': 0x005c9454,   # func
+    'MEMCPY': 0x005e5b70,   # func
+    'ORIGENTRY': 0x005e7470,   # func
+    'CDMUTE': 0x0063f430,
+    'NOSHOT': 0x00652fd0,
+    'MASK1A': 0x00653688,
+    'MASK1B': 0x00653695,
+    'KEYLIST': 0x0066d430,
+    'SEMUTE': 0x006bcbe4,
+    'MASK2A': 0x006beaa0,
+    'MASK2B': 0x006beaad,
+    'HALF': 0x006bf4f8,
+    'WIDE': 0x006bf530,
+    'PREV': 0x006c3ce0,
+    'HELD': 0x006c3ce1,
+    'CAMERA1': 0x00bf0417,
+    'ACCEPT1': 0x00bf0441,   # data 1 votes
+    'BLOCKS': 0x00bf67f8,
+    'CURPLAYER': 0x00bf6b6c,
+    'PHASE': 0x01ad08fc,
+    'CAM2': 0x01ad0d2c,
+    'CAMERA2': 0x01ad0d2c,
+    'ACC2': 0x01ad0d49,   # data 1 votes
+    'ACCEPT2': 0x01ad0d49,   # data 1 votes
+    'FLAG': 0x01ae1bac,
+    'MODE': 0x01ae3524,
+    'SUBMODE': 0x01ae3620,
+    'MOVIEX': 0x01ae5ec4,
+    'MOVIEY': 0x01ae5ec8,
+    'PRIMARY': 0x01ae5ed0,
+    'HWND': 0x01ae5ee8,
+    'BACK': 0x01ae5eec,
+    'LEV1A': 0x01cb1454,
+    'LEV1B': 0x01cb1456,
+    'EDGEA': 0x01ed5e55,
+    'EDGEB': 0x01ed5e56,
+    'LEV2A': 0x01ee3e74,
+    'LEV2B': 0x01ee3e76,
+    'MOVIEHWND': 0x01ef8858,
+    'MOVIEDEV': 0x01ef8880,
+    'LIVE': 0x03651400,
+    'BINDS1': 0x03651400,
+    'BINDS2': 0x03651418,   # data 1 votes
+    'DEVICES': 0x036514d0,
+    'XIFN': 0x0365cac0,
+    'STATE': 0x0365cac4,
+    'BTN': 0x0365cac8,
+    'SCR1': 0x0365cae0,
+    'SCR2': 0x0365cae1,
+    'PSTATE': 0x0365caf0,
+    'PBTN': 0x0365caf4,
+    'SLEEPFN': 0x0365cb00,
+    'PADPREV': 0x0365cb04,
+    'DZTHR1': 0x0365cb0c,
+    'DZSTR1': 0x0365cb14,
+    'GETMODULE': 0x0365d4c8,   # iat GetModuleHandleA
+    'LOADLIB': 0x0365d544,   # iat LoadLibraryA
+    'GETPROC': 0x0365d548,   # iat GetProcAddress
+    'SENDMSG': 0x0365d560,   # iat SendMessageA
+    'ENDDIALOG': 0x0365d574,   # iat EndDialog
+    'CHECKDLGBTN': 0x0365d580,   # iat CheckDlgButton
+    'GETDLGITEM': 0x0365d57c,   # iat GetDlgItem
+    'POSTMSG': 0x0365d5a0,   # iat PostMessageA
+    'GETMSG': 0x0365d5c0,   # iat GetMessageA
+    'PEEKMSG': 0x0365d5c4,   # iat PeekMessageA
+    'GETCLIENT': 0x0365d608,   # iat GetClientRect
+    'MOVEWINDOW': 0x0365d614,   # iat MoveWindow
+    'MCISEND': 0x0365d67c,   # iat mciSendCommandA
+}, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art, byte for byte
+
+BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN, OEM.md5: OEM}
+
+# GENERATED by tools/buildsites.py - do not edit by hand.
+#
+# For each build but retail: where every site the table names by retail
+# offset is in that build, and what it holds there; None for a site the
+# build has no code for. Sites at a blob's cave or in the annex are not
+# here; those come from the build's tables.
+
+# SITES JAPAN BEGIN
+JAPAN.sites = {
+    0x002bba60: (0x002b6bc0, '0f'),
+    0x00189546: (0x0018491a, '2256'),
+    0x00189552: (0x00184926, '88580100'),
+    0x00058189: (0x0005749d, '01'),
+    0x00170dc9: (0x0016c10d, '01'),
+    0x001fcec8: (0x001f76d0, '80340200'),
+    0x001fcecc: (0x001f76d4, '48240000'),
+    0x002bbb54: (0x002b6c74,
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '04000000000000000000000004000000000000000000000004000000ffffffff'
+        '1800000003000000000000000000000004000000000000000000000004000000'
+        '0000000000000000020000000000000017000000030000000000000000000000'
+        '03000000630000001d0000000300000000000000000000000400000000000000'
+        '0000000004000000000000000000000002000000000000001100000003000000'
+        '000000000000000003000000630000001e000000030000000000000000000000'
+        '0100000063000000150000000300000000000000000000000100000063000000'
+        '1c00000003000000000000000000000001000000630000002400000003000000'
+        '0000000000000000010000006300000018000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '1800000003000000000000000000000003000000630000002400000003000000'
+        '0000000000000000010000006300000020000000030000000000000000000000'
+        '01000000630000001f0000000300000000000000000000000100000063000000'
+        '2000000003000000000000000000000004000000000000000000000004000000'
+        '000000000000000002000000000000001a000000030000000000000000000000'
+        '03000000630000001d0000000300000000000000000000000400000000000000'
+        '0000000004000000000000000000000002000000000000002700000003000000'
+        '0000000000000000030000006300000021000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '0c00000003000000000000000000000003000000630000001100000003000000'
+        '0000000000000000010000006300000019000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '0b00000003000000000000000000000003000000630000001b00000003000000'
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '02000000000000000c0000000300000000000000000000000300000063000000'
+        '1600000003000000000000000000000001000000630000002200000003000000'
+        '0000000000000000010000006300000017000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000400000000000000'
+        '0000000002000000000000001600000003000000000000000000000003000000'
+        '6300000018000000030000000000000000000000040000000000000000000000'
+        '0400000000000000000000000200000000000000220000000300000000000000'
+        '0000000003000000630000001f00000003000000000000000000000004000000'
+        '0000000000000000040000000000000000000000020000000000000021000000'
+        '03000000000000000000000003000000630000001b0000000300000000000000'
+        '0000000001000000630000001800000003000000000000000000000001000000'
+        '630000001f000000030000000000000000000000040000000000000000000000'
+        '0400000000000000000000000200000000000000120000000300000000000000'
+        '0000000003000000630000001d00000003000000000000000000000004000000'
+        '000000000000000004000000000000000000000002000000000000000e000000'
+        '0300000000000000000000000300000063000000160000000300000000000000'
+        '0000000004000000000000000000000004000000000000000000000004000000'
+        '000000000000000002000000000000000a000000030000000000000000000000'
+        '03000000630000001c0000000300000000000000000000000100000063000000'
+        '2200000003000000000000000000000001000000630000002100000003000000'
+        '0000000000000000010000006300000015000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000400000000000000'
+        '0000000002000000000000001c00000003000000000000000000000003000000'
+        '6300000027000000030000000000000000000000010000006300000019000000'
+        '03000000000000000000000001000000630000002f0000000300000000000000'
+        '0000000001000000630000003100000003000000000000000000000001000000'
+        '6300000020000000030000000000000000000000010000006300000033000000'
+        '03000000000000000000000006000000630000001c0000000300000000000000'
+        '0000000001000000630000001800000003000000000000000000000004000000'
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '0200000000000000000000000400000004000000050000000300000000000000'
+        '0000000004000000000000000000000004000000000000000000000002000000'
+        '0400000019000000030000000000000000000000010000006300000015000000'
+        '0300000000000000000000000200000000000000000000000200000000000000'
+        '0000000002000000000000000000000002000000'
+    ),
+    0x001c5900: (0x001c01cf, 'a1340cae01'),
+    0x0014dc42: (0x001491d3,
+        'c745ec00000000c745e828000000a11c0cae018945eca1200cae018945e8'
+    ),
+    0x002c7678: (0x002c2808, '4e'),
+    0x0000023f: (0x0000023f, '40'),
+    0x0018fc25: (0x0018ac79, 'c705f8cdad0100000000'),
+    0x000d60c8: (0x000d352a,
+        'f605650bed01010f850d000000f605660bed01010f84f2010000'
+    ),
+    0x001c58e7: (0x001c01b6, 'e8f31b0000'),
+    0x0010acd7: (0x0010745d, '00000000'),
+    0x0010b088: (0x0010780e, '01000000'),
+    0x0010b131: (0x001078b7, 'c70550d7670000000000e950000000'),
+    0x0010b1b0: (0x00107936, '00000000'),
+    0x0010b1ba: (0x00107940, '00000000'),
+    0x0010b1c4: (0x0010794a, '00000000'),
+    0x001c76d4: (0x001c1fa3, '0f840a000000'),
+    0x00107930: (0x001040f0, '830d5031bf0001'),
+    0x001b0920: (0x001ab5dc, '0f850f000000'),
+    0x001c4aa2: (0x001bf342, '558bec81ece0000000'),
+    0x001c5726: (0x001bfff5, '558bec5356'),
+    0x001c5412: (0x001bfce1, 'e893030000'),
+    0x000000a8: (0x000000a8, '70151e00'),
+    0x000273c1: (0x00027021, '833d5cefbd0003'),
+    0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
+    0x000275e2: (0x00027242, 'c7055cefbd0002000000'),
+    0x006035ac: (0x005fd5ac, '2c040000'),
+    0x0060c064: (0x00606064,
+        '230008002c04ffff800046006100730074000000000000000900015000000000'
+        '85005400290008002d04ffff800053006d006f006f0074006800000000000000'
+        '090003500000000044006200240008002e04ffff800054007900700065003100'
+        '0000000009000150000000006e006200240008002f04ffff8000540079007000'
+        '6500320000000000090001500000000098006200240008003104ffff80005400'
+        '79007000650033000000000000000250000000000f00050022000800ffffffff'
+        '8200530063007200650065006e0000000000000000000250000000000f005400'
+        '32000800ffffffff82004d006f00740069006f006e0020005400790070006500'
+        '0000000000000250000000000f00600032000a00ffffffff8200530063007200'
+        '650065006e002000530070006c00690074000000000000000700005000000000'
+        '10001900af001900ffffffff8000540065007800740075007200650000000000'
+        '070000500000000010003700af001800ffffffff800044006900730070006c00'
+        '6100790020004f0062006a006500630074007300000000000000025000000000'
+        '0f000f002b000900ffffffff82004600690065006c0064002000470072006100'
+        '7000680069006300000000000000025000000000160069001a000800ffffffff'
+        '820028003200500020005600530029000000000000000000'
+    ),
+    0x0010afbe: (0x00107744, 'c705e8416c0003000000'),
+    0x0010afeb: (0x00107771, 'c705e8416c0003000000'),
+    0x0010b002: (0x00107788, 'c705e8416c0003000000'),
+    0x001c6941: (0x001c1210, 'c705e8416c0002000000'),
+    0x001c6950: (0x001c121f, 'c705e8416c0003000000'),
+    0x001c6d8c: (0x001c165b, 'c705e8416c0002000000'),
+    0x001c6d9b: (0x001c166a, 'c705e8416c0003000000'),
+    0x001c6dfc: (0x001c16cb, 'c705e8416c0002000000'),
+    0x001c6e0b: (0x001c16da, 'c705e8416c0003000000'),
+    0x001c8bc4: (0x001c3440, 'c705e8416c0002000000'),
+    0x001c8bd3: (0x001c344f, 'c705e8416c0003000000'),
+    0x001c4d42: (0x001bf627, '0f850c000000'),
+    0x001c4d4b: (0x001bf630, '65000000'),
+    0x001c4d7e: (0x001bf663, '26115c00'),
+    0x00077f5a: (0x00076b0a,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e87f77f9ff83c40c'
+    ),
+    0x00078b1c: (0x000776cc,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e8bd6bf9ff83c40c'
+    ),
+    0x00079bb6: (0x00078766,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e8235bf9ff83c40c'
+    ),
+    0x00079f3f: (0x00078aef,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e89a57f9ff83c40c'
+    ),
+    0x0007d04a: (0x0007bbfa,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e88f26f9ff83c40c'
+    ),
+    0x000bb9ea: (0x000b986a,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e8ffe1f4ff83c40c'
+    ),
+    0x000bc5ac: (0x000ba42c,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e83dd6f4ff83c40c'
+    ),
+    0x000bd646: (0x000bb4c6,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e8a3c5f4ff83c40c'
+    ),
+    0x000bd9cf: (0x000bb84f,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e81ac2f4ff83c40c'
+    ),
+    0x000c0ada: (0x000be95a,
+        '8b45ecd94008d9e083ec04d91c248b45ec8b4004508b45ecd900d9e083ec04d9'
+        '1c24e80f91f4ff83c40c'
+    ),
+    0x000970bf: (0x00095c1c, '837de8210f8d2e000000'),
+    0x000970d5: (0x00095c32, '8b04c5c0936600'),
+    0x0009729c: (0x00095df9, '8a04c5c4936600'),
+    0x000974ac: (0x00096009, '837df4210f8d23000000'),
+    0x000974be: (0x0009601b, '390cc5c4936600'),
+    0x00095f35: (0x00094a94, '053017bf0083c008'),
+    0x0009724c: (0x00095da9, '053017bf0083c008'),
+    0x0009736d: (0x00095eca, '053017bf0083c008'),
+    0x00097355: (0x00095eb2, '8d04408d04c588956600'),
+    0x00097397: (0x00095ef4, '053017bf0083c008'),
+    0x00097531: (0x0009608e, '053017bf0083c008'),
+    0x0009740f: (0x00095f6c, '8a84413817bf00'),
+    0x0026c88c: (0x00267c14,
+        '4b6579626f617264206f6e6c79202853696d706c652074797065202d20256450'
+        '20736964652900'
+    ),
+    0x0026c400: (0x00267788,
+        '11001f001e002000100012002e0022002d0013002f002100'
+    ),
+    0x0026c418: (0x002677a0,
+        'c700cf00d300d100d200c900520051004f004c0053005000'
+    ),
+    0x000422a8: (0x00041968, '10254400'),
+    0x001bc13b: (0x001b6aab, '53765b00'),
+    0x001c530e: (0x001bfbdd, 'ff15a0856503'),
+    0x000971bd: (0x00095d1a, '0f8558000000'),
+    0x0026c218: (0x002675a0,
+        '749366005c936600489366003c9366001893660008936600f0926600e0926600'
+    ),
+    0x000422ac: (0x0004196c, '1a254400'),
+    0x001bc13f: (0x001b6aaf, '5d765b00'),
+    0x000422b0: (0x00041970, '2b254400'),
+    0x001bc143: (0x001b6ab3, '6e765b00'),
+    0x00095e46: (0x000949a5, '83c008'),
+    0x00095ec7: (0x00094a26, '3817bf00'),
+    0x00096d37: (0x00095894, '83c008'),
+    0x00096d61: (0x000958be, '83c008'),
+    0x00096f19: (0x00095a76, '83c008'),
+    0x00096c0a: (0x00095767, '3817bf00'),
+    0x00096c40: (0x0009579d, '3817bf00'),
+    0x00096c6d: (0x000957ca, '3817bf00'),
+    0x00096de8: (0x00095945, '3817bf00'),
+    0x00096e3f: (0x0009599c, '3817bf00'),
+    0x00096e9a: (0x000959f7, '3817bf00'),
+    0x00096b61: (0x000956bf, '833d9015bf00010f8558000000'),
+    0x00096c8e: (0x000957eb, '6a016a00e87800000083c408'),
+    0x00094ea0: (0x00093985, 'e8d12b0000'),
+    0x00094eaf: (0x00093997, '3f340000'),
+    0x00095217: (0x00093d38, '4d484900'),
+    0x00095213: (0x00093d34, '1e484900'),
+    0x00096731: (0x00095290, '3f5e4900'),
+    0x00096735: (0x00095294, '655e4900'),
+    0x00095bdc: (0x0009473b, '87524900'),
+    0x00095be0: (0x0009473f, '08534900'),
+    0x00096253: (0x00094db2, '82564900'),
+    0x0009625b: (0x00094dba, '8a594900'),
+    0x00095604: (0x00094155, 'e8802c0000'),
+    0x000958a1: (0x00094401, '03'),
+    0x000958aa: (0x0009440a, 'e900000000'),
+    0x0009522e: (0x00093d4f, '03'),
+    0x00095248: (0x00093d69, '03'),
+    0x0009651a: (0x00095079, '8b803017bf00'),
+    0x00096784: (0x000952e3, '8b45f08b4dec'),
+    0x000959f7: (0x00094556, '89048d80c56403'),
+    0x0060b34e: (0x0060534e, '3100500020007300690064006500'),
+    0x0009703f: (0x00095b9c, '837de81a0f8d27000000'),
+    0x00097257: (0x00095db4, '837dec1a0f8d13000000'),
+    0x00097428: (0x00095f85, '837df41a0f8d27000000'),
+    0x000974cb: (0x00096028, '8345f424e905000000'),
+    0x0009753a: (0x00096097, 'e8948e1400'),
+    0x001c52ac: (0x001bfb7b, 'ff159c856503'),
+    0x00285e04: (0x0028118c, '20505245535320535041434520424152'),
+    0x002c7654: (0x002c27e4,
+        '546f20526573756d652047616d652c20507265737320463300000000'
+    ),
+    0x00269b60: (0x00264f60,
+        '000001000200030004000500060007000800090007000a000b000c000d000e00'
+        '0f00100011001200040004001300090004001400150004001600170007000800'
+        '180019001a001b001c0014001d001e001f002000210022002300240025002600'
+        '2700280029002a002b002c002d002e002f003000310032003300340035003600'
+        '3700380039003a003b003c003d003e00280029003f003a004000410042004300'
+        '4400450046004700480049004a004b004c004a004d004e004f00500051005200'
+        '53005400550056005700580059005a005b005c005d005e005f00600061006200'
+        '63004d004e004f006400650066006700680069006a006b006c004a00'
+    ),
+}
+# SITES JAPAN END
+
+# SITES OEM BEGIN
+OEM.sites = {
+    0x002bba60: (0x002bb3f8, '0f'),
+    0x00189546: (0x00189016, '2256'),
+    0x00189552: (0x00189022, '88580100'),
+    0x00058189: (0x000580e9, '01'),
+    0x00170dc9: (0x00170899, '01'),
+    0x001fcec8: (0x001fc8c8, '80340200'),
+    0x001fcecc: (0x001fc8cc, '48240000'),
+    0x002bbb54: (0x002bb4ec,
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '04000000000000000000000004000000000000000000000004000000ffffffff'
+        '1800000003000000000000000000000004000000000000000000000004000000'
+        '0000000000000000020000000000000017000000030000000000000000000000'
+        '03000000630000001d0000000300000000000000000000000400000000000000'
+        '0000000004000000000000000000000002000000000000001100000003000000'
+        '000000000000000003000000630000001e000000030000000000000000000000'
+        '0100000063000000150000000300000000000000000000000100000063000000'
+        '1c00000003000000000000000000000001000000630000002400000003000000'
+        '0000000000000000010000006300000018000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '1800000003000000000000000000000003000000630000002400000003000000'
+        '0000000000000000010000006300000020000000030000000000000000000000'
+        '01000000630000001f0000000300000000000000000000000100000063000000'
+        '2000000003000000000000000000000004000000000000000000000004000000'
+        '000000000000000002000000000000001a000000030000000000000000000000'
+        '03000000630000001d0000000300000000000000000000000400000000000000'
+        '0000000004000000000000000000000002000000000000002700000003000000'
+        '0000000000000000030000006300000021000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '0c00000003000000000000000000000003000000630000001100000003000000'
+        '0000000000000000010000006300000019000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000200000000000000'
+        '0b00000003000000000000000000000003000000630000001b00000003000000'
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '02000000000000000c0000000300000000000000000000000300000063000000'
+        '1600000003000000000000000000000001000000630000002200000003000000'
+        '0000000000000000010000006300000017000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000400000000000000'
+        '0000000002000000000000001600000003000000000000000000000003000000'
+        '6300000018000000030000000000000000000000040000000000000000000000'
+        '0400000000000000000000000200000000000000220000000300000000000000'
+        '0000000003000000630000001f00000003000000000000000000000004000000'
+        '0000000000000000040000000000000000000000020000000000000021000000'
+        '03000000000000000000000003000000630000001b0000000300000000000000'
+        '0000000001000000630000001800000003000000000000000000000001000000'
+        '630000001f000000030000000000000000000000040000000000000000000000'
+        '0400000000000000000000000200000000000000120000000300000000000000'
+        '0000000003000000630000001d00000003000000000000000000000004000000'
+        '000000000000000004000000000000000000000002000000000000000e000000'
+        '0300000000000000000000000300000063000000160000000300000000000000'
+        '0000000004000000000000000000000004000000000000000000000004000000'
+        '000000000000000002000000000000000a000000030000000000000000000000'
+        '03000000630000001c0000000300000000000000000000000100000063000000'
+        '2200000003000000000000000000000001000000630000002100000003000000'
+        '0000000000000000010000006300000015000000030000000000000000000000'
+        '0400000000000000000000000400000000000000000000000400000000000000'
+        '0000000002000000000000001c00000003000000000000000000000003000000'
+        '6300000027000000030000000000000000000000010000006300000019000000'
+        '03000000000000000000000001000000630000002f0000000300000000000000'
+        '0000000001000000630000003100000003000000000000000000000001000000'
+        '6300000020000000030000000000000000000000010000006300000033000000'
+        '03000000000000000000000006000000630000001c0000000300000000000000'
+        '0000000001000000630000001800000003000000000000000000000004000000'
+        '0000000000000000040000000000000000000000040000000000000000000000'
+        '0200000000000000000000000400000004000000050000000300000000000000'
+        '0000000004000000000000000000000004000000000000000000000002000000'
+        '0400000019000000030000000000000000000000010000006300000015000000'
+        '0300000000000000000000000200000000000000000000000200000000000000'
+        '0000000002000000000000000000000002000000'
+    ),
+    0x001c5900: (0x001c5419, 'a1d05eae01'),
+    0x0014dc42: (0x0014d7b2,
+        'c745f400000000c745f028000000a1c45eae018945f4a1c85eae018945f0'
+    ),
+    0x002c7678: (0x002c7034, '4e'),
+    0x0000023f: (0x0000023f, '40'),
+    0x0018fc25: (0x0018f6f5, 'c705ac1bae0100000000'),
+    0x000d60c8: (0x000d5f68,
+        'f605555eed01010f850d000000f605565eed01010f84f2010000'
+    ),
+    0x001c58e7: (0x001c5400, 'e8f31b0000'),
+    0x0010acd7: (0x0010a847, '00000000'),
+    0x0010b088: (0x0010abf8, '01000000'),
+    0x0010b131: (0x0010aca1, 'c705c017680000000000e950000000'),
+    0x0010b1b0: (0x0010ad20, '00000000'),
+    0x0010b1ba: (0x0010ad2a, '00000000'),
+    0x0010b1c4: (0x0010ad34, '00000000'),
+    0x001c76d4: (0x001c71ed, '0f840a000000'),
+    0x00107930: None,  # nocpucheck
+    0x001b0920: (0x001b03f0, '0f850f000000'),
+    0x001c4aa2: (0x001c4572, '558bec81ece0000000'),
+    0x001c5726: (0x001c523f, '558bec5356'),
+    0x001c5412: (0x001c4ee1, 'e8dd030000'),
+    0x000000a8: (0x000000a8, '70741e00'),
+    0x000273c1: (0x00027321, '833dc842be0003'),
+    0x000275d3: (0x00027533, 'c705c842be0003000000'),
+    0x000275e2: (0x00027542, 'c705c842be0002000000'),
+    0x006035ac: (0x00602fac, '2c040000'),
+    0x0060c064: (0x0060ba64,
+        '230008002c04ffff800046006100730074000000000000000900015000000000'
+        '85005400290008002d04ffff800053006d006f006f0074006800000000000000'
+        '090003500000000044006200240008002e04ffff800054007900700065003100'
+        '0000000009000150000000006e006200240008002f04ffff8000540079007000'
+        '6500320000000000090001500000000098006200240008003104ffff80005400'
+        '79007000650033000000000000000250000000000f00050022000800ffffffff'
+        '8200530063007200650065006e0000000000000000000250000000000f005400'
+        '32000800ffffffff82004d006f00740069006f006e0020005400790070006500'
+        '0000000000000250000000000f00600032000a00ffffffff8200530063007200'
+        '650065006e002000530070006c00690074000000000000000700005000000000'
+        '10001900af001900ffffffff8000540065007800740075007200650000000000'
+        '070000500000000010003700af001800ffffffff800044006900730070006c00'
+        '6100790020004f0062006a006500630074007300000000000000025000000000'
+        '0f000f002b000900ffffffff82004600690065006c0064002000470072006100'
+        '7000680069006300000000000000025000000000160069001a000800ffffffff'
+        '820028003200500020005600530029000000000000000000'
+    ),
+    0x0010afbe: (0x0010ab2e, 'c70568846c0003000000'),
+    0x0010afeb: (0x0010ab5b, 'c70568846c0003000000'),
+    0x0010b002: (0x0010ab72, 'c70568846c0003000000'),
+    0x001c6941: (0x001c645a, 'c70568846c0002000000'),
+    0x001c6950: (0x001c6469, 'c70568846c0003000000'),
+    0x001c6d8c: (0x001c68a5, 'c70568846c0002000000'),
+    0x001c6d9b: (0x001c68b4, 'c70568846c0003000000'),
+    0x001c6dfc: (0x001c6915, 'c70568846c0002000000'),
+    0x001c6e0b: (0x001c6924, 'c70568846c0003000000'),
+    0x001c8bc4: (0x001c86fc, 'c70568846c0002000000'),
+    0x001c8bd3: (0x001c870b, 'c70568846c0003000000'),
+    0x001c4d42: (0x001c4812, '0f850c000000'),
+    0x001c4d4b: (0x001c481b, '65000000'),
+    0x001c4d7e: (0x001c484e, '70635c00'),
+    0x00077f5a: (0x00077e5a,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e83f64f9ff83c40c'
+    ),
+    0x00078b1c: (0x00078a1c,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e87d58f9ff83c40c'
+    ),
+    0x00079bb6: (0x00079ab6,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e8e347f9ff83c40c'
+    ),
+    0x00079f3f: (0x00079e3f,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e85a44f9ff83c40c'
+    ),
+    0x0007d04a: (0x0007cf4a,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e84f13f9ff83c40c'
+    ),
+    0x000bb9ea: (0x000bb88a,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e86fc2f4ff83c40c'
+    ),
+    0x000bc5ac: (0x000bc44c,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e8adb6f4ff83c40c'
+    ),
+    0x000bd646: (0x000bd4e6,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e813a6f4ff83c40c'
+    ),
+    0x000bd9cf: (0x000bd86f,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e88aa2f4ff83c40c'
+    ),
+    0x000c0ada: (0x000c097a,
+        '8b45fcd94008d9e083ec04d91c248b45fc8b4004508b45fcd900d9e083ec04d9'
+        '1c24e87f71f4ff83c40c'
+    ),
+    0x000970bf: (0x00096f5c, '837df8210f8d2e000000'),
+    0x000970d5: (0x00096f72, '8b04c530d46600'),
+    0x0009729c: (0x00097137, '8a04c534d46600'),
+    0x000974ac: (0x00097347, '837df4210f8d23000000'),
+    0x000974be: (0x00097359, '390cc534d46600'),
+    0x00095f35: (0x00095dd4, '05f867bf0083c008'),
+    0x0009724c: (0x000970e7, '05f867bf0083c008'),
+    0x0009736d: (0x00097208, '05f867bf0083c008'),
+    0x00097355: (0x000971f0, '8d04408d04c5f8d56600'),
+    0x00097397: (0x00097232, '05f867bf0083c008'),
+    0x00097531: (0x000973cc, '05f867bf0083c008'),
+    0x0009740f: (0x000972aa, '8a84410068bf00'),
+    0x0026c88c: (0x0026c284,
+        '4b6579626f617264206f6e6c79202853696d706c652074797065202d20256450'
+        '20736964652900'
+    ),
+    0x0026c400: (0x0026bdf8,
+        '11001f001e002000100012002e0022002d0013002f002100'
+    ),
+    0x0026c418: (0x0026be10,
+        'c700cf00d300d100d200c900520051004f004c0053005000'
+    ),
+    0x000422a8: (0x00042208, 'b02d4400'),
+    0x001bc13b: (0x001bbc0b, 'b3c75b00'),
+    0x001c530e: (0x001c4ddd, 'ff15c4d56503'),
+    0x000971bd: (0x00097059, '0f8558000000'),
+    0x0026c218: (0x0026bc10,
+        'e4d36600ccd36600b8d36600acd3660088d3660078d3660060d3660050d36600'
+    ),
+    0x000422ac: (0x0004220c, 'ba2d4400'),
+    0x001bc13f: (0x001bbc0f, 'bdc75b00'),
+    0x000422b0: (0x00042210, 'cb2d4400'),
+    0x001bc143: (0x001bbc13, 'cec75b00'),
+    0x00095e46: (0x00095ce5, '83c008'),
+    0x00095ec7: (0x00095d66, '0068bf00'),
+    0x00096d37: (0x00096bd4, '83c008'),
+    0x00096d61: (0x00096bfe, '83c008'),
+    0x00096f19: (0x00096db6, '83c008'),
+    0x00096c0a: (0x00096aa7, '0068bf00'),
+    0x00096c40: (0x00096add, '0068bf00'),
+    0x00096c6d: (0x00096b0a, '0068bf00'),
+    0x00096de8: (0x00096c85, '0068bf00'),
+    0x00096e3f: (0x00096cdc, '0068bf00'),
+    0x00096e9a: (0x00096d37, '0068bf00'),
+    0x00096b61: (0x000969ff, '833d6c6bbf00010f8558000000'),
+    0x00096c8e: (0x00096b2b, '6a016a00e87800000083c408'),
+    0x00094ea0: (0x00094d40, 'e8542b0000'),
+    0x00094eaf: (0x00094d4f, 'c5330000'),
+    0x00095217: (0x000950b7, 'e15b4900'),
+    0x00095213: (0x000950b3, 'b85b4900'),
+    0x00096731: (0x000965d0, '7f714900'),
+    0x00096735: (0x000965d4, 'a5714900'),
+    0x00095bdc: (0x00095a7b, 'c7654900'),
+    0x00095be0: (0x00095a7f, '48664900'),
+    0x00096253: (0x000960f2, 'c2694900'),
+    0x0009625b: (0x000960fa, 'ca6c4900'),
+    0x00095604: (0x000954a4, 'e86f2c0000'),
+    0x000958a1: (0x00095741, '03'),
+    0x000958aa: (0x0009574a, 'e900000000'),
+    0x0009522e: (0x000950ce, '03'),
+    0x00095248: (0x000950e8, '03'),
+    0x0009651a: (0x000963b9, '8b80f867bf00'),
+    0x00096784: (0x00096623, '8b45f48b4dec'),
+    0x000959f7: (0x00095896, '89048dd0146503'),
+    0x0060b34e: (0x0060ad4e, '3100500020007300690064006500'),
+    0x0009703f: (0x00096edc, '837df81a0f8d27000000'),
+    0x00097257: (0x000970f2, '837dec1a0f8d13000000'),
+    0x00097428: (0x000972c3, '837df41a0f8d27000000'),
+    0x000974cb: (0x00097366, '8345f424e905000000'),
+    0x0009753a: (0x000973d5, 'e896db1400'),
+    0x001c52ac: (0x001c4d7b, 'ff15c0d56503'),
+    0x00285e04: (0x002857fc, '20505245535320535041434520424152'),
+    0x002c7654: (0x002c7010,
+        '546f20526573756d652047616d652c20507265737320463300000000'
+    ),
+    0x00269b60: (0x00269558,
+        '000001000200030004000500060007000800090007000a000b000c000d000e00'
+        '0f00100011001200040004001300090004001400150004001600170007000800'
+        '180019001a001b001c0014001d001e001f002000210022002300240025002600'
+        '2700280029002a002b002c002d002e002f003000310032003300340035003600'
+        '3700380039003a003b003c003d003e00280029003f003a004000410042004300'
+        '4400450046004700480049004a004b004c004a004d004e004f00500051005200'
+        '53005400550056005700580059005a005b005c005d005e005f00600061006200'
+        '63004d004e004f006400650066006700680069006a006b006c004a00'
+    ),
+}
+# SITES OEM END
+
 # GENERATED - do not edit the hex by hand.
 #
 # Assembled from the sources in asm/. To change any of them: edit the source
@@ -90,124 +1184,942 @@ DISC_IMAGES = {
 # which rewrites everything between the markers below. CI runs
 # `asm/build.py --check` on every push and fails if the two have drifted.
 #
-# padxinput.asm is assembled at a fixed org and padded to a fixed length: five
-# addresses inside it are named from outside, and levers.asm is written at the
-# site immediately after it. The source pins all of that.
+# Each entry is (code, fixups, labels). A fixup is (offset, kind, symbol,
+# addend): 'abs' puts the symbol's address plus the addend at the offset,
+# 'rel' the distance from the end of the slot to it, 'abs8' one byte of it -
+# a frame offset, where the symbol is where the caller keeps a local and
+# differs between compiles of the game. The symbol '.' is the blob's own
+# address. Labels are offsets into the code, for the symbols above and the
+# site table to name.
 
-# PADX BLOB BEGIN
-PADX_CODE = bytes.fromhex(
-    '6822836000e8ef00000083c404e952aee3ff684a836000e8dd00000083c404e9'
-    'd34cfbff0000000000000000000000000000000000000000e807000000ff2590'
-    'd5650300609ce80f02000083f801767431f683fe02736d6870cb650356ff1540'
-    'cb650385c0755a0fb71d74cb65038d14b584cb65030fb72a66891a31ff83ff02'
-    '733f8d0cbd278160000fb70189da21c221e839c27428b80001000085d2750b80'
-    '7903007419b8010100006a000fb651025250ff35585fae01ff156cd5650347eb'
-    'bc46eb8e9d61c310007200001020000000000000000000000000000000000000'
-    '000000000000000000000000000000000000000000000000005589e583ec0453'
-    '56578b5d08c745fc00000000e84901000083f80174416844cb6503ff33ffd085'
-    'c07534c745fc010000000fb70548cb6503a900100000740b8b5318c60280e8fd'
-    '5b03000fb70548cb6503a92000000074068b5324c602808b4320ffd0837dfc00'
-    '0f843c01000031f683fe0c0f83a1000000833d9435ae01047512833d9036ae01'
-    '087c09833d9036ae010c7e0f83fe04747b83fe05747683fe077f778b53040fb6'
-    '04722de0000000726383f810735e8d3cc51b4d62000fb6070fb757028b4f0483'
-    'f800741783f801741d83f802742c0fb68248cb650339c8772eeb310fbf8248cb'
-    '6503f7d8eb070fbf8248cb65038b0b3b048d8ccb65037f0feb120fb70548cb65'
-    '0385c87502eb05e82500000046e956ffffff31f683fe040f83850000000fb705'
-    '48cb65030fa3f07305e80300000046ebe38b53100fb60c32f7d18b53080fb702'
-    '21c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a140cb650385'
-    'c075385631f683fe0373258b04b50783600050ff1504d5650385c0750346ebe6'
-    '681383600050ff1508d5650385c07505b801000000a340cb65035ec300000000'
-    '00005f5e5bc9c372836000808360008e83600058496e70757447657453746174'
-    '65000000000070146503c414cb01c614cb01903665009d3665008104bf0060cb'
-    '6503743044005704bf000100000088146503e43eee01e63eee0108eb6b0015eb'
-    '6b00b10dad0161cb6503edce5b00940dad0178696e707574315f342e646c6c00'
-    '78696e707574315f332e646c6c0078696e707574395f315f302e646c6c00'
-)
-# PADX BLOB END
+# BLOBS BLOB BEGIN
+BLOBS = {
+    'TIMER': (bytes.fromhex(
+        '6824000000ff1500000000682e00000050ff150000000085c074046a01ffd0e9'
+        'fcffffff77696e6d6d2e646c6c0074696d65426567696e506572696f6400'
+    ), (
+        (0x1, 'abs', '.', 36),
+        (0x7, 'abs', 'LOADLIB', 0),
+        (0xc, 'abs', '.', 46),
+        (0x13, 'abs', 'GETPROC', 0),
+        (0x20, 'rel', 'ORIGENTRY', -4),
+    ), {
+        'start': 0x0,
+        'winmm': 0x24,
+        'procname': 0x2e,
+    }),
+    'DEBUGBOX': (bytes.fromhex(
+        '558bec53817d0c00010000753b817d107a0000007532833d0000000002742968'
+        '00000000ff1500000000680000000050ff150000000085c074078bd8e8fcffff'
+        'ff33c05b5dc210005b5de9fcffffff558bec5356578b450c3d100100007532ff'
+        '7508e8fcffffff31ff8d475250ff7508ff15000000008d14bd00000000526a00'
+        '6a0c50ff15000000004783ff0272daeb453d1101000075450fb74d108d51ae83'
+        'fa01763283f902740d83f954740881f9419c000075308b5508e8eaeaeaea85c0'
+        '74146a00516811010000ff3500000000ff1500000000b801000000eb0233c05f'
+        '5e5b5dc2100083f9517513833d000000000475086a1f8f0500000000ebd8ebc2'
+    ), (
+        (0x18, 'abs', 'GAMEMODE', 0),
+        (0x20, 'abs', 'USER32', 0),
+        (0x26, 'abs', 'LOADLIB', 0),
+        (0x2b, 'abs', 'DLGBOXPROC', 0),
+        (0x32, 'abs', 'GETPROC', 0),
+        (0x3d, 'rel', 'F11WRAP', -4),
+        (0x4b, 'rel', 'ORIGWNDPROC', -4),
+        (0x63, 'rel', 'F11CHECKS', -4),
+        (0x72, 'abs', 'GETDLGITEM', 0),
+        (0x79, 'abs', 'DZSTR1', 0),
+        (0x85, 'abs', 'SENDMSG', 0),
+        (0xcc, 'abs', 'HWND', 0),
+        (0xd2, 'abs', 'POSTMSG', 0),
+        (0xed, 'abs', 'MODE', 0),
+        (0xf8, 'abs', 'SUBMODE', 0),
+    ), {
+        'hook': 0x0,
+        'dlgproc': 0x4f,
+        'credits': 0xe6,
+    }),
+    'PADX': (bytes.fromhex(
+        '68de020000e81501000083c404e9fcffffff6806030000e80301000083c404e9'
+        'fcffffffe806000000ff2500000000609ce84602000083f8010f86d500000031'
+        'f683fe020f83ca000000680000000056ff150000000085c00f85b00000000fb7'
+        '1d000000008d14b5000000000fb72a66891a89d825100300003d100300007548'
+        '803d060000001e723f803d070000001e723689e825100300003d10030000746e'
+        '833d00000000027465c70500000000ffffffff833d00000000017552c7050000'
+        '0000ffffffffeb4631ff83ff02733f8d0cbd170100000fb70189da21c221e839'
+        'c27428b80001000085d2750b807903007419b8010100006a000fb651025250ff'
+        '3500000000ff150000000047ebbc46e92dffffff9d61c3100072000010200055'
+        '89e583ec045356578b5d08c745fc00000000e84501000083f801744168000000'
+        '00ff33ffd085c07534c745fc010000000fb70500000000a900100000740b8b53'
+        '18c60280e8fcffffff0fb70500000000a92000000074068b5324c602808b4320'
+        'ffd0837dfc000f843201000031f683fe0c0f83a1000000833d00000000047512'
+        '833d00000000087c09833d000000000c7e0f83fe04747b83fe05747683fe077f'
+        '778b53040fb604722de0000000726383f810735e8d3cc5000000000fb6070fb7'
+        '57028b4f0483f800741783f801741d83f802742c0fb6820000000039c8772eeb'
+        '310fbf8200000000f7d8eb070fbf82000000008b0b3b048d000000007f0feb12'
+        '0fb7050000000085c87502eb05e82100000046e956ffffff31f683fe04737f0f'
+        'b705000000000fa3f07305e80300000046ebe78b53100fb60c32f7d18b53080f'
+        'b70221c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a1000000'
+        '0085c075385631f683fe0373258b04b5c302000050ff150000000085c0750346'
+        'ebe668cf02000050ff150000000085c07505b801000000a3000000005ec35f5e'
+        '5bc9c32e0300003c0300004a03000058496e7075744765745374617465000000'
+        '0000000000000000000000000000000000000000000000000000000000000000'
+        '0000000000000100000000000000000000000000000000000000000000000000'
+        '000000000000000000000000000078696e707574315f342e646c6c0078696e70'
+        '7574315f332e646c6c0078696e707574395f315f302e646c6c00'
+    ), (
+        (0x1, 'abs', '.', 734),
+        (0xe, 'rel', 'EXIT1P', -4),
+        (0x13, 'abs', '.', 774),
+        (0x20, 'rel', 'EXIT2P', -4),
+        (0x2b, 'abs', 'PEEKMSG', 0),
+        (0x4b, 'abs', 'PSTATE', 0),
+        (0x52, 'abs', 'XIFN', 0),
+        (0x61, 'abs', 'PBTN', 0),
+        (0x68, 'abs', 'PADPREV', 0),
+        (0x82, 'abs', 'PSTATE', 6),
+        (0x8b, 'abs', 'PSTATE', 7),
+        (0xa2, 'abs', 'GAMEMODE', 0),
+        (0xab, 'abs', 'MODE', 0),
+        (0xb5, 'abs', 'GAMEMODE', 0),
+        (0xbe, 'abs', 'MODE2', 0),
+        (0xd2, 'abs', '.', 279),
+        (0x101, 'abs', 'HWND', 0),
+        (0x107, 'abs', 'POSTMSG', 0),
+        (0x13d, 'abs', 'STATE', 0),
+        (0x153, 'abs', 'BTN', 0),
+        (0x165, 'rel', 'CAMSKIP', -4),
+        (0x16c, 'abs', 'BTN', 0),
+        (0x199, 'abs', 'MODE', 0),
+        (0x1a2, 'abs', 'SUBMODE', 0),
+        (0x1ab, 'abs', 'SUBMODE', 0),
+        (0x1d7, 'abs', 'COND', 0),
+        (0x1f7, 'abs', 'BTN', 0),
+        (0x204, 'abs', 'BTN', 0),
+        (0x20f, 'abs', 'BTN', 0),
+        (0x218, 'abs', 'DZTHR1', 0),
+        (0x223, 'abs', 'BTN', 0),
+        (0x242, 'abs', 'BTN', 0),
+        (0x27d, 'abs', 'XIFN', 0),
+        (0x290, 'abs', '.', 707),
+        (0x297, 'abs', 'LOADLIB', 0),
+        (0x2a3, 'abs', '.', 719),
+        (0x2aa, 'abs', 'GETPROC', 0),
+        (0x2b8, 'abs', 'XIFN', 0),
+        (0x2c3, 'abs', '.', 814),
+        (0x2c7, 'abs', '.', 828),
+        (0x2cb, 'abs', '.', 842),
+        (0x2e2, 'abs', 'BINDS1', 0),
+        (0x2e6, 'abs', 'LEV1A', 0),
+        (0x2ea, 'abs', 'LEV1B', 0),
+        (0x2ee, 'abs', 'MASK1A', 0),
+        (0x2f2, 'abs', 'MASK1B', 0),
+        (0x2f6, 'abs', 'ACCEPT1', 0),
+        (0x2fa, 'abs', 'SCR1', 0),
+        (0x2fe, 'abs', 'KBHANDLER1', 0),
+        (0x302, 'abs', 'CAMERA1', 0),
+        (0x30a, 'abs', 'BINDS2', 0),
+        (0x30e, 'abs', 'LEV2A', 0),
+        (0x312, 'abs', 'LEV2B', 0),
+        (0x316, 'abs', 'MASK2A', 0),
+        (0x31a, 'abs', 'MASK2B', 0),
+        (0x31e, 'abs', 'ACCEPT2', 0),
+        (0x322, 'abs', 'SCR2', 0),
+        (0x326, 'abs', 'KBHANDLER2', 0),
+        (0x32a, 'abs', 'CAMERA2', 0),
+    ), {
+        'entry1p': 0x0,
+        'entry2p': 0x12,
+        'pump': 0x24,
+        'pollpads': 0x2f,
+        'keytab': 0x117,
+        'keytab_end': 0x11f,
+        'tick': 0x11f,
+        'apply': 0x253,
+        'resolve': 0x27c,
+        'epilogue': 0x2be,
+        'dlltab': 0x2c3,
+        'procname': 0x2cf,
+        'block1': 0x2de,
+        'block2': 0x306,
+        'dll14': 0x32e,
+        'dll13': 0x33c,
+        'dll910': 0x34a,
+    }),
+    'LEVERS': (bytes.fromhex(
+        '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
+        '40750bf601807506800ab08009705f5e5bc9c3'
+    ), (
+    ), {
+    }),
+    'TWIN': (bytes.fromhex(
+        '6854000000e8fcffffff83c404e9fcffffff687c000000e8fcffffff83c404e9'
+        'fcffffffe800e900ea00eb00ec00ed00ee00ef00e600e700e400e50020108040'
+        '0000000001000200000000002010804000010002000000002400000000000000'
+        '000000003c000000480000000000000000000000000000000000000001000000'
+        '2400000000000000000000003c00000048000000000000000000000000000000'
+        '00000000'
+    ), (
+        (0x1, 'abs', '.', 84),
+        (0x6, 'rel', 'TICK', -4),
+        (0xe, 'rel', 'EXIT1P', -4),
+        (0x13, 'abs', '.', 124),
+        (0x18, 'rel', 'TICK', -4),
+        (0x20, 'rel', 'EXIT2P', -4),
+        (0x58, 'abs', '.', 36),
+        (0x5c, 'abs', 'LEV1A', 0),
+        (0x60, 'abs', 'LEV1B', 0),
+        (0x64, 'abs', '.', 60),
+        (0x68, 'abs', '.', 72),
+        (0x6c, 'abs', 'ACCEPT1', 0),
+        (0x70, 'abs', 'SCR1', 0),
+        (0x74, 'abs', 'KBD1P', 0),
+        (0x78, 'abs', 'CAMERA1', 0),
+        (0x80, 'abs', '.', 36),
+        (0x84, 'abs', 'LEV2A', 0),
+        (0x88, 'abs', 'LEV2B', 0),
+        (0x8c, 'abs', '.', 60),
+        (0x90, 'abs', '.', 72),
+        (0x94, 'abs', 'ACC2', 0),
+        (0x98, 'abs', 'SCR2', 0),
+        (0x9c, 'abs', 'KBD2P', 0),
+        (0xa0, 'abs', 'CAM2', 0),
+    ), {
+        'stub1p': 0x0,
+        'stub2p': 0x12,
+        'binds': 0x24,
+        'maska': 0x3c,
+        'maskb': 0x48,
+        'block1': 0x54,
+        'block2': 0x7c,
+    }),
+    'INTROWAIT': (bytes.fromhex(
+        'e8fcffffff6a006a006a006a00ff742414ff150000000085c07509e80a000000'
+        '85c075dcff2500000000a10000000085c0740f83f801743a6a08ffd0b8010000'
+        '00c36875000000ff150000000085c07417688200000050ff150000000085c074'
+        '07a300000000ebd0c705000000000100000031c0c36b65726e656c33322e646c'
+        '6c00536c65657000'
+    ), (
+        (0x1, 'rel', 'POLLPADS', -4),
+        (0x13, 'abs', 'PEEKMSG', 0),
+        (0x26, 'abs', 'GETMSG', 0),
+        (0x2b, 'abs', 'SLEEPFN', 0),
+        (0x43, 'abs', '.', 117),
+        (0x49, 'abs', 'LOADLIB', 0),
+        (0x52, 'abs', '.', 130),
+        (0x59, 'abs', 'GETPROC', 0),
+        (0x62, 'abs', 'SLEEPFN', 0),
+        (0x6a, 'abs', 'SLEEPFN', 0),
+    ), {
+        'introwait': 0x0,
+        'nap': 0x2a,
+        'kern32': 0x75,
+        'sleepnm': 0x82,
+    }),
+    'KBPAGE': (bytes.fromhex(
+        '833d00000000017510a1000000004883f8017605e9fcffffffe9fcffffff9090'
+        '6a01ff3500000000e8fcffffff83c408e9fcffffff'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xa, 'abs', 'DEVICES', 0),
+        (0x15, 'rel', 'CROSSCHECK', -4),
+        (0x1a, 'rel', 'KBACCEPT', -4),
+        (0x24, 'abs', 'CURPLAYER', 0),
+        (0x29, 'rel', 'DEFAULTS', -4),
+        (0x31, 'rel', 'RESUME', -4),
+    ), {
+        'dupkey': 0x0,
+        'default_button': 0x20,
+    }),
+    'BINDLIST': (bytes.fromhex(
+        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
+        '7df810eb04837df8217c0883c404e9fcffffffc390909090e8c3ffffff74088b'
+        '04c500000000c38b04c500000000c390e8abffffff74088a04c504000000c38a'
+        '04c504000000c3'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xb, 'abs', 'BLOCKS', 0),
+        (0x21, 'abs8', 'FILLIDX', 0),
+        (0x27, 'abs8', 'FILLIDX', 0),
+        (0x2f, 'rel', 'FILLDONE', -4),
+        (0x42, 'abs', 'PADLIST', 0),
+        (0x4a, 'abs', 'KEYLIST', 0),
+        (0x5a, 'abs', 'PADLIST', 4),
+        (0x62, 'abs', 'KEYLIST', 4),
+    ), {
+        'devcur': 0x0,
+        'fillcount': 0x18,
+        'fillname': 0x38,
+        'storeid': 0x50,
+    }),
+    'BINDMAP': (bytes.fromhex(
+        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
+        '7df410eb04837df4217c0883c404e9fcffffffc390909090e8c3ffffff740839'
+        '0cc504000000c3390cc504000000c3908b4424046bc87081c1380000006bc018'
+        '05000000006a185051e8fcffffff83c40cc3'
+    ), (
+        (0x2, 'abs', 'CURPLAYER', 0),
+        (0xb, 'abs', 'BLOCKS', 0),
+        (0x21, 'abs8', 'SELIDX', 0),
+        (0x27, 'abs8', 'SELIDX', 0),
+        (0x2f, 'rel', 'MAPDONE', -4),
+        (0x42, 'abs', 'PADLIST', 4),
+        (0x4a, 'abs', 'KEYLIST', 4),
+        (0x59, 'abs', 'BLOCKS', 56),
+        (0x61, 'abs', 'SIMPLEDEF', 0),
+        (0x6a, 'rel', 'MEMCPY', -4),
+    ), {
+        'devcur': 0x0,
+        'mapcount': 0x18,
+        'mapid': 0x38,
+        'simple_defaults': 0x50,
+    }),
+    'BINDBLOCK': (bytes.fromhex(
+        '83b8000000000374060508000000c30538000000c39090906bd07083ba000000'
+        '00036bc01874060500000000c30500000000c39083b9000000000374088a8441'
+        '08000000c38a844138000000c3909090240f3c0a720204270430880747c3'
+    ), (
+        (0x2, 'abs', 'BLOCKS', 0),
+        (0xa, 'abs', 'BLOCKS', 8),
+        (0x10, 'abs', 'BLOCKS', 56),
+        (0x1d, 'abs', 'BLOCKS', 0),
+        (0x28, 'abs', 'GAMEPADDEF', 0),
+        (0x2e, 'abs', 'SIMPLEDEF', 0),
+        (0x36, 'abs', 'BLOCKS', 0),
+        (0x40, 'abs', 'BLOCKS', 8),
+        (0x48, 'abs', 'BLOCKS', 56),
+    ), {
+        'blockaddr': 0x0,
+        'defsource': 0x18,
+        'preselbind': 0x34,
+        'hexchar': 0x50,
+    }),
+    'INISAVE': (bytes.fromhex(
+        '5356578b9d38ffffff6bf3708db6380000008bbd34ffffff31c98a040e88c2c0'
+        'e804e8fcffffff88d0e8fcffffff4183f9187ce6c607006bc3110500000000ff'
+        'b534ffffff50e8fcffffff83c4085f5e5be9fcffffff'
+    ), (
+        (0x5, 'abs', 'SAVEPLAYER', 0),
+        (0xe, 'abs', 'BLOCKS', 56),
+        (0x14, 'abs', 'SAVELINE', 0),
+        (0x23, 'rel', 'HEXCHAR', -4),
+        (0x2a, 'rel', 'HEXCHAR', -4),
+        (0x3b, 'abs', 'INIKEYS', 0),
+        (0x41, 'abs', 'SAVELINE', 0),
+        (0x47, 'rel', 'WRITELINE', -4),
+        (0x52, 'rel', 'CASEB', -4),
+    ), {
+        'savesimple': 0x0,
+    }),
+    'INILOAD': (bytes.fromhex(
+        '5356578b5c24106bfb708dbf380000006bc3110500000000e8fcffffff83ef30'
+        '6bc3138d8022000000e8fcffffff833c9d000000000375138d77306bfb188dbf'
+        '00000000b906000000f3a55f5e5bc3'
+    ), (
+        (0xc, 'abs', 'BLOCKS', 56),
+        (0x14, 'abs', 'INIKEYS', 0),
+        (0x19, 'rel', 'PARSE12', -4),
+        (0x25, 'abs', 'INIKEYS', 34),
+        (0x2a, 'rel', 'PARSE12', -4),
+        (0x31, 'abs', 'DEVICES', 0),
+        (0x40, 'abs', 'LIVE', 0),
+    ), {
+        'loadsimple': 0x0,
+    }),
+    'BLOCKCUR': (bytes.fromhex(
+        '518b0d000000006bc97083b900000000035974078d8008000000c38d80380000'
+        '00c390909090909050518b45086bc8708b048500000000398100000000595875'
+        '05e9fcffffffc3'
+    ), (
+        (0x3, 'abs', 'CURPLAYER', 0),
+        (0xc, 'abs', 'BLOCKS', 0),
+        (0x16, 'abs', 'BLOCKS', 8),
+        (0x1d, 'abs', 'BLOCKS', 56),
+        (0x33, 'abs', 'DEVICES', 0),
+        (0x39, 'abs', 'BLOCKS', 0),
+        (0x42, 'rel', 'MEMCPY', -4),
+    ), {
+        'blockcur': 0x0,
+        'syncshim': 0x28,
+    }),
+    'INIPARSE': (bytes.fromhex(
+        '50e8fcffffff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
+        '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
+        '04b500000000506bc60c050000000050e8fcffffff83c4084e79e4c3'
+    ), (
+        (0x2, 'rel', 'FINDLINE', -4),
+        (0x42, 'abs', 'DZSTR1', 0),
+        (0x4b, 'abs', 'DZKEYS', 0),
+        (0x51, 'rel', 'WRITELINE', -4),
+    ), {
+        'parse12': 0x0,
+        'nibble': 0x2c,
+        'dzsave': 0x3c,
+    }),
+    'PAGESEC': (bytes.fromhex(
+        'e8fcffffff750f837df81a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff750f837dec1a7d01c383c404e9fcffffff83c404e9fcffffff'
+    ), (
+        (0x1, 'rel', 'DEVCUR', -4),
+        (0x9, 'abs8', 'FILLIDX', 0),
+        (0x12, 'rel', 'DIGITLOOP', -4),
+        (0x1a, 'rel', 'LISTLOOP', -4),
+        (0x1f, 'rel', 'DEVCUR', -4),
+        (0x27, 'abs8', 'STOREIDX', 0),
+        (0x30, 'rel', 'STORESHIFT', -4),
+        (0x38, 'rel', 'STORELIST', -4),
+    ), {
+        'fillsec': 0x0,
+        'storesec': 0x1e,
+    }),
+    'PAGESEL': (bytes.fromhex(
+        'e8fcffffff750f837df41a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
+        'ffffff75048345f42483c404e9fcffffff00000069c14701000089049d000000'
+        '00880c9d0300000088c8d40a6605303086c46689049d00000000c3'
+    ), (
+        (0x1, 'rel', 'DEVCUR', -4),
+        (0x9, 'abs8', 'SELIDX', 0),
+        (0x12, 'rel', 'SELDIGITS', -4),
+        (0x1a, 'rel', 'SELLIST', -4),
+        (0x1f, 'rel', 'DEVCUR', -4),
+        (0x27, 'abs8', 'SELIDX', 0),
+        (0x2d, 'rel', 'SELSET', -4),
+        (0x3d, 'abs', 'DZTHR1', 0),
+        (0x44, 'abs', 'DZSTR1', 3),
+        (0x56, 'abs', 'DZSTR1', 0),
+    ), {
+        'selsec': 0x0,
+        'selidx': 0x1e,
+        'dzseed': 0x34,
+    }),
+    'COMMITDEV': (bytes.fromhex(
+        '89048d0000000083f801740583f80375275657516bf1708db60800000083f803'
+        '750383c6306bf9188dbf00000000b906000000f3a5595f5ec3'
+    ), (
+        (0x3, 'abs', 'DEVICES', 0),
+        (0x19, 'abs', 'BLOCKS', 8),
+        (0x2a, 'abs', 'LIVE', 0),
+    ), {
+        'commitdev': 0x0,
+    }),
+    'INIALL': (bytes.fromhex(
+        '6a016a00e8fcffffff6a016a01e8fcffffff83c410536a015b6bc30c05000000'
+        '0050e8fcffffff5a6a285985c0741f668b00662d30303c09771480fc09770f86'
+        'c4d50a3c5f77073c0572030fb6c8e8fcffffff4b79c35bc3'
+    ), (
+        (0x5, 'rel', 'LOADSIMPLE', -4),
+        (0xe, 'rel', 'LOADSIMPLE', -4),
+        (0x1d, 'abs', 'DZKEYS', 0),
+        (0x23, 'rel', 'FINDLINE', -4),
+        (0x4f, 'rel', 'DZSEED', -4),
+    ), {
+        'iniall': 0x0,
+    }),
+    'DEVORDER': (bytes.fromhex(
+        '030001020405060701020300040506078b800000000083f80777070fb6800000'
+        '0000c38b45f483f80777070fb680080000008b4decc3'
+    ), (
+        (0x12, 'abs', 'BLOCKS', 0),
+        (0x1e, 'abs', '.', 0),
+        (0x25, 'abs8', 'DEVSEL', 0),
+        (0x2e, 'abs', '.', 8),
+        (0x34, 'abs8', 'DEVNUM', 0),
+    ), {
+        'posof': 0x0,
+        'devof': 0x8,
+        'posshim': 0x10,
+        'devshim': 0x23,
+    }),
+    'F11PAUSE': (bytes.fromhex(
+        '6a00e8fcffffff83c4046a006800000000ff750868e7e7e7e76a00ff15000000'
+        '0050ffd3e8fcffffffc3be000000006a035f8b068b0031c983f8010f94c151ff'
+        '7604ff74240cff150000000083c6084f75e0c20400'
+    ), (
+        (0x3, 'rel', 'GPAUSE', -4),
+        (0xd, 'abs', 'DLGPROC', 0),
+        (0x1d, 'abs', 'GETMODULE', 0),
+        (0x25, 'rel', 'GRESUME', -4),
+        (0x2b, 'abs', 'CHECKS', 0),
+        (0x48, 'abs', 'CHECKDLGBTN', 0),
+    ), {
+        'f11wrap': 0x0,
+        'f11checks': 0x2a,
+    }),
+    'VOXT': (bytes.fromhex(
+        '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff15000000'
+        '008d34bd00000000566a036a0d50ff15000000000fb60683e83083f80977190f'
+        'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba000000'
+        '00803a0074085389c18bdfffd25b4f79a5b8000000008038007402ffd06a0053'
+        'ff150000000031c0c3ba00000000803a0074336a015f536a28598bdfffd25b4f'
+        '79f46a015f8d47525053ff15000000008d14bd00000000526a006a0c50ff1500'
+        '0000004f79df31c0c36a0053ff150000000068419c0000596a0158c3'
+    ), (
+        (0x1d, 'abs', 'GETDLGITEM', 0),
+        (0x24, 'abs', 'DZSTR1', 0),
+        (0x30, 'abs', 'SENDMSG', 0),
+        (0x5d, 'abs', 'DZSEED', 0),
+        (0x72, 'abs', 'DZSAVE', 0),
+        (0x82, 'abs', 'ENDDIALOG', 0),
+        (0x8a, 'abs', 'DZSEED', 0),
+        (0xac, 'abs', 'GETDLGITEM', 0),
+        (0xb3, 'abs', 'DZSTR1', 0),
+        (0xbf, 'abs', 'SENDMSG', 0),
+        (0xce, 'abs', 'ENDDIALOG', 0),
+    ), {
+        'annex': 0x0,
+    }),
+    'MOVIE': (bytes.fromhex(
+        '5589e583ec405356578b7d08a1000000008947f4a1000000008947f031f66858'
+        '010000ff150000000085c0742b686201000050ff150000000085c0741b89c368'
+        '73010000ff150000000085c0740a687e01000050ffd389c685f675068b350000'
+        '00008d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
+        'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
+        'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
+        'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
+        '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
+        '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff3500000000ff15000000'
+        '0031c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
+        '006842080000ff3500000000a100000000ffd05f5e5bc9c364647261772e646c'
+        '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
+        '74436c69656e745265637400'
+    ), (
+        (0xd, 'abs', 'MOVIEX', 0),
+        (0x13, 'abs8', 'F_X', 0),
+        (0x15, 'abs', 'MOVIEY', 0),
+        (0x1b, 'abs8', 'F_Y', 0),
+        (0x1f, 'abs', '.', 344),
+        (0x25, 'abs', 'GETMODULE', 0),
+        (0x2e, 'abs', '.', 354),
+        (0x35, 'abs', 'GETPROC', 0),
+        (0x40, 'abs', '.', 371),
+        (0x46, 'abs', 'GETMODULE', 0),
+        (0x4f, 'abs', '.', 382),
+        (0x5e, 'abs', 'GETCLIENT', 0),
+        (0xef, 'abs8', 'F_X', 0),
+        (0xfa, 'abs8', 'F_Y', 0),
+        (0x111, 'abs8', 'F_Y', 0),
+        (0x114, 'abs8', 'F_X', 0),
+        (0x117, 'abs', 'MOVIEHWND', 0),
+        (0x11d, 'abs', 'MOVEWINDOW', 0),
+        (0x148, 'abs', 'MOVIEDEV', 0),
+        (0x14d, 'abs', 'MCISEND', 0),
+    ), {
+        'movie_place': 0x0,
+        's_ddraw': 0x158,
+        's_ddgpa': 0x162,
+        's_user32': 0x173,
+        's_getclient': 0x17e,
+    }),
+    'CREDITS': (bytes.fromhex(
+        'a0000000000a05000000008a1500000000a200000000803d0000000002753284'
+        'c0742e84d27421803d00000000007428fe0500000000803d000000003c7219c6'
+        '050000000003eb10c6050000000001eb07c6050000000000c705000000000000'
+        '0000c3'
+    ), (
+        (0x1, 'abs', 'ACCEPT1', 0),
+        (0x7, 'abs', 'CAMERA1', 0),
+        (0xd, 'abs', 'PREV', 0),
+        (0x12, 'abs', 'PREV', 0),
+        (0x18, 'abs', 'PHASE', 0),
+        (0x29, 'abs', 'HELD', 0),
+        (0x32, 'abs', 'HELD', 0),
+        (0x38, 'abs', 'HELD', 0),
+        (0x41, 'abs', 'PHASE', 0),
+        (0x4a, 'abs', 'HELD', 0),
+        (0x53, 'abs', 'HELD', 0),
+        (0x5a, 'abs', 'FLAG', 0),
+    ), {
+        'skip': 0x0,
+    }),
+    'NAMEENTRY': (bytes.fromhex(
+        'a0000000000a0500000000240188c4a0000000000a05000000008a1500000000'
+        'a20000000084e4750884c0740784d27503b001c330c0c3'
+    ), (
+        (0x1, 'abs', 'EDGEA', 0),
+        (0x7, 'abs', 'EDGEB', 0),
+        (0x10, 'abs', 'ACCEPT1', 0),
+        (0x16, 'abs', 'CAMERA1', 0),
+        (0x1c, 'abs', 'PREV', 0),
+        (0x21, 'abs', 'PREV', 0),
+    ), {
+        'confirm': 0x0,
+    }),
+    'CAMSKIP': (bytes.fromhex(
+        '833d00000000047518833d000000000c7409833d000000001475068b5324c602'
+        '80c3'
+    ), (
+        (0x2, 'abs', 'MODE', 0),
+        (0xb, 'abs', 'SUBMODE', 0),
+        (0x14, 'abs', 'SUBMODE', 0),
+    ), {
+        'camskip': 0x0,
+    }),
+    'OVERLAY': (bytes.fromhex(
+        'ff742404e8fcffffff83c404833d0000000004756b833d00000000207562803d'
+        '00000000027559803d00000000007450b840010000bab8010000f60500000000'
+        '04740d833d00000000007404d1f8d1fa8b0d00000000518b0d00000000890d00'
+        '0000006a016800ff000052506881000000e8fcffffff83c41459890d00000000'
+        'c3484f4c4420544f20534b495000'
+    ), (
+        (0x5, 'rel', 'ORIG', -4),
+        (0xe, 'abs', 'MODE', 0),
+        (0x17, 'abs', 'SUBMODE', 0),
+        (0x20, 'abs', 'PHASE', 0),
+        (0x29, 'abs', 'HELD', 0),
+        (0x3c, 'abs', 'WIDE', 0),
+        (0x45, 'abs', 'HALF', 0),
+        (0x52, 'abs', 'PRIMARY', 0),
+        (0x59, 'abs', 'BACK', 0),
+        (0x5f, 'abs', 'PRIMARY', 0),
+        (0x6d, 'abs', '.', 129),
+        (0x72, 'rel', 'DRAW', -4),
+        (0x7c, 'abs', 'PRIMARY', 0),
+    ), {
+        'overlay': 0x0,
+        'prompt': 0x81,
+    }),
+    'TITLEVER': (bytes.fromhex(
+        'a10000000083f8017545a10000000083f806740a83f817740583f8117531ba55'
+        '00000031c9803c0a00740341ebf7b84f00000029c829c86a3250e8fcffffff83'
+        'c4086855000000e8fcffffff83c404a100000000c30000000000000000000000'
+        '00000000000000000000000000'
+    ), (
+        (0x1, 'abs', 'MODE', 0),
+        (0xb, 'abs', 'SUBMODE', 0),
+        (0x1f, 'abs', '.', 85),
+        (0x3b, 'rel', 'CURSOR', -4),
+        (0x43, 'abs', '.', 85),
+        (0x48, 'rel', 'PRINT', -4),
+        (0x50, 'abs', 'PRIMARY', 0),
+    ), {
+        'titlever': 0x0,
+        'text': 0x55,
+    }),
+    'ACTIVATE': (bytes.fromhex(
+        '58a30000000068190000005589e581ece0000000e90500000085c0751ec70500'
+        '00000001000000c7050000000001000000c7050000000001000000ff25000000'
+        '00837c240400751e833d00000000007515c7050000000001000000c705000000'
+        '0001000000c35589e55356e901000000e8fcffffff833d00000000007455ff35'
+        '00000000ff150000000085c075456a10f60500000000047415833d0000000000'
+        '740c68f00000006840010000eb0a68e00100006880020000e8fcffffff83c40c'
+        '85c0740fc7050000000000000000e8fcffffffb801000000c3'
+    ), (
+        (0x2, 'abs', 'RETADDR', 0),
+        (0x7, 'abs', '.', 25),
+        (0x15, 'rel', 'RECREATE', 5),
+        (0x1f, 'abs', 'PENDING', 0),
+        (0x29, 'abs', 'INACTIVE', 0),
+        (0x33, 'abs', 'HAVESURF', 0),
+        (0x3d, 'abs', 'RETADDR', 0),
+        (0x4a, 'abs', 'BACK', 0),
+        (0x53, 'abs', 'PENDING', 0),
+        (0x5d, 'abs', 'INACTIVE', 0),
+        (0x6c, 'rel', 'SETACTIVE', 1),
+        (0x71, 'rel', 'IDLE', -4),
+        (0x77, 'abs', 'PENDING', 0),
+        (0x80, 'abs', 'HWND', 0),
+        (0x86, 'abs', 'ISICONIC', 0),
+        (0x92, 'abs', 'FSFLAGS', 0),
+        (0x9b, 'abs', 'FSMODE', 0),
+        (0xb9, 'rel', 'RECREATE', -4),
+        (0xc6, 'abs', 'PENDING', 0),
+        (0xcf, 'rel', 'GRESUME', -4),
+    ), {
+        'recreate': 0x0,
+        'made': 0x19,
+        'resume': 0x41,
+        'idle': 0x70,
+    }),
+    'PAD_COND': (bytes.fromhex(
+        '0200000000100000020000000020000002000000004000000200000000800000'
+        '0200000000010000020000000002000003000200400000000300030040000000'
+        '01000600c83200000000060038cdffff0000040038cdffff01000400c8320000'
+        '01000a00c832000000000a0038cdffff0000080038cdffff01000800c8320000'
+    ), (
+    ), {
+    }),
+    'PAD_BINDS': (bytes.fromhex(
+        '00000000e000000000000000e100000000000000e200000000000000e3000000'
+        '00000000e400000000000000e500000000000000e600000000000000e7000000'
+        '00000000e800000000000000e900000000000000ea00000000000000eb000000'
+        '00000000ec00000000000000ed00000000000000ee00000000000000ef000000'
+    ), (
+        (0x0, 'abs', ('PAD_NAMES', 0), 0),
+        (0x8, 'abs', ('PAD_NAMES', 2), 0),
+        (0x10, 'abs', ('PAD_NAMES', 4), 0),
+        (0x18, 'abs', ('PAD_NAMES', 6), 0),
+        (0x20, 'abs', ('PAD_NAMES', 8), 0),
+        (0x28, 'abs', ('PAD_NAMES', 11), 0),
+        (0x30, 'abs', ('PAD_NAMES', 14), 0),
+        (0x38, 'abs', ('PAD_NAMES', 17), 0),
+        (0x40, 'abs', ('PAD_NAMES', 20), 0),
+        (0x48, 'abs', ('PAD_NAMES', 26), 0),
+        (0x50, 'abs', ('PAD_NAMES', 34), 0),
+        (0x58, 'abs', ('PAD_NAMES', 42), 0),
+        (0x60, 'abs', ('PAD_NAMES', 51), 0),
+        (0x68, 'abs', ('PAD_NAMES', 57), 0),
+        (0x70, 'abs', ('PAD_NAMES', 65), 0),
+        (0x78, 'abs', ('PAD_NAMES', 73), 0),
+    ), {
+    }),
+    'PAD_NAMES': (bytes.fromhex(
+        '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
+        '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
+        '005253204c65667400525320526967687400315020446561647a6f6e65003250'
+        '20446561647a6f6e6500'
+    ), (
+    ), {
+        'dzkeys': 0x52,
+    }),
+    'PAD_DEVLIST': (bytes.fromhex(
+        '0000000000000000000000000000000000000000000000000000000000000000'
+    ), (
+        (0x0, 'abs', ('PAD_PROFILES', 0), 0),
+        (0x4, 'abs', ('PAD_PROFILES', 17), 0),
+        (0x8, 'abs', ('PAD_PROFILES', 37), 0),
+        (0xc, 'abs', ('PAD_PROFILES', 55), 0),
+    ), {
+    }),
+    'PAD_SIMPLEDEF': (bytes.fromhex(
+        '11001f001e002000100012002e0022002d0013002f002100c700cf00d300d100'
+        'd200c900520051004f004c0053005000'
+    ), (
+    ), {
+    }),
+    'PAD_INIKEYS': (bytes.fromhex(
+        '31502053696d706c652041737369676e0032502053696d706c65204173736967'
+        '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
+        '2041737369676e00'
+    ), (
+    ), {
+    }),
+    'PAD_PROFILES': (bytes.fromhex(
+        '47616d65706164202858496e70757429005477696e2d737469636b202858496e'
+        '70757429004b6579626f617264202853696d706c6529004b6579626f61726420'
+        '285265616c2900'
+    ), (
+    ), {
+    }),
+    'EXTRAS_DATA': (bytes.fromhex(
+        '5553455233322e444c4c004469616c6f67426f78496e64697265637450617261'
+        '6d41000000000000479c0000000000005b9c0000000000005c9c0000'
+    ), (
+        (0x24, 'abs', 'NOSHOT', 0),
+        (0x2c, 'abs', 'SEMUTE', 0),
+        (0x34, 'abs', 'CDMUTE', 0),
+    ), {
+        'user32': 0x0,
+        'dlgboxproc': 0xb,
+        'checks': 0x24,
+    }),
+}
+# BLOBS BLOB END
 
-# levers.asm replaces the input tick's epilogue, so its site sits inside the
-# XInput routine rather than in untouched padding: the table entry below
-# expects the bytes the previous site wrote, not the original file's. Its
-# length is taken from LEVERS_CODE, so the routine may change size freely.
 
-# LEVERS BLOB BEGIN
-LEVERS_CODE = bytes.fromhex(
-    '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
-    '40750bf601807506800ab08009705f5e5bc9c3'
-)
-# LEVERS BLOB END
+# Set by asm/build.py and tools/buildsites.py while they import this module
+# to regenerate it: a blob, label or site they are about to write does not
+# exist yet, and reads as empty rather than failing the import.
+BOOTSTRAP = bool(os.environ.get('VO_PATCH_BOOTSTRAP'))
+EMPTY = (b'', (), {})
 
-# twinstick.asm is assembled at a fixed org, so it only works at the cave
-# its site names. asm/build.py checks the two against each other.
 
-# TWIN BLOB BEGIN
-TWIN_CODE = bytes.fromhex(
-    '68184a6200e88b37feff83c404e9eee4e1ff68404a6200e87937feff83c404e9'
-    '6f83f9ffe800e900ea00eb00ec00ed00ee00ef00e600e700e400e50020108040'
-    '000000000100020000000000201080400001000200000000e8496200c414cb01'
-    'c614cb01004a62000c4a62008104bf0060cb6503743044005704bf0001000000'
-    'e8496200e43eee01e63eee01004a62000c4a6200b10dad0161cb6503edce5b00'
-    '940dad01'
-)
-# TWIN BLOB END
+def blob_of(name, blobs=None):
+    blobs = BLOBS if blobs is None else blobs
+    if BOOTSTRAP:
+        return blobs.get(name, EMPTY)
+    return blobs[name]
 
-# introwait.asm is assembled at a fixed org too. It goes in the .rdata raw
-# padding after kbpage.asm, not in a zero run inside .rdata: those are live
-# tables and float constants, where a zero is a value.
 
-# INTROWAIT BLOB BEGIN
-INTROWAIT_CODE = bytes.fromhex(
-    'e82f97fcff6a006a006a006a00ff742414ff1590d5650385c07509e80a000000'
-    '85c075dcff258cd56503a180cb650385c0740f83f801743a6a08ffd0b8010000'
-    '00c368e5e96300ff1504d5650385c0741768f2e9630050ff1508d5650385c074'
-    '07a380cb6503ebd0c70580cb65030100000031c0c36b65726e656c33322e646c'
-    '6c00536c65657000'
-)
-# INTROWAIT BLOB END
+def annex_layout(build, blobs=None):
+    """name -> offset into the annex, and the annex's padded length."""
+    out, at = {}, 0
+    for name in build.annex[2]:
+        out[name] = at
+        length = len(blob_of(name, blobs)[0])
+        if name == 'PADX':
+            length += len(blob_of('LEVERS', blobs)[0])   # written after it
+        at = (at + length + 15) & ~15
+    return out, (at + 0x1ff) & ~0x1ff
 
-# The gamepad tables and both dialogs are data, packed by asm/padtables.py and
-# asm/dialogs.py from one description each. The pointers between them are
-# computed there.
 
-# PADTABLES BLOB BEGIN
-PAD_COND = bytes.fromhex(
-    '0200000000100000020000000020000002000000004000000200000000800000'
-    '0200000000010000020000000002000003000200400000000300030040000000'
-    '01000600c83200000000060038cdffff0000040038cdffff01000400c8320000'
-    '01000a00c832000000000a0038cdffff0000080038cdffff01000800c8320000'
-)
+def cave_va(name, build, blobs=None):
+    """Where a blob goes in this build, as a virtual address."""
+    blobs = BLOBS if blobs is None else blobs
+    if build.annex and name in build.annex[2]:
+        return build.annex[0] + annex_layout(build, blobs)[0][name]
+    at = build.caves[name]
+    if isinstance(at, tuple):
+        inner, label = at
+        return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
+    return at
 
-PAD_BINDS = bytes.fromhex(
-    '9b4b6200e00000009d4b6200e10000009f4b6200e2000000a14b6200e3000000'
-    'a34b6200e4000000a64b6200e5000000a94b6200e6000000ac4b6200e7000000'
-    'af4b6200e8000000b54b6200e9000000bd4b6200ea000000c54b6200eb000000'
-    'ce4b6200ec000000d44b6200ed000000dc4b6200ee000000e44b6200ef000000'
-)
 
-PAD_NAMES = bytes.fromhex(
-    '41004200580059004c42005242004c54005254004c53205570004c5320446f77'
-    '6e004c53204c656674004c5320526967687400525320557000525320446f776e'
-    '005253204c6566740052532052696768740047616d65706164202858496e7075'
-    '7429005477696e2d737469636b202858496e70757429004b6579626f61726420'
-    '2853696d706c6529004b6579626f61726420285265616c290031502044656164'
-    '7a6f6e6500325020446561647a6f6e6500'
-)
+def label_at(name, label, blobs=None):
+    """A label's offset in a blob; 'end' is its length."""
+    code, _fixups, labels = blob_of(name, blobs)
+    if label == 'end':
+        return len(code)
+    if isinstance(label, int):
+        return label
+    return labels.get(label, 0) if BOOTSTRAP else labels[label]
 
-PAD_DEVLIST = bytes.fromhex(
-    'ed4b6200fe4b6200124c6200244c620000000000000000000000000000000000'
-)
 
-PAD_SIMPLEDEF = bytes.fromhex(
-    '11001f001e002000100012002e0022002d0013002f002100c700cf00d300d100'
-    'd200c900520051004f004c0053005000'
-)
+def symbol_va(sym, build, blobs=None):
+    """A symbol's address in this build: a place in the game, or (blob,
+    label) for a place in one of ours."""
+    if isinstance(sym, tuple):
+        inner, label = sym
+        return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
+    if BOOTSTRAP and sym not in build.symbols:
+        return 0                        # a symbol a stale blob still names
+    value = build.symbols[sym]
+    if isinstance(value, tuple):
+        return symbol_va(value, build, blobs)
+    return value
 
-PAD_INIKEYS = bytes.fromhex(
-    '31502053696d706c652041737369676e0032502053696d706c65204173736967'
-    '6e003150204b6579626f6172642041737369676e003250204b6579626f617264'
-    '2041737369676e00'
-)
-# PADTABLES BLOB END
+
+def link(name, build, blobs=None, base=None):
+    """A blob's code with its fixups filled in for this build.
+
+    `base` overrides the cave, for a blob whose address is only known at
+    apply time; None means the blob must not name itself."""
+    code, fixups, _labels = blob_of(name, blobs)
+    if base is None and (name in build.caves
+                         or (build.annex and name in build.annex[2])):
+        base = cave_va(name, build, blobs)
+    out = bytearray(code)
+    for at, kind, sym, addend in fixups:
+        if sym == '.' or kind == 'rel':
+            if base is None:
+                raise ValueError('%s names its own address, but has none '
+                                 'in this build' % name)
+        target = base if sym == '.' else symbol_va(sym, build, blobs)
+        value = target + addend
+        if kind == 'rel':
+            value -= base + at
+        if kind == 'abs8':
+            struct.pack_into('<b', out, at, value)
+        else:
+            struct.pack_into('<I', out, at, value & 0xffffffff)
+    return bytes(out)
+
+
+class Sym(str):
+    """A hex string the site table writes that depends on the build: a
+    blob, a hook's rel32, a symbol's address. It reads as the retail bytes,
+    and remembers how it was made so features() can remake it for another
+    build. Concatenating two keeps both halves' recipes."""
+    def __new__(cls, parts, build=None):
+        flat = []
+        for p in parts:
+            flat.extend(p.parts if isinstance(p, Sym) else [p])
+        text = ''.join(p(build or RETAIL) if callable(p) else p
+                       for p in flat)
+        obj = str.__new__(cls, text)
+        obj.parts = flat
+        return obj
+
+    def for_build(self, build):
+        return Sym(self.parts, build)
+
+    def __add__(self, other):
+        return Sym([self, other])
+
+    def __radd__(self, other):
+        return Sym([other, self])
+
+
+class At(int):
+    """A file offset in the site table that a build decides: where a blob
+    goes, or a fixed distance into one."""
+    def __new__(cls, sym, build=None):
+        va = symbol_va(sym, build or RETAIL)
+        obj = int.__new__(cls, (build or RETAIL).off(va))
+        obj.sym = sym
+        return obj
+
+    def for_build(self, build):
+        return At(self.sym, build)
+
+
+def site_in(off, build):
+    """A retail site offset as this build has it."""
+    if isinstance(off, At):
+        return off.for_build(build)
+    if isinstance(off, In):
+        return int(off)
+    if build.sites is not None:
+        # a hook that starts a byte or more into its site names that spot
+        for back in range(16):
+            if off - back in build.sites:
+                return build.sites[off - back][0] + back
+        raise KeyError(off)
+    return off
+
+
+class In(int):
+    """A file offset in the site table that one build has and retail has
+    not - code the other compile grew. The offset is that build's own, so
+    a site written this way needs no entry in its map."""
+    def __new__(cls, md5, off):
+        obj = int.__new__(cls, off)
+        obj.md5 = md5
+        return obj
+
+
+def call(off, target, pad=0, op='e8'):
+    """The hex a site writes to call a symbol: the opcode, the rel32 to the
+    target, and `pad` bytes of nop over the rest of what it replaced."""
+    def rel32(build):
+        at = build.va(site_in(off, build))
+        return struct.pack('<i', symbol_va(target, build) - (at + 5)).hex()
+    return Sym([op, rel32, '90' * pad])
+
+
+def jump(off, target, pad=0):
+    return call(off, target, pad, op='e9')
+
+
+def rel(off, target):
+    """The four bytes of rel32 alone, for a site that keeps its opcode: the
+    distance from the byte after them to the symbol."""
+    def rel32(build):
+        at = build.va(site_in(off, build))
+        return struct.pack('<i', symbol_va(target, build) - (at + 4)).hex()
+    return Sym([rel32])
+
+
+def abs32(target, addend=0):
+    """A symbol's address as the four bytes an instruction carries, as hex."""
+    return Sym([lambda build: struct.pack(
+        '<I', symbol_va(target, build) + addend).hex()])
+
+
+def rva(target):
+    """A symbol's address relative to the image base, as a PE header field."""
+    return Sym([lambda build: struct.pack(
+        '<I', symbol_va(target, build) - 0x400000).hex()])
+
+
+def blob(name):
+    """A blob as this build writes it."""
+    return Sym([lambda build: link(name, build).hex()])
+
+
+def zeros(name):
+    """What a cave holds before the blob goes in."""
+    return Sym([lambda build: '00' * len(blob_of(name)[0])])
+
+
+def site(name):
+    """The file offset a blob is written at, from its cave."""
+    return At((name, 0))
+
+
+# Two blobs the checks read as bytes: the version stamp's tail, and the
+# lever routine's length for --selfcheck. Everything else is linked for
+# the build being patched, through the site table.
+LEVERS_CODE = link('LEVERS', RETAIL)
+TITLEVER_CODE = link('TITLEVER', RETAIL)
 
 # DIALOGS BLOB BEGIN
 EXTRAS_TPL = bytes.fromhex(
@@ -237,21 +2149,6 @@ EXTRAS_TPL = bytes.fromhex(
     '00000150000000000a008c003c000e00419cffff800051007500690074002000'
     '470061006d00650000000000000001500000000098008c0032000e000200ffff'
     '800043006c006f007300650000000000'
-)
-
-VOXT_CODE = bytes.fromhex(
-    '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff154cd565'
-    '038d34bd94cb6503566a036a0d50ff152cd565030fb60683e83083f80977190f'
-    'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba081c60'
-    '00803a0074085389c18bdfffd25b4f79a5b8481b60008038007402ffd06a0053'
-    'ff1538d5650331c0c3ba081c6000803a0074336a015f536a28598bdfffd25b4f'
-    '79f46a015f8d47525053ff154cd565038d14bd94cb6503526a006a0c50ff152c'
-    'd565034f79df31c0c36a0053ff1538d5650368419c0000596a0158c3'
-)
-
-EXTRAS_DATA = bytes.fromhex(
-    '5553455233322e444c4c004469616c6f67426f78496e64697265637450617261'
-    '6d410000d82f6500479c00004ccc6b005b9c000030f463005c9c0000'
 )
 
 F5_STOCK = bytes.fromhex(
@@ -293,210 +2190,10 @@ F5_FPS = bytes.fromhex(
 )
 # DIALOGS BLOB END
 
-# TIMER BLOB BEGIN
-TIMER_CODE = bytes.fromhex(
-    '68624e5f00ff1504d56503686c4e5f0050ff1508d5650385c074046a01ffd0e9'
-    'ce2affff77696e6d6d2e646c6c0074696d65426567696e506572696f6400'
-)
-# TIMER BLOB END
-
-# debugbox.asm assembles as one 364-byte run, but the patch writes it as two
-# sites: the byte at 0x1f42d7 is alignment padding in front of the dialog
-# procedure and has never been written, so build.py drops it rather than
-# assume what the original file has there.
-
-# DEBUGBOX BLOB BEGIN
-DEBUGBOX_HOOK = bytes.fromhex(
-    '558bec53817d0c000100007532817d107a000000752968e8e86300ff1504d565'
-    '0368f3e8630050ff1508d5650385c074078bd8e87070040033c05b5dc210005b'
-    '5de99519fdff000000000000000000000000000000000000000000'
-)
-
-DEBUGBOX_PROC = bytes.fromhex(
-    '558bec5356578b450c3d100100007532ff7508e86070040031ff8d475250ff75'
-    '08ff154cd565038d14bd94cb6503526a006a0c50ff152cd565034783ff0272da'
-    'eb453d1101000075450fb74d108d51ae83fa01763283f902740d83f954740881'
-    'f9419c000075308b5508e8eaeaeaea85c074146a00516811010000ff35585fae'
-    '01ff156cd56503b801000000eb0233c05f5e5b5dc2100083f9517513833d9435'
-    'ae010475086a1f8f059036ae01ebd8ebc2'
-)
-# DEBUGBOX BLOB END
-
-# KBPAGE BLOB BEGIN
-KBPAGE_CODE = bytes.fromhex(
-    '833dac6bbf00017510a1401565034883f8017605e91d8ee5ffe9708ee5ff9090'
-    '6a01ff35ac6bbf00e8aa8fe5ff83c408e92d8fe5ff'
-)
-# KBPAGE BLOB END
-
-# BINDLIST BLOB BEGIN
-BINDLIST_CODE = bytes.fromhex(
-    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
-    '7df810eb04837df8217c0883c404e9e0a4e9ffc390909090e8c3ffffff74088b'
-    '04c543486200c38b04c538d46600c390e8abffffff74088a04c547486200c38a'
-    '04c53cd46600c3'
-)
-# BINDLIST BLOB END
-
-# BINDMAP BLOB BEGIN
-BINDMAP_CODE = bytes.fromhex(
-    '50a1ac6bbf006bc07083b83868bf000358c3909090909090e8e3ffffff740683'
-    '7df410eb04837df4217c0883c404e9a2a7e9ffc390909090e8c3ffffff740839'
-    '0cc547486200c3390cc53cd46600c3908b4424046bc87081c17068bf006bc018'
-    '05884762006a185051e8be86feff83c40cc3'
-)
-# BINDMAP BLOB END
-
-# BINDBLOCK BLOB BEGIN
-BINDBLOCK_CODE = bytes.fromhex(
-    '83b83868bf00037406054068bf00c3057068bf00c39090906bd07083ba3868bf'
-    '00036bc01874060500d66600c30588476200c39083b93868bf000374088a8441'
-    '4068bf00c38a84417068bf00c3909090240f3c0a720204270430880747c3'
-)
-# BINDBLOCK BLOB END
-
-# INISAVE BLOB BEGIN
-INISAVE_CODE = bytes.fromhex(
-    '5356578b9d38ffffff6bf3708db67068bf008bbd34ffffff31c98a040e88c2c0'
-    'e804e83dd6ffff88d0e836d6ffff4183f9187ce6c607006bc31105e04a6200ff'
-    'b534ffffff50e8b0fbfaff83c4085f5e5be9954ee9ff'
-)
-# INISAVE BLOB END
-
-# INILOAD BLOB BEGIN
-INILOAD_CODE = bytes.fromhex(
-    '5356578b5c24106bfb708dbf7068bf006bc31105e04a6200e8c3aaffff83ef30'
-    '6bc3138d80024b6200e8b2aaffff833c9d401565030375138d77306bfb188dbf'
-    '70146503b906000000f3a55f5e5bc3'
-)
-# INILOAD BLOB END
-
-# BLOCKCUR BLOB BEGIN
-BLOCKCUR_CODE = bytes.fromhex(
-    '518b0dac6bbf006bc97083b93868bf00035974078d804068bf00c38d807068bf'
-    '00c390909090909050518b45086bc8708b04854015650339813868bf00595875'
-    '05e98687feffc3'
-)
-# BLOCKCUR BLOB END
-
-# INIPARSE BLOB BEGIN
-INIPARSE_CODE = bytes.fromhex(
-    '50e85ffdfaff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
-    '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
-    '04b594cb6503506bc60c05344c620050e8d2fcfaff83c4084e79e4c3'
-)
-# INIPARSE BLOB END
-
-# PAGESEC BLOB BEGIN
-PAGESEC_CODE = bytes.fromhex(
-    'e86fbcffff750f837df81a7d01c383c404e9ea60e9ff83c404e92261e9ffe851'
-    'bcffff750f837dec1a7d01c383c404e9d062e9ff83c404e9ed62e9ff'
-)
-# PAGESEC BLOB END
-
-# PAGESEL BLOB BEGIN
-PAGESEL_CODE = bytes.fromhex(
-    'e80bbcffff750f837df41a7d01c383c404e96f64e9ff83c404e9ab64e9ffe8ed'
-    'bbffff75048345f42483c404e9d464e9ff00000069c14701000089049d8ccb65'
-    '03880c9d97cb650388c8d40a6605303086c46689049d94cb6503c3'
-)
-# PAGESEL BLOB END
-
-# COMMITDEV BLOB BEGIN
-COMMITDEV_CODE = bytes.fromhex(
-    '89048d4015650383f801740583f80375275657516bf1708db64068bf0083f803'
-    '750383c6306bf9188dbf70146503b906000000f3a5595f5ec3'
-)
-# COMMITDEV BLOB END
-
-# INIALL BLOB BEGIN
-INIALL_CODE = bytes.fromhex(
-    '6a016a00e82faafcff6a016a01e826aafcff83c410536a015b6bc30c05344c62'
-    '0050e85652f7ff5a6a285985c0741f668b00662d30303c09771480fc09770f86'
-    'c4d50a3c5f77073c0572030fb6c8e8c155fcff4b79c35bc3'
-)
-# INIALL BLOB END
-
-# DEVORDER BLOB BEGIN
-DEVORDER_CODE = bytes.fromhex(
-    '030001020405060701020300040506078b803868bf0083f80777070fb6803447'
-    '6000c38b45f483f80777070fb6803c4760008b4decc3'
-)
-# DEVORDER BLOB END
-
-# F11PAUSE BLOB BEGIN
-F11PAUSE_CODE = bytes.fromhex(
-    '6a00e89aa8f8ff83c4046a0068d84e5f00ff750868e7e7e7e76a00ff15a0d465'
-    '0350ffd3e8bea8f8ffc30000be0ce963006a035f8b068b0031c983f8010f94c1'
-    '51ff7604ff74240cff1544d5650383c6084f75e0c20400'
-)
-# F11PAUSE BLOB END
-
-# MOVIE BLOB BEGIN
-MOVIE_CODE = bytes.fromhex(
-    '5589e583ec405356578b7d08a1345fae018947f4a1385fae018947f031f668b4'
-    '876603ff15a0d4650385c0742b68be87660350ff1508d5650385c0741b89c368'
-    'cf876603ff15a0d4650385c0740a68da87660350ffd389c685f675068b35d4d5'
-    '65038d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
-    'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
-    'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
-    'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
-    '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
-    '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff35c888ef01ff15e0d565'
-    '0331c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
-    '006842080000ff35f088ef01a148d66503ffd05f5e5bc9c364647261772e646c'
-    '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
-    '74436c69656e745265637400'
-)
-# MOVIE BLOB END
-
-# CREDITS BLOB BEGIN
-CREDITS_CODE = bytes.fromhex(
-    'a08104bf000a055704bf008a15483d6c00a2483d6c00803d6409ad0102753284'
-    'c0742e84d27421803d493d6c00007428fe05493d6c00803d493d6c003c7219c6'
-    '056409ad0103eb10c605493d6c0001eb07c605493d6c0000c7051c1cae010000'
-    '0000c3'
-)
-# CREDITS BLOB END
-
-# NAMEENTRY BLOB BEGIN
-NAMEENTRY_CODE = bytes.fromhex(
-    'a0c55eed010a05c65eed01240188c4a08104bf000a055704bf008a15483d6c00'
-    'a2483d6c0084e4750884c0740784d27503b001c330c0c3'
-)
-# NAMEENTRY BLOB END
-
-# CAMSKIP BLOB BEGIN
-CAMSKIP_CODE = bytes.fromhex(
-    '833d9435ae01047518833d9036ae010c7409833d9036ae011475068b5324c602'
-    '80c3'
-)
-# CAMSKIP BLOB END
-
-# OVERLAY BLOB BEGIN
-OVERLAY_CODE = bytes.fromhex(
-    'ff742404e8f6fffcff83c404833d9435ae0104756b833d9036ae01207562803d'
-    '6409ad01027559803d493d6c00007450b840010000bab8010000f60598f56b00'
-    '04740d833d60f56b00007404d1f8d1fa8b0d405fae01518b0d5c5fae01890d40'
-    '5fae016a016800ff000052506861815f00e8c617fdff83c41459890d405fae01'
-    'c3484f4c4420544f20534b495000'
-)
-# OVERLAY BLOB END
-
-# TITLEVER BLOB BEGIN
-TITLEVER_CODE = bytes.fromhex(
-    'a19435ae0183f8017545a19036ae0183f806740a83f817740583f8117531baed'
-    '3d620031c9803c0a00740341ebf7b84f00000029c829c86a3250e8ec9aeaff83'
-    'c40868ed3d6200e807b1eaff83c404a1405fae01c30000000000000000000000'
-    '00000000000000000000000000'
-)
-# TITLEVER BLOB END
-
 # Where the blob lands, where the version goes inside it, and how much room
 # it has. The blob carries zeros there: the version comes from the git tag,
 # and the blobs are built from source, so the patcher writes the string in
 # afterwards rather than the patch table carrying it.
-TITLEVER_AT = 0x00223198
 TITLEVER_LEN = 24
 
 
@@ -523,7 +2220,7 @@ def version_text():
     return ('%s %s' % (NAME, VERSION))[:TITLEVER_LEN - 1]
 
 
-def stamp_version(buf):
+def stamp_version(buf, build=RETAIL):
     """Write the version into the titlever blob already sitting in buf.
 
     Deliberately not a patch site. Every other byte the patcher writes is the
@@ -532,7 +2229,7 @@ def stamp_version(buf):
     are written here, after apply_selected has run, and selftest checks the
     file without them."""
     text = version_text().encode('ascii') + b'\x00'
-    at = TITLEVER_AT + len(TITLEVER_CODE) - TITLEVER_LEN
+    at = site('TITLEVER').for_build(build) + len(TITLEVER_CODE) - TITLEVER_LEN
     buf[at:at + len(text)] = text
 
 
@@ -691,9 +2388,7 @@ BANNER_TILE_BASE = 17280        # its tile index within that file
 BANNER_TILE_MAX = 109           # slots this banner owns
 BANNER_SPILL = 24845            # a run of 116 empty tiles further in
 BANNER_INK = 0xfca0             # the orange the original uses
-ESCRGAME = 'escrgame.bin'
-ESCRGAME_SIZE = 4194304
-ESCRGAME_MD5 = 'f0c2b33c6d32e8e25cee840a0de65dc0'
+ESCRGAME, ESCRGAME_SIZE, ESCRGAME_MD5 = RETAIL.art
 
 
 def banner_tiles():
@@ -867,9 +2562,8 @@ FEATURES = [
          # asm/titlever.asm.
          #
          #   call titlever
-         (0x001c5900, 'a1405fae01', 'e893d80500'),
-         (TITLEVER_AT, '00' * len(TITLEVER_CODE),
-          TITLEVER_CODE.hex())]),
+         (0x001c5900, 'a1405fae01', call(0x001c5900, ('TITLEVER', 'titlever'))),
+         (site('TITLEVER'), zeros('TITLEVER'), blob('TITLEVER'))]),
 
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens either side of the fighting.\n'
@@ -897,10 +2591,11 @@ FEATURES = [
          #   add  esp, 4
          (0x0014dc42,
           'c745f400000000c745f028000000a1345fae018945f4a1385fae018945f0',
-          '55e8149e110383c404909090909090909090909090909090909090909090'),
+          '55' + call(0x0014dc43, ('MOVIE', 'movie_place')) + '83c404'
+          + '90' * 21),
          # movie.asm, in the .rsrc padding past VirtualSize - after the
          # four bytes of it the frame rate patch's F5 labels use
-         (0x0060c25c, '00' * len(MOVIE_CODE), MOVIE_CODE.hex()),
+         (site('MOVIE'), zeros('MOVIE'), blob('MOVIE')),
          # "Now Loading . . ." - the first byte to NUL ends the string
          (0x002c7678, '4e', '00'),
          # which the loader maps but does not make executable
@@ -911,8 +2606,8 @@ FEATURES = [
          # the stub only has to put the phase past 2. See asm/credits.asm.
          #
          #   call skip
-         (0x0018fc25, 'c7051c1cae0100000000', 'e8a6ce0a009090909090'),
-         (0x0023cad0, '00' * len(CREDITS_CODE), CREDITS_CODE.hex()),
+         (0x0018fc25, 'c7051c1cae0100000000', call(0x0018fc25, ('CREDITS', 'skip'), 5)),
+         (site('CREDITS'), zeros('CREDITS'), blob('CREDITS')),
          # The initials screen after them takes a letter on the weapon
          # triggers only, LT for 1P and RT for 2P. Both tests go to a call
          # answering the same question with A folded in, so the triggers
@@ -923,15 +2618,15 @@ FEATURES = [
          #   test al, al
          #   jne  take the letter
          #   jmp  carry on
-         (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000',
-                      'e8f770160084c07511e9fe010000909090909090909090909090'),
-         (0x0023d1c4, '00' * len(NAMEENTRY_CODE), NAMEENTRY_CODE.hex()),
+         (0x000d60c8, 'f605c55eed01010f850d000000f605c65eed01010f84f2010000', call(0x000d60c8, ('NAMEENTRY', 'confirm'))
+          + '84c07511e9fe010000909090909090909090909090'),
+         (site('NAMEENTRY'), zeros('NAMEENTRY'), blob('NAMEENTRY')),
          # HOLD TO SKIP over the credits, drawn through GDI so it does
          # not scroll with the tilemap. The call five bytes before the
          # surface is flipped is made in the stub instead, which is
          # what puts the text on the frame about to be shown.
-         (0x001c58e7, 'e8f31b0000', 'e8f41b0300'),
-         (0x001f74e0, '00' * len(OVERLAY_CODE), OVERLAY_CODE.hex())]),
+         (0x001c58e7, 'e8f31b0000', call(0x001c58e7, ('OVERLAY', 'overlay'))),
+         (site('OVERLAY'), zeros('OVERLAY'), blob('OVERLAY'))]),
 
 
     ('defaults', 'Better defaults with no v_on.ini',
@@ -965,7 +2660,37 @@ FEATURES = [
     ('nocpucheck', 'Skip processor check',
      'The game will not start on a modern CPU without this. It removes the\n'
      'MMX, Pentium and vendor checks as well.', [
-         (0x00107930, '830dc884bf0001', '90909090909090')]),
+         (0x00107930, '830dc884bf0001', '90909090909090'),
+         # The OEM has no vendor check; its test is a CPU class from the
+         # cpuid32.dll it ships, and only two answers pass. Take any, and
+         # set the MMX flag it would set for one of them.
+         (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
+         (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
+    ('activate', 'Fix crash on ALT+TAB',
+     'Switching away during the intro movie stops it, and the game ends it\n'
+     'as stopped - without rebuilding the screen it had handed to the\n'
+     'player, and if it tried while still in the background the rebuild\n'
+     'came back half done. The exit rebuilds it now, and a rebuild that\n'
+     'fails pauses the game until one succeeds.', [
+         (site('ACTIVATE'), zeros('ACTIVATE'), blob('ACTIVATE')),
+         # the movie's exit: if "stopped by deactivation", clear that and
+         # return without recreating the surfaces. jne -> jmp: always try.
+         (0x001b0920, '0f850f000000', '90e90f000000'),
+         # the recreate's entry: push ebp; mov ebp,esp; sub esp,0xe0
+         (0x001c4aa2, '558bec81ece0000000',
+          jump(0x001c4aa2, ('ACTIVATE', 'recreate'), 4)),
+         # setactive's entry: push ebp; mov ebp,esp; push ebx; push esi
+         (0x001c5726, '558bec5356', jump(0x001c5726, ('ACTIVATE', 'resume'))),
+         # the loop's idle pass while inactive
+         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle'))),
+         # The rerelease alone reports a failed recreate with a message box
+         # from inside it, three times over - the display mode, the primary,
+         # the attached back buffer - which during the retry is a box per
+         # attempt, and under Proton an invisible one. The three calls go;
+         # the add esp after each takes the arguments they were pushed.
+         (In(JAPAN_MD5, 0x001bf3de), 'e894440000', '9090909090'),
+         (In(JAPAN_MD5, 0x001bf4ae), 'e8c4430000', '9090909090'),
+         (In(JAPAN_MD5, 0x001bf4f9), 'e879430000', '9090909090')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
@@ -975,16 +2700,21 @@ FEATURES = [
      '\tframes to draw, and wrote it back. It works now.\n'
      'Speed choice\tThe two on F5 never reached 60 fps. They read\n'
      '\t30 FPS and 60 FPS now, and set those.', [
-         (0x001f423e, '00' * len(TIMER_CODE), TIMER_CODE.hex()),
-         (0x000000a8, '30791e00', '3e4e1f00'),
-         (0x000273c1, '833d0843be0003', '833d0843be0002'),
-         (0x000275d3, 'c7050843be0003000000', 'c7050843be0002000000'),
-         (0x000275e2, 'c7050843be0002000000', 'c7050843be0001000000'),
+         (site('TIMER'), zeros('TIMER'), blob('TIMER')),
+         (0x000000a8, '30791e00', rva(('TIMER', 0))),
+         (0x000273c1, '833d0843be0003', '833d' + abs32('SPEEDSEL') + '02'),
+         (0x000275d3, 'c7050843be0003000000',
+          'c705' + abs32('SPEEDSEL') + '02000000'),
+         (0x000275e2, 'c7050843be0002000000',
+          'c705' + abs32('SPEEDSEL') + '01000000'),
          (0x006035ac, '2c040000', '30040000'),
          (0x0060c064, F5_STOCK.hex(), F5_FPS.hex()),
-         (0x0010afbe, 'c705d0846c0003000000', 'c705d0846c0001000000'),
-         (0x0010afeb, 'c705d0846c0003000000', 'c705d0846c0001000000'),
-         (0x0010b002, 'c705d0846c0003000000', 'c705d0846c0001000000'),
+         (0x0010afbe, 'c705d0846c0003000000',
+          'c705' + abs32('FRAMEDIV') + '01000000'),
+         (0x0010afeb, 'c705d0846c0003000000',
+          'c705' + abs32('FRAMEDIV') + '01000000'),
+         (0x0010b002, 'c705d0846c0003000000',
+          'c705' + abs32('FRAMEDIV') + '01000000'),
          (0x001c6941, 'c705d0846c0002000000', '90909090909090909090'),
          (0x001c6950, 'c705d0846c0003000000', '90909090909090909090'),
          (0x001c6d8c, 'c705d0846c0002000000', '90909090909090909090'),
@@ -1017,13 +2747,12 @@ FEATURES = [
      'F11\tExtras, the new dialog', [
          (0x001c4d42, '0f850c000000', '909090909090'),
          (0x001c4d4b, '65000000', '00000000'),
-         (0x001c4d7e, '57685c00', '7c4e5f00'),
-         (0x001f427c, '00' * len(DEBUGBOX_HOOK), DEBUGBOX_HOOK.hex()),
+         (0x001c4d7e, '57685c00', abs32(('DEBUGBOX', 'hook'))),
+         (site('DEBUGBOX'), zeros('DEBUGBOX'), blob('DEBUGBOX')),
          # the pause-and-resume wrapper the hook runs the dialog through,
          # matching the built-in F-key dialogs; see asm/f11pause.asm
-         (0x0023b324, '00' * len(F11PAUSE_CODE), F11PAUSE_CODE.hex()),
-         (0x001f42d8, '00' * len(DEBUGBOX_PROC), DEBUGBOX_PROC.hex()),
-         (0x0023dce8, '00' * len(EXTRAS_DATA), EXTRAS_DATA.hex())]),
+         (site('F11PAUSE'), zeros('F11PAUSE'), blob('F11PAUSE')),
+         (site('EXTRAS_DATA'), zeros('EXTRAS_DATA'), blob('EXTRAS_DATA'))]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
@@ -1073,39 +2802,39 @@ FEATURES = [
          # asm/bindmap.asm, which pick them by device. The letter and
          # digit sections are Simple's alone; asm/pagesec.asm and
          # asm/pagesel.asm skip them for the gamepad.
-         (0x000970bf, '837df8210f8d2e000000', 'e8385b16009090909090'),
-         (0x000970d5, '8b04c538d46600', 'e8425b16009090'),
-         (0x0009729c, '8a04c53cd46600', 'e8935916009090'),
-         (0x000974ac, '837df4210f8d23000000', 'e86b5816009090909090'),
-         (0x000974be, '390cc53cd46600', 'e8795816009090'),
-         (0x001fcbe4, '00' * len(BINDLIST_CODE), BINDLIST_CODE.hex()),
-         (0x001fcd04, '00' * len(BINDMAP_CODE), BINDMAP_CODE.hex()),
+         (0x000970bf, '837df8210f8d2e000000', call(0x000970bf, ('BINDLIST', 'fillcount'), 5)),
+         (0x000970d5, '8b04c538d46600', call(0x000970d5, ('BINDLIST', 'fillname'), 2)),
+         (0x0009729c, '8a04c53cd46600', call(0x0009729c, ('BINDLIST', 'storeid'), 2)),
+         (0x000974ac, '837df4210f8d23000000', call(0x000974ac, ('BINDMAP', 'mapcount'), 5)),
+         (0x000974be, '390cc53cd46600', call(0x000974be, ('BINDMAP', 'mapid'), 2)),
+         (site('BINDLIST'), zeros('BINDLIST'), blob('BINDLIST')),
+         (site('BINDMAP'), zeros('BINDMAP'), blob('BINDMAP')),
          # Which saved block that page reads and writes is picked the same
          # way: +0x08 for the gamepad, +0x38 - the hidden 2 Joysticks
          # profile's, inside the structure v_on.ini keeps - for Simple.
          # See asm/bindblock.asm; the player comes from the maths in
          # flight, not 0xbf6bac, because the Default copier also runs at
          # startup for both sides.
-         (0x00095f35, '053868bf0083c008', 'e812871600909090'),
-         (0x0009724c, '053868bf0083c008', 'e8135a1600909090'),
-         (0x0009736d, '053868bf0083c008', 'e8da721600909090'),
+         (0x00095f35, '053868bf0083c008', call(0x00095f35, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x0009724c, '053868bf0083c008', call(0x0009724c, ('BLOCKCUR', 'blockcur'), 3)),
+         (0x0009736d, '053868bf0083c008', call(0x0009736d, ('BINDBLOCK', 'blockaddr'), 3)),
          # the Default button's shipped set comes from the same pick:
          # the gamepad's table or SIMPLEDEF, by the pending device
-         (0x00097355, '8d04408d04c500d66600', 'e80a7316009090909090'),
-         (0x00097397, '053868bf0083c008', 'e8b0721600909090'),
-         (0x00097531, '053868bf0083c008', 'e816711600909090'),
-         (0x0009740f, '8a84414068bf00', 'e86c7216009090'),
-         (0x001fe64c, '00' * len(BINDBLOCK_CODE), BINDBLOCK_CODE.hex()),
-         (0x00201038, '00' * len(INISAVE_CODE), INISAVE_CODE.hex()),
-         (0x0020642c, '00' * len(INILOAD_CODE), INILOAD_CODE.hex()),
-         (0x001fcc64, '00' * len(BLOCKCUR_CODE), BLOCKCUR_CODE.hex()),
-         (0x00200f0c, '00' * len(INIPARSE_CODE), INIPARSE_CODE.hex()),
-         (0x00200f70, '00' * len(PAGESEC_CODE), PAGESEC_CODE.hex()),
-         (0x00200fd4, '00' * len(PAGESEL_CODE), PAGESEL_CODE.hex()),
-         (0x001fcb4c, '00' * len(COMMITDEV_CODE), COMMITDEV_CODE.hex()),
-         (0x0023b9f4, '00' * len(INIALL_CODE), INIALL_CODE.hex()),
-         (0x00203b34, '00' * len(DEVORDER_CODE), DEVORDER_CODE.hex()),
-         (0x00223ee0, '00' * len(PAD_INIKEYS), PAD_INIKEYS.hex()),
+         (0x00097355, '8d04408d04c500d66600', call(0x00097355, ('BINDBLOCK', 'defsource'), 5)),
+         (0x00097397, '053868bf0083c008', call(0x00097397, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x00097531, '053868bf0083c008', call(0x00097531, ('BINDBLOCK', 'blockaddr'), 3)),
+         (0x0009740f, '8a84414068bf00', call(0x0009740f, ('BINDBLOCK', 'preselbind'), 2)),
+         (site('BINDBLOCK'), zeros('BINDBLOCK'), blob('BINDBLOCK')),
+         (site('INISAVE'), zeros('INISAVE'), blob('INISAVE')),
+         (site('INILOAD'), zeros('INILOAD'), blob('INILOAD')),
+         (site('BLOCKCUR'), zeros('BLOCKCUR'), blob('BLOCKCUR')),
+         (site('INIPARSE'), zeros('INIPARSE'), blob('INIPARSE')),
+         (site('PAGESEC'), zeros('PAGESEC'), blob('PAGESEC')),
+         (site('PAGESEL'), zeros('PAGESEL'), blob('PAGESEL')),
+         (site('COMMITDEV'), zeros('COMMITDEV'), blob('COMMITDEV')),
+         (site('INIALL'), zeros('INIALL'), blob('INIALL')),
+         (site('DEVORDER'), zeros('DEVORDER'), blob('DEVORDER')),
+         (site('PAD_INIKEYS'), zeros('PAD_INIKEYS'), blob('PAD_INIKEYS')),
          # window title, shared by both pages now
          (0x0026c88c, '4b6579626f617264206f6e6c79202853696d706c652074797065202d2025645020736964652900',
                       '42696e64696e6773202d20256450207369646500000000000000000000000000000000000000'
@@ -1114,52 +2843,50 @@ FEATURES = [
          # 2. Keyboard (Simple)'s shipped set moves to PAD_SIMPLEDEF.
          (0x0026c400, '11001f001e002000100012002e0022002d0013002f002100', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
          (0x0026c418, 'c700cf00d300d100d200c900520051004f004c0053005000', 'e800e900ea00eb00ee00ef00e600e500e400e000e200e700'),
-         (0x00223b88, '00' * len(PAD_SIMPLEDEF), PAD_SIMPLEDEF.hex()),
+         (site('PAD_SIMPLEDEF'), zeros('PAD_SIMPLEDEF'), blob('PAD_SIMPLEDEF')),
          # each player's profile 1 dispatches to the routine
-         (0x000422a8, '502e4400', '60806000'),
-         (0x001bc13b, 'e3cc5b00', '72806000'),
+         (0x000422a8, '502e4400', abs32(('PADX', 'entry1p'))),
+         (0x001bc13b, 'e3cc5b00', abs32(('PADX', 'entry2p'))),
          # PeekMessage: Start and A must reach the game while it is paused,
          # where the input tick does not run
-         (0x001c530e, 'ff1590d56503', 'e88521040090'),
+         (0x001c530e, 'ff1590d56503', call(0x001c530e, ('PADX', 'pump'), 1)),
          # two pads are separate devices, so 2P may reuse 1P's inputs
          (0x000971bd, '0f8558000000', 'e95900000090'),
          # device list: Keyboard (Real), Gamepad (XInput), Twin-stick,
          # Keyboard (Simple)
          (0x0026c218, 'ecd36600d4d36600c0d36600b4d3660090d3660080d3660068d3660058d36600',
-          PAD_DEVLIST.hex()),
+          blob('PAD_DEVLIST')),
          # profile switch, both players: slot 2 gets the twin-stick stubs
          # and slot 3 the stubs Keyboard (Simple) always had, back from
          # slot 1. Slot 1 is the gamepad, repointed above; slot 0 is the
          # game's own keyboard handler and is left alone.
-         (0x000422ac, '5a2e4400', 'c4496200'),
-         (0x001bc13f, 'edcc5b00', 'd6496200'),
-         (0x000422b0, '6b2e4400', '502e4400'),
-         (0x001bc143, 'fecc5b00', 'e3cc5b00'),
+         (0x000422ac, '5a2e4400', abs32(('TWIN', 'stub1p'))),
+         (0x001bc13f, 'edcc5b00', abs32(('TWIN', 'stub2p'))),
+         (0x000422b0, '6b2e4400', abs32('SIMPLESTUB1')),
+         (0x001bc143, 'fecc5b00', abs32('SIMPLESTUB2')),
          # The keyboard profile shared its twenty-four bind slots with
          # Simple, and the gamepad took those. Move it to the block owned by
          # the hidden Joystick + Keyboard profile, whose "Joy+Key Assign"
          # v_on.ini line keeps it persistent.
          (0x00095e46, '83c008', '83c020'),
-         (0x00095ec7, '4068bf00', '5868bf00'),
+         (0x00095ec7, '4068bf00', abs32('BLOCKS', 0x20)),
          (0x00096d37, '83c008', '83c020'),
          (0x00096d61, '83c008', '83c020'),
          (0x00096f19, '83c008', '83c020'),
-         (0x00096c0a, '4068bf00', '5868bf00'),
-         (0x00096c40, '4068bf00', '5868bf00'),
-         (0x00096c6d, '4068bf00', '5868bf00'),
-         (0x00096de8, '4068bf00', '5868bf00'),
-         (0x00096e3f, '4068bf00', '5868bf00'),
-         (0x00096e9a, '4068bf00', '5868bf00'),
+         (0x00096c0a, '4068bf00', abs32('BLOCKS', 0x20)),
+         (0x00096c40, '4068bf00', abs32('BLOCKS', 0x20)),
+         (0x00096c6d, '4068bf00', abs32('BLOCKS', 0x20)),
+         (0x00096de8, '4068bf00', abs32('BLOCKS', 0x20)),
+         (0x00096e3f, '4068bf00', abs32('BLOCKS', 0x20)),
+         (0x00096e9a, '4068bf00', abs32('BLOCKS', 0x20)),
          # 2P could not take a key 1P had bound, even with 1P on a pad and
          # those binds dormant. Gate that on 1P actually being on the
          # keyboard. Entry only; see asm/kbpage.asm for what that misses.
-         (0x00096b61, '833dac6bbf00010f8558000000',
-                      'e9d2711a009090909090909090'),
+         (0x00096b61, '833dac6bbf00010f8558000000', jump(0x00096b61, ('KBPAGE', 'dupkey'), 8)),
          # and Default passed a hardcoded player 0, so on the 2P side it
          # reset 1P's binds. The other two pages pass ds:0xbf6bac here.
-         (0x00096c8e, '6a016a00e87800000083c408',
-                      'e9c5701a0090909090909090'),
-         (0x0023dd38, '00' * len(KBPAGE_CODE), KBPAGE_CODE.hex()),
+         (0x00096c8e, '6a016a00e87800000083c408', jump(0x00096c8e, ('KBPAGE', 'default_button'), 7)),
+         (site('KBPAGE'), zeros('KBPAGE'), blob('KBPAGE')),
          # Startup defaults every block in a fixed order, and Joystick +
          # Keyboard writes that block after the keyboard profile does. It is
          # hidden, so drop its call; the pushes around it stay balanced.
@@ -1167,39 +2894,39 @@ FEATURES = [
          # The call after it filled +0x38 with 2 Joysticks defaults; that
          # block is Keyboard (Simple)'s now, so it goes to the writer at
          # the end of asm/bindmap.asm instead.
-         (0x00094eaf, 'ca330000', 'a17e1600'),
+         (0x00094eaf, 'ca330000', rel(0x00094eaf, ('BINDMAP', 'simple_defaults'))),
          # Startup validates the device saved in v_on.ini through a table
          # at 0x495e0f indexed by device - 2, so this entry is device 4,
          # a legacy joystick profile. It is hidden and unreachable, and
          # this only spares it a check it would fail.
-         (0x00095217, '415d4900', '235e4900'),
+         (0x00095217, '415d4900', abs32('JOYCHECKOK')),
          # and this one is device 3, Keyboard (Simple) now: a keyboard must
          # not fail the joystick-presence check, or the saved device resets
          # at every launch.
-         (0x00095213, '185d4900', '235e4900'),
+         (0x00095213, '185d4900', abs32('JOYCHECKOK')),
          # The device page's OK handler counts the joysticks enumerated at
          # startup and spends one per selection, refusing the page if a
          # counter goes negative. Twin-stick reads the pad through XInput
          # and spends nothing, so send its case straight to that check,
          # where the keyboard and gamepad selections already arrive.
-         (0x00096731, 'e0724900', '49734900'),
+         (0x00096731, 'e0724900', abs32('SPENDNONE')),
          # and device 3, Keyboard (Simple), spends nothing either
-         (0x00096735, '06734900', '49734900'),
+         (0x00096735, '06734900', abs32('SPENDNONE')),
          # F7 page table: twin-stick binds nothing, so it takes the case
          # that opens no dialog and reports success.
-         (0x00095bdc, '28674900', 'a9674900'),
+         (0x00095bdc, '28674900', abs32('NODIALOG')),
          # and slot 3 opens the twelve-bind page the gamepad shares
-         (0x00095be0, 'a9674900', 'e9664900'),
+         (0x00095be0, 'a9674900', abs32('BINDPAGE12')),
          # The apply-and-serialize switch behind OK: devices 1 and 3 both
          # run asm/inisave.asm, which writes "NP Simple Assign" from +0x38
          # and falls into the stock device 1 case - so both profiles'
          # lines are always written, whichever is selected.
-         (0x00096253, '236b4900', '381c6000'),
-         (0x0009625b, '2b6e4900', '381c6000'),
+         (0x00096253, '236b4900', abs32(('INISAVE', 'savesimple'))),
+         (0x0009625b, '2b6e4900', abs32(('INISAVE', 'savesimple'))),
          # And the startup call that refilled +0x38 with legacy joystick
          # defaults every launch parses that line back instead. See
          # asm/iniload.asm.
-         (0x00095604, 'e8742c0000', 'e8230e1700'),
+         (0x00095604, 'e8742c0000', call(0x00095604, ('INILOAD', 'loadsimple'))),
          # The ini loader routes each player by saved device, and slot 3's
          # route was "load nothing" - right for 2 Joysticks, whose data was
          # re-derived, wrong for Simple. Route it through the section that
@@ -1207,7 +2934,7 @@ FEATURES = [
          (0x000958a1, '03', '02'),
          # And whatever the saved devices, both keyboard-page blocks load
          # their lines at the loop's exit; see asm/iniall.asm.
-         (0x000958aa, 'e900000000', 'e845611a00'),
+         (0x000958aa, 'e900000000', call(0x000958aa, ('INIALL', 'iniall'))),
          # A last common check demanded the DirectInput joystick subsystem
          # whenever either player's saved device was 3 or 7, or it forced
          # both to Gamepad and skipped the whole ini load. Simple needs no
@@ -1216,12 +2943,12 @@ FEATURES = [
          (0x00095248, '03', '7f'),
          # The list shows gamepad, twin-stick, Simple, Real; positions and
          # device numbers are mapped both ways by asm/devorder.asm.
-         (0x0009651a, '8b803868bf00', 'e825d6160090'),
-         (0x00096784, '8b45f48b4dec', 'e8ced3160090'),
+         (0x0009651a, '8b803868bf00', call(0x0009651a, ('DEVORDER', 'posshim'), 1)),
+         (0x00096784, '8b45f48b4dec', call(0x00096784, ('DEVORDER', 'devshim'), 1)),
          # The device page's plain OK only commits the device number; the
          # shared live table must be reseeded for the new device too. See
          # asm/commitdev.asm.
-         (0x000959f7, '89048d40156503', 'e8507116009090'),
+         (0x000959f7, '89048d40156503', call(0x000959f7, ('COMMITDEV', 'commitdev'), 2)),
          # The shared page's template labels its list "1P side" - baked-in
          # text the original also showed on the 2P pass. Neutral now that
          # the window title carries the side.
@@ -1232,35 +2959,37 @@ FEATURES = [
          # The letter and digit sections belong to the keyboard profile;
          # the gamepad page lists only its pad inputs. Fill, store and
          # preselect skip them together: asm/pagesec.asm, asm/pagesel.asm.
-         (0x0009703f, '837df81a0f8d27000000', 'e82c9f16009090909090'),
-         (0x00097257, '837dec1a0f8d13000000', 'e8329d16009090909090'),
-         (0x00097428, '837df41a0f8d27000000', 'e8a79b16009090909090'),
-         (0x000974cb, '8345f424e905000000', 'e8229b160090909090'),
-         (0x0009753a, 'e8f1de1400', 'e84d571600'),
-         (0x00223dc4, '00' * len(TWIN_CODE), TWIN_CODE.hex()),
+         (0x0009703f, '837df81a0f8d27000000', call(0x0009703f, ('PAGESEC', 'fillsec'), 5)),
+         (0x00097257, '837dec1a0f8d13000000', call(0x00097257, ('PAGESEC', 'storesec'), 5)),
+         (0x00097428, '837df41a0f8d27000000', call(0x00097428, ('PAGESEL', 'selsec'), 5)),
+         (0x000974cb, '8345f424e905000000', call(0x000974cb, ('PAGESEL', 'selidx'), 4)),
+         (0x0009753a, 'e8f1de1400', call(0x0009753a, ('BLOCKCUR', 'syncshim'))),
+         (site('TWIN'), zeros('TWIN'), blob('TWIN')),
          # the intro movie blocks the message loop in GetMessageA, where the
          # pump stub does not run. Poll from the call itself instead, so a
          # pad press reaches the window procedure and Space skips the movie.
-         (0x0023dd70, '00' * len(INTROWAIT_CODE), INTROWAIT_CODE.hex()),
-         (0x001c52ac, 'ff158cd56503', 'e8bf8a070090'),
+         (site('INTROWAIT'), zeros('INTROWAIT'), blob('INTROWAIT')),
+         (0x001c52ac, 'ff158cd56503', call(0x001c52ac, ('INTROWAIT', 'introwait'), 1)),
          # what each pad input is and what it is called
-         (0x0022411b, '00' * len(PAD_COND), PAD_COND.hex()),
-         (0x00223c43, '00' * len(PAD_BINDS), PAD_BINDS.hex()),
-         (0x00223f9b, '00' * len(PAD_NAMES), PAD_NAMES.hex()),
+         (site('PAD_COND'), zeros('PAD_COND'), blob('PAD_COND')),
+         (site('PAD_BINDS'), zeros('PAD_BINDS'), blob('PAD_BINDS')),
+         (site('PAD_NAMES'), zeros('PAD_NAMES'), blob('PAD_NAMES')),
+         (site('PAD_PROFILES'), zeros('PAD_PROFILES'), blob('PAD_PROFILES')),
          # The win and lose screens read the camera key, not the accept
          # key, which is why Select skips them and A does not. The tick
          # calls this to write the camera slot for A as well, on those
          # screens only. See asm/camskip.asm.
-         (0x0023d1a0, '00' * len(CAMSKIP_CODE), CAMSKIP_CODE.hex()),
+         (site('CAMSKIP'), zeros('CAMSKIP'), blob('CAMSKIP')),
          # the routine itself: entry stubs, pump stub, tick, blocks
-         (0x00207460, '00' * len(PADX_CODE), PADX_CODE.hex()),
+         (site('PADX'), zeros('PADX'), blob('PADX')),
          # the tick ORs every active input together, but the game's
          # gestures are exclusive lever positions, so a held direction
          # contaminates jump and guard. Strip it back off at the end,
          # and only when a pad was actually read, so the keyboard path
          # is left exactly as it was.
-         (0x00207702, '5f5e5bc9c3', 'e997000000'),
-         (0x0020779e, '00' * len(LEVERS_CODE), LEVERS_CODE.hex()),
+         (At(('PADX', 'epilogue')), '5f5e5bc9c3',
+          jump(At(('PADX', 'epilogue')), ('LEVERS', 0))),
+         (site('LEVERS'), zeros('LEVERS'), blob('LEVERS')),
          # Two prompts naming a key the pad now covers, so they are only
          # true with this patch on.
          #
@@ -1281,13 +3010,56 @@ FEATURES = [
          (BANNER_TABLE, '000001000200030004000500060007000800090007000a000b000c000d000e000f00100011001200040004001300090004001400150004001600170007000800180019001a001b001c0014001d001e001f0020002100220023002400250026002700280029002a002b002c002d002e002f0030003100320033003400350036003700380039003a003b003c003d003e00280029003f003a0040004100420043004400450046004700480049004a004b004c004a004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063004d004e004f006400650066006700680069006a006b006c004a00', BANNER_NEW)]),
 ]
 
+def features(build):
+    """The site table as this build needs it: each site at its own offset,
+    expecting its own original bytes, writing what its symbols resolve to
+    here. A site mapped to None is code the build does not have, and a
+    site the build alone has (In) is included for it only."""
+    out = []
+    for key, label, tip, sites in FEATURES:
+        rows = []
+        for off, orig, new in sites:
+            if isinstance(off, In):
+                if off.md5 != build.md5:
+                    continue
+            elif build is RETAIL:
+                pass
+            elif isinstance(off, At):
+                try:
+                    off = off.for_build(build)
+                except KeyError:
+                    continue
+                if isinstance(orig, Sym):
+                    orig = orig.for_build(build)
+            else:
+                if off not in build.sites:
+                    raise KeyError('site 0x%08x has no place in build %s'
+                                   % (off, build.md5))
+                if build.sites[off] is None:
+                    continue                # the build has no such code
+                off, orig = build.sites[off]
+            if isinstance(new, Sym) and build is not RETAIL:
+                new = new.for_build(build)
+            rows.append((off, orig, new))
+        out.append((key, label, tip, rows))
+    return out
+
+
+def by_key(build):
+    table = {key: (label, tip, sites)
+             for key, label, tip, sites in features(build)}
+    table['dinput'] = BY_KEY['dinput']
+    return table
+
+
 # Found by signature rather than offset, so it cannot live in FEATURES.
 # SetCooperativeLevel: DISCL_FOREGROUND -> DISCL_BACKGROUND.
 DI_FIND = re.compile(
     rb'\x6a\x06[\s\S]{0,20}?\xff(?:[\x50-\x57]\x34|[\x90-\x97]\x34\x00\x00\x00)')
 
 # key -> (label, description, sites), with sites None meaning DI_FIND.
-BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
+BY_KEY = {key: (label, tip, sites)
+          for key, label, tip, sites in features(RETAIL)}
 
 # The patches a lockstep match cannot differ on are the frame rate and the
 # round-loss fix: both change what the simulation computes. Both are Essential
@@ -1299,17 +3071,10 @@ BY_KEY['dinput'] = (
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
     'keyboard input until the game is restarted.', None)
 
-# Both padxinput and the ending stubs put routines in .rdata, which the
-# loader maps without making it executable. The site that changes the section
-# flag belongs to neither of them: written twice it would fail its own
-# original check, so it is applied once for whichever patch is ticked.
-RDATA_EXEC = (0x000001c4, '40000040', '40000060')
-RDATA_EXEC_KEYS = ('padxinput', 'movie', 'credits')
-
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
-ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput')
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
 # Every Essential patch, shown without a tick box. Unticking any of them
 # produced a game that is broken in a way nobody was choosing on purpose:
 # no start on a modern CPU, a crash on a lost round, a third of the frame
@@ -1334,7 +3099,7 @@ def apply_order():
     return keys + ['nodisc']
 
 
-def _check_table():
+def _check_table(build=RETAIL):
     """Fail at import, not half way through somebody's executable.
 
     Three things go wrong silently otherwise: a length mismatch patches the
@@ -1345,28 +3110,27 @@ def _check_table():
     whole and then has its epilogue rewritten - but only where the later site
     expects exactly what the earlier one left there. Anything else means the
     list has been reordered and the patch would fail against a real file."""
-    if set(BY_KEY) != set(ESSENTIAL) | set(EXTRA) | set(ABOUT):
+    table = by_key(build)
+    if set(table) != set(ESSENTIAL) | set(EXTRA) | set(ABOUT):
         raise AssertionError('patch list and display order disagree')
     if apply_order()[-1] != 'nodisc':
         raise AssertionError('nodisc must be applied last')
 
-    # RDATA_EXEC is not in any feature's list, so seed it here or the four
-    # bytes it writes are the one place two patches could collide unnoticed.
-    owner = dict.fromkeys(range(RDATA_EXEC[0],
-                                RDATA_EXEC[0] + len(RDATA_EXEC[1]) // 2),
-                          'the .rdata executable flag')
-    for key in BY_KEY:
+    owner = {}
+    for key in table:
         written = {}
-        for off, old, new in BY_KEY[key][2] or ():
+        for off, old, new in table[key][2] or ():
             if len(old) != len(new):
                 raise AssertionError('%s at 0x%08x: %d bytes replaced by %d'
                                      % (key, off, len(old) // 2,
                                         len(new) // 2))
             old_b, new_b = bytes.fromhex(old), bytes.fromhex(new)
-            if off + len(old_b) > EXE_SIZE:
+            end = build.size
+            if build.annex:
+                end = build.annex[1] + annex_layout(build)[1]
+            if off + len(old_b) > end:
                 raise AssertionError('%s at 0x%08x runs %d bytes past the end'
-                                     % (key, off,
-                                        off + len(old_b) - EXE_SIZE))
+                                     % (key, off, off + len(old_b) - end))
             for i, byte in enumerate(range(off, off + len(old_b))):
                 if owner.setdefault(byte, key) != key:
                     raise AssertionError('%s and %s both patch 0x%08x'
@@ -1377,10 +3141,18 @@ def _check_table():
                         'the same patch wrote %02x - has the site list been '
                         'reordered?' % (key, byte, old_b[i], written[byte]))
                 written[byte] = new_b[i]
-    return sum(len(v[2] or ()) for v in BY_KEY.values()), len(owner)
+    return sum(len(v[2] or ()) for v in table.values()), len(owner)
 
 
-_check_table()
+for _build in BUILDS.values():
+    if _build is RETAIL or _build.sites:
+        try:
+            _check_table(_build)
+        except KeyError:
+            # A site the build's map has no entry for yet: tools/buildsites.py
+            # is about to write one, and imports this module to do it.
+            if not os.environ.get('VO_PATCH_BOOTSTRAP'):
+                raise
 
 
 def default_state():
@@ -2035,14 +3807,12 @@ def disc_build(track, plan):
     for name, lba, size in plan.files():
         if name == 'v_on.exe':
             digest = hashlib.md5(track.read(lba, size)).hexdigest()
-            known = OTHER_BUILDS.get(digest)
+            build = BUILDS.get(digest)
             return {
                 'size': size, 'md5': digest,
-                'supported': digest == ORIGINAL_MD5,
-                'name': ('retail disc' if digest == ORIGINAL_MD5
-                         else known[1] if known else 'unrecognised'),
-                'why': ('' if digest == ORIGINAL_MD5 else
-                        known[2] if known else
+                'supported': build is not None,
+                'name': build.name if build else 'unrecognised',
+                'why': ('' if build else
                         'Not a v_on.exe this patcher knows - a bad rip, a '
                         'repack, or a disc it has not seen.'),
             }
@@ -2269,668 +4039,630 @@ def rip_in_background(source, gamedir, progress, done):
 
 # --- netplay blob: written by net/build.py, do not edit ---
 # Source: net/dpctrl.c, compiled by net/build.py.
-NETPLAY_SRC_SHA = '20697af788f6e38e4401ab296ccafc8175889c1b54b5258948a149b6985a481a'
+NETPLAY_SRC_SHA = 'c8a40e0fc5d5b4de73067c5d4c81a9d28c4a477dd0b767375eb7721186f975d1'
 # sha256 of the compiled DLL, so the patcher can tell its own build
 # from an older one already installed.
-NETPLAY_DLL_SHA = '307a62454f56f27209d6c5f9898d1a8441272e2136caba3103fe3e80dddad477'
+NETPLAY_DLL_SHA = 'c39459fde4e5f7430a11dd820afcfe4f398e75b96578c35f4db5be32f20c5de0'
 NETPLAY_DLL_Z = (
-    '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'
-    'rlvpqw=='
+    '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'
+    'wY3hxnL/dfPvPwC9FTx9'
 )
 # --- end netplay blob ---
 
@@ -2972,7 +4704,11 @@ def _netplay_is_ours(path):
 # File offsets into v_on.exe, with the byte that differs patched vs stock.
 # These are the same two bytes net/dpctrl.c fingerprints as FP_DIVISOR_VA and
 # FP_CONTINUE_VA (VA = offset + 0x400c00); change both together.
-SYNC_SITES = ((0x0010afc4, 0x01), (0x00077f5a, 0x90))   # divisor, continuefix
+# The frame divisor's immediate, six bytes into its site, and the first
+# byte of a continuefix site - in every build, through its site map.
+SYNC_SITES = {build.md5: ((site_in(0x0010afbe, build) + 6, 0x01),
+                          (site_in(0x00077f5a, build), 0x90))
+              for build in BUILDS.values()}
 
 
 def netplay_sync_ready(gamedir):
@@ -2983,10 +4719,11 @@ def netplay_sync_ready(gamedir):
             data = fh.read()
     except OSError:
         return None
-    for off, patched in SYNC_SITES:
-        if off >= len(data) or data[off] != patched:
-            return False
-    return True
+    for sites in SYNC_SITES.values():
+        if all(off < len(data) and data[off] == patched
+               for off, patched in sites):
+            return True
+    return False
 
 
 def netplay_status(gamedir):
@@ -3242,50 +4979,51 @@ def install_ddraw_in_background(gamedir, progress, done):
 # string table and the scratch space.
 
 # The F11 dialog template and the dialog's long code paths (asm/voxt.asm)
-# ride in their own appended section: the dead menu resource the template
-# used to squeeze into caps it at 460 bytes, and the dialog procedure's
-# cave is nearly full. f11pause.asm pushes MAGIC_TEMPLATE where the
+# ride in their own appended section, which exists only once the patch is
+# applied. f11pause.asm pushes MAGIC_TEMPLATE where the
 # template's address belongs, and debugbox.asm calls through ANNEXREL, a
 # rel32 to the code at the template's tail; apply_extras_template() below
 # fills both once the section exists, the way apply_cdaudio() fills
 # .vocd's.
 MAGIC_TEMPLATE = 0xE7E7E7E7
 MAGIC_ANNEXREL = 0xEAEAEAEA
-F11PAUSE_AT = 0x0023b324        # where the debugbox patch sites the blob
-DBGPROC_AT = 0x001f42d8         # and the dialog procedure
-DBGPROC_VA = 0x005f4ed8
 
 
-def apply_extras_template(buf):
+def apply_extras_template(buf, build=RETAIL):
     """Append the template-and-annex section, point f11pause at the
     template and the dialog procedure's call at the annex."""
     pe = _PE(buf)
     gap = (-len(EXTRAS_TPL)) % 16
-    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + VOXT_CODE,
+    # linked for this build: it names the build's IAT slots and scratch
+    voxt = link('VOXT', build)
+    rva = pe.add_section('.voxt', EXTRAS_TPL + b'\0' * gap + voxt,
                          chars=0x60000040)
 
+    f11pause_at = build.off(cave_va('F11PAUSE', build))
+    f11pause = link('F11PAUSE', build)
     pattern = struct.pack('<I', MAGIC_TEMPLATE)
-    if F11PAUSE_CODE.count(pattern) != 1:
+    if f11pause.count(pattern) != 1:
         raise ValueError('the TEMPLATE placeholder should appear exactly '
                          'once in the f11pause blob')
-    at = F11PAUSE_AT + F11PAUSE_CODE.index(pattern)
+    at = f11pause_at + f11pause.index(pattern)
     if pe.d[at:at + 4] != pattern:
         raise ValueError('the TEMPLATE placeholder is not where the '
                          'f11pause site put it')
     struct.pack_into('<I', pe.d, at, pe.base + rva)
 
+    dbgproc_va = symbol_va(('DEBUGBOX', 'dlgproc'), build)
+    proc = link('DEBUGBOX', build)[label_at('DEBUGBOX', 'dlgproc'):]
     pattern = struct.pack('<I', MAGIC_ANNEXREL)
-    if DEBUGBOX_PROC.count(pattern) != 1:
+    if proc.count(pattern) != 1:
         raise ValueError('the ANNEXREL placeholder should appear exactly '
                          'once in the dialog procedure blob')
-    idx = DEBUGBOX_PROC.index(pattern)
-    at = DBGPROC_AT + idx
+    idx = proc.index(pattern)
+    at = build.off(dbgproc_va) + idx
     if pe.d[at:at + 4] != pattern:
         raise ValueError('the ANNEXREL placeholder is not where the '
                          'dialog procedure site put it')
     annex = pe.base + rva + len(EXTRAS_TPL) + gap
-    struct.pack_into('<i', pe.d, at,
-                     annex - (DBGPROC_VA + idx + 4))
+    struct.pack_into('<i', pe.d, at, annex - (dbgproc_va + idx + 4))
     return pe.d
 
 
@@ -3470,6 +5208,12 @@ class _PE:
             desc += 20
         raise ValueError('%s does not import %s' % (dll, func))
 
+    def next_rva(self):
+        """Where add_section will put the next section."""
+        last = max(self.sections, key=lambda x: x['vaddr'])
+        unit = self.salign
+        return (last['vaddr'] + last['vsize'] + unit - 1) // unit * unit
+
     def add_section(self, name, payload, chars=0xE0000040):
         """Append a section rather than borrow padding: .text has no room
         left and the zero runs in .data are globals the game writes."""
@@ -3606,7 +5350,21 @@ class PatchFailed(Exception):
         self.key = key
 
 
-def apply_selected(buf, wanted):
+def apply_annex(buf, build):
+    """Append the build's annex, empty: the site table writes the blobs into
+    it like any cave. It has to land where the tables say, which the file's
+    own headers guarantee for the first section appended. Always applied,
+    so the essentials can rely on it - the timer stub is there."""
+    va, raw, _names = build.annex
+    _layout, length = annex_layout(build)
+    pe = _PE(buf)
+    if len(pe.d) != raw or pe.base + pe.next_rva() != va:
+        raise ValueError('the annex would not land at 0x%08x' % va)
+    pe.add_section('.vojp', b'\0' * length, chars=0xE0000040)
+    return pe.d
+
+
+def apply_selected(buf, wanted, build=RETAIL):
     """Write every wanted patch into buf, in apply_order().
 
     Returns (buffer, applied keys, [(skipped key, why)]). The buffer is not
@@ -3619,26 +5377,19 @@ def apply_selected(buf, wanted):
     site, and the rest still go on.
     """
     applied, skipped = [], []
-    shared = [key for key in RDATA_EXEC_KEYS if wanted.get(key)]
-    if shared:
-        try:
-            apply_feature(buf, [RDATA_EXEC])
-        except ValueError as exc:
-            # Named after the first patch that wanted it, so the message the
-            # user gets points at a box they ticked rather than at a site
-            # that belongs to no patch.
-            raise PatchFailed(shared[0], exc) from exc
+    table = by_key(build)
+    buf = apply_annex(buf, build)
     for key in apply_order():
         if not wanted.get(key):
             continue
-        sites = BY_KEY[key][2]
+        sites = table[key][2]
         try:
             if sites is not None:
                 apply_feature(buf, sites)
             else:
                 apply_dinput(buf)
             if key == 'debugbox':        # bytes first, then the template
-                buf = apply_extras_template(buf)
+                buf = apply_extras_template(buf, build)
             if key == 'nodisc':          # bytes first, then the section
                 buf = apply_cdaudio(buf)
         except ValueError as exc:
@@ -3659,10 +5410,10 @@ def backup_is_original(path):
     reliable: the patched file's own size and checksum depend on which boxes
     were ticked, but the backup is always the untouched original."""
     try:
-        if os.path.getsize(path) != EXE_SIZE:
+        if os.path.getsize(path) not in [b.size for b in BUILDS.values()]:
             return False
         with open(path, 'rb') as fh:
-            return hashlib.md5(fh.read()).hexdigest() == ORIGINAL_MD5
+            return hashlib.md5(fh.read()).hexdigest() in BUILDS
     except OSError:
         return False
 
@@ -3670,18 +5421,20 @@ def backup_is_original(path):
 def compare_report(size, digest, why, hint, level):
     """What the patcher wants against what it was given.
 
-    Two rows so the difference is visible rather than described. The short
-    hash is what goes on screen; the log gets both in full, because that is
-    what ends up in a bug report."""
+    Two rows so the difference is visible rather than described: the
+    supported build nearest in size, and the file. The short hash is what
+    goes on screen; the log gets every build in full, because that is what
+    ends up in a bug report."""
+    nearest = min(BUILDS.values(), key=lambda b: abs(b.size - size))
     return {
-        'rows': [('SUPPORTED', EXE_SIZE, ORIGINAL_MD5),
+        'rows': [('SUPPORTED', nearest.size, nearest.md5),
                  ('YOURS', size, digest)],
         'why': why,
         'hint': hint,
         'level': level,
-        'log': ['supported: %d bytes  %s' % (EXE_SIZE, ORIGINAL_MD5),
-                'yours:     %d bytes  %s' % (size, digest),
-                why, hint],
+        'log': ['supported: %d bytes  %s  (%s)' % (b.size, b.md5, b.name)
+                for b in BUILDS.values()]
+               + ['yours:     %d bytes  %s' % (size, digest), why, hint],
     }
 
 
@@ -3704,6 +5457,7 @@ class Patcher:
     def __init__(self):
         self.exe_path = None
         self.compare = None
+        self.build = RETAIL
 
     def load(self, path):
         """Return (description, accepted). Raises OSError.
@@ -3714,6 +5468,7 @@ class Patcher:
         longer showing."""
         self.exe_path = None
         self.compare = None
+        self.build = RETAIL
 
         # Decided on the name, before the read: a disc image is hundreds of
         # megabytes and hashing one to conclude "that is not an executable"
@@ -3734,16 +5489,12 @@ class Patcher:
             data = fh.read()
         self.exe_path = path
         digest = hashlib.md5(data).hexdigest()
-        if digest == ORIGINAL_MD5:
+        if digest in BUILDS:
+            self.build = BUILDS[digest]
+            self.compare = None
             return READY_TAG, True
 
-        known = OTHER_BUILDS.get(digest)
-        if known:
-            # A real release, just not this one. Amber: nothing is wrong with
-            # the file, it is the wrong file.
-            what, why, hint, level = ('%s build' % known[1], known[2],
-                                      RETAIL_HINT, 'warn')
-        elif backup_is_original(path + '.bak'):
+        if backup_is_original(path + '.bak'):
             # The size cannot be part of this test: No disc required appends
             # a section, so a patched file is 3 KB larger than the original
             # and looked unrecognisable here.
@@ -3781,13 +5532,13 @@ class Patcher:
                                  'all, everything else applies' % why))
 
         try:
-            buf, applied, skipped = apply_selected(buf, wanted)
+            buf, applied, skipped = apply_selected(buf, wanted, self.build)
         except PatchFailed as exc:
             return False, [_note(str(exc)), NOTHING]
         except Exception as exc:             # a bug in here, not a bad file
             return False, ['patch: failed - %s' % exc, NOTHING]
         if 'credits' in applied:
-            stamp_version(buf)
+            stamp_version(buf, self.build)
         for key, why in skipped:
             log.append('patch: skipped %s - %s' % (BY_KEY[key][0], why))
 
@@ -3855,7 +5606,7 @@ class Patcher:
         generated artwork are not."""
         folder = os.path.dirname(self.exe_path)
         targets = [(self.exe_path, False),
-                   (os.path.join(folder, ESCRGAME), False),
+                   (os.path.join(folder, self.build.art[0]), False),
                    (os.path.join(folder, SCRSTFCG), False),
                    (os.path.join(folder, SCRSTFMP), False),
                    (os.path.join(folder, 'v_on.ini'), True)]
@@ -3909,28 +5660,29 @@ class Patcher:
         An already-modified copy is refused rather than backed up: the backup
         would then hold somebody else's edit, and Restore original would put
         that back instead of the original."""
-        path = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
+        path = os.path.join(os.path.dirname(self.exe_path), self.build.art[0])
         if not os.path.exists(path):
             return False, ('%s is missing. XInput gamepad support renames the '
                            'title prompt, which is artwork in that file.'
-                           % ESCRGAME)
+                           % self.build.art[0])
         try:
             with open(path, 'rb') as fh:
                 data = fh.read()
         except OSError as exc:
-            return False, 'Could not read %s: %s' % (ESCRGAME, exc)
-        if len(data) != ESCRGAME_SIZE:
+            return False, 'Could not read %s: %s' % (self.build.art[0], exc)
+        if len(data) != self.build.art[1]:
             return False, ('%s is %d bytes, expected %d.'
-                           % (ESCRGAME, len(data), ESCRGAME_SIZE))
+                           % (self.build.art[0], len(data), self.build.art[1]))
         digest = hashlib.md5(data).hexdigest()
-        if digest != ESCRGAME_MD5:
+        if self.build.art[2] and digest != self.build.art[2]:
             if os.path.exists(path + '.bak'):
                 return True, ''          # ours from a previous run
             return False, ('%s has been modified and there is no %s.bak '
                            'beside it. It holds the title screen artwork, so '
                            'reinstall the game to get the original back. '
                            '(MD5 %s, expected %s)'
-                           % (ESCRGAME, ESCRGAME, digest, ESCRGAME_MD5))
+                           % (self.build.art[0], self.build.art[0], digest,
+                              self.build.art[2]))
         return True, ''
 
     def _credit_files(self):
@@ -4038,19 +5790,19 @@ class Patcher:
 
         A missing or unexpected escrgame.bin is not fatal - every other patch
         has already been written - but it does have to be said out loud."""
-        path = os.path.join(os.path.dirname(self.exe_path), ESCRGAME)
+        path = os.path.join(os.path.dirname(self.exe_path), self.build.art[0])
         try:
             with open(path, 'rb') as fh:
                 data = bytearray(fh.read())
         except OSError as exc:
-            log.append('patch: could not read %s - %s' % (ESCRGAME, exc))
+            log.append('patch: could not read %s - %s' % (self.build.art[0], exc))
             return
-        if len(data) != ESCRGAME_SIZE:
+        if len(data) != self.build.art[1]:
             log.append('patch: %s is %d bytes, expected %d - left alone'
-                       % (ESCRGAME, len(data), ESCRGAME_SIZE))
+                       % (self.build.art[0], len(data), self.build.art[1]))
             return
         if not self._backup(path, log):
-            log.append('patch: %s left alone' % ESCRGAME)
+            log.append('patch: %s left alone' % self.build.art[0])
             return
         for i, raw in enumerate(BANNER_TILES):
             off = (BANNER_TILE_OFF + i * 128 if i < BANNER_TILE_MAX
@@ -4069,7 +5821,7 @@ class Patcher:
                 os.remove(temp)
             except OSError:
                 pass
-            log.append('patch: could not write %s - %s' % (ESCRGAME, exc))
+            log.append('patch: could not write %s - %s' % (self.build.art[0], exc))
             return
         log.append('patch: wrote %s' % path)
 
@@ -4206,9 +5958,8 @@ INSTALL_TIP = ('Source\tThe .cue sheet beside the .bin files, not the .bin '
                'Install game\tThe game folder, about 95 MB.\n'
                'Rip soundtrack\tmusic\\track02.wav onward, about 320 MB. '
                'Needed unless you keep a disc in the drive.\n'
-               'Manual\tWhich readme and help file is copied. Every '
-               'pressing carries one v_on.exe and it is English, so there '
-               'is no translated game to install.')
+               'Manual\tWhich readme and help file is copied; the game '
+               'itself is the same on every pressing of a release.')
 
 INSTALL_PICK = 'Give the .cue sheet, not the .bin.'
 INSTALL_NOT_CUE = 'That is a %s. Give the .cue sheet beside it.'
@@ -4227,11 +5978,11 @@ INSTALL_NO_AUDIO = ('This image has no audio tracks - the soundtrack is not '
 # disc. Said rather than refused: it is their disc and their call.
 INSTALL_ODD_AUDIO = ('This image has %d audio tracks; Virtual-On has %d. '
                      'Ripping it will not give the right music.')
-# What a good disc looks like, in one line: enough to tell a full rip from a
-# data-only one before anything is written.
-INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
+# What a good disc looks like, in one line: which build, and enough to tell
+# a full rip from a data-only one before anything is written.
+INSTALL_FOUND = '%s. %d files, %d MB.'
 # The copy is the same work whichever build is on the disc, so it runs; only
-# the patches are English-retail-only, which the card below spells out.
+# the patches need a build with tables, which the card below spells out.
 INSTALL_FOUND_OTHER = '%s build. %d files, %d MB - installs, does not patch.'
 
 ESSENTIAL_HINT = ('Always applied. Each fixes something that is broken on a '
@@ -4289,7 +6040,7 @@ MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
 DONE = 'Done - %d patches written. Restore original puts v_on.exe.bak back.'
 FAILED = 'Nothing was written and the game is untouched - see the log below.'
 # DONE_NOSYNC is gone: Apply can no longer leave a sync patch out.
-READY = 'READY - %d patches selected. Press Apply patches.'
+READY = 'READY - %s. %d patches selected. Press Apply patches.'
 # Under 52 characters: the status bar cuts longer text, and the log below
 # names which patch.
 
@@ -5308,7 +7059,7 @@ def run_tk():
                                    sticky='ew', pady=(0, 6))
             if build['supported']:
                 self.disc_ok = True
-                self._disc_note(INSTALL_FOUND % (info['count'],
+                self._disc_note(INSTALL_FOUND % (build['name'], info['count'],
                                                  info['bytes'] >> 20),
                                 PALETTE['ok'])
                 # The sector layout is worth having in a bug report and
@@ -5323,7 +7074,7 @@ def run_tk():
                 self.disc_compare.show(compare_report(
                     build['size'], build['md5'], build['why'],
                     'Installing and ripping still work; only patching needs '
-                    'the English retail build.',
+                    'a build the patcher has tables for.',
                     'warn'))
                 self._disc_note(INSTALL_FOUND_OTHER
                                 % (build['name'], info['count'],
@@ -5990,7 +7741,9 @@ def run_tk():
                 return
             level = (self.core.compare or {}).get('level', 'bad')
             if note == READY_TAG:
-                note = READY % self._selected()
+                note = READY % (self.core.build.name, self._selected())
+                self._log('file: %s, the %s build'
+                          % (os.path.basename(path), self.core.build.name))
             self._set_status(note, ok, 'amber' if level == 'warn' else 'bad')
             self._compare(self.core.compare)
             state = default_state()
@@ -6019,7 +7772,8 @@ def run_tk():
         def _retally(self, *_args):
             """Keep the count honest as boxes are ticked."""
             if self.core.exe_path and not self.core.compare:
-                self._set_status(READY % self._selected(), True)
+                self._set_status(READY % (self.core.build.name,
+                                          self._selected()), True)
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
@@ -6121,11 +7875,14 @@ def selfcheck():
 
     The tables are the whole patcher, and nothing else exercises them without
     a copy of the game, so this is what to run after editing one."""
-    sites, byte_count = _check_table()
-    lines = ['vo_patch.py %s' % VERSION,
-             '%d patches, %d sites, %d bytes of the executable touched'
-             % (len(BY_KEY), sites, byte_count),
-             'expects %d bytes, MD5 %s' % (EXE_SIZE, ORIGINAL_MD5),
+    lines = ['vo_patch.py %s' % VERSION]
+    for build in BUILDS.values():
+        sites, byte_count = _check_table(build)
+        lines.append('%s: %d bytes, MD5 %s; %d patches, %d sites, %d bytes '
+                     'of the executable touched'
+                     % (build.name, build.size, build.md5, len(BY_KEY),
+                        sites, byte_count))
+    lines += [
              'CD audio blob: %d bytes of code, %d of data, %d placeholders'
              % (len(VOCD_CODE), len(VOCD_DATA), len(VOCD_MAGICS)),
              'lever routine: %d bytes' % len(LEVERS_CODE),
@@ -6210,7 +7967,7 @@ def install_cli(args):
     build = info['build']
     if not build['supported']:
         print('This disc holds the %s build of v_on.exe (%s).\n%s\n'
-              'It installs, but the patches need the English retail build.'
+              'It installs, but the patcher has no tables for it.'
               % (build['name'], build['md5'], build['why']))
     why, level = dest_problem(dest, info['bytes'])
     if level == 'bad':

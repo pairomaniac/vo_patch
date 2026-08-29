@@ -52,12 +52,13 @@ def load_patcher():
     return module
 
 
-def decode(vp, exe, art):
+def decode(vp, exe, art, build):
     """The banner as the game would draw it: indices from the executable,
     tiles from the asset, laid out into a 336x24 bitmap."""
     table = []
+    table_at = vp.site_in(vp.BANNER_TABLE, build)
     for i in range(vp.BANNER_W * vp.BANNER_H):
-        off = vp.BANNER_TABLE + i * 2
+        off = table_at + i * 2
         table.append(exe[off] | (exe[off + 1] << 8))
     rows = vp.BANNER_H * 8
     cols = vp.BANNER_W * 8
@@ -67,7 +68,7 @@ def decode(vp, exe, art):
         base = tile * 128
         if base + 128 > len(art):
             raise AssertionError('cell %d points at tile %d, past the end of '
-                                 '%s' % (cell, tile, vp.ESCRGAME))
+                                 'the artwork' % (cell, tile))
         cy, cx = divmod(cell, vp.BANNER_W)
         for y in range(8):
             for x in range(8):
@@ -97,18 +98,34 @@ def render(bitmap, cols):
     return lines
 
 
+def build_of(vp, exe_path):
+    """Which build the executable, or the original beside it, is."""
+    for candidate in (exe_path, exe_path + '.bak'):
+        try:
+            with open(candidate, 'rb') as fh:
+                digest = hashlib.md5(fh.read()).hexdigest()
+        except OSError:
+            continue
+        if digest in vp.BUILDS:
+            return vp.BUILDS[digest]
+    return None
+
+
 def main(gamedir):
     vp = load_patcher()
     if os.path.isfile(gamedir):
         gamedir = os.path.dirname(gamedir)
     exe_src = os.path.join(gamedir, 'v_on.exe')
-    art_src = os.path.join(gamedir, vp.ESCRGAME)
-    for path in (exe_src, art_src):
-        if not os.path.exists(path):
-            return 'not found: %s' % path
+    build = build_of(vp, exe_src)
+    if build is None:
+        return 'not found, or not a build with tables: %s' % exe_src
+    art_name, _size, art_md5 = build.art
+    art_src = os.path.join(gamedir, art_name)
+    if not os.path.exists(art_src):
+        return 'not found: %s' % art_src
 
-    exe_before, exe_used = pristine(exe_src, vp.ORIGINAL_MD5)
-    art_before, art_used = pristine(art_src, vp.ESCRGAME_MD5)
+    exe_before, exe_used = pristine(exe_src, build.md5)
+    art_before, art_used = pristine(art_src, art_md5)
     for path, data in ((exe_src, exe_before), (art_src, art_before)):
         if data is None:
             return ('%s is not the original and there is no %s.bak holding '
@@ -121,7 +138,7 @@ def main(gamedir):
     work = tempfile.mkdtemp(prefix='vo-banner-')
     try:
         exe = os.path.join(work, 'v_on.exe')
-        art = os.path.join(work, vp.ESCRGAME)
+        art = os.path.join(work, art_name)
         with open(exe, 'wb') as fh:
             fh.write(exe_before)
         with open(art, 'wb') as fh:
@@ -141,7 +158,7 @@ def main(gamedir):
         with open(art, 'rb') as fh:
             art_after = fh.read()
 
-        got = decode(vp, exe_after, art_after)
+        got = decode(vp, exe_after, art_after, build)
         want = expected(vp)
         cols = vp.BANNER_W * 8
         wrong = sum(1 for a, b in zip(got, want) if a != b)
@@ -166,7 +183,7 @@ def main(gamedir):
         if exe_back != exe_before:
             return 'FAILED - v_on.exe did not restore byte for byte'
         if art_back != art_before:
-            return 'FAILED - %s did not restore byte for byte' % vp.ESCRGAME
+            return 'FAILED - %s did not restore byte for byte' % art_name
         print('restore: both files byte for byte')
     finally:
         shutil.rmtree(work, ignore_errors=True)

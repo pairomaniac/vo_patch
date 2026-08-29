@@ -1446,24 +1446,33 @@ static int negotiate_delay(void)
    A visual-only or input-reading patch (sound, movie, defaults, XInput)
    does not appear here on purpose: those may differ between the two sides.
    If a future patch changes the simulation, add its site to this list. */
-#define FP_DIVISOR_VA  0x0050bbc4u   /* framerate: 03 vs 01               */
-#define FP_CONTINUE_VA 0x00478b5au   /* continuefix: 8b vs 90             */
+/* Per build, told apart by the PE timestamp: the frame divisor site
+   (03 vs 01) and a continuefix site (8b vs 90). The retail entry is the
+   fallback for a timestamp not listed. See docs/NOTES.md. */
+static const struct { unsigned long stamp, divisor, cont; } fp_builds[] = {
+    { 0x334D33FCu, 0x0050bbc4u, 0x00478b5au },   /* English retail      */
+    { 0x345107FAu, 0x0050834au, 0x0047770au },   /* Japanese rerelease  */
+    { 0x3317246Au, 0x0050b734u, 0x00478a5au },   /* USA OEM             */
+};
 
 static unsigned char sync_fingerprint(void)
 {
-    /* GetModuleHandle(NULL) is the exe's load base. The game has no
-       relocation table and always loads at 0x400000, so the absolute VAs
-       above are already correct; the base is read only to confirm the exe
-       is where we expect before dereferencing, and to fold in the slide in
-       the event a future build does relocate. */
+    /* GetModuleHandle(NULL) is the exe's load base. base + (VA - preferred
+       base) is the byte at VA wherever the image loaded, relocation or
+       not; the game has a .reloc but is always seen at 0x400000. */
     unsigned char *base = (unsigned char *)GetModuleHandleA(NULL);
+    unsigned long pe, stamp;
+    unsigned i, which = 0;
 
     if (!base)
         return 0;
-    /* base + (VA - preferred base) is the byte at VA wherever the image
-       loaded, relocation or not. */
-    return (unsigned char)(*(base + (FP_DIVISOR_VA - 0x00400000u)) * 31
-                         + *(base + (FP_CONTINUE_VA - 0x00400000u)));
+    pe = *(unsigned long *)(base + 0x3c);
+    stamp = *(unsigned long *)(base + pe + 8);
+    for (i = 0; i < sizeof fp_builds / sizeof fp_builds[0]; i++)
+        if (fp_builds[i].stamp == stamp)
+            which = i;
+    return (unsigned char)(*(base + (fp_builds[which].divisor - 0x00400000u)) * 31
+                         + *(base + (fp_builds[which].cont - 0x00400000u)));
 }
 
 int __stdcall InitialDirectPlay(VO_NETINIT *init)

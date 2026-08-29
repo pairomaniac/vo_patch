@@ -282,8 +282,8 @@ def main():
     # as the supported one for the length of this run so the build test has
     # something to agree with.
     exe = bytes(vp.EXE_SIZE)
-    original = vp.ORIGINAL_MD5
-    vp.ORIGINAL_MD5 = hashlib.md5(exe).hexdigest()
+    stand_in = hashlib.md5(exe).hexdigest()
+    vp.BUILDS[stand_in] = vp.RETAIL
 
     tmp = tempfile.mkdtemp(prefix='vo-disctest-')
     try:
@@ -353,7 +353,8 @@ def main():
                      'v_on_a.ini': b'[Option]\n', 'v_on_b.ini': b'[Option]\n'},
         }), 'MODE1/2352')
         info = vp.probe_disc(oem)
-        check('oem build refused', not info['build']['supported'])
+        check('a build without tables is refused',
+              not info['build']['supported'])
         check('oem copies no language directory', not info['wants_language'])
         check('and offers no manual to choose', info['languages'] == [],
               info['languages'])
@@ -377,12 +378,10 @@ def main():
                      'jscradv.bin': b'A' * 40, 'scrstfcg.bin': b'S' * 40,
                      'v_on_a.ini': b'[Option]\n', 'v_on_b.ini': b'[Option]\n'},
         }), 'MODE1/2352', audio=3)
-        vp.OTHER_BUILDS[hashlib.md5(jp_exe).hexdigest()] = (
-            len(jp_exe), 'Japanese rerelease', 'test')
         info = vp.probe_disc(jp)
-        check('jp build not patchable', not info['build']['supported'])
-        check('jp build named', info['build']['name'] == 'Japanese rerelease',
-              info['build']['name'])
+        check('a stand-in exe is refused', not info['build']['supported'])
+        check('and called unrecognised',
+              info['build']['name'] == 'unrecognised', info['build']['name'])
         check('jp copies no language directory', not info['wants_language'])
         dest = os.path.join(tmp, 'game-jp')
         vp.install_disc(jp, dest)
@@ -393,16 +392,16 @@ def main():
                                            'v_on_b.ini', 'von.hlp'],
               sorted(os.listdir(dest)))
 
-        # --install says which build it is and copies it anyway. The copy is
-        # the same work whichever build is on the disc; only the patches are
-        # English-retail-only.
+        # --install says the build is unrecognised and copies it anyway. The
+        # copy is the same work whichever build is on the disc; only the
+        # patches need one with tables.
         cli_dest = os.path.join(tmp, 'game-jp-cli')
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             err = vp.install_cli([jp, cli_dest])
-        check('--install copies another build', err in (None, 0), err)
-        check('and names it first',
-              'Japanese rerelease' in out.getvalue(), out.getvalue()[:120])
+        check('--install copies an unrecognised build', err in (None, 0), err)
+        check('and says so first',
+              'unrecognised' in out.getvalue(), out.getvalue()[:120])
         check('--install file list',
               os.path.isdir(cli_dest) and len(os.listdir(cli_dest)) == 8,
               sorted(os.listdir(cli_dest)) if os.path.isdir(cli_dest) else '-')
@@ -569,7 +568,7 @@ def main():
         _why, level = vp.dest_problem(tmp, 1 << 60)
         check('too little room is refused', level == 'bad', level)
     finally:
-        vp.ORIGINAL_MD5 = original
+        del vp.BUILDS[stand_in]
         shutil.rmtree(tmp, ignore_errors=True)
 
     print()

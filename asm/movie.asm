@@ -1,5 +1,4 @@
 bits 32
-org 0x0366865c          ; .rsrc raw padding, past VirtualSize. The cave
                         ; starts four bytes into the section's padding: the
                         ; frame rate patch's F5 labels grew the last resource
                         ; into it. 420 bytes to the end of the section.
@@ -31,16 +30,16 @@ org 0x0366865c          ; .rsrc raw padding, past VirtualSize. The cave
 ; mciavi does not follow the window, so a destination rect goes with it. The
 ; game never sends MCI_PUT, so this is the only one.
 
-GETMODULE   equ 0x0365d4a0      ; GetModuleHandleA
-GETPROC     equ 0x0365d508      ; GetProcAddress
-GETCLIENT   equ 0x0365d5d4      ; GetClientRect, the hooked one
-MOVEWINDOW  equ 0x0365d5e0      ; MoveWindow
-MCISEND     equ 0x0365d648      ; mciSendCommandA
+extern GETMODULE                ; GetModuleHandleA
+extern GETPROC                  ; GetProcAddress
+extern GETCLIENT                ; GetClientRect, the hooked one
+extern MOVEWINDOW               ; MoveWindow
+extern MCISEND                  ; mciSendCommandA
 
-MOVIEHWND   equ 0x01ef88c8      ; the mciavi window, from MCI_ANIM_STATUS_HWND
-MOVIEDEV    equ 0x01ef88f0      ; its device id
-MOVIEX      equ 0x01ae5f34      ; the offsets the replaced code read
-MOVIEY      equ 0x01ae5f38
+extern MOVIEHWND                ; the mciavi window, from MCI_ANIM_STATUS_HWND
+extern MOVIEDEV                 ; its device id
+extern MOVIEX                   ; the offsets the replaced code read
+extern MOVIEY
 
 MCI_PUT     equ 0x0842
 PUT_DEST    equ 0x00050000      ; MCI_ANIM_RECT | MCI_ANIM_PUT_DESTINATION
@@ -48,8 +47,11 @@ PUT_DEST    equ 0x00050000      ; MCI_ANIM_RECT | MCI_ANIM_PUT_DESTINATION
 F_HWND      equ 0x08            ; caller frame
 F_W         equ 0x10
 F_H         equ 0x14
-F_X         equ -0x0c
-F_Y         equ -0x10
+%include "frames.inc"      ; the caller's locals, by name; the offset
+                            ; is the retail build's, and build.py finds
+                            ; each use so a build can move it
+                            ; F_X: X and Y, locals of the caller's frame:
+                            ; F_Y: a recompile keeps them elsewhere
 
 R_LEFT      equ -0x10           ; our frame: RECT from GetClientRect
 R_TOP       equ -0x0c

@@ -1,33 +1,23 @@
 bits 32
-org 0x00608060          ; the .rdata cave the XInput patch drops this into
-BASE        equ 0x00608060      ; the org again, for the pins below
 ; The XInput routine: two profile entry stubs, the message-pump stub, the
-; per-player input tick and its parameter blocks.
-;
-; Six addresses in here are named by something outside this file and cannot
-; move. `times` pins each one, so nasm fails rather than shifting them:
-;
-;   0x608060, 0x608072  the profile dispatch sites point at the entry stubs
-;   0x608098            the PeekMessageA call site points at the pump stub
-;   0x6080a4            introwait.asm calls the pad poll
-;   0x608159            twinstick.asm calls the tick
-;   0x608302            the levers site replaces the epilogue, and expects
-;                       the five bytes of it to be exactly where they are
-;
-; The blob is also padded to a fixed 830 bytes, because levers.asm is written
-; at the site immediately after it.
+; per-player input tick and its parameter blocks. What the outside names
+; in here it names by label - the entry stubs, the pump, the pad poll, the
+; tick, the epilogue that levers.asm replaces, and the end that levers.asm
+; is written at - so nothing here is pinned to an offset.
 
-TICKLEN     equ 830
+RESETMASK   equ 0x0310          ; XINPUT: START | LEFT_SHOULDER |
+                                ; RIGHT_SHOULDER
+TRIGGER_THRESHOLD equ 30        ; XINPUT_GAMEPAD_TRIGGER_THRESHOLD
 
-XIFN        equ 0x0365cb40      ; resolved XInputGetState: 0 not yet, 1 failed
-STATE       equ 0x0365cb44      ; the tick's XINPUT_STATE
-BTN         equ 0x0365cb48      ; wButtons in it; the condition table's
+extern XIFN                     ; resolved XInputGetState: 0 not yet, 1 failed
+extern STATE                    ; the tick's XINPUT_STATE
+extern BTN                      ; wButtons in it; the condition table's
                                 ; offsets are relative to this
-PSTATE      equ 0x0365cb70      ; the pump's own XINPUT_STATE, so the two
-PBTN        equ 0x0365cb74      ; pollers cannot tread on each other
-PREV        equ 0x0365cb84      ; last polled buttons, one word per pad,
+extern PSTATE                   ; the pump's own XINPUT_STATE, so the two
+extern PBTN                     ; pollers cannot tread on each other
+extern PADPREV                  ; last polled buttons, one word per pad,
                                 ; stride 4
-DZTHR1      equ 0x0365cb8c      ; stick thresholds out of 32767, 1P then
+extern DZTHR1                   ; stick thresholds out of 32767, 1P then
                                 ; 2P, indexed by the block's player. Written
                                 ; by asm/iniall.asm at launch and the F11
                                 ; box after it; the condition table's axis
@@ -35,19 +25,21 @@ DZTHR1      equ 0x0365cb8c      ; stick thresholds out of 32767, 1P then
 
 %include "padtables.inc"    ; COND, the condition table asm/padtables.py
                             ; builds and the bind bytes index into
-EXIT1P      equ 0x00442ec4      ; where the 1P profile switch resumes
-EXIT2P      equ 0x005bcd57      ; and the 2P one
+extern EXIT1P                   ; where the 1P profile switch resumes
+extern EXIT2P                   ; and the 2P one
 
-HWND        equ 0x01ae5f58      ; the game's window
-LOADLIB     equ 0x0365d504      ; LoadLibraryA
-GETPROC     equ 0x0365d508      ; GetProcAddress
-POSTMSG     equ 0x0365d56c      ; PostMessageA
-PEEKMSG     equ 0x0365d590      ; PeekMessageA, the call this stub replaced
+extern HWND                     ; the game's window
+extern LOADLIB                  ; LoadLibraryA
+extern GETPROC                  ; GetProcAddress
+extern POSTMSG                  ; PostMessageA
+extern PEEKMSG                  ; PeekMessageA, the call this stub replaced
 
-CAMSKIP     equ 0x0063dda0      ; camskip.asm, called from the tick
+extern CAMSKIP                  ; camskip.asm, called from the tick
 
-MODE        equ 0x01ae3594      ; game state and sub-state. The pair the
-SUBMODE     equ 0x01ae3690      ; stock keyboard handler gates its bind
+extern GAMEMODE                 ; 1 with two players, 2 in a network match
+extern MODE2                    ; the second player's mode word
+extern MODE                     ; game state and sub-state. The pair the
+extern SUBMODE                  ; stock keyboard handler gates its bind
                                 ; slots on; see the tick.
 
 WM_KEYDOWN  equ 0x0100
@@ -55,7 +47,7 @@ WM_KEYUP    equ 0x0101
 VK_SPACE    equ 0x20
 VK_F3       equ 0x72
 
-; ---------------------------------------------------------------- 0x608060
+; ----------------------------------------------------------------
 ; One stub per player, installed in profile slot 1 of the F7 device list.
 entry1p:
     push    block1
@@ -63,7 +55,6 @@ entry1p:
     add     esp, 4
     jmp     EXIT1P
 
-    times   (0x00608072 - BASE) - ($ - $$) db 0
 
 entry2p:
     push    block2
@@ -71,9 +62,8 @@ entry2p:
     add     esp, 4
     jmp     EXIT2P
 
-    times   (0x00608098 - BASE) - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608098
+; ----------------------------------------------------------------
 ; Runs in place of one `call PeekMessageA` in the game's message pump. The
 ; input tick does not run while the game is paused, so pause and resume are
 ; posted from here instead.
@@ -86,9 +76,8 @@ pump:
     call    pollpads
     jmp     [PEEKMSG]
 
-    times   (0x006080a4 - BASE) - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x6080a4
+; ----------------------------------------------------------------
 ; Poll both pads and post the edges for the keys the window procedure handles
 ; itself. Called from the pump each frame, and from introwait.asm while the
 ; intro movie holds the loop.
@@ -108,9 +97,39 @@ pollpads:
     test    eax, eax
     jnz     .nextpad            ; pad not connected
     movzx   ebx, word [PBTN]
-    lea     edx, [esi*4 + PREV]
+    lea     edx, [esi*4 + PADPREV]
     movzx   ebp, word [edx]
     mov     [edx], bx
+
+    ; Soft reset: LB, RB and Start together with both triggers past
+    ; XInput's own threshold, on the press. A negative mode word makes the
+    ; game's next state tick tear down and boot again, to the title - its
+    ; own path, which nothing else sets any more. The second player has a
+    ; state machine of their own, a copy with its own mode word and its
+    ; own tick, run only in two-player mode: it gets the same. Not in a
+    ; network match, as the F keys. While the combination is down no key
+    ; is posted for this pad: Start alone would pause the game, and a
+    ; paused game never runs the tick.
+    mov     eax, ebx
+    and     eax, RESETMASK
+    cmp     eax, RESETMASK
+    jne     .keys
+    cmp     byte [PSTATE + 6], TRIGGER_THRESHOLD
+    jb      .keys
+    cmp     byte [PSTATE + 7], TRIGGER_THRESHOLD
+    jb      .keys
+    mov     eax, ebp
+    and     eax, RESETMASK
+    cmp     eax, RESETMASK
+    je      .nextpad            ; still held from last poll
+    cmp     dword [GAMEMODE], 2
+    je      .nextpad
+    mov     dword [MODE], -1
+    cmp     dword [GAMEMODE], 1
+    jne     .nextpad
+    mov     dword [MODE2], -1
+    jmp     .nextpad
+.keys:
     xor     edi, edi
 .key:
     cmp     edi, (keytab_end - keytab) / 4
@@ -159,9 +178,8 @@ keytab:
     db  VK_SPACE, 0             ; A
 keytab_end:
 
-    times   (0x00608159 - BASE) - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608159
+; ----------------------------------------------------------------
 ; The input tick, one call per player per frame, reached through the profile
 ; dispatch. [ebp-4] records whether a pad was read, which the lever cleanup
 ; that replaces the epilogue reads.
@@ -353,9 +371,8 @@ resolve:
 .done:
     ret
 
-    times   (0x00608302 - BASE) - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608302
+; ----------------------------------------------------------------
 ; Replaced by levers.asm, which does the same five things after cleaning the
 ; contamination out of the lever words.
 epilogue:
@@ -370,15 +387,22 @@ dlltab:
 procname:
     db  'XInputGetState', 0
 
+; The blocks' game addresses, in field order: the bind bytes, the two
+; lever words, the two key masks, the accept slot, a byte of scratch past
+; .data, the stock keyboard handler and the camera slot.
+extern BINDS1, LEV1A, LEV1B, MASK1A, MASK1B, ACCEPT1, SCR1
+extern KBHANDLER1, CAMERA1
+extern BINDS2, LEV2A, LEV2B, MASK2A, MASK2B, ACCEPT2, SCR2
+extern KBHANDLER2, CAMERA2
+
 block1:
-    dd  0, 0x03651470, 0x01cb14c4, 0x01cb14c6, 0x00653690, 0x0065369d
-    dd  0x00bf0481, 0x0365cb60, 0x00443074, 0x00bf0457
+    dd  0, BINDS1, LEV1A, LEV1B, MASK1A, MASK1B
+    dd  ACCEPT1, SCR1, KBHANDLER1, CAMERA1
 block2:
-    dd  1, 0x03651488, 0x01ee3ee4, 0x01ee3ee6, 0x006beb08, 0x006beb15
-    dd  0x01ad0db1, 0x0365cb61, 0x005bceed, 0x01ad0d94
+    dd  1, BINDS2, LEV2A, LEV2B, MASK2A, MASK2B
+    dd  ACCEPT2, SCR2, KBHANDLER2, CAMERA2
 
 dll14:  db 'xinput1_4.dll', 0
 dll13:  db 'xinput1_3.dll', 0
 dll910: db 'xinput9_1_0.dll', 0
 
-    times   TICKLEN - ($ - $$) db 0

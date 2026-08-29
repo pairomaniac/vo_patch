@@ -8,15 +8,14 @@ bits 32
 ; The tail is the deadzone write-back: both players' digit pairs out to
 ; their "1P Deadzone" and "2P Deadzone" lines, through the game's own
 ; line writer. The F11 dialog calls it when it closes, behind a byte
-; test that proves this cave is patched at all.
+; test that proves this blob is in place at all.
 
-org 0x00601b0c          ; a run of zeros in .rdata
 
 %include "padtables.inc"    ; DZKEYS
 
-FINDLINE    equ 0x005b1871      ; (key) -> value text, 0 if absent
-WRITELINE   equ 0x005b1833      ; (key, value): one v_on.ini line
-DZSTR1      equ 0x0365cb94      ; the digit pairs; see asm/padxinput.asm
+extern FINDLINE                 ; (key) -> value text, 0 if absent
+extern WRITELINE                ; (key, value): one v_on.ini line
+extern DZSTR1                   ; the digit pairs; see asm/padxinput.asm
 
 parse12:
     push    eax

@@ -1,5 +1,4 @@
 bits 32
-org 0x0063dda0          ; a second run of zeros in .rdata, 156 bytes, with
                         ; nothing in the file pointing near it
 ; Lets A skip the win and lose screens, which stock only takes on the camera
 ; key.
@@ -13,8 +12,8 @@ org 0x0063dda0          ; a second run of zeros in .rdata, 156 bytes, with
 ; Called from the tick with ebx still holding the parameter block, from
 ; inside the branch that has already established A is held.
 
-MODE        equ 0x01ae3594      ; game state and sub-state, the pair the
-SUBMODE     equ 0x01ae3690      ; tick already gates its bind slots on
+extern MODE                     ; game state and sub-state, the pair the
+extern SUBMODE                  ; tick already gates its bind slots on
 WIN         equ 0x0c            ; the win and lose screens
 REPLAY      equ 0x14            ; and the replay that follows a decided match
                                 ; A round is 0x0a, where the camera key has

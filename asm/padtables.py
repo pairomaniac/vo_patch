@@ -16,13 +16,8 @@ everyone's saved binds.
 
 import struct
 
-COND = 0x00624d1b       # condition table, 16 entries of 8 bytes
-SIMPLEDEF_AT = 0x00624788  # Keyboard (Simple)'s shipped binds
-INIKEYS_AT = 0x00624ae0    # ini key strings: Simple Assign for both
-                           # players (17 bytes each), then Keyboard Assign
-                           # (19 bytes each) for the block load at launch
-BINDS = 0x00624843      # bind list, 16 entries of (name, id)
-NAMES = 0x00624b9b      # the strings both tables point at
+# Where the tables land is the build's business (the CAVES table in
+# vo_patch.py). The pointers between them are fixups on PAD_NAMES.
 FIRST_ID = 0xe0         # a bind byte this or over is a pad input
 
 # How the tick decides an input is active. `where` is a byte offset from
@@ -83,19 +78,32 @@ SIMPLEDEF = bytes.fromhex(
 
 
 def build():
-    """-> inc text, condition table, bind list, name blob, device list."""
-    names, at = bytearray(), {}
-    for text in ([name for name, _k, _w, _v in INPUTS] + PROFILES
+    """-> inc text, then (blob, fixups, labels) for the condition table,
+    the bind list, the names, the device list, the Simple defaults and the
+    ini keys. A fixup is (offset, kind, symbol, addend) as in vo_patch.link;
+    the symbol is ('PAD_NAMES', offset) for a pointer into the names."""
+    # Two string blobs: the inputs' names and the deadzone keys in one, the
+    # profile names in another, so neither needs a run the rerelease has
+    # not got. A pointer names its blob, so the split costs nothing.
+    names, profiles, at = bytearray(), bytearray(), {}
+    for text in ([name for name, _k, _w, _v in INPUTS]
                  + ['1P Deadzone', '2P Deadzone']):
-        at[text] = NAMES + len(names)
+        at[text] = ('PAD_NAMES', len(names))
         names += text.encode('ascii') + b'\0'
+    for text in PROFILES:
+        at[text] = ('PAD_PROFILES', len(profiles))
+        profiles += text.encode('ascii') + b'\0'
 
-    cond, binds = bytearray(), bytearray()
+    cond, binds, bfix = bytearray(), bytearray(), []
     for i, (name, kind, where, value) in enumerate(INPUTS):
         cond += struct.pack('<BBhi', KIND[kind], 0, where, value)
-        binds += struct.pack('<II', at[name], FIRST_ID + i)
+        bfix.append((len(binds), 'abs', at[name], 0))
+        binds += struct.pack('<II', 0, FIRST_ID + i)
 
-    devlist = b''.join(struct.pack('<I', at[p]) for p in PROFILES)
+    devlist, dfix = bytearray(), []
+    for p in PROFILES:
+        dfix.append((len(devlist), 'abs', at[p], 0))
+        devlist += struct.pack('<I', 0)
     devlist += b'\0' * (DEVLIST_LEN - len(devlist))
 
     inikeys = (b'1P Simple Assign\0' + b'2P Simple Assign\0'
@@ -106,17 +114,20 @@ def build():
     # live data past it, which the offsets check caught - and the names
     # cave has room to spare.
 
-    inc = ('%%define COND 0x%08x\n' % COND
-           + '%%define SIMPLEDEF 0x%08x\n' % SIMPLEDEF_AT
-           + '%%define INIKEYS 0x%08x\n' % INIKEYS_AT
-           + '%%define DZKEYS  0x%08x\n' % at['1P Deadzone'])
-    return (inc, bytes(cond), bytes(binds), bytes(names), devlist,
-            SIMPLEDEF, inikeys)
+    inc = 'extern COND, SIMPLEDEF, INIKEYS, DZKEYS\n'
+    return (inc,
+            (bytes(cond), [], {}),
+            (bytes(binds), bfix, {}),
+            (bytes(names), [], {'dzkeys': at['1P Deadzone'][1]}),
+            (bytes(devlist), dfix, {}),
+            (SIMPLEDEF, [], {}),
+            (inikeys, [], {}),
+            (bytes(profiles), [], {}))
 
 
 if __name__ == '__main__':
-    _inc, cond, binds, names, devlist, sdef, keys = build()
+    _inc, cond, binds, names, devlist, sdef, keys, profiles = build()
     print('condition table %d, bind list %d, names %d, device list %d, '
-          'simple defaults %d, ini keys %d'
-          % (len(cond), len(binds), len(names), len(devlist), len(sdef),
-             len(keys)))
+          'simple defaults %d, ini keys %d, profiles %d'
+          % (len(cond[0]), len(binds[0]), len(names[0]), len(devlist[0]),
+             len(sdef[0]), len(keys[0]), len(profiles[0])))

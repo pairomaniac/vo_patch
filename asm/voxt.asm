@@ -1,9 +1,9 @@
 bits 32
 ; The F11 dialog's long tails, riding at the end of the .voxt section after
 ; the template: the close-time deadzone read and save, and the Quit case.
-; The dialog procedure in asm/debugbox.asm stays a dispatcher - its cave is
-; six bytes from full - and calls here through a relative placeholder that
-; vo_patch.py fills once the section's address exists.
+; The dialog procedure in asm/debugbox.asm stays a dispatcher and calls here
+; through a relative placeholder that vo_patch.py fills once the section's
+; address exists.
 ;
 ; Position independent: the section lands wherever the headers put it, so
 ; every call to fixed code goes through a register and there is no org.
@@ -13,12 +13,12 @@ bits 32
 
 %include "dialogs.inc"      ; ID_DZ1, ID_DZDEF, CMD_QUIT, IDCANCEL
 
-SENDMSG     equ 0x0365d52c      ; SendMessageA
-GETDLGITEM  equ 0x0365d54c      ; GetDlgItem
-ENDDIALOG   equ 0x0365d538      ; EndDialog
-DZSEED      equ 0x00601c08      ; asm/pagesel.asm's tail: (cl, ebx)
-DZSAVE      equ 0x00601b48      ; asm/iniparse.asm's tail: the ini lines
-DZSTR1      equ 0x0365cb94      ; the digit pairs; see asm/padxinput.asm
+extern SENDMSG                  ; SendMessageA
+extern GETDLGITEM               ; GetDlgItem
+extern ENDDIALOG                ; EndDialog
+extern DZSEED                   ; asm/pagesel.asm's tail: (cl, ebx)
+extern DZSAVE                   ; asm/iniparse.asm's tail: the ini lines
+extern DZSTR1                   ; the digit pairs; see asm/padxinput.asm
 WM_GETTEXT  equ 0x000d
 WM_SETTEXT  equ 0x000c
 

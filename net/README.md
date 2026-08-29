@@ -252,15 +252,25 @@ produce identical output from identical source.
 
 ## Testing
 
-Loopback proves the ABI and the ring handling and nothing more: no loss, no
-latency, both sides the same build. The resend path, the input delay and
-every question about NAT need two machines and a real link.
+Loopback proves the ABI and the ring handling and nothing more: no loss and
+no latency. The resend path, the input delay and every question about NAT
+need two machines and a real link. Point the two folders at different
+builds of the game and it also answers whether two compiles stay in step -
+see [DEVELOPING.md](../docs/DEVELOPING.md).
 
 Both sides need the same DLL, and must agree on the patches that change the
 simulation - each machine runs its own copy of the game on both players'
-inputs, so a difference there drifts the copies apart. The handshake enforces
-it: the session tag's last byte is a fingerprint of those patches (today the
-frame-rate divisor and the round-loss fix), read from the running exe, so a
-mismatch is refused at connect time rather than left to desync mid-match.
-Visual and input-only patches are deliberately outside the fingerprint and
-may differ.
+inputs, so a difference there drifts the copies apart. The handshake
+enforces it: the session tag's last byte is a fingerprint of those patches
+(today the frame-rate divisor and the round-loss fix), read from the
+running exe, so a mismatch is refused at connect time rather than left to
+desync mid-match. Visual and input-only patches are deliberately outside
+the fingerprint and may differ.
+
+The two bytes it reads are at a different address in each build of the
+game, so the DLL finds the running one by its PE timestamp - `fp_builds`
+in `dpctrl.c`, one row per build. The bytes themselves read the same once
+patched, which is why builds can play each other at all. A DLL older than
+that table reads retail's addresses whatever it is running in, and refuses
+every peer but its own kind; if two installs will not connect, check that
+both have the current DLL before anything else.

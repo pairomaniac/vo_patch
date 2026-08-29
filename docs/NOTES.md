@@ -15,18 +15,22 @@ replacement rather than a patch, see [net/](../net/).
 | **No disc required** | `0x1c76d4` | `je` past the nag → `nop` |
 | **Skip processor check** | `0x107930` | `or [0xbf84c8], 1` → `nop`, so the check is never enabled |
 | **Let v_on.ini set Motion** | `0x10afbe`, `0x10afeb`, `0x10b002`, `0x1c6941`–`0x1c8bd3` | three fallbacks `3` → `1`, eight stores in four routines → `nop` |
-| **Raise timer resolution** | `0x1f423e`, `0xa8` | stub in `.text` padding, entry point redirected |
+| **Raise timer resolution** | `0xa8` | entry point redirected to a stub in the annex |
 | **Better ini defaults** | `0x10acd7`, `0x10b088`, `0x10b131`, `0x10b1b0`–`0x10b1c4` | fallback immediates changed, Field Graphic branched into the Rich path |
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **XInput gamepad support** | `0x1c4`, `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x207702`, `0x20779e`, `0x23dd70`, `0x096731`, `0x23d1a0`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, thirteen `.rdata` caves, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
+| **Fix crash on ALT+TAB** | `0x1b0920`, `0x1c4aa2`, `0x1c5726`, `0x1c5412` | the intro movie's exit recreates the surfaces however the movie ended (`jne` → `jmp`); a recreate that fails pauses the game, arms the activation handler, and is retried from the idle pass |
+| **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, the annex, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, the title artwork at `0x21c000` | routine, twin-stick tables and lever cleanup in the annex; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
-| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, `0x1f427c`, `0x1f42d8`, `0x23b324`, `0x23dce8`, appended `.voxt` section | dialog built in unused section padding, its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
-| **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `0x223198`, `0x1c4`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
-| **Intro, loading and ending screens** | `0x14dc42`, `0x60c25c`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x23cad0`, `0x0d60c8`, `0x23d1c4`, `0x1c58e7`, `0x1f74e0`, `0x1c4` | placement routine calls a stub in `.rsrc` padding, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
+| **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
+| **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
+| **Intro, loading and ending screens** | `0x14dc42`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x0d60c8`, `0x1c58e7` | placement routine calls a stub in the annex, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
 
-Bold entries are not part of original VO_Patch.
+Bold entries are not part of original VO_Patch. Offsets are the English
+retail build's, the ones the site table is keyed on; the other builds map
+each to their own. The stubs the sites call live in the annex, the
+section the patcher appends first - see "The other builds" below.
 
 ## Installing from a disc image
 
@@ -62,27 +66,76 @@ original has not been, so nothing here is known about its `ssp.ini` - the
 rule may well cover it, since none of it depends on the build or the
 language, but that is a guess until a copy is read.
 
-### The Japanese rerelease
+### The other builds
 
-Its `v_on.exe` is a separate compile, not the retail one relaid out, so the
-patch tables do not transfer: of the 152 `original` sites, 9 are still where
-they were, 43 turn up elsewhere at inconsistent distances, and the rest are
-gone. The dinput signature finds nothing.
+Three builds of `v_on.exe` patch: English retail, the USA OEM pressing and
+the Japanese rerelease. They are compiles of the same source through the
+same toolchain - the OEM a month before retail, the rerelease four months
+after, link 3.0 against 3.10 - with the same section order and a `.reloc`
+in each. A recompile is not a relayout: data moves by a different delta
+per region, functions grow or lose locals, a few globals change order.
+Nothing is a constant shift, so no address is derived from a neighbour's;
+each build carries its own.
 
-Two things do carry. The ending roll files are byte-identical to retail, so
-the harvested glyphs and the cells stay valid and only the block list in the
-executable would need finding again. And `dpctrl.dll` is imported with the
-same exports, so the netplay replacement is the one patch that does not
-depend on an offset.
+A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
+what every symbol the blobs name resolves to there, its title artwork,
+and for a build other than retail a site map and an annex. The site map is
+that build's offset and original bytes for every site the table names by
+retail offset, or `None` where the build has no such code; a site one
+build has and retail has not is written the other way round, as
+`In(md5, offset)`. The blobs are one set of bytes for all builds, linked
+from the build's tables when the patcher loads, and the site table's hooks
+and blob sites are expressions the build fills in.
 
-The title artwork is `jscrgame.bin` here, not `escrgame.bin`, at the same
-4 MB. The patcher names that file in a dozen places, so the banner patch
-needs a per-build name before it could be tried - and it is why dropping
-the English `v_on.exe` into a Japanese install does not work either.
+The tables are made, not typed. `tools/vomap.py` matches the two
+executables function by function with addresses masked and votes on where
+every address went; `tools/votrans.py` runs the site table, the asm
+symbols and the symbol table through the map. What the map cannot settle -
+a function split at the wrong place, a site in a switch table, ten bytes
+that occur twice - is in `HAND` there, per build, with a reason each.
+`docs/DEVELOPING.md` has the recipe.
 
-Sector layout is found by looking rather than by trusting `TRACK 01` - the
-four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
-so a cue sheet that names the wrong mode still reads.
+Two things are the same in every build:
+
+- Every blob lives in an appended section, `.vojp`, written empty before
+  any patch and filled through the site table. The annex's place is fixed
+  by the file's headers, so it links at import; `.voxt` and `.vocd` land
+  after it. Only the F7 device list and the levers tail, which the game
+  reaches itself, are written in place. A run of zeros in `.rdata` is not
+  used: one long enough for a blob is the NULL tail of a handler table -
+  a code pointer just before it, and the game calling through the slots -
+  or a constant that happens to be zero, and both have crashed the game.
+- The XInput scratch sits in the page slack past `.data`, and the ending
+  screens' two spare bytes in a run of `.data` nothing points at. Neither
+  is proven free the way an appended section is.
+
+The netplay DLL tells the builds apart by the PE timestamp and
+fingerprints each one's own two sites (`fp_builds` in `net/dpctrl.c`).
+The ending roll files are byte-identical across builds, so the harvested
+glyphs stay valid.
+
+**The USA OEM pressing** (March 1997, `0x3317246A`) is the closest to
+retail: 7852 of 7934 functions match, 7593 identically, every frame is
+laid out the same, and the map placed all but four sites. Its processor
+check is a different one. Retail tests for `GenuineIntel`; the OEM has
+`cpuid32.dll` classify the CPU and accepts two classes, neither of which a
+modern CPU is, so its version of the processor check patch makes the
+accept branch unconditional and sets the MMX flag the game would set for
+the class that has it. Its title artwork and roll files are retail's,
+byte for byte.
+
+**The Japanese rerelease** (October 1997, `0x345107FA`): 7291 of 7934
+functions match, 6329 identically. Frame layouts differ in the patched
+functions - the bind page's loop counter is `[ebp-0x18]` for retail's
+`[ebp-8]`, the F7 combo selection `[ebp-0x10]`, the OK handler's line
+buffer `[ebp-0x18c]`, the movie placer's X and Y `[ebp-0x14]` and
+`[ebp-0x18]` - which is what the frame-offset symbols are for. Its title
+artwork is `jscrgame.bin`: the same 4 MB, 2304 tiles of it redrawn for
+the Japanese logo, and the slots the banner patch writes identical to
+retail's. Its roll files are retail's. It is also the only build that
+reports a failed surface recreate with a message box, which the ALT+TAB
+patch has to silence; see below. Dropping the English `v_on.exe` into a
+Japanese install does not work: it looks for `escrgame.bin`.
 
 ### Why no v_on.ini
 
@@ -129,9 +182,10 @@ installed.
 ## How each patch works
 
 In the order of the table above; rows that are a single obvious byte edit are
-skipped. The CD audio and gamepad patches install assembled machine code
-rather than editing bytes, and the sources and a longer account of both are
-in [asm/](../asm/).
+skipped. Addresses are the English retail build's, which is what the site
+table is keyed on - each other build maps them through its own site map.
+Most patches install assembled machine code rather than editing bytes; the
+sources and a longer account of each are in [asm/](../asm/).
 
 ### Sample rate
 
@@ -153,12 +207,10 @@ position polling, so a finished track goes quiet, as it did with the disc.
 That is little enough to answer from WAV files instead, which a routine in a
 new `.vocd` section does.
 
-This is the one patch that cannot be a byte edit in place: the padding at the
-end of `.text` is nearly spent on the timer stub and the F11 dialog, and the
-zero runs in `.data` are globals the game writes at runtime. The
-executable gets a section of its own and grows by about 3 KB, and the entry
-point is repointed at the setup thunk, which chains to whatever it was before
-- hence this patch running after all the others.
+The routine and its data are 3 KB, more than the annex is for, so the
+executable gets a section of its own, and the entry point is repointed at
+the setup thunk, which chains to whatever it was before - hence this patch
+running after all the others.
 
 #### Getting called
 
@@ -177,10 +229,48 @@ keeps working underneath. A count that is not exactly 37 aborts the patch.
 
 ### Processor check
 
-`ProcessorCheck=Off` does not switch the check off, it
-stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and
-vendor branches all read; nopping it leaves the flag clear whatever the ini
-says.
+In retail, `ProcessorCheck=Off` does not switch the check off, it stops
+the game switching it *on*. One `or` sets the flag the MMX, Pentium and
+vendor branches all read; nopping it leaves the flag clear whatever the
+ini says. The OEM's check is a different one, above.
+
+### Crash on switching away and back
+
+The intro movie is played by `mciavi` in the game's window, with the
+DirectDraw surfaces released (`0x5b1320`) so the player can have the
+screen, and recreated when the movie ends (`0x5b1510`). The window
+procedure handles a switch away during the movie itself: `0x54ea39` stops
+the movie and sets `0x6bead4`, "stopped by deactivation"; coming back,
+`0x54e516` resumes it and clears the flag. Between the two, the intro
+state polls the movie, finds it stopped, takes that for the end, and
+calls `0x5b1510` - whose first test is that flag: set, it clears it and
+returns without recreating. Movie mode ends, the normal loop runs, and no
+surface is ever created again: the activation handler's own recreate
+(`0x5c6d2d`) is gated on `0x6bf570`, which the movie's release cleared and
+only a successful recreate sets. The next frame reads a null back buffer
+at `0x5c8103`; guarded, it would read a null primary at `0x5c650b`, then
+a null `IDirectSound` at `0x58a244`. cnc-ddraw does not see it because the
+window does not lose the display, so the movie is never stopped.
+
+The patch is in two parts. The `jne` at `0x5b1520` is made a `jmp`, so
+the movie's exit recreates the surfaces however the movie ended. But that
+recreate runs the instant the stop is noticed, with the window still in
+the background, and a DirectDraw that will not give exclusive mode to a
+background window returns from `0x5c56a2` with a plain primary and no
+back buffer - it tries three surface descriptions and takes the first
+that works - and a zero result nobody reads. So `asm/activate.asm`, three
+hooks at function entries: `0x5c56a2` has its caller's return address
+swapped for the stub's, and a zero result sets the inactive flag
+`0x1add128` (the loop idles on it), `PENDING`, and `0x6bf570`, the
+"surfaces exist" flag the activation handler's own recreate is gated on
+and a failed recreate leaves clear; `setactive` (`0x5c6326`, the pause on
+1 and the resume on 0 that `GRESUME`, the dialogs and the movie player
+all call) refuses a resume while the back buffer is null; and the idle
+pass the loop makes each iteration while inactive (`0x5c6012` calling
+`0x5c63aa`) retries the recreate, choosing the resolution from the same
+two flags the handler does and skipping while the window is iconic, and
+resumes when it takes. cnc-ddraw sees none of it: the window never loses
+the display, so the movie is never stopped.
 
 ### Frame rate
 
@@ -190,7 +280,7 @@ three.
 Each frame is gated on `timeGetTime`, and the game advances only once a budget
 has elapsed: 33 ms at `Motion=2`, 16.7 ms at `Motion=1`. It never calls
 `timeBeginPeriod`, so the clock ticks every 15.6 ms and a 33 ms budget waits
-for the third tick at 46.8 ms - about 70% speed. A stub in `.text` padding
+for the third tick at 46.8 ms - about 70% speed. A stub in the annex
 calls `timeBeginPeriod(1)` and jumps to the real entry point. VO_Patch shipped
 `vo_speed.exe` for the same job. No-op under Wine.
 
@@ -240,18 +330,18 @@ That address was readable on Windows 9x and is not now. Each block only undoes
 a translation the routine has already reset, so `nop` is safe. The ten are
 similar but not identical, hence listed out one by one.
 
-### Alt-tab
+### Keyboard after a switch away
 
-The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and
-never re-acquires it after losing focus. `DISCL_BACKGROUND` removes the
-condition.
+The game acquires its DirectInput keyboard `DISCL_FOREGROUND` and never
+re-acquires it after losing focus, so the keys stop working for the rest of
+the session. `DISCL_BACKGROUND` removes the condition.
 
 ### Gamepad
 
 The game predates XInput and reads pads through the Windows 95
 joystick API, which on a modern controller reports a partial view: one trigger
 unreachable, axis order inconsistent between Windows and Wine. So it is not
-read through it at all. A routine in a run of zeros inside `.rdata` calls
+read through it at all. A routine in the annex calls
 `XInputGetState` and folds the result into the game's own action tables.
 Bindings are one byte per action, so pad entries occupy `0xE0`-`0xEF` in the
 scancode space, which the game does not otherwise use. Player 2 is a full
@@ -366,10 +456,8 @@ every launch. On OK, devices 1 and 3 both route through `asm/inisave.asm`,
 which writes "NP Simple Assign" as hex pairs and falls into the stock
 device 1 case, so "NP Keyboard Assign" always carries the gamepad's set
 and neither profile loses its binds while the other is selected. The hex
-text is built in the dialog frame's own line buffer: the caves live in
-.rdata, which the patch marks executable but the loader still maps
-read-only, so cave code must never write to static addresses in that
-section.
+text is built in the dialog frame's own line buffer rather than a static
+one of its own.
 
 On launch, the loader routes each player by saved device, and slot 3's
 route was "load nothing" - right for 2 Joysticks, whose data was re-derived
@@ -419,6 +507,22 @@ blocked in `GetMessageA`, on the branch the pump stub is not on, so that call
 is hooked as well. Space, Enter and Escape all skip the movie, so A does; F3
 is ignored while it plays, so Start does not.
 
+**Soft reset.** The state tick at `0x49f965` tests the mode word `0x1ae3594`
+for a negative value and, finding one, runs the teardown (`0x49fb9b`) and
+the boot routine (`0x49f82c`), which sets mode 0 and starts over into the
+title. Nothing in the game sets it negative any more - the only two stores
+are non-negative - so it is a debug path they left in. The second player
+has a state machine of their own: a copy of the code with its own globals
+(`0x1ef8a90` the mode word, `0x1ef9eb0` the sub-state), its own tick
+(`0x40f528`, which the loop's two-player branch calls), teardown and boot,
+and the same negative-mode path. The pad poll writes `-1` to the first
+mode word on the press of LB, RB and Start with both triggers past
+XInput's threshold, on either pad, and to the second as well when the
+loop mode `0x6bc94c` reads 1 (two players); not while it reads 2, as the
+F-key handlers refuse a network match. While the combination is down the
+poll posts no key for that pad: Start alone is F3, pause, and a paused
+game never runs the tick.
+
 ### F11 dialog
 
 No dialog resource ever existed, so one is built at runtime
@@ -456,8 +560,8 @@ tearing the window down under it. The check-box init stayed in
 `asm/f11pause.asm`'s tail.
 
 The values and their digits live in the gamepad patch's `.data` scratch,
-and the ini write-back in its `asm/iniparse.asm` cave, so the close path
-calls it behind a test of that cave's first byte: zero is the stock run,
+and the ini write-back in `asm/iniparse.asm`, so the close path calls it
+behind a test of that blob's first byte: zero is the stock run,
 nothing to call. With the gamepad patch out the boxes show empty and
 their values land in scratch nothing reads, which is harmless either way,
 since the addresses are free in the stock executable whatever is
@@ -485,7 +589,7 @@ makes. cnc-ddraw exports `DDGetProcAddress` for this, which forwards to the
 real `GetProcAddress`, and asking it for user32's `GetClientRect` gives the
 unhooked one.
 
-That is more than an edit, so it is a stub in the `.rsrc` padding - see
+That is more than an edit, so it is a stub in the annex - see
 [asm/](../asm/). Without cnc-ddraw the import is already the real function and
 the result is what the game did before. mciavi does not follow the window, so
 a `MCI_PUT` destination rect goes with the resize; the game never sends one

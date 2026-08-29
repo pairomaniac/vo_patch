@@ -21,7 +21,8 @@ TEMPLATE = 0xE7E7E7E7   # a placeholder: the template lives in its own
                         # appended section, whose address only exists at
                         # apply time - vo_patch.py fills it in the way it
                         # fills .vocd's, at apply_extras_template()
-DATA = 0x0063e8e8       # its strings and tables, in the .rdata cave
+# Its strings and tables go in a cave the build names (EXTRAS_DATA in
+# vo_patch.py's CAVES); the check-box flags are game globals, as fixups.
 
 # Window styles. WS_POPUP | WS_CAPTION | WS_SYSMENU | DS_MODALFRAME |
 # DS_SETFONT, which is what the game's own dialogs use. The font block is
@@ -68,9 +69,9 @@ CMD_CREDITS = 0x0051
 # templates carry a single font block, so there is no smaller one to use.
 ITEMS = [
     ('Debug',        0xffff,  10,  4, 192, 78, GROUP,    BUTTON, None),
-    ('No shot',      0x9c47,  16, 18,  56, 12, CHECKBOX, BUTTON, 0x00652fd8),
-    ('SE',           0x9c5b,  80, 18,  36, 12, CHECKBOX, BUTTON, 0x006bcc4c),
-    ('CD',           0x9c5c, 124, 18,  36, 12, CHECKBOX, BUTTON, 0x0063f430),
+    ('No shot',      0x9c47,  16, 18,  56, 12, CHECKBOX, BUTTON, 'NOSHOT'),
+    ('SE',           0x9c5b,  80, 18,  36, 12, CHECKBOX, BUTTON, 'SEMUTE'),
+    ('CD',           0x9c5c, 124, 18,  36, 12, CHECKBOX, BUTTON, 'CDMUTE'),
     ('Kill 1P',      0x9c61,  16, 40,  50, 14, PUSH,     BUTTON, None),
     ('Kill 2P',      0x9c62,  70, 40,  50, 14, PUSH,     BUTTON, None),
     ('Credits', CMD_CREDITS, 124, 40,  50, 14, PUSH,     BUTTON, None),
@@ -122,21 +123,21 @@ def build_extras():
     for label, iid, x, y, cx, cy, style, cls, _flag in ITEMS:
         tpl = align4(tpl) + item(style, x, y, cx, cy, iid, cls, label)
 
-    names = {}
-    data = bytearray()
-    for text in ('USER32.DLL', 'DialogBoxIndirectParamA'):
-        names[text] = DATA + len(data)
+    labels = {}
+    data, fix = bytearray(), []
+    for text, label in (('USER32.DLL', 'user32'),
+                        ('DialogBoxIndirectParamA', 'dlgboxproc')):
+        labels[label] = len(data)
         data += text.encode('ascii') + b'\0'
     data += b'\0' * (-len(data) % 4)
 
-    checks = DATA + len(data)
+    labels['checks'] = len(data)
     for _label, iid, _x, _y, _cx, _cy, _style, _cls, flag in ITEMS:
         if flag is not None:
-            data += struct.pack('<II', flag, iid)
-    inc = ''.join('%%define %-11s 0x%08x\n' % (name, value) for name, value in (
-        ('USER32', names['USER32.DLL']),
-        ('DLGBOXPROC', names['DialogBoxIndirectParamA']),
-        ('CHECKS', checks),
+            fix.append((len(data), 'abs', flag, 0))
+            data += struct.pack('<II', 0, iid)
+    inc = 'extern USER32, DLGBOXPROC, CHECKS\n'
+    inc += ''.join('%%define %-11s 0x%08x\n' % (name, value) for name, value in (
         ('TEMPLATE', TEMPLATE),
         ('CMD_QUIT', dict((name, i) for name, i, *_r in ITEMS)['Quit Game']),
         ('CMD_CREDITS', CMD_CREDITS),
@@ -144,7 +145,7 @@ def build_extras():
         ('ID_DZ1', ID_DZ1),
         ('ID_DZDEF', ID_DZDEF),
     ))
-    return inc, bytes(tpl), bytes(data)
+    return inc, bytes(tpl), (bytes(data), fix, labels)
 
 
 def build_f5(labels):

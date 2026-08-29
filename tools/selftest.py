@@ -7,7 +7,6 @@ CI cannot do this - the game is not in the repository - so run it by hand
 before tagging. It checks what nothing else can:
 
   * every 'original' byte string in the tables is really in the file
-  * no blob has outgrown its cave and run onto data the game reads
   * every combination of patches applies, not just the all-on case
   * the fully patched result still has the MD5 it had last time
 
@@ -24,7 +23,12 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-EXPECTED_ALL = '95d2f70a91e5f87b0ba7d468db068b12'
+# Everything ticked, per build: retail, the Japanese rerelease, the OEM.
+EXPECTED_ALL = {
+    'a464b0ff32d5bab499f265e45658504e': '55ccc3b644a380183c69d1e880b50a13',
+    'd19320bdc3381a48228990907910a391': 'a6743695ffbfcb35f9188854a7842c97',
+    '4c70f780a7f0d98d74be62304fb99021': 'c4b6167e4503dedeb7bc03bf9c6c90c8',
+}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATCHER = os.path.join(os.path.dirname(HERE), 'vo_patch.py')
@@ -41,8 +45,7 @@ def pristine(path, vp):
                 data = fh.read()
         except OSError:
             continue
-        if (len(data) == vp.EXE_SIZE
-                and hashlib.md5(data).hexdigest() == vp.ORIGINAL_MD5):
+        if hashlib.md5(data).hexdigest() in vp.BUILDS:
             return data, candidate
     return None, None
 
@@ -74,111 +77,16 @@ def sections(data):
     return out
 
 
-def to_va(secs, off):
-    for raw, size, va in secs:
-        if raw <= off < raw + size:
-            return va + off - raw
-    return None
 
-
-LOOKBACK = 0x60         # how far before a cave a table may start and still
-                        # reach into it
-
-
-def cave_writes(vp):
-    """Every site that fills a run of zeros, as (key, offset, length).
-
-    A byte being zero is not the same as a byte being free. These are the
-    sites where the 'original' column proves nothing, so they are the only
-    ones worth scanning."""
-    for key, (_label, _tip, sites) in vp.BY_KEY.items():
-        for off, old, _new in sites or ():
-            blob = bytes.fromhex(old)
-            if len(blob) >= 8 and not any(blob):
-                yield key, off, len(blob)
-
-
-def check_caves(vp, original):
-    """Does any cave write land on an address the game still reads?
-
-    A blob that outgrows its cave writes into whatever follows it, and if
-    that is zeroed data the site check passes and the patch ships. The
-    debugbox procedure did exactly this: two bytes over the end and onto a
-    qword 0.0 that a projection routine compares depth against.
-
-    So every dword in the file is resolved as an address and checked against
-    the write. Two kinds of hit, reported apart because they are not worth
-    the same: a dword preceded by a disp32 modrm byte is an instruction
-    operand and the game reads it, while a bare dword that happens to fall
-    in range is almost always a coincidence in tile or model data - the
-    caves in use here collect fifteen of those between them and not one
-    survives a disassembly. Operands fail; bare dwords are printed and left
-    alone.
-
-    Two limits worth knowing. It cannot see an address reached by pointer
-    arithmetic, and it only judges the original file, so a cave one patch
-    hands to another is out of scope."""
-    secs = sections(original)
-    spans = []
-    for key, off, length in sorted(cave_writes(vp), key=lambda w: w[1]):
-        va = to_va(secs, off)
-        if va is not None:
-            spans.append((key, va, length))
-    # Reach back past each cave as well: an address just before one is a
-    # table that may run into it, which is the case a scan of the cave
-    # itself cannot see.
-    lo = min(va for _k, va, _n in spans) - LOOKBACK
-    hi = max(va + n for _k, va, n in spans)
-
-    operands, bare = {}, {}
-    for i in range(1, len(original) - 4):
-        va = int.from_bytes(original[i:i + 4], 'little')
-        if not lo <= va < hi:
-            continue
-        # mod 00, r/m 101 is the disp32 form, so the four bytes are the
-        # absolute address of an operand rather than data that looks like
-        # one. mov reg, imm32 and push imm32 carry an address the same way,
-        # and are how a table is handed to rep movsd - the case that had a
-        # blob sitting on the attract scoreboard's template through v0.10.1.
-        prev = original[i - 1]
-        if prev & 0xC7 == 0x05 or 0xB8 <= prev <= 0xBF or prev == 0x68:
-            table = operands
-        else:
-            table = bare
-        table.setdefault(va, []).append(i)
-
-    bad, loose = 0, 0
-    for key, va, length in spans:
-        span = range(va, va + length)
-        hit = [(a, r) for a in span for r in operands.get(a, ())]
-        near = sorted({a for a in range(va - LOOKBACK, va)
-                       if operands.get(a)}, reverse=True)[:1]
-        loose += sum(len(bare.get(a, ())) for a in span)
-        if hit:
-            bad += 1
-            print('  OVERRUN %s writes 0x%06x..0x%06x'
-                  % (key, va, va + length))
-            for addr, ref in hit:
-                print('    VA 0x%06x is a disp32 operand, modrm at VA 0x%06x'
-                      % (addr, to_va(secs, ref - 1)))
-        for addr in near:
-            print('note: %s starts at 0x%06x, %d bytes past 0x%06x, which '
-                  'something points at - check that what lives there is '
-                  'shorter than the gap' % (key, va, va - addr, addr))
-    print('cave check: %d write(s) into a run of zeros, %d overrun, '
-          '%d bare dword(s) in range and ignored'
-          % (len(spans), bad, loose))
-    return bad
-
-
-def apply(vp, original, keys):
+def apply(vp, original, keys, build):
     """The patcher's own apply loop, so this tests what it ships.
 
     A skip is a failure here: the patcher tolerates dinput's signature going
     missing because a live install is better than none, but if a combination
     of patches can destroy that signature, that is what this run is for."""
     buf, _applied, skipped = vp.apply_selected(bytearray(original),
-                                               dict.fromkeys(keys, True))
+                                               dict.fromkeys(keys, True),
+                                               build)
     if skipped:
         raise AssertionError('skipped %s: %s' % (skipped[0][0], skipped[0][1]))
     return buf
@@ -193,25 +101,29 @@ def main(path):
                 data = fh.read()
         except OSError as err:
             return str(err)
-        if len(data) != vp.EXE_SIZE:
-            return ('%s is %d bytes, expected %d, and there is no %s.bak '
-                    'holding the original'
-                    % (path, len(data), vp.EXE_SIZE, path))
-        return ('%s has MD5 %s, expected %s, and there is no %s.bak holding '
-                'the original' % (path, hashlib.md5(data).hexdigest(),
-                                  vp.ORIGINAL_MD5, path))
+        known = ', '.join('%s (%d bytes, MD5 %s)' % (b.name, b.size, b.md5)
+                          for b in vp.BUILDS.values())
+        return ('%s is %d bytes with MD5 %s, and there is no %s.bak holding '
+                'an original. Known: %s'
+                % (path, len(data), hashlib.md5(data).hexdigest(), path,
+                   known))
     if read != path:
         print('note: read %s, not the patched file beside it' % read)
-    print('original: %d bytes, MD5 %s'
-          % (len(original), hashlib.md5(original).hexdigest()))
+    digest = hashlib.md5(original).hexdigest()
+    build = vp.BUILDS[digest]
+    table = vp.by_key(build)
+    print('original: %d bytes, MD5 %s (%s)' % (len(original), digest,
+                                              build.name))
 
     # Every 'original' column against the untouched file. Sites that overlap
     # an earlier site in the same patch are skipped: they expect what that
     # site wrote, not what is in the file.
     bad = 0
-    for key, (label, _tip, sites) in vp.BY_KEY.items():
+    for key, (label, _tip, sites) in table.items():
         seen = set()
         for off, old, _new in sites or ():
+            if off >= len(original):        # the annex, appended at apply
+                continue
             span = range(off, off + len(old) // 2)
             if not seen.isdisjoint(span):
                 seen.update(span)
@@ -222,14 +134,13 @@ def main(path):
                 bad += 1
     print('site check: %d mismatches' % bad)
 
-    bad += check_caves(vp, original)
 
     hits = len(list(vp.DI_FIND.finditer(bytearray(original))))
     print('dinput signature: %d hit(s)' % hits)
     if hits != 1:
         bad += 1
 
-    keys = list(vp.BY_KEY)
+    keys = list(table)
     failures, tested = [], 0
     trials = [set(c) for r in (1, 2) for c in itertools.combinations(keys, r)]
     random.seed(1)
@@ -239,15 +150,17 @@ def main(path):
     for sel in trials:
         tested += 1
         try:
-            result = apply(vp, original, sel)
+            result = apply(vp, original, sel, build)
         except Exception as exc:                # noqa: BLE001
             failures.append((sorted(sel), exc))
             continue
         if sel == set(keys):
             digest = hashlib.md5(bytes(result)).hexdigest()
             print('all patches: %d bytes, MD5 %s' % (len(result), digest))
-            if digest != EXPECTED_ALL:
-                print('  CHANGED - expected %s' % EXPECTED_ALL)
+            if EXPECTED_ALL.get(build.md5) is None:
+                print('  not pinned for this build yet')
+            elif digest != EXPECTED_ALL[build.md5]:
+                print('  CHANGED - expected %s' % EXPECTED_ALL[build.md5])
                 bad += 1
     print('combinations: %d tested, %d failed' % (tested, len(failures)))
     for sel, exc in failures[:10]:

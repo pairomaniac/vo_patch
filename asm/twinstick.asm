@@ -1,5 +1,4 @@
 bits 32
-org 0x006249c4          ; the .rdata cave the XInput patch drops this into
 ; Twin-stick profile. No new logic: the XInput tick at 0x608159 is a
 ; bind -> condition -> lever-mask engine, and the arcade scheme is just a
 ; different set of binds and masks. Each of the twelve slots drives one
@@ -7,21 +6,21 @@ org 0x006249c4          ; the .rdata cave the XInput patch drops this into
 ; land straight in the two lever words and the game derives walk, turn, jump
 ; and crouch from the pair, exactly as the cabinet did.
 
-TICK      equ 0x00608159          ; the shared XInput tick
-EXIT1P    equ 0x00442ec4          ; where the 1P profile switch resumes
-EXIT2P    equ 0x005bcd57          ; and the 2P one
-KBD1P     equ 0x00443074          ; stock keyboard handler, called by the tick
-KBD2P     equ 0x005bceed
-LEV1A     equ 0x01cb14c4          ; 1P lever words, left then right
-LEV1B     equ 0x01cb14c6
-LEV2A     equ 0x01ee3ee4
-LEV2B     equ 0x01ee3ee6
-ACC1      equ 0x00bf0481          ; key buffer slots the tick pokes for A
-ACC2      equ 0x01ad0db1
-CAM1      equ 0x00bf0457          ; and for Back
-CAM2      equ 0x01ad0d94
-SCR1      equ 0x0365cb60          ; scratch the tick keeps per player
-SCR2      equ 0x0365cb61
+extern TICK                       ; the shared XInput tick
+extern EXIT1P                     ; where the 1P profile switch resumes
+extern EXIT2P                     ; and the 2P one
+extern KBD1P                      ; stock keyboard handler, called by the tick
+extern KBD2P
+extern LEV1A                      ; 1P lever words, left then right
+extern LEV1B
+extern LEV2A
+extern LEV2B
+extern ACCEPT1                    ; key buffer slots the tick pokes for A
+extern ACC2
+extern CAMERA1                    ; and for Back
+extern CAM2
+extern SCR1                       ; scratch the tick keeps per player
+extern SCR2
 
 stub1p:
     push    block1
@@ -55,6 +54,6 @@ maskb:
     db 0x00, 0x01, 0x00, 0x02
 
 block1:
-    dd 0, binds, LEV1A, LEV1B, maska, maskb, ACC1, SCR1, KBD1P, CAM1
+    dd 0, binds, LEV1A, LEV1B, maska, maskb, ACCEPT1, SCR1, KBD1P, CAMERA1
 block2:
     dd 1, binds, LEV2A, LEV2B, maska, maskb, ACC2, SCR2, KBD2P, CAM2
