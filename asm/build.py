@@ -244,10 +244,6 @@ def check_link(vp, blobs):
                 if exc.args[0] not in vp.BLOBS:
                     raise SystemExit('%s does not resolve %s for build %s'
                                      % (name, exc, build.md5))
-    padx = blobs['PADX'][0]
-    if len(padx) != vp.PADX_LEN:
-        raise SystemExit('padxinput.asm assembles to %d bytes, not %d'
-                         % (len(padx), vp.PADX_LEN))
     for blob, magic in (('F11PAUSE', dialogs.TEMPLATE),
                         ('DEBUGBOX', vp.MAGIC_ANNEXREL)):
         pattern = struct.pack('<I', magic)

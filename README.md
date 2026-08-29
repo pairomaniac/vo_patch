@@ -377,6 +377,10 @@ sticks are read as eight directions. Defaults on both sides: left stick
 moves, right stick turns, LT and RB fire left and right, RT fires both, LB
 dashes, A jumps, X guards. **Default** on the F7 page puts them back.
 
+**LB + RB + LT + RT + Start** together resets the game to the title
+screen from anywhere, on either pad. It does nothing during an internet
+match, like the F keys.
+
 ### Twin-stick (XInput)
 
 Each thumbstick *is* a lever, the way the cabinet worked, so nothing is

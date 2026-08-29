@@ -1,21 +1,13 @@
 bits 32
 ; The XInput routine: two profile entry stubs, the message-pump stub, the
-; per-player input tick and its parameter blocks.
-;
-; Six addresses in here are named by something outside this file and cannot
-; move. `times` pins each one, so nasm fails rather than shifting them:
-;
-;   0x608060, 0x608072  the profile dispatch sites point at the entry stubs
-;   0x608098            the PeekMessageA call site points at the pump stub
-;   0x6080a4            introwait.asm calls the pad poll
-;   0x608159            twinstick.asm calls the tick
-;   0x608302            the levers site replaces the epilogue, and expects
-;                       the five bytes of it to be exactly where they are
-;
-; The blob is also padded to a fixed 830 bytes, because levers.asm is written
-; at the site immediately after it.
+; per-player input tick and its parameter blocks. What the outside names
+; in here it names by label - the entry stubs, the pump, the pad poll, the
+; tick, the epilogue that levers.asm replaces, and the end that levers.asm
+; is written at - so nothing here is pinned to an offset.
 
-TICKLEN     equ 830
+RESETMASK   equ 0x0310          ; XINPUT: START | LEFT_SHOULDER |
+                                ; RIGHT_SHOULDER
+TRIGGER_THRESHOLD equ 30        ; XINPUT_GAMEPAD_TRIGGER_THRESHOLD
 
 extern XIFN                     ; resolved XInputGetState: 0 not yet, 1 failed
 extern STATE                    ; the tick's XINPUT_STATE
@@ -44,6 +36,7 @@ extern PEEKMSG                  ; PeekMessageA, the call this stub replaced
 
 extern CAMSKIP                  ; camskip.asm, called from the tick
 
+extern GAMEMODE                 ; 2 during a network match
 extern MODE                     ; game state and sub-state. The pair the
 extern SUBMODE                  ; stock keyboard handler gates its bind
                                 ; slots on; see the tick.
@@ -61,7 +54,6 @@ entry1p:
     add     esp, 4
     jmp     EXIT1P
 
-    times   0x12 - ($ - $$) db 0
 
 entry2p:
     push    block2
@@ -69,7 +61,6 @@ entry2p:
     add     esp, 4
     jmp     EXIT2P
 
-    times   0x38 - ($ - $$) db 0
 
 ; ----------------------------------------------------------------
 ; Runs in place of one `call PeekMessageA` in the game's message pump. The
@@ -84,7 +75,6 @@ pump:
     call    pollpads
     jmp     [PEEKMSG]
 
-    times   0x44 - ($ - $$) db 0
 
 ; ----------------------------------------------------------------
 ; Poll both pads and post the edges for the keys the window procedure handles
@@ -109,6 +99,31 @@ pollpads:
     lea     edx, [esi*4 + PADPREV]
     movzx   ebp, word [edx]
     mov     [edx], bx
+
+    ; Soft reset: LB, RB and Start together with both triggers past
+    ; XInput's own threshold, on the press. A negative mode word makes the
+    ; game's next state tick tear down and boot again, to the title - its
+    ; own path, which nothing else sets any more. Not in a network match,
+    ; as the F keys. While the combination is down no key is posted for
+    ; this pad: Start alone would pause the game, and a paused game never
+    ; runs the tick.
+    mov     eax, ebx
+    and     eax, RESETMASK
+    cmp     eax, RESETMASK
+    jne     .keys
+    cmp     byte [PSTATE + 6], TRIGGER_THRESHOLD
+    jb      .keys
+    cmp     byte [PSTATE + 7], TRIGGER_THRESHOLD
+    jb      .keys
+    mov     eax, ebp
+    and     eax, RESETMASK
+    cmp     eax, RESETMASK
+    je      .nextpad            ; still held from last poll
+    cmp     dword [GAMEMODE], 2
+    je      .nextpad
+    mov     dword [MODE], -1
+    jmp     .nextpad
+.keys:
     xor     edi, edi
 .key:
     cmp     edi, (keytab_end - keytab) / 4
@@ -157,7 +172,6 @@ keytab:
     db  VK_SPACE, 0             ; A
 keytab_end:
 
-    times   0xf9 - ($ - $$) db 0
 
 ; ----------------------------------------------------------------
 ; The input tick, one call per player per frame, reached through the profile
@@ -351,7 +365,6 @@ resolve:
 .done:
     ret
 
-    times   0x2a2 - ($ - $$) db 0
 
 ; ----------------------------------------------------------------
 ; Replaced by levers.asm, which does the same five things after cleaning the
@@ -387,4 +400,3 @@ dll14:  db 'xinput1_4.dll', 0
 dll13:  db 'xinput1_3.dll', 0
 dll910: db 'xinput9_1_0.dll', 0
 
-    times   TICKLEN - ($ - $$) db 0

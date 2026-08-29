@@ -502,6 +502,22 @@ blocked in `GetMessageA`, on the branch the pump stub is not on, so that call
 is hooked as well. Space, Enter and Escape all skip the movie, so A does; F3
 is ignored while it plays, so Start does not.
 
+**Soft reset.** The state tick at `0x49f965` tests the mode word `0x1ae3594`
+for a negative value and, finding one, runs the teardown (`0x49fb9b`) and
+the boot routine (`0x49f82c`), which sets mode 0 and starts over into the
+title. Nothing in the game sets it negative any more - the only two stores
+are non-negative - so it is a debug path they left in. It tears one side
+down; two instructions on, the tick's debug key reaches `0x49fa26`, the
+full reset, which tears each side down (the same three calls twice, the
+player context switched between) and then boots - the one that leaves a
+two-player match cleanly. So the negative-mode branch calls `0x49fa26`
+instead (`0x49f972`), and the pad poll writes `-1` to the mode word on
+the press of LB, RB and Start with both triggers past XInput's threshold,
+on either pad, and not while `0x6bc94c` reads 2, as the F-key handlers
+refuse a network match. While the combination is down the poll posts no
+key for that pad: Start alone is F3, pause, and a paused game never runs
+the tick.
+
 ### F11 dialog
 
 No dialog resource ever existed, so one is built at runtime

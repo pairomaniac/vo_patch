@@ -120,11 +120,9 @@ rel32 from where the blob is, and `site('PADX')` the file offset a blob is
 written at - so there is no hand-computed address for the two to disagree
 on.
 
-Two things still carry a fixed shape. `padxinput.asm` pins six offsets
-inside itself with `times`, because the site table and other blobs name
-them, and pads to `PADX_LEN` because `levers.asm` is written straight after
-it. `debugbox.asm` pins its dialog procedure one byte past the hook. `build.py`
-checks both against the labels.
+Nothing carries a fixed shape any more: every place another blob or the
+site table reaches is a label, `levers.asm` is written at `('PADX', 'end')`
+whatever that comes to, and a blob grows by being rebuilt.
 
 ## The loop
 
