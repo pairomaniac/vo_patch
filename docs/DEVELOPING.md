@@ -73,12 +73,15 @@ cannot drift apart.
 ```bash
 python3 tools/check.py                        # the ones CI can run
 python3 tools/check.py /path/to/VIRTUAL-ON    # and the ones that need the game
+python3 tools/check.py RETAIL/ OEM/ JP/       # those once per build
 python3 tools/check.py --list                 # what they are
 python3 tools/check.py --only asm,net         # just those
 ```
 
-`VO_GAME` works instead of the argument, and either a folder or any file
-inside one will do.
+`VO_GAME` works instead of one argument, and either a folder or any file
+inside one will do. The checks that need the game run once per folder
+given and are named by build - `offsets/jp` - because a table can only be
+wrong on the build it is for; before tagging, give all three.
 
 | Name | What it proves |
 | --- | --- |

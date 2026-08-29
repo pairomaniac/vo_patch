@@ -18,7 +18,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
-  <a href="#which-build">Which build</a>
+  <a href="#supported-builds">Supported builds</a>
 </h4>
 
 ## Virus warnings
@@ -51,7 +51,7 @@ The sections are numbered in the order to work through them.
    [Music](#music).
 2. **GAME FILE** - installing fills this in for you. Otherwise browse to
    your `v_on.exe`; only the unmodified disc file is accepted, and if yours
-   is refused see [Which build](#which-build).
+   is refused see [Supported builds](#supported-builds).
 3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
 4. **EXTRA PATCHES** - starts ticked and is yours to change. Click the ⓘ
@@ -530,16 +530,7 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 `-S fit` fills more of the screen without whole-number scaling.
 
-## Which build
-
-The patcher works on one build and refuses everything else: every patch is a
-fixed file offset, and on another build it would write into unrelated code.
-
-<kbd><img height="220" alt="oem" src="https://github.com/user-attachments/assets/9825b5cb-7c3a-43fc-873b-e1c78ae5660a" />
-</kbd>
-&nbsp;
-<kbd><img height="220" alt="error" src="https://github.com/user-attachments/assets/808bb2cc-0c14-4922-bd64-f9db9af2963f" />
-</kbd>
+## Supported builds
 
 | Build | Size | MD5 | Patcher |
 | --- | --- | --- | --- |
@@ -548,24 +539,26 @@ fixed file offset, and on another build it would write into unrelated code.
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
 | Japanese original | not known | not known | not seen |
 
-I have not been able to acquire the Japanese original, so there is no
-checksum for it. The patcher calls that build an unrecognised file and
-prints the size and MD5 it found. That is what the row needs.
-
 The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches. The OEM
-pressing and the Japanese rerelease are different compiles of the same
-game and patch with the same patches; the OEM's processor check is a
-different one and gets its own version of that patch, and the rerelease's
-title artwork is
-`jscrgame.bin`, which the banner patch redraws as it does `escrgame.bin`.
-Anything else is unrecognised, with the checksums side by side - in
-**GAME FILE** for a file you picked, in **INSTALL** for a disc image.
+carry the same `v_on.exe` byte for byte. The OEM pressing and the Japanese
+rerelease are different compiles of the same game, and every patch is
+written for each of them: the same patches, the same boxes, and the
+window says which build it has. The OEM's processor check is a different
+one and gets its own version of that patch; the rerelease's title artwork
+is `jscrgame.bin`, which the banner patch redraws as it does
+`escrgame.bin`.
 
-Installing and ripping the soundtrack work whichever build the disc holds.
-Only patching needs one of the builds marked "patches", and copying a
-patched `v_on.exe` into another build's install is not a way round that:
-the two executables are laid out differently inside.
+Anything else - a repack, a bad rip, a copy already modified - is
+refused, with its size and MD5 beside a supported build's so the
+difference is visible: in **GAME FILE** for a file you picked, in
+**INSTALL** for a disc image. Installing and ripping the soundtrack work
+whichever build the disc holds; only patching needs one from the table.
+Copying a patched `v_on.exe` into another build's install is not a way
+round that: the executables are laid out differently inside.
+
+The Japanese original has not been seen. If you have a disc image of it,
+write to pairo@segaonline.net; the tables for it are a day's work once
+the file exists.
 
 ### What gets written
 
@@ -575,12 +568,13 @@ was.
 
 **XInput gamepad support** touches two more files. `v_on.ini` is moved to
 `v_on.ini.bak` and the game writes a fresh one, because binds saved by the
-unpatched game do not fit the new device list. `escrgame.bin` is rewritten
-with the new title artwork, after a copy is kept as `escrgame.bin.bak`.
+unpatched game do not fit the new device list. The title artwork -
+`escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
+with the new title prompt, after a copy is kept as `.bak`.
 
 **Restore original** puts all three back, keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
-hand: `escrgame.bin` and `v_on.exe` have to match, and restoring one alone
+hand: the artwork and `v_on.exe` have to match, and restoring one alone
 draws the title prompt as scrambled letters.
 
 ## Running from source

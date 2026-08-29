@@ -51,13 +51,6 @@ EXE_SIZE = 6650880
 
 ORIGINAL_MD5 = 'a464b0ff32d5bab499f265e45658504e'
 
-# Builds that turn up and cannot be patched, listed so the patcher can name
-# what it was handed instead of saying "not the original":
-# md5 -> (size, name, why). Empty since the OEM got its tables; the
-# Japanese original would go here the day one is seen. The builds that can
-# be patched are BUILDS.
-OTHER_BUILDS = {}
-
 RETAIL_HINT = ('Install from a retail disc image above, or pick a copy '
                'installed from one. Its v_on.exe alone will not do: the '
                'patcher writes to files beside it.')
@@ -86,9 +79,11 @@ DISC_IMAGES = {
 # or (blob, label) for a place inside one of ours.
 
 class Build(object):
-    def __init__(self, name, md5, size, sections, caves, symbols, art,
+    def __init__(self, name, short, md5, size, sections, caves, symbols, art,
                  sites=None, annex=None, rdata_exec=()):
-        self.name, self.md5, self.size = name, md5, size
+        # the name on screen, and a word for a label or a log line
+        self.name, self.short = name, short
+        self.md5, self.size = md5, size
         # the patches with code in this build's .rdata, which then needs
         # the executable flag; none when every blob is in the annex
         self.rdata_exec = rdata_exec
@@ -137,7 +132,7 @@ def annex_place(size, sections):
     return (va + length + 0xfff) & ~0xfff, (size + 0x1ff) & ~0x1ff
 
 
-RETAIL = Build('English retail', ORIGINAL_MD5, EXE_SIZE, sections=(
+RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f4400, 0x005f5000),       # .rdata
     (0x0023de00, 0x0063f000),       # .data
@@ -339,7 +334,7 @@ ANNEX_BLOBS = (
 # for how the addresses were found.
 JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
 JAPAN_SIZE = 6621696
-JAPAN = Build('Japanese rerelease', JAPAN_MD5, JAPAN_SIZE, sections=(
+JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001eec00, 0x005f0000),       # .rdata
     (0x00239200, 0x0063b000),       # .data
@@ -501,7 +496,7 @@ JAPAN = Build('Japanese rerelease', JAPAN_MD5, JAPAN_SIZE, sections=(
 # to remove: its processor check is an MMX test through cpuid32.dll.
 OEM_MD5 = '4c70f780a7f0d98d74be62304fb99021'
 OEM_SIZE = 6649344
-OEM = Build('USA OEM', OEM_MD5, OEM_SIZE, sections=(
+OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f3e00, 0x005f5000),       # .rdata
     (0x0023d800, 0x0063f000),       # .data
@@ -3769,15 +3764,12 @@ def disc_build(track, plan):
     for name, lba, size in plan.files():
         if name == 'v_on.exe':
             digest = hashlib.md5(track.read(lba, size)).hexdigest()
-            known = OTHER_BUILDS.get(digest)
             build = BUILDS.get(digest)
             return {
                 'size': size, 'md5': digest,
                 'supported': build is not None,
-                'name': (build.name if build
-                         else known[1] if known else 'unrecognised'),
+                'name': build.name if build else 'unrecognised',
                 'why': ('' if build else
-                        known[2] if known else
                         'Not a v_on.exe this patcher knows - a bad rip, a '
                         'repack, or a disc it has not seen.'),
             }
@@ -5469,13 +5461,7 @@ class Patcher:
             self.compare = None
             return READY_TAG, True
 
-        known = OTHER_BUILDS.get(digest)
-        if known:
-            # A real release, just not this one. Amber: nothing is wrong with
-            # the file, it is the wrong file.
-            what, why, hint, level = ('%s build' % known[1], known[2],
-                                      RETAIL_HINT, 'warn')
-        elif backup_is_original(path + '.bak'):
+        if backup_is_original(path + '.bak'):
             # The size cannot be part of this test: No disc required appends
             # a section, so a patched file is 3 KB larger than the original
             # and looked unrecognisable here.
