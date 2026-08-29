@@ -38,9 +38,10 @@ parse12:
 .done:
     ret
 
-nibble:                         ; hex char at [esi++] -> al
+nibble:                         ; hex char at [esi++] -> al, either case
     movzx   eax, byte [esi]
     inc     esi
+    or      al, 0x20            ; fold upper case, harmless on a digit
     sub     al, '0'
     cmp     al, 9
     jbe     .ok
@@ -48,7 +49,6 @@ nibble:                         ; hex char at [esi++] -> al
 .ok:
     ret
 
-    times   (0x00601b48 - 0x00601b0c) - ($ - $$) db 0
 dzsave:
     push    1                   ; 2P first; the order is free
     pop     esi

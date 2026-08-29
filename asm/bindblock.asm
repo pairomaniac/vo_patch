@@ -32,8 +32,6 @@ blockaddr:
     add     eax, BLOCKS + SIMPLE_OFF
     ret
 
-    times   0x18 - ($ - blockaddr) db 0x90
-
 ; ----------------------------------------------------------------
 ; The Default button's copier takes its shipped set from a table picked
 ; here: the gamepad's at 0x66d600, or SIMPLEDEF. In: eax = player.
@@ -48,8 +46,6 @@ defsource:                      ; edx is free at the site
     add     eax, SIMPLEDEF
     ret
 
-    times   0x34 - ($ - blockaddr) db 0x90
-
 ; ----------------------------------------------------------------
 ; The preselect's `mov al, [ecx + eax*2 + BASE+8]`, the same read with the
 ; registers the other way around. In: ecx = player * 0x70, eax = slot.
@@ -62,11 +58,9 @@ preselbind:
     mov     al, [ecx + eax*2 + BLOCKS + SIMPLE_OFF]
     ret
 
-    times   0x50 - ($ - blockaddr) db 0x90
-
 ; ----------------------------------------------------------------
 ; Low four bits of al as an ascii hex digit at [edi], advancing it.
-; asm/inisave.asm calls this; it lives here for room.
+; asm/inisave.asm calls this.
 hexchar:
     and     al, 0x0f
     cmp     al, 10

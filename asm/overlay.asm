@@ -1,5 +1,4 @@
 bits 32
-                        ; a live address, so 168 bytes are free from here
 ; Draws HOLD TO SKIP over the credits while the button is down.
 ;
 ; The credits roll scrolls the tilemap, so anything printed through the tile
@@ -35,11 +34,8 @@ overlay:
     call    ORIG
     add     esp, 4
 
-    ; The state is checked before the hold count, not instead of it. HELD
-    ; lives in a run of zeros in .data, and something else in the game
-    ; writes through it: on the title screen and in a match it reads
-    ; nonzero on its own, which put the text on screen everywhere. Inside
-    ; the roll credits.asm owns it and it counts properly.
+    ; The state is checked before the hold count, not instead of it: HELD
+    ; only means anything inside the roll, where credits.asm owns it.
     cmp     dword [MODE], 4
     jne     .out
     cmp     dword [SUBMODE], 0x20

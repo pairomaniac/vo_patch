@@ -166,8 +166,7 @@ movie_place:
         sar     eax, 1
         mov     [edi + F_Y], eax
 
-        ; The caller reads these back as words for its own MoveWindow, which
-        ; runs after this and repeats the call below with the same values.
+        ; The caller reads these back as words.
         mov     eax, [ebp + N_W]
         mov     [edi + F_W], eax
         mov     eax, [ebp + N_H]

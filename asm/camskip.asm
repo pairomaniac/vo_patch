@@ -1,5 +1,4 @@
 bits 32
-                        ; nothing in the file pointing near it
 ; Lets A skip the win and lose screens, which stock only takes on the camera
 ; key.
 ;

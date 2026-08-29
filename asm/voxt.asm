@@ -69,7 +69,7 @@ annex:
     je      .next               ; there is nothing to call
     push    ebx
     mov     ecx, eax
-    db      0x8b, 0xdf          ; mov ebx, edi - the player, for the seed
+    mov     ebx, edi            ; the player, for the seed
     call    edx
     pop     ebx
 .next:
@@ -101,7 +101,7 @@ annex:
     push    ebx
     push    40
     pop     ecx
-    db      0x8b, 0xdf          ; mov ebx, edi - the player, for the seed
+    mov     ebx, edi            ; the player, for the seed
     call    edx
     pop     ebx
     dec     edi

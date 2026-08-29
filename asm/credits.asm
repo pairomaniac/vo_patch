@@ -1,5 +1,4 @@
 bits 32
-                        ; nothing in the file points anywhere near it
 ; Makes the ending credits skippable, which they are not in the stock game.
 ;
 ; The credits are sub-state 0x20, whose handler at 0x59081f is a phase

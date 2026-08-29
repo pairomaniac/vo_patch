@@ -24,8 +24,6 @@ blockcur:               ; in: eax = player * 0x70 + slot * 2
     lea     eax, [eax + BLOCKS + 0x38]
     ret
 
-    times   0x28 - ($ - blockcur) db 0x90
-
 ; ----------------------------------------------------------------
 ; The bind page seeds its block from the live table at open - stock
 ; behaviour, and how the gamepad's saved set normally returns to its block

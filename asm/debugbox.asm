@@ -50,15 +50,11 @@ extern GAMEMODE                 ; 2 during a network match, when every F-key
                                 ; command handler returns before doing
                                 ; anything; so does this
 
-; nasm assembles `mov r32, r32` and `xor r32, r32` as 89 and 31; the code
-; this replaces used the 8b and 33 encodings. The `db` lines below keep the
-; blob byte-identical to the hex it was reconstructed from.
-
 ; ----------------------------------------------------------------
 ; Window procedure hook. Everything except F11 goes on to the original.
 hook:
     push    ebp
-    db      0x8b, 0xec                  ; mov ebp, esp
+    mov     ebp, esp
     push    ebx
     cmp     dword [ebp + 0x0c], WM_KEYDOWN
     jne     .pass
@@ -75,10 +71,10 @@ hook:
     call    [GETPROC]
     test    eax, eax
     je      .done
-    db      0x8b, 0xd8                  ; mov ebx, eax
+    mov     ebx, eax
     call    F11WRAP                     ; asm/f11pause.asm: pause the game
 .done:                                  ; and music, run the dialog, resume
-    db      0x33, 0xc0                  ; xor eax, eax
+    xor     eax, eax
     pop     ebx
     pop     ebp
     ret     0x10
@@ -93,7 +89,7 @@ hook:
 ; is posted to the main window as the menu item it replaces.
 dlgproc:
     push    ebp
-    db      0x8b, 0xec                  ; mov ebp, esp
+    mov     ebp, esp
     push    ebx
     push    esi
     push    edi
@@ -101,8 +97,7 @@ dlgproc:
     cmp     eax, WM_INITDLG
     jne     .command
 
-    ; The check boxes are ticked in asm/f11pause.asm's tail, where the loop
-    ; kept there for room.
+    ; The check boxes are ticked in asm/f11pause.asm's tail.
     push    dword [ebp + 8]
     call    F11CHECKS
 
@@ -141,8 +136,7 @@ dlgproc:
 .tail:
     ; Close and Quit are the long paths - the deadzone read, the ini save,
     ; the teardown order - and live in asm/voxt.asm at the end of the
-    ; template's section, for room. The annex says what to do with its
-    ; answer.
+    ; template's section. The annex says what to do with its answer.
     mov     edx, dword [ebp + 8]
     db      0xe8                        ; call rel32; nasm would subtract the
     dd      ANNEXREL                    ; site from a plain call, and the
@@ -160,7 +154,7 @@ dlgproc:
     mov     eax, 1
     jmp     .ret
 .ignore:
-    db      0x33, 0xc0                  ; xor eax, eax
+    xor     eax, eax
 .ret:
     pop     edi
     pop     esi

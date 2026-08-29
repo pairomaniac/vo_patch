@@ -26,9 +26,7 @@ extern PEEKMSG                  ; PeekMessageA
 
 extern POLLPADS                 ; padxinput.asm, pinned there for this
 
-; .rdata is executable here but not writable, so the resolved pointer cannot
-; be cached in this blob. It goes in the four bytes between PSTATE and PREV,
-; in the scratch the routine already owns.
+; Cached in the routine's scratch rather than in this blob.
 extern SLEEPFN                  ; resolved Sleep: 0 not yet, 1 failed
 
 PM_NOREMOVE equ 0

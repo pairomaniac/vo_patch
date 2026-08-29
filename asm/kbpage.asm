@@ -1,7 +1,5 @@
 bits 32
-; Two fixes to the keyboard bind page. The slots are a fixed size so the
-; second cannot move when the first is edited: its site names an address, and
-; nothing downstream would catch a drift.
+; Two fixes to the keyboard bind page.
 
 extern CURPLAYER                ; the side being configured, 0 or 1
 extern DEVICES                  ; 1P's profile, 0 being the keyboard
@@ -29,8 +27,6 @@ dupkey:
     jmp     CROSSCHECK          ; devices 0 and 3 are both keyboards
 .accept:
     jmp     KBACCEPT
-
-    times   32 - ($ - dupkey) db 0x90
 
 ; ----------------------------------------------------------------
 ; Default passed a hardcoded player 0, so pressing it on the 2P side reset

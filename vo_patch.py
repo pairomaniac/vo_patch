@@ -245,8 +245,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'SEMUTE': 0x006bcc4c,
     'MASK2A': 0x006beb08,          # 2P
     'MASK2B': 0x006beb15,
-    'PREV': 0x006c3d48,            # last frame's slot; credits, nameentry
-    'HELD': 0x006c3d49,            # and how long this press has lasted
+    'PREV': 0x0365cba4,            # scratch: last frame's slot, credits+names
+    'HELD': 0x0365cba5,            # and how long this press has lasted
     'CAMERA1': 0x00bf0457,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00bf0481,         # 1P's key buffer slot for A and Space
     'BLOCKS': 0x00bf6838,          # saved bind blocks: + player * 0x70
@@ -410,8 +410,8 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'SEMUTE': 0x006b89ac,
     'MASK2A': 0x006ba820,          # 2P
     'MASK2B': 0x006ba82d,
-    'PREV': 0x006bf0d0,            # last frame's slot; credits, nameentry
-    'HELD': 0x006bf0d1,            # and how long this press has lasted
+    'PREV': 0x03657804,            # scratch: last frame's slot, credits+names
+    'HELD': 0x03657805,            # and how long this press has lasted
     'CAMERA1': 0x00beb0af,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00beb0d9,         # 1P's key buffer slot for A and Space
     'BLOCKS': 0x00bf1730,          # saved bind blocks: + player * 0x70
@@ -569,8 +569,8 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'SEMUTE': 0x006bcbe4,
     'MASK2A': 0x006beaa0,
     'MASK2B': 0x006beaad,
-    'PREV': 0x006c3ce0,
-    'HELD': 0x006c3ce1,
+    'PREV': 0x0365cb24,
+    'HELD': 0x0365cb25,
     'CAMERA1': 0x00bf0417,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00bf0441,   # data 1 votes
     'BLOCKS': 0x00bf67f8,          # saved bind blocks: + player * 0x70
@@ -1183,13 +1183,13 @@ BLOBS = {
         'procname': 0x2e,
     }),
     'DEBUGBOX': (bytes.fromhex(
-        '558bec53817d0c00010000753b817d107a0000007532833d0000000002742968'
-        '00000000ff1500000000680000000050ff150000000085c074078bd8e8fcffff'
-        'ff33c05b5dc210005b5de9fcffffff558bec5356578b450c3d100100007532ff'
+        '5589e553817d0c00010000753b817d107a0000007532833d0000000002742968'
+        '00000000ff1500000000680000000050ff150000000085c0740789c3e8fcffff'
+        'ff31c05b5dc210005b5de9fcffffff5589e55356578b450c3d100100007532ff'
         '7508e8fcffffff31ff8d475250ff7508ff15000000008d14bd00000000526a00'
         '6a0c50ff15000000004783ff0272daeb453d1101000075450fb74d108d51ae83'
         'fa01763283f902740d83f954740881f9419c000075308b5508e8eaeaeaea85c0'
-        '74146a00516811010000ff3500000000ff1500000000b801000000eb0233c05f'
+        '74146a00516811010000ff3500000000ff1500000000b801000000eb0231c05f'
         '5e5b5dc2100083f9517513833d000000000475086a1f8f0500000000ebd8ebc2'
     ), (
         (0x18, 'abs', 'GAMEMODE', 0),
@@ -1390,82 +1390,81 @@ BLOBS = {
         'sleepnm': 0x82,
     }),
     'KBPAGE': (bytes.fromhex(
-        '833d00000000017510a1000000004883f8017605e9fcffffffe9fcffffff9090'
-        '6a01ff3500000000e8fcffffff83c408e9fcffffff'
+        '833d00000000017510a1000000004883f8017605e9fcffffffe9fcffffff6a01'
+        'ff3500000000e8fcffffff83c408e9fcffffff'
     ), (
         (0x2, 'abs', 'CURPLAYER', 0),
         (0xa, 'abs', 'DEVICES', 0),
         (0x15, 'rel', 'CROSSCHECK', -4),
         (0x1a, 'rel', 'KBACCEPT', -4),
-        (0x24, 'abs', 'CURPLAYER', 0),
-        (0x29, 'rel', 'DEFAULTS', -4),
-        (0x31, 'rel', 'RESUME', -4),
+        (0x22, 'abs', 'CURPLAYER', 0),
+        (0x27, 'rel', 'DEFAULTS', -4),
+        (0x2f, 'rel', 'RESUME', -4),
     ), {
         'dupkey': 0x0,
-        'default_button': 0x20,
+        'default_button': 0x1e,
     }),
     'BINDLIST': (bytes.fromhex(
-        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
-        '7df810eb04837df8217c0883c404e9fcffffffc390909090e8c3ffffff74088b'
-        '04c500000000c38b04c500000000c390e8abffffff74088a04c504000000c38a'
-        '04c504000000c3'
+        '50a1000000006bc07083b8000000000358c3e8e9ffffff7406837df810eb0483'
+        '7df8217c0883c404e9fcffffffc3e8cdffffff74088b04c500000000c38b04c5'
+        '00000000c3e8b6ffffff74088a04c504000000c38a04c504000000c3'
     ), (
         (0x2, 'abs', 'CURPLAYER', 0),
         (0xb, 'abs', 'BLOCKS', 0),
+        (0x1b, 'abs8', 'FILLIDX', 0),
         (0x21, 'abs8', 'FILLIDX', 0),
-        (0x27, 'abs8', 'FILLIDX', 0),
-        (0x2f, 'rel', 'FILLDONE', -4),
-        (0x42, 'abs', 'PADLIST', 0),
-        (0x4a, 'abs', 'KEYLIST', 0),
-        (0x5a, 'abs', 'PADLIST', 4),
-        (0x62, 'abs', 'KEYLIST', 4),
+        (0x29, 'rel', 'FILLDONE', -4),
+        (0x38, 'abs', 'PADLIST', 0),
+        (0x40, 'abs', 'KEYLIST', 0),
+        (0x4f, 'abs', 'PADLIST', 4),
+        (0x57, 'abs', 'KEYLIST', 4),
     ), {
         'devcur': 0x0,
-        'fillcount': 0x18,
-        'fillname': 0x38,
-        'storeid': 0x50,
+        'fillcount': 0x12,
+        'fillname': 0x2e,
+        'storeid': 0x45,
     }),
     'BINDMAP': (bytes.fromhex(
-        '50a1000000006bc07083b8000000000358c3909090909090e8e3ffffff740683'
-        '7df410eb04837df4217c0883c404e9fcffffffc390909090e8c3ffffff740839'
-        '0cc504000000c3390cc504000000c3908b4424046bc87081c1380000006bc018'
-        '05000000006a185051e8fcffffff83c40cc3'
+        '50a1000000006bc07083b8000000000358c3e8e9ffffff7406837df410eb0483'
+        '7df4217c0883c404e9fcffffffc3e8cdffffff7408390cc504000000c3390cc5'
+        '04000000c38b4424046bc87081c1380000006bc01805000000006a185051e8fc'
+        'ffffff83c40cc3'
     ), (
         (0x2, 'abs', 'CURPLAYER', 0),
         (0xb, 'abs', 'BLOCKS', 0),
+        (0x1b, 'abs8', 'SELIDX', 0),
         (0x21, 'abs8', 'SELIDX', 0),
-        (0x27, 'abs8', 'SELIDX', 0),
-        (0x2f, 'rel', 'SELSET', -4),
-        (0x42, 'abs', 'PADLIST', 4),
-        (0x4a, 'abs', 'KEYLIST', 4),
-        (0x59, 'abs', 'BLOCKS', 56),
-        (0x61, 'abs', 'SIMPLEDEF', 0),
-        (0x6a, 'rel', 'MEMCPY', -4),
+        (0x29, 'rel', 'SELSET', -4),
+        (0x38, 'abs', 'PADLIST', 4),
+        (0x40, 'abs', 'KEYLIST', 4),
+        (0x4e, 'abs', 'BLOCKS', 56),
+        (0x56, 'abs', 'SIMPLEDEF', 0),
+        (0x5f, 'rel', 'MEMCPY', -4),
     ), {
         'devcur': 0x0,
-        'mapcount': 0x18,
-        'mapid': 0x38,
-        'simple_defaults': 0x50,
+        'mapcount': 0x12,
+        'mapid': 0x2e,
+        'simple_defaults': 0x45,
     }),
     'BINDBLOCK': (bytes.fromhex(
-        '83b8000000000374060508000000c30538000000c39090906bd07083ba000000'
-        '00036bc01874060500000000c30500000000c39083b9000000000374088a8441'
-        '08000000c38a844138000000c3909090240f3c0a720204270430880747c3'
+        '83b8000000000374060508000000c30538000000c36bd07083ba00000000036b'
+        'c01874060500000000c30500000000c383b9000000000374088a844108000000'
+        'c38a844138000000c3240f3c0a720204270430880747c3'
     ), (
         (0x2, 'abs', 'BLOCKS', 0),
         (0xa, 'abs', 'BLOCKS', 8),
         (0x10, 'abs', 'BLOCKS', 56),
-        (0x1d, 'abs', 'BLOCKS', 0),
-        (0x28, 'abs', 'GAMEPADDEF', 0),
-        (0x2e, 'abs', 'SIMPLEDEF', 0),
-        (0x36, 'abs', 'BLOCKS', 0),
-        (0x40, 'abs', 'BLOCKS', 8),
-        (0x48, 'abs', 'BLOCKS', 56),
+        (0x1a, 'abs', 'BLOCKS', 0),
+        (0x25, 'abs', 'GAMEPADDEF', 0),
+        (0x2b, 'abs', 'SIMPLEDEF', 0),
+        (0x32, 'abs', 'BLOCKS', 0),
+        (0x3c, 'abs', 'BLOCKS', 8),
+        (0x44, 'abs', 'BLOCKS', 56),
     ), {
         'blockaddr': 0x0,
-        'defsource': 0x18,
-        'preselbind': 0x34,
-        'hexchar': 0x50,
+        'defsource': 0x15,
+        'preselbind': 0x30,
+        'hexchar': 0x49,
     }),
     'INISAVE': (bytes.fromhex(
         '5356578b9d38ffffff6bf3708db6380000008bbd34ffffff31c98a040e88c2c0'
@@ -1501,33 +1500,33 @@ BLOBS = {
     }),
     'BLOCKCUR': (bytes.fromhex(
         '518b0d000000006bc97083b900000000035974078d8008000000c38d80380000'
-        '00c390909090909050518b45086bc8708b048500000000398100000000595875'
-        '05e9fcffffffc3'
+        '00c350518b45086bc8708b04850000000039810000000059587505e9fcffffff'
+        'c3'
     ), (
         (0x3, 'abs', 'CURPLAYER', 0),
         (0xc, 'abs', 'BLOCKS', 0),
         (0x16, 'abs', 'BLOCKS', 8),
         (0x1d, 'abs', 'BLOCKS', 56),
-        (0x33, 'abs', 'DEVICES', 0),
-        (0x39, 'abs', 'BLOCKS', 0),
-        (0x42, 'rel', 'MEMCPY', -4),
+        (0x2d, 'abs', 'DEVICES', 0),
+        (0x33, 'abs', 'BLOCKS', 0),
+        (0x3c, 'rel', 'MEMCPY', -4),
     ), {
         'blockcur': 0x0,
-        'syncshim': 0x28,
+        'syncshim': 0x22,
     }),
     'INIPARSE': (bytes.fromhex(
         '50e8fcffffff83c40485c0741e89c631c9e816000000c0e00488c2e80c000000'
-        '08d088040f4183f9187ce6c30fb606462c303c0976022c27c30000006a015e8d'
-        '04b500000000506bc60c050000000050e8fcffffff83c4084e79e4c3'
+        '08d088040f4183f9187ce6c30fb606460c202c303c0976022c27c36a015e8d04'
+        'b500000000506bc60c050000000050e8fcffffff83c4084e79e4c3'
     ), (
         (0x2, 'rel', 'FINDLINE', -4),
-        (0x42, 'abs', 'DZSTR1', 0),
-        (0x4b, 'abs', 'DZKEYS', 0),
-        (0x51, 'rel', 'WRITELINE', -4),
+        (0x41, 'abs', 'DZSTR1', 0),
+        (0x4a, 'abs', 'DZKEYS', 0),
+        (0x50, 'rel', 'WRITELINE', -4),
     ), {
         'parse12': 0x0,
         'nibble': 0x2c,
-        'dzsave': 0x3c,
+        'dzsave': 0x3b,
     }),
     'PAGESEC': (bytes.fromhex(
         'e8fcffffff750f837df81a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
@@ -1547,8 +1546,8 @@ BLOBS = {
     }),
     'PAGESEL': (bytes.fromhex(
         'e8fcffffff750f837df41a7d01c383c404e9fcffffff83c404e9fcffffffe8fc'
-        'ffffff75048345f42483c404e9fcffffff00000069c14701000089049d000000'
-        '00880c9d0300000088c8d40a6605303086c46689049d00000000c3'
+        'ffffff75048345f42483c404e9fcffffff69c14701000089049d00000000880c'
+        '9d0300000088c8d40a6605303086c46689049d00000000c3'
     ), (
         (0x1, 'rel', 'DEVCUR', -4),
         (0x9, 'abs8', 'SELIDX', 0),
@@ -1557,13 +1556,13 @@ BLOBS = {
         (0x1f, 'rel', 'DEVCUR', -4),
         (0x27, 'abs8', 'SELIDX', 0),
         (0x2d, 'rel', 'SELSET', -4),
-        (0x3d, 'abs', 'DZTHR1', 0),
-        (0x44, 'abs', 'DZSTR1', 3),
-        (0x56, 'abs', 'DZSTR1', 0),
+        (0x3a, 'abs', 'DZTHR1', 0),
+        (0x41, 'abs', 'DZSTR1', 3),
+        (0x53, 'abs', 'DZSTR1', 0),
     ), {
         'selsec': 0x0,
         'selidx': 0x1e,
-        'dzseed': 0x34,
+        'dzseed': 0x31,
     }),
     'COMMITDEV': (bytes.fromhex(
         '89048d0000000083f801740583f80375275657516bf1708db60800000083f803'
@@ -1622,8 +1621,8 @@ BLOBS = {
         '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff15000000'
         '008d34bd00000000566a036a0d50ff15000000000fb60683e83083f80977190f'
         'b6560183ea3083fa0977056bc00a01d08d50fb83fa5a76040fb64603ba000000'
-        '00803a0074085389c18bdfffd25b4f79a5b8000000008038007402ffd06a0053'
-        'ff150000000031c0c3ba00000000803a0074336a015f536a28598bdfffd25b4f'
+        '00803a0074085389c189fbffd25b4f79a5b8000000008038007402ffd06a0053'
+        'ff150000000031c0c3ba00000000803a0074336a015f536a285989fbffd25b4f'
         '79f46a015f8d47525053ff15000000008d14bd00000000526a006a0c50ff1500'
         '0000004f79df31c0c36a0053ff150000000068419c0000596a0158c3'
     ), (

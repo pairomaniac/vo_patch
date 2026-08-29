@@ -9,8 +9,6 @@ bits 32
 ; AddressOfEntryPoint at 0xa8 names this address, and nodisc chains it in
 ; turn, which is why that patch is applied last.
 
-STRLEN      equ 62              ; code and both strings, up to debugbox.asm
-
 extern ORIGENTRY                ; the entry point this replaces
 extern LOADLIB                  ; LoadLibraryA
 extern GETPROC                  ; GetProcAddress
@@ -30,5 +28,3 @@ start:
 
 winmm:      db 'winmm.dll', 0
 procname:   db 'timeBeginPeriod', 0
-
-    times   STRLEN - ($ - $$) db 0

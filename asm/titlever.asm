@@ -1,5 +1,4 @@
 bits 32
-                        ; that 18 sites load, so 168 bytes are free from here
 ; Draws the patcher's version in the bottom right of the title screen.
 ;
 ; The game's own tile font, the one the menu items on this screen are set

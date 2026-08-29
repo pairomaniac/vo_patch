@@ -1,8 +1,7 @@
 bits 32
 ; The preselect half of asm/pagesec.asm: on the gamepad page the letter
 ; and digit matching is skipped and a list hit is the combo index itself.
-; The tail is unrelated lodging: the deadzone digits formatter, which
-; asm/iniall.asm had no room for.
+; The tail is the deadzone digits formatter.
 
 extern DEVCUR                   ; ZF set when the pending device is Simple
 extern SELDIGITS, SELLIST       ; the preselect's digit and list loops
@@ -39,13 +38,12 @@ selidx:
 ; The deadzone seed: percent in cl, player in ebx, into that player's
 ; threshold, digit pair (tens first) and the percent itself, kept in the
 ; digit pair's spare fourth byte so a rejected F11 entry can be re-seeded
-; to what is actually in force. asm/iniall.asm and the dialog call this
-; at the address the times pins; the digits' third byte stays the
-; loader's zero, so the text is terminated. Clobbers eax only.
+; to what is actually in force. asm/iniall.asm and the dialog call this;
+; the digits' third byte stays the loader's zero, so the text is
+; terminated. Clobbers eax only.
 extern DZTHR1                   ; see asm/padxinput.asm
 extern DZSTR1
 
-    times   (0x00601c08 - 0x00601bd4) - ($ - $$) db 0
 dzseed:
     imul    eax, ecx, 327       ; 327 is 32767/100 to 0.06%
     mov     [ebx*4 + DZTHR1], eax

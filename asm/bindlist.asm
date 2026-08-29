@@ -1,8 +1,8 @@
 bits 32
 ; The bind page serves two devices now. Its fill and store routines walk a
 ; (name, id) list whose address and length were immediates; these shims pick
-; the pair by the device of the side being configured. Slots are pinned: each
-; site names an address here, and nothing downstream would catch a drift.
+; the pair by the device of the side being configured. The sites name the
+; routines here by label.
 
 extern CURPLAYER                ; the side being configured, 0 or 1
 extern BLOCKS                   ; + player * 0x70: the device picked on the
@@ -29,8 +29,6 @@ devcur:
     pop     eax
     ret
 
-    times   0x18 - ($ - devcur) db 0x90
-
 ; ----------------------------------------------------------------
 ; Replaces the fill loop's `cmp [ebp-8], count` and the jge after it. The
 ; not-taken path returns into the loop body; the taken one leaves through
@@ -49,8 +47,6 @@ fillcount:
 .stay:
     ret
 
-    times   0x38 - ($ - devcur) db 0x90
-
 ; ----------------------------------------------------------------
 ; The fill loop's `mov eax, [eax*8 + list]`, an entry's name.
 fillname:
@@ -61,8 +57,6 @@ fillname:
 .simple:
     mov     eax, [eax*8 + KEYLIST]
     ret
-
-    times   0x50 - ($ - devcur) db 0x90
 
 ; ----------------------------------------------------------------
 ; The store routine's `mov al, [eax*8 + list + 4]`, an entry's bind byte.

@@ -5,10 +5,9 @@ bits 32
 ; DialogBoxIndirectParamA and the hook's frame live ([ebp + 8] is the
 ; parent window); it pushes the dialog's five arguments itself.
 ;
-; The tail is the dialog's check-box init, evicted from debugbox.asm's
-; blob for room. (hwnd), stdcall;
-; esi and edi are the caller's to lose, which the dialog procedure
-; refills after the call.
+; The tail is the dialog's check-box init: (hwnd), stdcall. esi and edi
+; are the caller's to lose, which the dialog procedure refills after the
+; call.
 
 
 %include "dialogs.inc"      ; TEMPLATE, CHECKS

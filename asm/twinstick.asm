@@ -1,5 +1,5 @@
 bits 32
-; Twin-stick profile. No new logic: the XInput tick at 0x608159 is a
+; Twin-stick profile. No new logic: the XInput tick in padxinput.asm is a
 ; bind -> condition -> lever-mask engine, and the arcade scheme is just a
 ; different set of binds and masks. Each of the twelve slots drives one
 ; lever direction or button instead of a named action, so the two thumbsticks
