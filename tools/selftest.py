@@ -25,9 +25,9 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '81376b9a0b5709d8e663824f5659c6da',
-    'd19320bdc3381a48228990907910a391': '90c03dcf744c99988070a25ba1119695',
-    '4c70f780a7f0d98d74be62304fb99021': '8faef2f04818946c010fc247568d189c',
+    'a464b0ff32d5bab499f265e45658504e': '55ccc3b644a380183c69d1e880b50a13',
+    'd19320bdc3381a48228990907910a391': 'a6743695ffbfcb35f9188854a7842c97',
+    '4c70f780a7f0d98d74be62304fb99021': 'c4b6167e4503dedeb7bc03bf9c6c90c8',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -76,12 +76,6 @@ def sections(data):
         out.append((raw, size, base + rva))
     return out
 
-
-def to_va(secs, off):
-    for raw, size, va in secs:
-        if raw <= off < raw + size:
-            return va + off - raw
-    return None
 
 
 def apply(vp, original, keys, build):

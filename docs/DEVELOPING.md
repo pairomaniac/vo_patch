@@ -86,7 +86,7 @@ wrong on the build it is for; before tagging, give all three.
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the pins the site table relies on are where the assembly put them |
+| `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
@@ -154,8 +154,8 @@ one is not a thing that happens.
 ## Adding a blob or a site
 
 A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a
-name in `ANNEX_BLOBS`, a `NAME_CODE = link(...)` beside the others, its
-symbols in every build's table, and a site in the table. Then
+name in `ANNEX_BLOBS`, its symbols in every build's table, and a site in
+the table. Then
 `python3 asm/build.py`, and for a site by retail offset, every other
 build's map regenerated: `buildsites.py NAME retail.exe other.exe map.pkl`
 per build, `vomap.py` first if there is no map. Both tools import the

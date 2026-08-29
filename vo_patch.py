@@ -72,11 +72,13 @@ DISC_IMAGES = {
 # The machine code in BLOBS below names no addresses: every place in the
 # game it touches is a symbol, and link() fills the symbol in from these
 # tables when the module loads. A second build is a second Build with its
-# own caves and symbols and the same BLOBS.
+# own tables and the same BLOBS.
 #
-# A cave is the virtual address a blob is written at, or (blob, offset) for
-# one that rides inside another. A symbol is a virtual address in the game,
-# or (blob, label) for a place inside one of ours.
+# Where a blob goes is the annex, a section appended before any patch is
+# written, in ANNEX_BLOBS order; or a cave, the virtual address of a place
+# the game itself reaches, or (blob, offset) for a blob that rides inside
+# another. A symbol is a virtual address in the game, or (blob, label) for
+# a place inside one of ours.
 
 class Build(object):
     def __init__(self, name, short, md5, size, sections, caves, symbols, art,
@@ -1209,13 +1211,12 @@ BLOBS = {
     'DEBUGBOX': (bytes.fromhex(
         '558bec53817d0c00010000753b817d107a0000007532833d0000000002742968'
         '00000000ff1500000000680000000050ff150000000085c074078bd8e8fcffff'
-        'ff33c05b5dc210005b5de9fcffffff00000000000000000000000000558bec53'
-        '56578b450c3d100100007532ff7508e8fcffffff31ff8d475250ff7508ff1500'
-        '0000008d14bd00000000526a006a0c50ff15000000004783ff0272daeb453d11'
-        '01000075450fb74d108d51ae83fa01763283f902740d83f954740881f9419c00'
-        '0075308b5508e8eaeaeaea85c074146a00516811010000ff3500000000ff1500'
-        '000000b801000000eb0233c05f5e5b5dc2100083f9517513833d000000000475'
-        '086a1f8f0500000000ebd8ebc2'
+        'ff33c05b5dc210005b5de9fcffffff558bec5356578b450c3d100100007532ff'
+        '7508e8fcffffff31ff8d475250ff7508ff15000000008d14bd00000000526a00'
+        '6a0c50ff15000000004783ff0272daeb453d1101000075450fb74d108d51ae83'
+        'fa01763283f902740d83f954740881f9419c000075308b5508e8eaeaeaea85c0'
+        '74146a00516811010000ff3500000000ff1500000000b801000000eb0233c05f'
+        '5e5b5dc2100083f9517513833d000000000475086a1f8f0500000000ebd8ebc2'
     ), (
         (0x18, 'abs', 'GAMEMODE', 0),
         (0x20, 'abs', 'USER32', 0),
@@ -1224,18 +1225,18 @@ BLOBS = {
         (0x32, 'abs', 'GETPROC', 0),
         (0x3d, 'rel', 'F11WRAP', -4),
         (0x4b, 'rel', 'ORIGWNDPROC', -4),
-        (0x70, 'rel', 'F11CHECKS', -4),
-        (0x7f, 'abs', 'GETDLGITEM', 0),
-        (0x86, 'abs', 'DZSTR1', 0),
-        (0x92, 'abs', 'SENDMSG', 0),
-        (0xd9, 'abs', 'HWND', 0),
-        (0xdf, 'abs', 'POSTMSG', 0),
-        (0xfa, 'abs', 'MODE', 0),
-        (0x105, 'abs', 'SUBMODE', 0),
+        (0x63, 'rel', 'F11CHECKS', -4),
+        (0x72, 'abs', 'GETDLGITEM', 0),
+        (0x79, 'abs', 'DZSTR1', 0),
+        (0x85, 'abs', 'SENDMSG', 0),
+        (0xcc, 'abs', 'HWND', 0),
+        (0xd2, 'abs', 'POSTMSG', 0),
+        (0xed, 'abs', 'MODE', 0),
+        (0xf8, 'abs', 'SUBMODE', 0),
     ), {
         'hook': 0x0,
-        'dlgproc': 0x5c,
-        'credits': 0xf3,
+        'dlgproc': 0x4f,
+        'credits': 0xe6,
     }),
     'PADX': (bytes.fromhex(
         '68de020000e81501000083c404e9fcffffff6806030000e80301000083c404e9'
@@ -1630,18 +1631,18 @@ BLOBS = {
     }),
     'F11PAUSE': (bytes.fromhex(
         '6a00e8fcffffff83c4046a006800000000ff750868e7e7e7e76a00ff15000000'
-        '0050ffd3e8fcffffffc30000be000000006a035f8b068b0031c983f8010f94c1'
-        '51ff7604ff74240cff150000000083c6084f75e0c20400'
+        '0050ffd3e8fcffffffc3be000000006a035f8b068b0031c983f8010f94c151ff'
+        '7604ff74240cff150000000083c6084f75e0c20400'
     ), (
         (0x3, 'rel', 'GPAUSE', -4),
         (0xd, 'abs', 'DLGPROC', 0),
         (0x1d, 'abs', 'GETMODULE', 0),
         (0x25, 'rel', 'GRESUME', -4),
-        (0x2d, 'abs', 'CHECKS', 0),
-        (0x4a, 'abs', 'CHECKDLGBTN', 0),
+        (0x2b, 'abs', 'CHECKS', 0),
+        (0x48, 'abs', 'CHECKDLGBTN', 0),
     ), {
         'f11wrap': 0x0,
-        'f11checks': 0x2c,
+        'f11checks': 0x2a,
     }),
     'VOXT': (bytes.fromhex(
         '89d381f9419c00000f84bb00000083f95474766a015f8d47525053ff15000000'
@@ -2114,47 +2115,11 @@ def site(name):
     return At((name, 0))
 
 
-# The blobs as the retail build writes them. The names below are what the
-# site table and the apply code use.
-TIMER_CODE = link('TIMER', RETAIL)
-PADX_CODE = link('PADX', RETAIL)
+# Two blobs the checks read as bytes: the version stamp's tail, and the
+# lever routine's length for --selfcheck. Everything else is linked for
+# the build being patched, through the site table.
 LEVERS_CODE = link('LEVERS', RETAIL)
-TWIN_CODE = link('TWIN', RETAIL)
-INTROWAIT_CODE = link('INTROWAIT', RETAIL)
-KBPAGE_CODE = link('KBPAGE', RETAIL)
-BINDLIST_CODE = link('BINDLIST', RETAIL)
-BINDMAP_CODE = link('BINDMAP', RETAIL)
-BINDBLOCK_CODE = link('BINDBLOCK', RETAIL)
-INISAVE_CODE = link('INISAVE', RETAIL)
-INILOAD_CODE = link('INILOAD', RETAIL)
-BLOCKCUR_CODE = link('BLOCKCUR', RETAIL)
-INIPARSE_CODE = link('INIPARSE', RETAIL)
-PAGESEC_CODE = link('PAGESEC', RETAIL)
-PAGESEL_CODE = link('PAGESEL', RETAIL)
-COMMITDEV_CODE = link('COMMITDEV', RETAIL)
-INIALL_CODE = link('INIALL', RETAIL)
-DEVORDER_CODE = link('DEVORDER', RETAIL)
-F11PAUSE_CODE = link('F11PAUSE', RETAIL)
-MOVIE_CODE = link('MOVIE', RETAIL)
-CREDITS_CODE = link('CREDITS', RETAIL)
-NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
-CAMSKIP_CODE = link('CAMSKIP', RETAIL)
-OVERLAY_CODE = link('OVERLAY', RETAIL)
 TITLEVER_CODE = link('TITLEVER', RETAIL)
-ACTIVATE_CODE = link('ACTIVATE', RETAIL)
-# voxt.asm rides in the appended .voxt section and reaches everything through
-# absolute addresses, so it links without a cave.
-VOXT_CODE = link('VOXT', RETAIL)
-PAD_COND = link('PAD_COND', RETAIL)
-PAD_BINDS = link('PAD_BINDS', RETAIL)
-PAD_NAMES = link('PAD_NAMES', RETAIL)
-PAD_PROFILES = link('PAD_PROFILES', RETAIL)
-PAD_DEVLIST = link('PAD_DEVLIST', RETAIL)
-PAD_SIMPLEDEF = link('PAD_SIMPLEDEF', RETAIL)
-PAD_INIKEYS = link('PAD_INIKEYS', RETAIL)
-EXTRAS_DATA = link('EXTRAS_DATA', RETAIL)
-
-DEBUGBOX_CODE = link('DEBUGBOX', RETAIL)
 
 # DIALOGS BLOB BEGIN
 EXTRAS_TPL = bytes.fromhex(
@@ -3048,8 +3013,8 @@ FEATURES = [
 def features(build):
     """The site table as this build needs it: each site at its own offset,
     expecting its own original bytes, writing what its symbols resolve to
-    here. A site at a cave the build does not have is left out - the patch
-    that owns it puts the blob somewhere else at apply time."""
+    here. A site mapped to None is code the build does not have, and a
+    site the build alone has (In) is included for it only."""
     out = []
     for key, label, tip, sites in FEATURES:
         rows = []
@@ -5014,9 +4979,8 @@ def install_ddraw_in_background(gamedir, progress, done):
 # string table and the scratch space.
 
 # The F11 dialog template and the dialog's long code paths (asm/voxt.asm)
-# ride in their own appended section: the dead menu resource the template
-# used to squeeze into caps it at 460 bytes, and the dialog procedure's
-# cave is nearly full. f11pause.asm pushes MAGIC_TEMPLATE where the
+# ride in their own appended section, which exists only once the patch is
+# applied. f11pause.asm pushes MAGIC_TEMPLATE where the
 # template's address belongs, and debugbox.asm calls through ANNEXREL, a
 # rel32 to the code at the template's tail; apply_extras_template() below
 # fills both once the section exists, the way apply_cdaudio() fills

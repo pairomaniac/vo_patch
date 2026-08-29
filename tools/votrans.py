@@ -34,7 +34,7 @@ def import_map():
         out = {}
         i = ro
         while True:
-            ilt, ts, fc, name, iatp = struct.unpack_from('<5I', d, i)
+            ilt, _ts, _fc, name, iatp = struct.unpack_from('<5I', d, i)
             if not name:
                 break
             dll = d[exe.off(BASE + name):].split(b'\0')[0].decode().lower()

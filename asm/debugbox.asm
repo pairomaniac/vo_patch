@@ -1,19 +1,11 @@
 bits 32
 ; The F11 Extras dialog: a window-procedure hook, the dialog procedure, and
-; the Credits case, out of line.
-;
-; Two addresses in here are named from outside this file and cannot move:
-;
-;   0x5f4e7c  the window procedure pointer at 0x1c4d7e is repointed here
-;   0x5f4ed8  the hook passes the dialog procedure to DialogBoxIndirectParamA
-;
-; `times` pins the second one, so nasm fails rather than shifting it.
+; the Credits case, out of line. The window procedure pointer in the game
+; is repointed at `hook`, by label.
 ;
 ; The strings, the tables and the dialog template are data, built by
 ; asm/dialogs.py, which also emits the addresses and control ids below.
 
-BOXLEN      equ 388             ; a bound on the blob: the dialog procedure
-                                ; has outgrown its room before, unnoticed
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
 ; TEMPLATE, the dialog itself; and CMD_QUIT, IDCANCEL and ID_DZ, three of
@@ -95,7 +87,6 @@ hook:
     pop     ebp
     jmp     ORIGWNDPROC
 
-    times   0x5c - ($ - $$) db 0
 
 ; ----------------------------------------------------------------
 ; Dialog procedure. Control ids are the game's own command ids, so a click
@@ -196,6 +187,3 @@ credits:
 .fwd:
     jmp     dlgproc.post
 
-%if ($ - $$) > BOXLEN
-%error the dialog procedure has grown past BOXLEN
-%endif

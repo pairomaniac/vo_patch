@@ -80,9 +80,9 @@ Each `BLOBS` entry is `(code, fixups, labels)`. The code has its address
 slots empty; a fixup says which slot holds which symbol and how (absolute,
 or relative to the end of the slot); the labels are the offsets of the
 source's labels, for another blob or the site table to name. `vo_patch.py`
-links each one for the build being patched - `PADX_CODE = link('PADX',
-RETAIL)` is the retail copy the names refer to, and `features(build)` links
-the same blob for another build - and that is what the site table writes.
+links each one for the build being patched - `link('PADX', build)`, which
+`blob('PADX')` in the site table resolves to as the patch is applied - and
+that is what gets written.
 
 The three `.py` modules also emit an `.inc` file each, which the assembly
 includes. An address both sides need - the condition table, the Extras
@@ -333,9 +333,7 @@ Credits is the exception to the rule. There is no menu item behind it, so the
 procedure acts on it rather than posting it: `0x1f` into the sub-state at
 `0x1ae3690`, which sets the ending up and steps to the credits, `0x20`, on
 its own. Only while `0x1ae3594` reads 4, since that state number means
-something else in the title and attract tables. It is written with a
-`push`/`pop` pair rather than a `mov`, from when the blob had exactly two
-bytes to spare; see `BOXLEN`.
+something else in the title and attract tables.
 
 The strings, the two tables it reads and the dialog template are data, packed
 by `dialogs.py`.

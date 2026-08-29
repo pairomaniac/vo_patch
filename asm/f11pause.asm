@@ -36,7 +36,6 @@ f11wrap:
 
 ; CHECKS is one (flag, id) pair per check box; each box is ticked from the
 ; game's own flag, so what the dialog shows is what is on.
-    times   0x2c - ($ - $$) db 0
 f11checks:
     mov     esi, CHECKS
     push    3
