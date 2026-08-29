@@ -212,9 +212,8 @@ def main(path):
     digest = hashlib.md5(original).hexdigest()
     build = vp.BUILDS[digest]
     table = vp.by_key(build)
-    print('original: %d bytes, MD5 %s%s'
-          % (len(original), digest,
-             '' if build is vp.RETAIL else ' (Japanese rerelease)'))
+    print('original: %d bytes, MD5 %s (%s)' % (len(original), digest,
+                                              build.name))
 
     # Every 'original' column against the untouched file. Sites that overlap
     # an earlier site in the same patch are skipped: they expect what that

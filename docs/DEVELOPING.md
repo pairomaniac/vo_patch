@@ -156,12 +156,12 @@ Edit `LINES` at the top to change what it says. The result goes between the
 
 ## Placing a blob
 
-This is the retail build's concern. The Japanese rerelease keeps every
-blob in an appended section, the annex, because the runs of zeros in its
-`.rdata` turned out to be the NULL tails of handler tables the game calls
-through (docs/NOTES.md); a build added later should do the same unless it
-has a reason not to. For retail, nothing downstream checks that a cave is
-really free, so this is done by hand, once, per blob:
+This is the retail build's concern: the other builds keep every blob in
+an appended section, the annex, because the runs of zeros in their
+`.rdata` are the NULL tails of handler tables the game calls through
+(docs/NOTES.md), and a build added later should do the same. For retail,
+nothing downstream checks that a cave is really free, so this is done by
+hand, once, per blob:
 
 1. `python3 tools/freespace.py DIR <length>` and take a clean candidate.
    The address has to be a multiple of four - `build.py` refuses otherwise,
@@ -205,10 +205,14 @@ committed:
 6. `python3 asm/build.py --check`, then `selftest.py` on the new file and
    pin its all-patches MD5 in `EXPECTED_ALL`. Then someone has to play it.
 
-A site the matcher places in the wrong function is the failure to expect:
-ten bytes of `cmp [ebp-8], 0x1a; jge` occur in more than one place, and
-only the disassembly says which copy has the recompiled frame.
-`tools/whereis.py` turns a crash address into a blob and label.
+Two things to check by eye before anyone runs it. A site the matcher has
+placed by its bytes may be in the wrong function - ten bytes of
+`cmp [ebp-8], 0x1a; jge` occur in more than one place, and only the
+disassembly says which copy has the recompiled frame. And anything the
+apply code writes outside the site table - the annex code in `.voxt` -
+must be linked for the build being patched, not taken from a module-level
+constant, which is retail's. `tools/whereis.py` turns a crash address into
+a blob and label.
 
 ## Netplay
 

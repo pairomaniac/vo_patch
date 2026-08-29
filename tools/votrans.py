@@ -20,7 +20,7 @@ from vomap import Exe, md, BASE                              # noqa: E402
 _args = [a for a in sys.argv[1:] if a.endswith('.pkl')]
 M = pickle.load(open(_args[0] if _args else 'vomap.pkl', 'rb'))
 A, B, pairs, votes, insmap, quality = (M[k] for k in ('A', 'B', 'pairs', 'votes', 'insmap', 'quality'))
-exeA, exeB = Exe(M['retail']), Exe(M['jp'])
+exeA, exeB = Exe(M['retail']), Exe(M['other'])
 fstart = [f['s'] for f in A]
 fmap = {A[ia]['s']: B[ib]['s'] for ia, ib in pairs}
 inv_pairs = dict(pairs)

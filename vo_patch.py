@@ -5462,6 +5462,7 @@ class Patcher:
         digest = hashlib.md5(data).hexdigest()
         if digest in BUILDS:
             self.build = BUILDS[digest]
+            self.compare = None
             return READY_TAG, True
 
         known = OTHER_BUILDS.get(digest)
@@ -5954,11 +5955,11 @@ INSTALL_NO_AUDIO = ('This image has no audio tracks - the soundtrack is not '
 # disc. Said rather than refused: it is their disc and their call.
 INSTALL_ODD_AUDIO = ('This image has %d audio tracks; Virtual-On has %d. '
                      'Ripping it will not give the right music.')
-# What a good disc looks like, in one line: enough to tell a full rip from a
-# data-only one before anything is written.
-INSTALL_FOUND = 'Retail disc. %d files, %d MB.'
+# What a good disc looks like, in one line: which build, and enough to tell
+# a full rip from a data-only one before anything is written.
+INSTALL_FOUND = '%s. %d files, %d MB.'
 # The copy is the same work whichever build is on the disc, so it runs; only
-# the patches are English-retail-only, which the card below spells out.
+# the patches need a build with tables, which the card below spells out.
 INSTALL_FOUND_OTHER = '%s build. %d files, %d MB - installs, does not patch.'
 
 ESSENTIAL_HINT = ('Always applied. Each fixes something that is broken on a '
@@ -6016,7 +6017,7 @@ MUSIC_HINT = ('Rips the soundtrack to music\\ beside the game, where the '
 DONE = 'Done - %d patches written. Restore original puts v_on.exe.bak back.'
 FAILED = 'Nothing was written and the game is untouched - see the log below.'
 # DONE_NOSYNC is gone: Apply can no longer leave a sync patch out.
-READY = 'READY - %d patches selected. Press Apply patches.'
+READY = 'READY - %s. %d patches selected. Press Apply patches.'
 # Under 52 characters: the status bar cuts longer text, and the log below
 # names which patch.
 
@@ -7035,7 +7036,7 @@ def run_tk():
                                    sticky='ew', pady=(0, 6))
             if build['supported']:
                 self.disc_ok = True
-                self._disc_note(INSTALL_FOUND % (info['count'],
+                self._disc_note(INSTALL_FOUND % (build['name'], info['count'],
                                                  info['bytes'] >> 20),
                                 PALETTE['ok'])
                 # The sector layout is worth having in a bug report and
@@ -7717,7 +7718,9 @@ def run_tk():
                 return
             level = (self.core.compare or {}).get('level', 'bad')
             if note == READY_TAG:
-                note = READY % self._selected()
+                note = READY % (self.core.build.name, self._selected())
+                self._log('file: %s, the %s build'
+                          % (os.path.basename(path), self.core.build.name))
             self._set_status(note, ok, 'amber' if level == 'warn' else 'bad')
             self._compare(self.core.compare)
             state = default_state()
@@ -7746,7 +7749,8 @@ def run_tk():
         def _retally(self, *_args):
             """Keep the count honest as boxes are ticked."""
             if self.core.exe_path and not self.core.compare:
-                self._set_status(READY % self._selected(), True)
+                self._set_status(READY % (self.core.build.name,
+                                          self._selected()), True)
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}

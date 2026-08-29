@@ -353,7 +353,8 @@ def main():
                      'v_on_a.ini': b'[Option]\n', 'v_on_b.ini': b'[Option]\n'},
         }), 'MODE1/2352')
         info = vp.probe_disc(oem)
-        check('oem build refused', not info['build']['supported'])
+        check('a build without tables is refused',
+              not info['build']['supported'])
         check('oem copies no language directory', not info['wants_language'])
         check('and offers no manual to choose', info['languages'] == [],
               info['languages'])
@@ -380,7 +381,8 @@ def main():
         vp.OTHER_BUILDS[hashlib.md5(jp_exe).hexdigest()] = (
             len(jp_exe), 'Japanese rerelease', 'test')
         info = vp.probe_disc(jp)
-        check('jp build not patchable', not info['build']['supported'])
+        check('a build listed in OTHER_BUILDS is refused',
+              not info['build']['supported'])
         check('jp build named', info['build']['name'] == 'Japanese rerelease',
               info['build']['name'])
         check('jp copies no language directory', not info['wants_language'])
@@ -394,8 +396,8 @@ def main():
               sorted(os.listdir(dest)))
 
         # --install says which build it is and copies it anyway. The copy is
-        # the same work whichever build is on the disc; only the patches are
-        # English-retail-only.
+        # the same work whichever build is on the disc; only the patches need
+        # one with tables.
         cli_dest = os.path.join(tmp, 'game-jp-cli')
         out = io.StringIO()
         with contextlib.redirect_stdout(out):

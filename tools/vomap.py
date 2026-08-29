@@ -1,6 +1,6 @@
-"""Map retail v_on.exe addresses onto the Japanese rerelease.
+"""Map retail v_on.exe addresses onto another build of the game.
 
-    python3 tools/vomap.py RETAIL.exe JP.exe [MAP.pkl]
+    python3 tools/vomap.py RETAIL.exe OTHER.exe [MAP.pkl]
 
 Splits both .text sections into functions (call targets, reloc-listed code
 pointers, prologues), signs each by its opcode stream with addresses masked,
@@ -251,8 +251,8 @@ def match(A, B):
 
 def derive(A, B, pairs, exeA, exeB):
     """From matched functions, pair up refs -> address votes."""
-    votes = collections.defaultdict(collections.Counter)   # retail va -> Counter(jp va)
-    insmap = {}                                             # retail insn va -> jp insn va
+    votes = collections.defaultdict(collections.Counter)   # retail va -> Counter(other va)
+    insmap = {}                                             # retail insn va -> other insn va
     quality = {}
     for ia, ib in pairs:
         fa, fb = A[ia], B[ib]
@@ -296,7 +296,7 @@ if __name__ == '__main__':
     out = sys.argv[3] if len(sys.argv) > 3 else 'vomap.pkl'
     exeA, A = analyse(sys.argv[1])
     exeB, B = analyse(sys.argv[2])
-    print('functions: retail %d, jp %d' % (len(A), len(B)))
+    print('functions: retail %d, other %d' % (len(A), len(B)))
     pairs = match(A, B)
     print('matched %d' % len(pairs))
     exact = sum(1 for ia, ib in pairs if A[ia]['loose'] == B[ib]['loose'])
@@ -304,7 +304,7 @@ if __name__ == '__main__':
     votes, insmap, quality = derive(A, B, pairs, exeA, exeB)
     pickle.dump(dict(A=A, B=B, pairs=pairs, votes=dict(votes), insmap=insmap,
                      quality=quality, retail=os.path.abspath(sys.argv[1]),
-                     jp=os.path.abspath(sys.argv[2])),
+                     other=os.path.abspath(sys.argv[2])),
                 open(out, 'wb'))
     # consistency of data votes
     amb = sum(1 for k, c in votes.items() if len(c) > 1 and c.most_common(2)[1][1] > 1)

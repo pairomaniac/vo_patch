@@ -62,89 +62,73 @@ original has not been, so nothing here is known about its `ssp.ini` - the
 rule may well cover it, since none of it depends on the build or the
 language, but that is a guess until a copy is read.
 
-### The Japanese rerelease
+### The other builds
 
-Its `v_on.exe` is the same source through the same toolchain four months
-later - link 3.0 in April 1997 against 3.10 in October - with the same
-section order and a `.reloc` in both. It is a recompile, not a relayout:
-data moves by a different delta per region, functions grew or lost locals,
-and a few globals are in a different order. Nothing is a constant shift,
-so no address may be derived from a neighbour's; every one goes through
-the map.
+Three builds of `v_on.exe` patch: English retail, the USA OEM pressing and
+the Japanese rerelease. They are compiles of the same source through the
+same toolchain - the OEM a month before retail, the rerelease four months
+after, link 3.0 against 3.10 - with the same section order and a `.reloc`
+in each. A recompile is not a relayout: data moves by a different delta
+per region, functions grow or lose locals, a few globals change order.
+Nothing is a constant shift, so no address is derived from a neighbour's;
+each build carries its own.
 
-The patcher carries it as a second `Build` beside `RETAIL`: sections,
-symbols, `JAPAN.sites` - the rerelease's offset and original bytes for
-every site the table names by retail offset - and an annex. The blobs are
-the same bytes with their addresses linked from that build's tables, and
-the site table's hooks and blob sites are expressions the build fills in.
-Three tools made the tables, all needing the two executables beside them:
+A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
+what every symbol the blobs name resolves to there, its title artwork,
+and for a build other than retail a site map - that build's offset and
+original bytes for every site the table names by retail offset, `None`
+where the build has no such code - and an annex. The blobs are one set of
+bytes for all builds, linked from the build's tables when the patcher
+loads; the site table's hooks and blob sites are expressions the build
+fills in, and a site one build has and retail has not is written as
+`In(md5, offset)`. The tables come from `tools/vomap.py`, which matches
+the two executables function by function with addresses masked and votes
+on where every address went, and `tools/votrans.py`, which runs the site
+table, the asm symbols and the symbol table through the map; what the map
+cannot settle - a function split at the wrong place, a site in a switch
+table, ten bytes that occur twice - is in `HAND` there, per build, with a
+reason each. `docs/DEVELOPING.md` has the recipe.
 
-- `tools/vomap.py` matches functions by their instruction stream with
-  addresses masked (7291 of 7934 match, 6329 identically) and votes on
-  where every absolute address went.
-- `tools/votrans.py` runs the site table, the asm symbols and the symbol
-  table through it; eleven sites and six labels were settled by hand where
-  the matcher had split a function at the wrong place, the site sits in a
-  switch table, or its bytes occur twice. Those are `HAND` in it, with the
-  reason.
-- `tools/buildsites.py` writes `JAPAN.sites`.
-
-What differs from retail in the way it is patched:
+Two things are the same in every build but retail:
 
 - Every blob lives in an appended section, `.vojp`, written empty before
-  any patch and filled through the site table like a cave. The `.rdata`
-  here has 50 bytes of `.text` padding to offer instead of 450, and every
-  run of zeros long enough for a blob turned out to be the NULL tail of a
-  handler table: a code pointer just before it, and the game calling
-  through the slots. The first attempt put the name-entry stub in one and
-  the crash was its first four bytes as an address. The section's place is
-  fixed by the file's headers, so it links at import; `.voxt` and `.vocd`
-  land after it. Only the F7 device list and the levers tail, which the
-  game reaches itself, stay in place.
-- Frame layouts differ in the patched functions: the bind page's loop
-  counter is `[ebp-0x18]` for retail's `[ebp-8]`, the F7 combo selection
-  `[ebp-0x10]`, the OK handler's line buffer `[ebp-0x18c]`, the movie
-  placer's X and Y `[ebp-0x14]` and `[ebp-0x18]`. Those are the
-  frame-offset symbols.
-- The XInput scratch sits in the page slack past `.data` as it does in
-  retail, at `0x36577a0`; the ending screens' two spare bytes at
-  `0x6bf0d0`. Neither is proven free the way a cave is.
-- The netplay DLL tells the builds apart by the PE timestamp
-  (`0x345107FA`) and fingerprints the rerelease's own two sites.
-- The title artwork is `jscrgame.bin`, at the same 4 MB; the tile layout
-  is assumed to match and no MD5 is pinned for it, so the banner patch
-  does not check it.
+  any patch and filled through the site table like a cave. Retail's blobs
+  sit in runs of zeros in its `.rdata` and `.text` padding; the other
+  builds have 50 bytes of `.text` padding, not 450, and every run of zeros
+  in their `.rdata` long enough for a blob is the NULL tail of a handler
+  table - a code pointer just before it, and the game calling through the
+  slots. The annex's place is fixed by the file's headers, so it links at
+  import; `.voxt` and `.vocd` land after it. Only the F7 device list and
+  the levers tail, which the game reaches itself, stay in place.
+- The XInput scratch sits in the page slack past `.data`, and the ending
+  screens' two spare bytes in a run of `.data` nothing points at, as they
+  do in retail. Neither is proven free the way a cave is.
 
-Two lessons from getting it to run. Ten bytes of `cmp [ebp-8], 0x1a; jge`
-occur in more than one function, and a site found by searching for its
-bytes went into the wrong one; only the disassembly says which copy has
-the recompiled frame. And anything the apply code writes by hand rather
-than through the site table - the `.voxt` annex code was one - has to be
-linked for the build being patched, not taken from the module-level
-constant, which is retail's.
+The netplay DLL tells the builds apart by the PE timestamp and
+fingerprints each one's own two sites (`fp_builds` in `net/dpctrl.c`).
+The ending roll files are byte-identical across builds, so the harvested
+glyphs stay valid.
 
-The ending roll files are byte-identical to retail, so the harvested
-glyphs stay valid, and `dpctrl.dll` is imported with the same exports.
+**The USA OEM pressing** (March 1997, `0x3317246A`) is the closest to
+retail: 7852 of 7934 functions match, 7593 identically, every frame is
+laid out the same, and the map placed all but four sites. Its processor
+check is a different one. Retail tests for `GenuineIntel`; the OEM has
+`cpuid32.dll` classify the CPU and accepts two classes, neither of which a
+modern CPU is, so its version of the processor check patch makes the
+accept branch unconditional and sets the MMX flag the game would set for
+the class that has it. Its title artwork is `escrgame.bin` with no
+reference MD5 pinned yet.
+
+**The Japanese rerelease** (October 1997, `0x345107FA`): 7291 of 7934
+functions match, 6329 identically. Frame layouts differ in the patched
+functions - the bind page's loop counter is `[ebp-0x18]` for retail's
+`[ebp-8]`, the F7 combo selection `[ebp-0x10]`, the OK handler's line
+buffer `[ebp-0x18c]`, the movie placer's X and Y `[ebp-0x14]` and
+`[ebp-0x18]` - which is what the frame-offset symbols are for. Its title
+artwork is `jscrgame.bin`, at the same 4 MB; the tile layout is assumed to
+match and no MD5 is pinned, so the banner patch does not check it.
 Dropping the English `v_on.exe` into a Japanese install does not work: it
 looks for `escrgame.bin`.
-
-Sector layout is found by looking rather than by trusting `TRACK 01` - the
-four candidate offsets are tried at LBA 16 and the one holding `CD001` wins,
-so a cue sheet that names the wrong mode still reads.
-
-### The USA OEM pressing
-
-The same toolchain a month before retail, and the closest of the builds
-to it: 7852 of 7934 functions match, 7593 identically, every frame is
-laid out the same, and the map placed all but four sites. It is carried
-like the rerelease - a `Build` with an annex - and differs in one thing:
-its processor check. Retail's `GenuineIntel` test, which the processor
-check patch removes, is not in it; instead `cpuid32.dll`, which it ships,
-classifies the CPU and only two classes pass - a modern one is neither,
-and under Wine the game refuses to start. So the patch has two sites of
-its own there, written as `In(OEM_MD5, ...)` in the table: the accept
-branch made unconditional, and the MMX flag set as it would be for the
-class that has it. Retail's site is `None` in the OEM's map.
 
 ### Why no v_on.ini
 
@@ -239,10 +223,10 @@ keeps working underneath. A count that is not exactly 37 aborts the patch.
 
 ### Processor check
 
-`ProcessorCheck=Off` does not switch the check off, it
-stops the game switching it *on*. One `or` sets the flag the MMX, Pentium and
-vendor branches all read; nopping it leaves the flag clear whatever the ini
-says.
+In retail, `ProcessorCheck=Off` does not switch the check off, it stops
+the game switching it *on*. One `or` sets the flag the MMX, Pentium and
+vendor branches all read; nopping it leaves the flag clear whatever the
+ini says. The OEM's check is a different one, above.
 
 ### Frame rate
 
