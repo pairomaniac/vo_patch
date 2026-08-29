@@ -2626,8 +2626,8 @@ FEATURES = [
      'Disc check\tNot done. The drive is still read for music, so a\n'
      '\tmounted image works.\n'
      'Music\tRead from music\\trackNN.wav beside the game. Rip\n'
-     '\tthem under DISC; with none there, the game reads the\n'
-     '\tdrive.', [
+     '\tthem under INSTALL; with none there, the game reads\n'
+     '\tthe drive.', [
          (0x001c76d4, '0f840a000000', '909090909090')]),
 
     ('nocpucheck', 'Skip processor check',
@@ -2640,11 +2640,9 @@ FEATURES = [
          (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
          (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
     ('activate', 'Fix crash on ALT+TAB',
-     'Switching away during the intro movie stops it, and the game ends it\n'
-     'as stopped - without rebuilding the screen it had handed to the\n'
-     'player, and if it tried while still in the background the rebuild\n'
-     'came back half done. The exit rebuilds it now, and a rebuild that\n'
-     'fails pauses the game until one succeeds.', [
+     'Switching away during the intro movie and back crashed the game: the\n'
+     'screen it had handed to the movie was never rebuilt. It is rebuilt\n'
+     'now, and the game waits until that has worked before carrying on.', [
          (site('ACTIVATE'), zeros('ACTIVATE'), blob('ACTIVATE')),
          # the movie's exit: if "stopped by deactivation", clear that and
          # return without recreating the surfaces. jne -> jmp: always try.
@@ -2761,15 +2759,19 @@ FEATURES = [
      'Simple and the gamepad share one bind page, but each sees only its\n'
      'own inputs, and both bind sets are saved.\n'
      '\n'
-     'A accepts, Select is the camera, Start pauses, and the D-pad works\n'
-     'the menus. A or Select skips the win and lose screens between\n'
-     'rounds. On-screen prompts name the button rather than a key.\n'
+     'Pad 1 drives 1P and pad 2 drives 2P. A accepts, Select is the\n'
+     'camera, Start pauses, and the D-pad works the menus. A or Select\n'
+     'skips the win and lose screens between rounds; A skips the intro\n'
+     'movie. On-screen prompts name the button rather than a key.\n'
      '\n'
      'Stick deadzone\tEach player has one, 40% to start, set in the F11\n'
      '\tExtras dialog.\n'
+     'Soft reset\tLB + RB + LT + RT + Start held together returns to\n'
+     '\tthe title screen, from either pad. Not during an\n'
+     '\tinternet match.\n'
      '\n'
-     'v_on.ini and escrgame.bin are moved aside and rewritten. Restore\n'
-     'original puts both back.', [
+     'v_on.ini and the title artwork are moved aside and rewritten.\n'
+     'Restore original puts both back.', [
          # The bind page serves the gamepad and Keyboard (Simple) both, so
          # its list length and address go through asm/bindlist.asm and
          # asm/bindmap.asm, which pick them by device. The letter and
