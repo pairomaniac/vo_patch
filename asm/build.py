@@ -274,7 +274,7 @@ SOURCES = [
     ('VOXT', 'voxt.asm'), ('MOVIE', 'movie.asm'),
     ('CREDITS', 'credits.asm'), ('NAMEENTRY', 'nameentry.asm'),
     ('CAMSKIP', 'camskip.asm'), ('OVERLAY', 'overlay.asm'),
-    ('TITLEVER', 'titlever.asm'), ('LOCKGUARD', 'lockguard.asm'),
+    ('TITLEVER', 'titlever.asm'),
 ]
 
 

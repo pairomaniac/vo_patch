@@ -20,7 +20,6 @@ replacement rather than a patch, see [net/](../net/).
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
-| **Fix crash on ALT+TAB** | `0x1c7500` | the frame's back buffer lock jumps to a guard in the annex: a null surface reports `DDERR_SURFACELOST` |
 | **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, thirteen `.rdata` caves, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, `escrgame.bin` `0x21c000` | routine, twin-stick tables and lever cleanup in runs of zeros; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; two prompts renamed and the title banner redrawn |
 | **Music from files** | new `.vocd` section, entry point, 37 call sites | every call to `mciSendCommandA` pointed at a routine that answers from WAV files |
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
@@ -229,19 +228,18 @@ the game switching it *on*. One `or` sets the flag the MMX, Pentium and
 vendor branches all read; nopping it leaves the flag clear whatever the
 ini says. The OEM's check is a different one, above.
 
-### Crash on ALT+TAB
+### ALT+TAB without cnc-ddraw
 
-The game releases its DirectDraw surfaces when it loses the window and
-recreates them when it gets it back, and the frame routine at `0x5c6441`
-can run in between. It locks the back buffer through the wrapper at
-`0x5c80df`, which reads the vtable of whatever `0x1ae5f5c` holds, then
-flips the primary at `0x5c6506` the same way through `0x1ae5f40`; with the
-surfaces gone both are null dereferences, and the wrapper's failure return
-is not checked, so guarding one is not enough. Both are guarded: a null
-surface reports `DDERR_SURFACELOST` with the pushed arguments dropped, and
-the routine takes the failure path it already has for each. Seen during
-the intro movie on Wine's own DirectDraw, on every build; cnc-ddraw
-recreates the surfaces before the frame runs.
+On Wine's own DirectDraw, switching away during the intro movie and back
+crashes every build: the game releases DirectDraw and DirectSound when it
+loses the window and recreates them when it gets it back, and frames run
+in between - the back buffer lock at `0x5c8103`, the primary flip at
+`0x5c650b`, `CreateSoundBuffer` through a null `IDirectSound` at
+`0x58a244`, each a null vtable read, and no reason to think the list ends
+there. It is not patched: guarding each dereference as it turns up is not
+a fix, and cnc-ddraw, which the README calls for on Linux anyway, has the
+surfaces back before the frame runs. Retail under cnc-ddraw, and the other
+builds once their prefix loads it, do not see it.
 
 ### Frame rate
 
