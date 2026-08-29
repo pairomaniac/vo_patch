@@ -223,7 +223,6 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'GRESUME': 0x005c680b,         # and their resume
     'PENDING': 0x0365cb9c,         # a recreate owed
     'RETADDR': 0x0365cba0,         # where one returns to
-    'SAVEDSIZE': 0x0365cba4,       # the window's client size at start-up
     'RECREATE': 0x005c56a2,        # release and create the surfaces
     'IDLE': 0x005c63aa,            # the loop's pass while inactive
     'INACTIVE': 0x01add128,        # the flag it idles on
@@ -232,7 +231,6 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'FSMODE': 0x006bf560,          # and 320x240 among them
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
-    'DDRAW': 0x01ae5f64,           # the IDirectDraw
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
     'ORIG': 0x005c80df,            # the call this one is made in place of
     'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
@@ -396,7 +394,6 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'GRESUME': 0x005c10da,         # and their resume
     'PENDING': 0x036577fc,
     'RETADDR': 0x03657800,
-    'SAVEDSIZE': 0x03657804,
     'RECREATE': 0x005bff42,
     'IDLE': 0x005c0c79,
     'INACTIVE': 0x01ad7db0,
@@ -405,7 +402,6 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'FSMODE': 0x006bb278,
     'HAVESURF': 0x006bb288,
     'ISICONIC': 0x036585a4,
-    'DDRAW': 0x01ae0c08,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
     'ORIG': 0x005c29ae,            # the call this one is made in place of
     'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
@@ -563,7 +559,6 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'GRESUME': 0x005c6324,   # func
     'PENDING': 0x0365cb1c,
     'RETADDR': 0x0365cb20,
-    'SAVEDSIZE': 0x0365cb24,
     'RECREATE': 0x005c5172,
     'IDLE': 0x005c5ec3,
     'INACTIVE': 0x01add0c0,
@@ -572,7 +567,6 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'FSMODE': 0x006bf4f8,
     'HAVESURF': 0x006bf508,
     'ISICONIC': 0x0365d5c8,
-    'DDRAW': 0x01ae5ef4,
     'ORIGWNDPROC': 0x005c6370,   # func
     'ORIG': 0x005c7bf8,   # func
     'DRAW': 0x005c9454,   # func
@@ -1784,57 +1778,39 @@ BLOBS = {
         'text': 0x55,
     }),
     'ACTIVATE': (bytes.fromhex(
-        '58a3000000006830000000a10000000085c0740e6a11ff3500000000508b00ff'
-        '50505589e581ece0000000e90500000085c07524c7050000000001000000c705'
-        '0000000001000000c7050000000001000000ff2500000000833d000000000075'
-        '30833d0000000000754583ec1054ff3500000000ff15000000008b442408a300'
-        '0000008b44240ca30400000083c410eb1e6a01ff3504000000ff35000000006a'
-        '006a00ff3500000000ff1500000000b801000000ff2500000000f60500000000'
-        '047414833d0000000000740bb840010000baf0000000c3b880020000bae00100'
-        '00c3837c240400751e833d00000000007515c7050000000001000000c7050000'
-        '000001000000c35589e55356e901000000e8fcffffff833d00000000007434ff'
-        '3500000000ff150000000085c07524e886ffffff6a105250e8fcffffff83c40c'
+        '58a30000000068190000005589e581ece0000000e90500000085c0751ec70500'
+        '00000001000000c7050000000001000000c7050000000001000000ff25000000'
+        '00837c240400751e833d00000000007515c7050000000001000000c705000000'
+        '0001000000c35589e55356e901000000e8fcffffff833d00000000007455ff35'
+        '00000000ff150000000085c075456a10f60500000000047415833d0000000000'
+        '740c68f00000006840010000eb0a68e00100006880020000e8fcffffff83c40c'
         '85c0740fc7050000000000000000e8fcffffffb801000000c3'
     ), (
         (0x2, 'abs', 'RETADDR', 0),
-        (0x7, 'abs', '.', 48),
-        (0xc, 'abs', 'DDRAW', 0),
-        (0x18, 'abs', 'HWND', 0),
-        (0x2c, 'rel', 'RECREATE', 5),
-        (0x36, 'abs', 'PENDING', 0),
-        (0x40, 'abs', 'INACTIVE', 0),
-        (0x4a, 'abs', 'HAVESURF', 0),
-        (0x54, 'abs', 'RETADDR', 0),
-        (0x5a, 'abs', 'PENDING', 0),
-        (0x63, 'abs', 'SAVEDSIZE', 0),
-        (0x70, 'abs', 'HWND', 0),
-        (0x76, 'abs', 'GETCLIENT', 0),
-        (0x7f, 'abs', 'SAVEDSIZE', 0),
-        (0x88, 'abs', 'SAVEDSIZE', 4),
-        (0x95, 'abs', 'SAVEDSIZE', 4),
-        (0x9b, 'abs', 'SAVEDSIZE', 0),
-        (0xa5, 'abs', 'HWND', 0),
-        (0xab, 'abs', 'MOVEWINDOW', 0),
-        (0xb6, 'abs', 'RETADDR', 0),
-        (0xbc, 'abs', 'FSFLAGS', 0),
-        (0xc5, 'abs', 'FSMODE', 0),
-        (0xeb, 'abs', 'BACK', 0),
-        (0xf4, 'abs', 'PENDING', 0),
-        (0xfe, 'abs', 'INACTIVE', 0),
-        (0x10d, 'rel', 'SETACTIVE', 1),
-        (0x112, 'rel', 'IDLE', -4),
-        (0x118, 'abs', 'PENDING', 0),
-        (0x121, 'abs', 'HWND', 0),
-        (0x127, 'abs', 'ISICONIC', 0),
-        (0x139, 'rel', 'RECREATE', -4),
-        (0x146, 'abs', 'PENDING', 0),
-        (0x14f, 'rel', 'GRESUME', -4),
+        (0x7, 'abs', '.', 25),
+        (0x15, 'rel', 'RECREATE', 5),
+        (0x1f, 'abs', 'PENDING', 0),
+        (0x29, 'abs', 'INACTIVE', 0),
+        (0x33, 'abs', 'HAVESURF', 0),
+        (0x3d, 'abs', 'RETADDR', 0),
+        (0x4a, 'abs', 'BACK', 0),
+        (0x53, 'abs', 'PENDING', 0),
+        (0x5d, 'abs', 'INACTIVE', 0),
+        (0x6c, 'rel', 'SETACTIVE', 1),
+        (0x71, 'rel', 'IDLE', -4),
+        (0x77, 'abs', 'PENDING', 0),
+        (0x80, 'abs', 'HWND', 0),
+        (0x86, 'abs', 'ISICONIC', 0),
+        (0x92, 'abs', 'FSFLAGS', 0),
+        (0x9b, 'abs', 'FSMODE', 0),
+        (0xb9, 'rel', 'RECREATE', -4),
+        (0xc6, 'abs', 'PENDING', 0),
+        (0xcf, 'rel', 'GRESUME', -4),
     ), {
         'recreate': 0x0,
-        'made': 0x30,
-        'dims': 0xba,
-        'resume': 0xe2,
-        'idle': 0x111,
+        'made': 0x19,
+        'resume': 0x41,
+        'idle': 0x70,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
@@ -1976,6 +1952,8 @@ def symbol_va(sym, build, blobs=None):
     if isinstance(sym, tuple):
         inner, label = sym
         return cave_va(inner, build, blobs) + label_at(inner, label, blobs)
+    if BOOTSTRAP and sym not in build.symbols:
+        return 0                        # a symbol a stale blob still names
     value = build.symbols[sym]
     if isinstance(value, tuple):
         return symbol_va(value, build, blobs)

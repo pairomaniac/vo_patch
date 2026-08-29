@@ -26,16 +26,6 @@ extern HAVESURF                 ; the game's own "surfaces exist" flag: the
                                 ; activation handler recreates only if set
 extern ISICONIC                 ; IsIconic
 extern HWND                     ; the game window
-extern MOVEWINDOW               ; MoveWindow
-extern GETCLIENT                ; GetClientRect
-extern SAVEDSIZE                ; scratch: the client size at start-up,
-                                ; width then height, to put back after a
-                                ; recovery - a DirectDraw that let the
-                                ; cooperative level lapse shrinks the window
-extern DDRAW                    ; the IDirectDraw; its cooperative level is
-                                ; set once at start-up, and a DirectDraw
-                                ; that let it lapse on a switch away draws
-                                ; the recreated surfaces into a plain window
 extern PENDING                  ; scratch: 1 while a recreate is owed
 extern RETADDR                  ; scratch: where a recreate returns to
 
@@ -47,15 +37,6 @@ recreate:
     pop     eax
     mov     [RETADDR], eax
     push    made
-    mov     eax, [DDRAW]
-    test    eax, eax
-    jz      .body
-    push    0x11                ; DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN, as the
-    push    dword [HWND]        ; game set it
-    push    eax
-    mov     eax, [eax]
-    call    [eax + 0x50]        ; IDirectDraw::SetCooperativeLevel, stdcall
-.body:
     push    ebp                 ; the nine bytes the jump displaced
     mov     ebp, esp
     sub     esp, 0xe0
@@ -70,47 +51,8 @@ made:
     mov     dword [HAVESURF], 1 ; and let WM_ACTIVATEAPP try again: it
                                 ; recreates only when this is set, and a
                                 ; failed recreate leaves it clear
-    jmp     [RETADDR]
 .ok:
-    cmp     dword [PENDING], 0
-    jne     .restore
-    cmp     dword [SAVEDSIZE], 0
-    jne     .done               ; start-up: remember the window as made
-    sub     esp, 16
-    push    esp
-    push    dword [HWND]
-    call    [GETCLIENT]         ; stdcall; RECT left, top, right, bottom
-    mov     eax, [esp + 8]
-    mov     [SAVEDSIZE], eax
-    mov     eax, [esp + 12]
-    mov     [SAVEDSIZE + 4], eax
-    add     esp, 16
-    jmp     .done
-.restore:                       ; recovered: the window back to that size
-    push    1
-    push    dword [SAVEDSIZE + 4]
-    push    dword [SAVEDSIZE]
-    push    0
-    push    0
-    push    dword [HWND]
-    call    [MOVEWINDOW]        ; stdcall
-.done:
-    mov     eax, 1
     jmp     [RETADDR]
-
-; The mode the handler would pick: eax = width, edx = height.
-dims:
-    test    byte [FSFLAGS], 4
-    jz      .full
-    cmp     dword [FSMODE], 0
-    je      .full
-    mov     eax, 0x140
-    mov     edx, 0xf0
-    ret
-.full:
-    mov     eax, 0x280
-    mov     edx, 0x1e0
-    ret
 
 ; setactive's entry. Letting the loop run with no back buffer is what
 ; crashes, so that one call is refused; pausing always goes through.
@@ -138,10 +80,18 @@ idle:
     call    [ISICONIC]
     test    eax, eax
     jnz     .out
-    call    dims
     push    0x10
-    push    edx
-    push    eax
+    test    byte [FSFLAGS], 4
+    jz      .full
+    cmp     dword [FSMODE], 0
+    je      .full
+    push    0xf0
+    push    0x140
+    jmp     .make
+.full:
+    push    0x1e0
+    push    0x280
+.make:
     call    RECREATE
     add     esp, 12
     test    eax, eax
