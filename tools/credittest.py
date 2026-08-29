@@ -51,9 +51,15 @@ def load_patcher():
     return mod
 
 
-def blocks(exe, vp):
-    """(flag, width, height) per entry, read the way the renderer does."""
-    off = vp.CREDIT_TABLE - 0x63f000 + 0x23de00
+def blocks(exe, vp, build):
+    """(flag, width, height) per entry, read the way the renderer does.
+    The credit site starts one entry into the table; the table's own start
+    is that much before it in every build."""
+    site = next(off for off, _o, _n in vp.by_key(vp.RETAIL)['credits'][2]
+                if not isinstance(off, (vp.At, vp.In))
+                and vp.RETAIL.va(off) > vp.CREDIT_TABLE
+                and vp.RETAIL.va(off) - vp.CREDIT_TABLE < 12 * 200)
+    off = vp.site_in(site, build) - (vp.RETAIL.va(site) - vp.CREDIT_TABLE)
     return [struct.unpack_from('<3I', exe, off + i * 12) for i in range(200)]
 
 
@@ -102,12 +108,25 @@ def got_pixels(cells, sheet, width, vp):
 def main(folder):
     vp = load_patcher()
     tmp = tempfile.mkdtemp(prefix='vo-credit-')
-    names = ('v_on.exe', vp.SCRSTFCG, vp.SCRSTFMP, vp.ESCRGAME)
+    build = None
+    for candidate in ('v_on.exe', 'v_on.exe.bak'):
+        try:
+            with open(os.path.join(folder, candidate), 'rb') as fh:
+                build = vp.BUILDS.get(hashlib.md5(fh.read()).hexdigest())
+        except OSError:
+            continue
+        if build:
+            break
+    if build is None:
+        print('v_on.exe: no build with tables in %s' % folder)
+        return 1
+    art_name, _size, art_md5 = build.art
+    names = ('v_on.exe', vp.SCRSTFCG, vp.SCRSTFMP, art_name)
     try:
-        wanted = {'v_on.exe': vp.ORIGINAL_MD5,
+        wanted = {'v_on.exe': build.md5,
                   vp.SCRSTFCG: vp.SCRSTFCG_MD5,
                   vp.SCRSTFMP: vp.SCRSTFMP_MD5,
-                  vp.ESCRGAME: vp.ESCRGAME_MD5}
+                  art_name: art_md5}
         for name in names:
             src = os.path.join(folder, name)
             data, used = pristine(src, wanted[name])
@@ -122,7 +141,10 @@ def main(folder):
                 fh.write(data)
 
         patcher = vp.Patcher()
-        patcher.exe_path = os.path.join(tmp, 'v_on.exe')
+        note, ok = patcher.load(os.path.join(tmp, 'v_on.exe'))
+        if not ok:
+            print('patcher refused the copy: %s' % note)
+            return 1
         ok, log = patcher.apply(dict.fromkeys(vp.BY_KEY, True))
         for line in log:
             print('  %s' % line)
@@ -134,8 +156,8 @@ def main(folder):
         # Read the files the way the game does: to the byte counts held at
         # 0x5fdac8 and 0x5fdacc, not to their size on disk. A grown file
         # loads truncated unless the patch grows the constant with it.
-        cg_size = struct.unpack_from('<I', exe, 0x1fcec8)[0]
-        mp_size = struct.unpack_from('<I', exe, 0x1fcecc)[0]
+        cg_size = struct.unpack_from('<I', exe, vp.site_in(0x1fcec8, build))[0]
+        mp_size = struct.unpack_from('<I', exe, vp.site_in(0x1fcecc, build))[0]
         sheet = open(os.path.join(tmp, vp.SCRSTFCG), 'rb').read()
         raw = open(os.path.join(tmp, vp.SCRSTFMP), 'rb').read()
         if (cg_size, mp_size) != (len(sheet), len(raw)):
@@ -158,7 +180,7 @@ def main(folder):
                   'builds - rerun tools/vocredits.py and rebuild the site')
             return 1
 
-        table = blocks(exe, vp)
+        table = blocks(exe, vp, build)
         want = wanted_pixels(vp)
 
         # Walk to each new block exactly as the renderer accumulates.

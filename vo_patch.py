@@ -324,6 +324,16 @@ RETAIL = Build('English retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     rdata_exec=('padxinput', 'movie', 'credits'))
 
 
+# Every blob but the two the game reaches itself, in the order a build's
+# annex lays them out. A build other than retail keeps them all there.
+ANNEX_BLOBS = (
+    'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
+    'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
+    'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
+    'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
+    'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
+
 # The Japanese rerelease: the same source through the same toolchain four
 # months on, with every address moved. See docs/NOTES.md, and tools/vomap.py
 # for how the addresses were found.
@@ -482,13 +492,8 @@ JAPAN = Build('Japanese rerelease', JAPAN_MD5, JAPAN_SIZE, sections=(
     'GETCLIENT': 0x036585e4,       # GetClientRect, the hooked one
     'MOVEWINDOW': 0x036585f0,      # MoveWindow
     'MCISEND': 0x0365864c,         # mciSendCommandA
-}, art=('jscrgame.bin', 4194304, None), sites=None, annex=(
-    'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
-    'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
-    'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
-    'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
-    'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA'))
+}, art=('jscrgame.bin', 4194304, '1d892aeb30bb517f57e7d289ed2f4389'),
+   sites=None, annex=ANNEX_BLOBS)
 
 # The USA OEM pressing: the same toolchain a month before retail, and the
 # closest of the builds to it - 7852 of 7934 functions match, 7593
@@ -641,7 +646,7 @@ OEM = Build('USA OEM', OEM_MD5, OEM_SIZE, sections=(
     'GETCLIENT': 0x0365d608,   # iat GetClientRect
     'MOVEWINDOW': 0x0365d614,   # iat MoveWindow
     'MCISEND': 0x0365d67c,   # iat mciSendCommandA
-}, art=('escrgame.bin', 4194304, None), sites=None, annex=JAPAN.annex[2])
+}, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art, byte for byte
 
 BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN, OEM.md5: OEM}
 
@@ -4664,12 +4669,11 @@ def _netplay_is_ours(path):
 # File offsets into v_on.exe, with the byte that differs patched vs stock.
 # These are the same two bytes net/dpctrl.c fingerprints as FP_DIVISOR_VA and
 # FP_CONTINUE_VA (VA = offset + 0x400c00); change both together.
-SYNC_SITES = {                                           # divisor, continuefix
-    RETAIL.md5: ((0x0010afc4, 0x01), (0x00077f5a, 0x90)),
-    JAPAN.md5: ((0x0010774a, 0x01), (0x00076b0a, 0x90)),
-    OEM.md5: ((OEM.sites[0x0010afbe][0] + 6, 0x01),
-              (OEM.sites[0x00077f5a][0], 0x90)),
-}
+# The frame divisor's immediate, six bytes into its site, and the first
+# byte of a continuefix site - in every build, through its site map.
+SYNC_SITES = {build.md5: ((site_in(0x0010afbe, build) + 6, 0x01),
+                          (site_in(0x00077f5a, build), 0x90))
+              for build in BUILDS.values()}
 
 
 def netplay_sync_ready(gamedir):

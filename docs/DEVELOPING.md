@@ -90,8 +90,8 @@ inside one will do.
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
 | `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5. Runs against whichever build the file is |
-| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte. Retail only: the other builds' artwork has no reference MD5 yet |
-| `credit` | `credittest.py` (retail only): the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
+| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte, on whichever build the folder holds |
+| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 
 Some need a copy of the game, which is not in the repository, so CI skips
 them and says so. They are the manual step before tagging.
@@ -193,17 +193,19 @@ committed:
    offsets, the scratch past `.data` and the two spare bytes are always by
    hand: read the disassembly at each hook (`votrans.py one VA`) and pick
    free memory.
-3. Add the `Build` with `sites=None` and an `annex` listing every blob but
-   `PAD_DEVLIST` and `LEVERS`; `PAD_DEVLIST` is the game's own device list,
-   translated like any symbol.
+3. Add the `Build` with `sites=None` and `annex=ANNEX_BLOBS`; the two
+   caves are the game's own device list, translated like any symbol, and
+   the levers tail. `SYNC_SITES` follows from the site map.
 4. Put `# SITES NAME BEGIN` / `END` markers after the JAPAN ones and run
    `python3 tools/buildsites.py NAME retail.exe other.exe map.pkl`. What
    it cannot place is listed; those go in `HAND` in `votrans.py`, keyed by
    the build's MD5, with a reason each.
-5. A row in `SYNC_SITES`, and one in `fp_builds` in `net/dpctrl.c` with
-   the PE timestamp (`net/build.py` afterwards).
+5. A row in `fp_builds` in `net/dpctrl.c` with the PE timestamp and the
+   two sync sites as virtual addresses, then `net/build.py`.
 6. `python3 asm/build.py --check`, then `selftest.py` on the new file and
-   pin its all-patches MD5 in `EXPECTED_ALL`. Then someone has to play it.
+   pin its all-patches MD5 in `EXPECTED_ALL`; `bannertest.py` and
+   `credittest.py` on an install of it once its artwork MD5 is in `art`.
+   Then someone has to play it.
 
 Two things to check by eye before anyone runs it. A site the matcher has
 placed by its bytes may be in the wrong function - ten bytes of

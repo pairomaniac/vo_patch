@@ -116,8 +116,8 @@ check is a different one. Retail tests for `GenuineIntel`; the OEM has
 `cpuid32.dll` classify the CPU and accepts two classes, neither of which a
 modern CPU is, so its version of the processor check patch makes the
 accept branch unconditional and sets the MMX flag the game would set for
-the class that has it. Its title artwork is `escrgame.bin` with no
-reference MD5 pinned yet.
+the class that has it. Its title artwork and roll files are retail's,
+byte for byte.
 
 **The Japanese rerelease** (October 1997, `0x345107FA`): 7291 of 7934
 functions match, 6329 identically. Frame layouts differ in the patched
@@ -125,10 +125,10 @@ functions - the bind page's loop counter is `[ebp-0x18]` for retail's
 `[ebp-8]`, the F7 combo selection `[ebp-0x10]`, the OK handler's line
 buffer `[ebp-0x18c]`, the movie placer's X and Y `[ebp-0x14]` and
 `[ebp-0x18]` - which is what the frame-offset symbols are for. Its title
-artwork is `jscrgame.bin`, at the same 4 MB; the tile layout is assumed to
-match and no MD5 is pinned, so the banner patch does not check it.
-Dropping the English `v_on.exe` into a Japanese install does not work: it
-looks for `escrgame.bin`.
+artwork is `jscrgame.bin`: the same 4 MB, 2304 tiles of it redrawn for
+the Japanese logo, and the slots the banner patch writes identical to
+retail's. Its roll files are retail's. Dropping the English `v_on.exe`
+into a Japanese install does not work: it looks for `escrgame.bin`.
 
 ### Why no v_on.ini
 
