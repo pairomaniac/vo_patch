@@ -10,7 +10,8 @@ bits 32
 ; recreate until it takes.
 
 extern RECREATE                 ; release and create the surfaces; (w, h,
-                                ; bpp) cdecl, 1 on success
+                                ; bpp) cdecl, 1 on success; its first nine
+                                ; bytes jump here
 extern GRESUME                  ; the resume: sound, cursor, setactive(0)
 extern SETACTIVE                ; (pause) cdecl: 1 stops the loop, 0 lets it
                                 ; run; its first five bytes jump here
@@ -22,22 +23,29 @@ extern FSFLAGS                  ; bit 2: the low-resolution modes
 extern FSMODE                   ; nonzero with it: 320x240 rather than
                                 ; 640x480 - the handler's own choice
 extern PENDING                  ; scratch: 1 while a recreate is owed
+extern RETADDR                  ; scratch: where a recreate returns to
 
-; The two recreate calls in the handler come through here.
+; RECREATE's entry, every caller: the activation handler, the title
+; state and two more window-procedure branches all release and create the
+; surfaces through it. The caller's return address is swapped for `made`,
+; so the result comes past here on the way back.
 recreate:
-    push    dword [esp + 12]
-    push    dword [esp + 12]
-    push    dword [esp + 12]
-    call    RECREATE
-    add     esp, 12
+    pop     eax
+    mov     [RETADDR], eax
+    push    made
+    push    ebp                 ; the nine bytes the jump displaced
+    mov     ebp, esp
+    sub     esp, 0xe0
+    jmp     RECREATE + 9
+made:
     test    eax, eax
-    jnz     .done
+    jnz     .ok
     mov     dword [PENDING], 1
     mov     dword [INACTIVE], 1 ; not every deactivation pauses the game -
                                 ; the intro movie's does not - so idle the
                                 ; loop until the surfaces are back
-.done:
-    ret
+.ok:
+    jmp     [RETADDR]
 
 ; setactive's entry. Letting the loop run with no back buffer is what
 ; crashes, so that one call is refused; pausing always goes through.
