@@ -9,10 +9,10 @@ leave them to expire. The flood probe sends unwanted traffic and is off
 unless asked for with --flood; run it against your own servers only, not
 while people are playing.
 
-The point is to see what the hardening changed. Against a patched EU box
-and an unpatched US box, `relay`, `guessing` and `percap` should read
-differently; `latency` and `punch` should read the same, since the match
-path did not change.
+Two servers on the same source read the same on every probe. A box that
+has drifted from `net/rendezvous.py` shows up in `relay`, `guessing` or
+`percap`; `latency` and `punch` are the match path and should agree
+regardless.
 """
 
 import argparse

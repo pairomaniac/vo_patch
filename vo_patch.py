@@ -199,7 +199,6 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'BINDPAGE12': 0x004966e9,      # and the twelve-bind page
     'EXIT1P': 0x00442ec4,          # where the 1P profile switch resumes
     'KBD1P': 0x00443074,           # stock keyboard handler, called by the tick
-    'KBHANDLER1': 0x00443074,      # the stock 1P keyboard handler
     'CASEB': 0x00496b23,           # the stock device 1 apply-and-serialize
     'CROSSCHECK': 0x0049776e,      # look at 1P's key map
     'KBACCEPT': 0x004977c6,        # take the key
@@ -212,21 +211,17 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'STORELIST': 0x00497e99,       # and the list id store
     'SELDIGITS': 0x00498059,       # bind page preselect: the digit loop
     'SELLIST': 0x0049809d,         # the list loop
-    'MAPDONE': 0x004980d9,         # where the search loop's jge went
-    'SELSET': 0x004980d9,          # and set the selection
+    'SELSET': 0x004980d9,          # search loop exit, then set the selection
     'CURSOR': 0x004cd8c3,          # (column, row), cdecl
     'PRINT': 0x004ceeeb,           # (text), cdecl, from the cursor
     'WRITELINE': 0x005b1833,       # (key, value): one v_on.ini line
     'FINDLINE': 0x005b1871,        # (key) -> value text, 0 if absent
     'EXIT2P': 0x005bcd57,          # and the 2P one
     'KBD2P': 0x005bceed,
-    'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c680b,         # and their resume
-    'GAMEMODE': 0x006bc94c,        # the loop's mode; 1 is two players, 2 a
-                                   # network match
-    'MODE2': 0x01ef8a90,           # the second player's own state machine's
-                                   # mode word; its tick runs in mode 1
+    'GAMEMODE': 0x006bc94c,        # loop mode: 1 two players, 2 network
+    'MODE2': 0x01ef8a90,           # 2P state machine's mode; ticks in mode 1
     'PENDING': 0x0365cb9c,         # a recreate owed
     'RETADDR': 0x0365cba0,         # where one returns to
     'RECREATE': 0x005c56a2,        # release and create the surfaces
@@ -234,7 +229,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'INACTIVE': 0x01add128,        # the flag it idles on
     'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
     'FSFLAGS': 0x006bf598,         # bit 2: the low-resolution modes
-    'FSMODE': 0x006bf560,          # and 320x240 among them
+    'FSMODE': 0x006bf560,          # low-res: 320x240 in the FSFLAGS modes
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
@@ -250,50 +245,45 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'SEMUTE': 0x006bcc4c,
     'MASK2A': 0x006beb08,          # 2P
     'MASK2B': 0x006beb15,
-    'HALF': 0x006bf560,            # coordinates on, at 0x5c9a98
-    'WIDE': 0x006bf598,            # the two the pause text halves its own
     'PREV': 0x006c3d48,            # last frame's slot; credits, nameentry
     'HELD': 0x006c3d49,            # and how long this press has lasted
-    'CAMERA1': 0x00bf0457,         # and the one Select writes, which is what
+    'CAMERA1': 0x00bf0457,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00bf0481,         # 1P's key buffer slot for A and Space
-    'BLOCKS': 0x00bf6838,          # per player: this + player * 0x70; the
+    'BLOCKS': 0x00bf6838,          # saved bind blocks: + player * 0x70
     'CURPLAYER': 0x00bf6bac,       # the side being configured, 0 or 1
     'PHASE': 0x01ad0964,           # where the credits sequence is up to
-    'CAM2': 0x01ad0d94,
     'CAMERA2': 0x01ad0d94,
-    'ACC2': 0x01ad0db1,
     'ACCEPT2': 0x01ad0db1,         # and 2P
     'FLAG': 0x01ae1c1c,            # the displaced write
-    'MODE': 0x01ae3594,            # game state and sub-state, the pair the
-    'SUBMODE': 0x01ae3690,         # tick already gates its bind slots on
+    'MODE': 0x01ae3594,            # game state; the tick gates on MODE+SUBMODE
+    'SUBMODE': 0x01ae3690,         # game sub-state
     'MOVIEX': 0x01ae5f34,          # the offsets the replaced code read
     'MOVIEY': 0x01ae5f38,
-    'PRIMARY': 0x01ae5f40,         # the surface DRAW paints on, and the one
+    'PRIMARY': 0x01ae5f40,         # the surface DRAW paints on
     'HWND': 0x01ae5f58,            # the game's window
-    'BACK': 0x01ae5f5c,            # that is about to be flipped over it
+    'BACK': 0x01ae5f5c,            # back buffer, flipped over PRIMARY
     'LEV1A': 0x01cb14c4,           # 1P lever words, left then right
     'LEV1B': 0x01cb14c6,
     'EDGEA': 0x01ed5ec5,           # press edges, lever A byte: bit 0 is LT
-    'EDGEB': 0x01ed5ec6,           # and lever B's, where 2P's RT is
+    'EDGEB': 0x01ed5ec6,           # press edges, lever B byte: 2P's RT
     'LEV2A': 0x01ee3ee4,           # 2P
     'LEV2B': 0x01ee3ee6,
     'MOVIEHWND': 0x01ef88c8,       # the mciavi window (MCI_ANIM_STATUS_HWND)
     'MOVIEDEV': 0x01ef88f0,        # its device id
-    'LIVE': 0x03651470,            # + player * 0x18
     'BINDS1': 0x03651470,          # 1P bind bytes
     'BINDS2': 0x03651488,          # 2P bind bytes
     'DEVICES': 0x03651540,         # 1P's profile, 0 being the keyboard
     'XIFN': 0x0365cb40,            # XInputGetState; 0 not yet, 1 failed
     'STATE': 0x0365cb44,           # the tick's XINPUT_STATE
-    'BTN': 0x0365cb48,             # wButtons in it; the condition table's
+    'BTN': 0x0365cb48,             # wButtons in STATE; the cond table reads it
     'SCR1': 0x0365cb60,            # scratch the tick keeps per player
     'SCR2': 0x0365cb61,
-    'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, so the two
-    'PBTN': 0x0365cb74,            # pollers cannot tread on each other
+    'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, apart from
+    'PBTN': 0x0365cb74,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x0365cb80,         # resolved Sleep: 0 not yet, 1 failed
-    'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad,
-    'DZTHR1': 0x0365cb8c,          # stick thresholds out of 32767, 1P then
-    'DZSTR1': 0x0365cb94,          # the digit pairs; see asm/padxinput.asm
+    'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad
+    'DZTHR1': 0x0365cb8c,          # stick thresholds of 32767, 1P then 2P
+    'DZSTR1': 0x0365cb94,          # deadzone digit pairs; see padxinput.asm
     'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
     'LOADLIB': 0x0365d504,         # LoadLibraryA
     'GETPROC': 0x0365d508,         # GetProcAddress
@@ -374,7 +364,6 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'F_Y': -0x18,
     'EXIT1P': 0x00442584,          # where the 1P profile switch resumes
     'KBD1P': 0x00442734,           # stock keyboard handler, called by the tick
-    'KBHANDLER1': 0x00442734,      # the stock 1P keyboard handler
     'CASEB': 0x00495682,           # the stock device 1 apply-and-serialize
     'CROSSCHECK': 0x004962cc,      # look at 1P's key map
     'KBACCEPT': 0x00496324,        # take the key
@@ -387,19 +376,17 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'STORELIST': 0x004969f6,       # and the list id store
     'SELDIGITS': 0x00496bb6,       # bind page preselect: the digit loop
     'SELLIST': 0x00496bfa,         # the list loop
-    'MAPDONE': 0x00496c36,         # where the search loop's jge went
-    'SELSET': 0x00496c36,          # and set the selection
+    'SELSET': 0x00496c36,          # search loop exit, then set the selection
     'CURSOR': 0x004cb463,          # (column, row), cdecl
     'PRINT': 0x004cca8b,           # (text), cdecl, from the cursor
     'WRITELINE': 0x005ac4f3,       # (key, value): one v_on.ini line
     'FINDLINE': 0x005ac531,        # (key) -> value text, 0 if absent
     'EXIT2P': 0x005b76c7,          # and the 2P one
     'KBD2P': 0x005b785d,
-    'KBHANDLER2': 0x005b785d,      # and 2P
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
-    'GAMEMODE': 0x006b86ac,
-    'MODE2': 0x01ef4230,
+    'GAMEMODE': 0x006b86ac,        # loop mode: 1 two players, 2 network
+    'MODE2': 0x01ef4230,           # 2P state machine's mode; ticks in mode 1
     'PENDING': 0x036577fc,
     'RETADDR': 0x03657800,
     'RECREATE': 0x005bff42,
@@ -407,7 +394,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'INACTIVE': 0x01ad7db0,
     'SETACTIVE': 0x005c0bf5,
     'FSFLAGS': 0x006bb2b0,
-    'FSMODE': 0x006bb278,
+    'FSMODE': 0x006bb278,          # low-res: 320x240 in the FSFLAGS modes
     'HAVESURF': 0x006bb288,
     'ISICONIC': 0x036585a4,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
@@ -423,51 +410,46 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'SEMUTE': 0x006b89ac,
     'MASK2A': 0x006ba820,          # 2P
     'MASK2B': 0x006ba82d,
-    'HALF': 0x006bb278,            # coordinates on, at 0x5c9a98
-    'WIDE': 0x006bb2b0,            # the two the pause text halves its own
     'PREV': 0x006bf0d0,            # last frame's slot; credits, nameentry
     'HELD': 0x006bf0d1,            # and how long this press has lasted
-    'CAMERA1': 0x00beb0af,         # and the one Select writes, which is what
+    'CAMERA1': 0x00beb0af,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00beb0d9,         # 1P's key buffer slot for A and Space
-    'BLOCKS': 0x00bf1730,          # per player: this + player * 0x70; the
+    'BLOCKS': 0x00bf1730,          # saved bind blocks: + player * 0x70
     'CURPLAYER': 0x00bf1590,       # the side being configured, 0 or 1
     'PHASE': 0x01acb68c,           # where the credits sequence is up to
-    'CAM2': 0x01acba14,
     'CAMERA2': 0x01acba14,
-    'ACC2': 0x01acba31,
     'ACCEPT2': 0x01acba31,         # and 2P
     'FLAG': 0x01adcdf8,            # the displaced write
-    'MODE': 0x01adcdf0,            # game state and sub-state, the pair the
-    'SUBMODE': 0x01addc40,         # tick already gates its bind slots on
+    'MODE': 0x01adcdf0,            # game state; the tick gates on MODE+SUBMODE
+    'SUBMODE': 0x01addc40,         # game sub-state
     'MOVIEX': 0x01ae0c1c,          # the offsets the replaced code read
     'MOVIEY': 0x01ae0c20,
-    'PRIMARY': 0x01ae0c34,         # the surface DRAW paints on, and the one
+    'PRIMARY': 0x01ae0c34,         # the surface DRAW paints on
     'HWND': 0x01ae0c38,            # the game's window
-    'BACK': 0x01ae0c18,            # that is about to be flipped over it
+    'BACK': 0x01ae0c18,            # back buffer, flipped over PRIMARY
     'LEV1A': 0x01b13204,           # 1P lever words, left then right
     'LEV1B': 0x01b13206,
     'EDGEA': 0x01ed0b65,           # press edges, lever A byte: bit 0 is LT
-    'EDGEB': 0x01ed0b66,           # and lever B's, where 2P's RT is
+    'EDGEB': 0x01ed0b66,           # press edges, lever B byte: 2P's RT
     'LEV2A': 0x01ef3534,           # 2P
     'LEV2B': 0x01ef3536,
     'MOVIEHWND': 0x01ef3570,       # the mciavi window (MCI_ANIM_STATUS_HWND)
     'MOVIEDEV': 0x01ef3590,        # its device id
-    'LIVE': 0x0364c170,            # + player * 0x18
     'BINDS1': 0x0364c170,          # 1P bind bytes
     'BINDS2': 0x0364c188,          # 2P bind bytes
     'DEVICES': 0x0364c580,         # 1P's profile, 0 being the keyboard
     # scratch in the page slack past .data, as retail's is
     'XIFN': 0x036577a0,            # XInputGetState; 0 not yet, 1 failed
     'STATE': 0x036577a4,           # the tick's XINPUT_STATE
-    'BTN': 0x036577a8,             # wButtons in it; the condition table's
+    'BTN': 0x036577a8,             # wButtons in STATE; the cond table reads it
     'SCR1': 0x036577c0,            # scratch the tick keeps per player
     'SCR2': 0x036577c1,
-    'PSTATE': 0x036577d0,          # the pump's own XINPUT_STATE, so the two
-    'PBTN': 0x036577d4,            # pollers cannot tread on each other
+    'PSTATE': 0x036577d0,          # the pump's own XINPUT_STATE, apart from
+    'PBTN': 0x036577d4,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x036577e0,         # resolved Sleep: 0 not yet, 1 failed
-    'PADPREV': 0x036577e4,         # last polled buttons, one word per pad,
-    'DZTHR1': 0x036577ec,          # stick thresholds out of 32767, 1P then
-    'DZSTR1': 0x036577f4,          # the digit pairs; see asm/padxinput.asm
+    'PADPREV': 0x036577e4,         # last polled buttons, one word per pad
+    'DZTHR1': 0x036577ec,          # stick thresholds of 32767, 1P then 2P
+    'DZSTR1': 0x036577f4,          # deadzone digit pairs; see padxinput.asm
     'GETMODULE': 0x036584bc,       # GetModuleHandleA
     'LOADLIB': 0x03658514,         # LoadLibraryA
     'GETPROC': 0x03658518,         # GetProcAddress
@@ -541,7 +523,6 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'BINDPAGE12': 0x00496588,   # func
     'EXIT1P': 0x00442e24,   # insn
     'KBD1P': 0x00442fd4,   # func
-    'KBHANDLER1': 0x00442fd4,   # func
     'CASEB': 0x004969c2,   # func
     'CROSSCHECK': 0x0049760c,   # insn
     'KBACCEPT': 0x00497664,
@@ -554,19 +535,17 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'STORELIST': 0x00497d34,   # insn
     'SELDIGITS': 0x00497ef4,   # insn
     'SELLIST': 0x00497f38,   # insn
-    'MAPDONE': 0x00497f74,   # insn
-    'SELSET': 0x00497f74,   # insn
+    'SELSET': 0x00497f74,          # search loop exit, then set the selection
     'CURSOR': 0x004cd763,   # func
     'PRINT': 0x004ced8b,   # func
     'WRITELINE': 0x005b1303,   # func
     'FINDLINE': 0x005b1341,   # func
     'EXIT2P': 0x005bc827,   # insn
     'KBD2P': 0x005bc9bd,   # func
-    'KBHANDLER2': 0x005bc9bd,   # func
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
-    'GAMEMODE': 0x006bc8e4,
-    'MODE2': 0x01ef8a20,
+    'GAMEMODE': 0x006bc8e4,        # loop mode: 1 two players, 2 network
+    'MODE2': 0x01ef8a20,           # 2P state machine's mode; ticks in mode 1
     'PENDING': 0x0365cb1c,
     'RETADDR': 0x0365cb20,
     'RECREATE': 0x005c5172,
@@ -574,7 +553,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'INACTIVE': 0x01add0c0,
     'SETACTIVE': 0x005c5e3f,
     'FSFLAGS': 0x006bf530,
-    'FSMODE': 0x006bf4f8,
+    'FSMODE': 0x006bf4f8,          # low-res: 320x240 in the FSFLAGS modes
     'HAVESURF': 0x006bf508,
     'ISICONIC': 0x0365d5c8,
     'ORIGWNDPROC': 0x005c6370,   # func
@@ -590,50 +569,45 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'SEMUTE': 0x006bcbe4,
     'MASK2A': 0x006beaa0,
     'MASK2B': 0x006beaad,
-    'HALF': 0x006bf4f8,
-    'WIDE': 0x006bf530,
     'PREV': 0x006c3ce0,
     'HELD': 0x006c3ce1,
-    'CAMERA1': 0x00bf0417,
+    'CAMERA1': 0x00bf0417,         # 1P key slot for Select; win/lose read it
     'ACCEPT1': 0x00bf0441,   # data 1 votes
-    'BLOCKS': 0x00bf67f8,
+    'BLOCKS': 0x00bf67f8,          # saved bind blocks: + player * 0x70
     'CURPLAYER': 0x00bf6b6c,
     'PHASE': 0x01ad08fc,
-    'CAM2': 0x01ad0d2c,
     'CAMERA2': 0x01ad0d2c,
-    'ACC2': 0x01ad0d49,   # data 1 votes
     'ACCEPT2': 0x01ad0d49,   # data 1 votes
     'FLAG': 0x01ae1bac,
-    'MODE': 0x01ae3524,
-    'SUBMODE': 0x01ae3620,
+    'MODE': 0x01ae3524,            # game state; the tick gates on MODE+SUBMODE
+    'SUBMODE': 0x01ae3620,         # game sub-state
     'MOVIEX': 0x01ae5ec4,
     'MOVIEY': 0x01ae5ec8,
-    'PRIMARY': 0x01ae5ed0,
+    'PRIMARY': 0x01ae5ed0,         # the surface DRAW paints on
     'HWND': 0x01ae5ee8,
-    'BACK': 0x01ae5eec,
+    'BACK': 0x01ae5eec,            # back buffer, flipped over PRIMARY
     'LEV1A': 0x01cb1454,
     'LEV1B': 0x01cb1456,
-    'EDGEA': 0x01ed5e55,
-    'EDGEB': 0x01ed5e56,
+    'EDGEA': 0x01ed5e55,           # press edges, lever A byte: bit 0 is LT
+    'EDGEB': 0x01ed5e56,           # press edges, lever B byte: 2P's RT
     'LEV2A': 0x01ee3e74,
     'LEV2B': 0x01ee3e76,
     'MOVIEHWND': 0x01ef8858,
     'MOVIEDEV': 0x01ef8880,
-    'LIVE': 0x03651400,
     'BINDS1': 0x03651400,
     'BINDS2': 0x03651418,   # data 1 votes
     'DEVICES': 0x036514d0,
     'XIFN': 0x0365cac0,
     'STATE': 0x0365cac4,
-    'BTN': 0x0365cac8,
-    'SCR1': 0x0365cae0,
+    'BTN': 0x0365cac8,             # wButtons in STATE; the cond table reads it
+    'SCR1': 0x0365cae0,            # scratch the tick keeps per player
     'SCR2': 0x0365cae1,
-    'PSTATE': 0x0365caf0,
-    'PBTN': 0x0365caf4,
+    'PSTATE': 0x0365caf0,          # the pump's own XINPUT_STATE, apart from
+    'PBTN': 0x0365caf4,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x0365cb00,
-    'PADPREV': 0x0365cb04,
-    'DZTHR1': 0x0365cb0c,
-    'DZSTR1': 0x0365cb14,
+    'PADPREV': 0x0365cb04,         # last polled buttons, one word per pad
+    'DZTHR1': 0x0365cb0c,          # stick thresholds of 32767, 1P then 2P
+    'DZSTR1': 0x0365cb14,          # deadzone digit pairs; see padxinput.asm
     'GETMODULE': 0x0365d4c8,   # iat GetModuleHandleA
     'LOADLIB': 0x0365d544,   # iat LoadLibraryA
     'GETPROC': 0x0365d548,   # iat GetProcAddress
@@ -647,7 +621,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'GETCLIENT': 0x0365d608,   # iat GetClientRect
     'MOVEWINDOW': 0x0365d614,   # iat MoveWindow
     'MCISEND': 0x0365d67c,   # iat mciSendCommandA
-}, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art, byte for byte
+}, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art
 
 BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN, OEM.md5: OEM}
 
@@ -1315,7 +1289,7 @@ BLOBS = {
         (0x2f2, 'abs', 'MASK1B', 0),
         (0x2f6, 'abs', 'ACCEPT1', 0),
         (0x2fa, 'abs', 'SCR1', 0),
-        (0x2fe, 'abs', 'KBHANDLER1', 0),
+        (0x2fe, 'abs', 'KBD1P', 0),
         (0x302, 'abs', 'CAMERA1', 0),
         (0x30a, 'abs', 'BINDS2', 0),
         (0x30e, 'abs', 'LEV2A', 0),
@@ -1324,7 +1298,7 @@ BLOBS = {
         (0x31a, 'abs', 'MASK2B', 0),
         (0x31e, 'abs', 'ACCEPT2', 0),
         (0x322, 'abs', 'SCR2', 0),
-        (0x326, 'abs', 'KBHANDLER2', 0),
+        (0x326, 'abs', 'KBD2P', 0),
         (0x32a, 'abs', 'CAMERA2', 0),
     ), {
         'entry1p': 0x0,
@@ -1379,10 +1353,10 @@ BLOBS = {
         (0x88, 'abs', 'LEV2B', 0),
         (0x8c, 'abs', '.', 60),
         (0x90, 'abs', '.', 72),
-        (0x94, 'abs', 'ACC2', 0),
+        (0x94, 'abs', 'ACCEPT2', 0),
         (0x98, 'abs', 'SCR2', 0),
         (0x9c, 'abs', 'KBD2P', 0),
-        (0xa0, 'abs', 'CAM2', 0),
+        (0xa0, 'abs', 'CAMERA2', 0),
     ), {
         'stub1p': 0x0,
         'stub2p': 0x12,
@@ -1461,7 +1435,7 @@ BLOBS = {
         (0xb, 'abs', 'BLOCKS', 0),
         (0x21, 'abs8', 'SELIDX', 0),
         (0x27, 'abs8', 'SELIDX', 0),
-        (0x2f, 'rel', 'MAPDONE', -4),
+        (0x2f, 'rel', 'SELSET', -4),
         (0x42, 'abs', 'PADLIST', 4),
         (0x4a, 'abs', 'KEYLIST', 4),
         (0x59, 'abs', 'BLOCKS', 56),
@@ -1521,7 +1495,7 @@ BLOBS = {
         (0x25, 'abs', 'INIKEYS', 34),
         (0x2a, 'rel', 'PARSE12', -4),
         (0x31, 'abs', 'DEVICES', 0),
-        (0x40, 'abs', 'LIVE', 0),
+        (0x40, 'abs', 'BINDS1', 0),
     ), {
         'loadsimple': 0x0,
     }),
@@ -1597,7 +1571,7 @@ BLOBS = {
     ), (
         (0x3, 'abs', 'DEVICES', 0),
         (0x19, 'abs', 'BLOCKS', 8),
-        (0x2a, 'abs', 'LIVE', 0),
+        (0x2a, 'abs', 'BINDS1', 0),
     ), {
         'commitdev': 0x0,
     }),
@@ -1765,8 +1739,8 @@ BLOBS = {
         (0x17, 'abs', 'SUBMODE', 0),
         (0x20, 'abs', 'PHASE', 0),
         (0x29, 'abs', 'HELD', 0),
-        (0x3c, 'abs', 'WIDE', 0),
-        (0x45, 'abs', 'HALF', 0),
+        (0x3c, 'abs', 'FSFLAGS', 0),
+        (0x45, 'abs', 'FSMODE', 0),
         (0x52, 'abs', 'PRIMARY', 0),
         (0x59, 'abs', 'BACK', 0),
         (0x5f, 'abs', 'PRIMARY', 0),
@@ -2386,7 +2360,8 @@ BANNER_TABLE = 0x00269b60       # v_on.exe, the tile index for each cell
 BANNER_TILE_OFF = 0x21c000      # escrgame.bin, first tile slot
 BANNER_TILE_BASE = 17280        # its tile index within that file
 BANNER_TILE_MAX = 109           # slots this banner owns
-BANNER_SPILL = 24845            # a run of 116 empty tiles further in
+BANNER_SPILL = 24845            # a run of empty tiles further in
+BANNER_SPARE = 116              # how many
 BANNER_INK = 0xfca0             # the orange the original uses
 ESCRGAME, ESCRGAME_SIZE, ESCRGAME_MD5 = RETAIL.art
 
@@ -2502,11 +2477,12 @@ def _check_banner():
     if len(BANNER_CELLS) != BANNER_W * BANNER_H:
         raise AssertionError('banner table is %d entries, expected %d'
                              % (len(BANNER_CELLS), BANNER_W * BANNER_H))
-    spill = sum(1 for t in BANNER_TILES) - BANNER_TILE_MAX
-    if spill > 116:
+    spill = len(BANNER_TILES) - BANNER_TILE_MAX
+    if spill > BANNER_SPARE:
         raise AssertionError('banner needs %d tiles: %d of its own and %d '
-                             'spare, but only 116 spare are free'
-                             % (len(BANNER_TILES), BANNER_TILE_MAX, spill))
+                             'spare, but only %d spare are free'
+                             % (len(BANNER_TILES), BANNER_TILE_MAX, spill,
+                                BANNER_SPARE))
     for t in BANNER_CELLS:
         # the renderer masks the map entry with 0x3fff, so an index past
         # that draws some other tile entirely
@@ -2553,7 +2529,7 @@ FEATURES = [
          # would run off the end of the map.
          (0x001fcec8, '80340200', '006e0200'),
          (0x001fcecc, '48240000', 'ec250000'),
-         (0x2bbb54, '000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000ffffffff1800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001700000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001100000003000000000000000000000003000000630000001e00000003000000000000000000000001000000630000001500000003000000000000000000000001000000630000001c00000003000000000000000000000001000000630000002400000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001800000003000000000000000000000003000000630000002400000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000001f00000003000000000000000000000001000000630000002000000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001a00000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002700000003000000000000000000000003000000630000002100000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001100000003000000000000000000000001000000630000001900000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000b00000003000000000000000000000003000000630000001b00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001600000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000001700000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001600000003000000000000000000000003000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002200000003000000000000000000000003000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002100000003000000000000000000000003000000630000001b00000003000000000000000000000001000000630000001800000003000000000000000000000001000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001200000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000e00000003000000000000000000000003000000630000001600000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000a00000003000000000000000000000003000000630000001c00000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000002100000003000000000000000000000001000000630000001500000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001c00000003000000000000000000000003000000630000002700000003000000000000000000000001000000630000001900000003000000000000000000000001000000630000002f00000003000000000000000000000001000000630000003100000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000003300000003000000000000000000000006000000630000001c00000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000000000004000000040000000500000003000000000000000000000004000000000000000000000004000000000000000000000002000000040000001900000003000000000000000000000001000000630000001500000003000000000000000000000002000000000000000000000002000000000000000000000002000000000000000000000002000000',
+         (0x002bbb54, '000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000004000000ffffffff1800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001700000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001100000003000000000000000000000003000000630000001e00000003000000000000000000000001000000630000001500000003000000000000000000000001000000630000001c00000003000000000000000000000001000000630000002400000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001800000003000000000000000000000003000000630000002400000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000001f00000003000000000000000000000001000000630000002000000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001a00000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002700000003000000000000000000000003000000630000002100000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001100000003000000000000000000000001000000630000001900000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000b00000003000000000000000000000003000000630000001b00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001600000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000001700000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001600000003000000000000000000000003000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002200000003000000000000000000000003000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002100000003000000000000000000000003000000630000001b00000003000000000000000000000001000000630000001800000003000000000000000000000001000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001200000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000e00000003000000000000000000000003000000630000001600000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000a00000003000000000000000000000003000000630000001c00000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000002100000003000000000000000000000001000000630000001500000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001c00000003000000000000000000000003000000630000002700000003000000000000000000000001000000630000001900000003000000000000000000000001000000630000002f00000003000000000000000000000001000000630000003100000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000003300000003000000000000000000000006000000630000001c00000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000000000004000000040000000500000003000000000000000000000004000000000000000000000004000000000000000000000002000000040000001900000003000000000000000000000001000000630000001500000003000000000000000000000002000000000000000000000002000000000000000000000002000000000000000000000002000000',
           '000000000000000007000000ffffffff2a00000003000000000000000000000001000000ffffffff2a00000002000000000000000000000007000000ffffffff1800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001700000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001100000003000000000000000000000003000000630000001e00000003000000000000000000000001000000630000001500000003000000000000000000000001000000630000001c00000003000000000000000000000001000000630000002400000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001800000003000000000000000000000003000000630000002400000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000001f00000003000000000000000000000001000000630000002000000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001a00000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002700000003000000000000000000000003000000630000002100000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001100000003000000000000000000000001000000630000001900000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000b00000003000000000000000000000003000000630000001b00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000c00000003000000000000000000000003000000630000001600000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000001700000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001600000003000000000000000000000003000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002200000003000000000000000000000003000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000002100000003000000000000000000000003000000630000001b00000003000000000000000000000001000000630000001800000003000000000000000000000001000000630000001f00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000001200000003000000000000000000000003000000630000001d00000003000000000000000000000004000000000000000000000004000000000000000000000002000000000000000e00000003000000000000000000000003000000630000001600000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000a00000003000000000000000000000003000000630000001c00000003000000000000000000000001000000630000002200000003000000000000000000000001000000630000002100000003000000000000000000000001000000630000001500000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000001c00000003000000000000000000000003000000630000002700000003000000000000000000000001000000630000001900000003000000000000000000000001000000630000002f00000003000000000000000000000001000000630000003100000003000000000000000000000001000000630000002000000003000000000000000000000001000000630000003300000003000000000000000000000006000000630000001c00000003000000000000000000000001000000630000001800000003000000000000000000000004000000000000000000000004000000000000000000000004000000000000000000000002000000000000000000000004000000040000000500000003000000000000000000000004000000000000000000000004000000000000000000000002000000040000001900000003000000000000000000000001000000630000001500000003000000000000000000000002000000000000000000000002000000000000000000000002000000000000000000000002000000'),
          # The version in the corner of the title screen, drawn through
          # GDI after the frame and before the flip. The overlay took the
@@ -2593,8 +2569,6 @@ FEATURES = [
           'c745f400000000c745f028000000a1345fae018945f4a1385fae018945f0',
           '55' + call(0x0014dc43, ('MOVIE', 'movie_place')) + '83c404'
           + '90' * 21),
-         # movie.asm, in the .rsrc padding past VirtualSize - after the
-         # four bytes of it the frame rate patch's F5 labels use
          (site('MOVIE'), zeros('MOVIE'), blob('MOVIE')),
          # "Now Loading . . ." - the first byte to NUL ends the string
          (0x002c7678, '4e', '00'),
@@ -2953,9 +2927,6 @@ FEATURES = [
          # text the original also showed on the 2P pass. Neutral now that
          # the window title carries the side.
          (0x0060b34e, '3100500020007300690064006500', '41006300740069006f006e007300'),
-         # The bind page's seed of its block from the live table is only
-         # right when the page's device is the committed one; see
-         # asm/blockcur.asm.
          # The letter and digit sections belong to the keyboard profile;
          # the gamepad page lists only its pad inputs. Fill, store and
          # preselect skip them together: asm/pagesec.asm, asm/pagesel.asm.
@@ -2963,6 +2934,9 @@ FEATURES = [
          (0x00097257, '837dec1a0f8d13000000', call(0x00097257, ('PAGESEC', 'storesec'), 5)),
          (0x00097428, '837df41a0f8d27000000', call(0x00097428, ('PAGESEL', 'selsec'), 5)),
          (0x000974cb, '8345f424e905000000', call(0x000974cb, ('PAGESEL', 'selidx'), 4)),
+         # The bind page's seed of its block from the live table is only
+         # right when the page's device is the committed one; see
+         # asm/blockcur.asm.
          (0x0009753a, 'e8f1de1400', call(0x0009753a, ('BLOCKCUR', 'syncshim'))),
          (site('TWIN'), zeros('TWIN'), blob('TWIN')),
          # the intro movie blocks the message loop in GetMessageA, where the
@@ -3075,13 +3049,10 @@ BY_KEY['dinput'] = (
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
 ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
-# Every Essential patch, shown without a tick box. Unticking any of them
-# produced a game that is broken in a way nobody was choosing on purpose:
-# no start on a modern CPU, a crash on a lost round, a third of the frame
-# rate, or dead keys after ALT+TAB. Two of them are also what internet play
-# needs, so forcing them removes a way to build a game that patches cleanly
-# and then refuses to connect.
-ALWAYS = ESSENTIAL
+# Essential is shown without tick boxes and always applied. Unticking any
+# of them produced a game broken in a way nobody chose: no start on a modern
+# CPU, a crash on a lost round, a third of the frame rate, dead keys after
+# ALT+TAB. Two of them are also what internet play needs.
 EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
 # Its own group so it stays out of the patch list: it fixes nothing and
 # undoes nothing the game does, so it belongs beside the version and the
@@ -3684,6 +3655,10 @@ def iso_entries(track, lba, size):
         if name_len == 1 and raw in (b'\x00', b'\x01'):
             continue                            # . and ..
         name = raw.decode('latin-1').split(';')[0].rstrip('.')
+        # The name goes straight into a path under the install folder.
+        if not name or name == '..' or any(c in name for c in '/\\\0'):
+            raise DiscError('This image has a file name the patcher will '
+                            'not write: %r.' % raw)
         out[name.lower()] = (bool(flags & 0x02),
                              int.from_bytes(rec[2:6], 'little'),
                              int.from_bytes(rec[10:14], 'little'))
@@ -4699,13 +4674,12 @@ def _netplay_is_ours(path):
 
 # The two patches that must match for a lockstep match not to drift: the
 # frame-rate divisor and the round-loss crash fix. The DLL fingerprints the
-# same two bytes from the running exe; here the patcher reads them from disk
+# same two bytes from the running exe (fp_builds in net/dpctrl.c, one row
+# per build, as virtual addresses); here the patcher reads them from disk
 # so it can warn at install time rather than leaving it to a refused match.
-# File offsets into v_on.exe, with the byte that differs patched vs stock.
-# These are the same two bytes net/dpctrl.c fingerprints as FP_DIVISOR_VA and
-# FP_CONTINUE_VA (VA = offset + 0x400c00); change both together.
 # The frame divisor's immediate, six bytes into its site, and the first
-# byte of a continuefix site - in every build, through its site map.
+# byte of a continuefix site - in every build, through its site map. Change
+# both tables together.
 SYNC_SITES = {build.md5: ((site_in(0x0010afbe, build) + 6, 0x01),
                           (site_in(0x00077f5a, build), 0x90))
               for build in BUILDS.values()}
@@ -4872,6 +4846,8 @@ def _ddraw_configure(text):
             if section == 'ddraw':
                 break
             section = stripped[1:-1].lower()
+            if section == 'ddraw':
+                end = n                     # a section with no keys yet
             continue
         if section != 'ddraw' or stripped.startswith(';') or '=' not in line:
             continue
@@ -5167,11 +5143,10 @@ class _PE:
     def off(self, rva):
         """RVA to file offset.
 
-        The span is max(vsize, rsize), not vsize. Five of the patch sites sit
-        past their section's VirtualSize, in the raw padding before the next
-        section - the timer stub, three F11 dialog blobs and a string table.
-        Windows maps that padding, so the addresses are real, but anything
-        that trusts VirtualSize cannot see them.
+        The span is max(vsize, rsize), not vsize: the frame rate patch grows
+        the F5 dialog template into the raw padding past .rsrc's VirtualSize.
+        Windows maps that padding, so the address is real, but anything that
+        trusts VirtualSize cannot see it.
         """
         for x in self.sections:
             span = max(x['vsize'], x['rsize'])
@@ -5404,18 +5379,18 @@ def apply_selected(buf, wanted, build=RETAIL):
 
 
 def backup_is_original(path):
-    """Is this .bak the file the patcher started from?
+    """The Build this .bak is an untouched original of, or None.
 
     Checking the backup rather than the exe is what makes "already patched"
     reliable: the patched file's own size and checksum depend on which boxes
     were ticked, but the backup is always the untouched original."""
     try:
         if os.path.getsize(path) not in [b.size for b in BUILDS.values()]:
-            return False
+            return None
         with open(path, 'rb') as fh:
-            return hashlib.md5(fh.read()).hexdigest() in BUILDS
+            return BUILDS.get(hashlib.md5(fh.read()).hexdigest())
     except OSError:
-        return False
+        return None
 
 
 def compare_report(size, digest, why, hint, level):
@@ -5494,10 +5469,13 @@ class Patcher:
             self.compare = None
             return READY_TAG, True
 
-        if backup_is_original(path + '.bak'):
-            # The size cannot be part of this test: No disc required appends
-            # a section, so a patched file is 3 KB larger than the original
-            # and looked unrecognisable here.
+        build = backup_is_original(path + '.bak')
+        if build:
+            # The size cannot be part of this test: every patched file has
+            # the annex appended, and up to two more sections.
+            # The build comes from the backup, so Restore looks for this
+            # build's artwork rather than retail's.
+            self.build = build
             what, level = 'already patched', 'warn'
             why = 'The v_on.exe.bak beside it is the unmodified original.'
             hint = 'Press Restore original, or copy the .bak back by hand.'
@@ -6369,8 +6347,6 @@ def run_tk():
             self._rip_thread, self._rip_dir = None, None
             self._install_thread = None
             self._cancel_rip = self._cancel_install = False
-            # Widgets whose text is written once and never touched again.
-            # Those are the ones left blank after a resize; see _nudge.
             # Set while a copy or a rip is running. Both fields stay live
             # while one is going, and editing either used to run
             # _sync_buttons and light the buttons back up - a second Install
@@ -6381,6 +6357,8 @@ def run_tk():
             self._chose = False
             self._disc_after = None
             self._status_text, self._status_font = NO_FILE, None
+            # Widgets whose text is written once and never touched again;
+            # the ones left blank after a resize, see _nudge.
             self._static, self._nudge_after = [], None
             self._nudge_at = 0.0
             root.title(TITLE)
@@ -6401,13 +6379,10 @@ def run_tk():
             self._statusbar(outer)                  # pinned before the body
             body = self._body(outer)
 
-            # Top to bottom in the order the work is done. Installing comes
-            # first because someone who has only a disc image cannot do
-            # anything else until it is unpacked, and it is the step that
-            # used to happen outside this window entirely.
-            # Two columns where there is room: getting the game in place is
-            # one job and patching it is another, and side by side neither
-            # has to be scrolled past to reach the other. On a narrow screen
+            # In the order the work is done: installing first, since with
+            # only a disc image nothing else can happen until it is
+            # unpacked. Two columns where there is room - getting the game
+            # in place is one job, patching it another; on a narrow screen
             # _body gives back the same frame twice and it stacks instead.
             left, right, band, foot_left, foot_right = body
             self._section(left, '1  INSTALL', self._install_body)
@@ -6417,24 +6392,14 @@ def run_tk():
                                                      ESSENTIAL_HINT))
             self._section(right, '4  EXTRA PATCHES',
                           lambda p: self._patch_body(p, EXTRA, EXTRA_HINT))
-            # Separate, because these are not patches: Apply never touches
-            # them and they write files rather than bytes. Collapsed,
-            # because open they push Apply below the fold.
-            # Full width as well. Its rows are a title, a paragraph and a
-            # button, which read better across the window than down half of
-            # it, and opening the tallest section in the window inside one
-            # column left the other half empty.
+            # Not patches: Apply never touches these and they write files
+            # rather than bytes. Collapsed, so open they do not push Apply
+            # below the fold; full width, because its rows are a title, a
+            # paragraph and a button.
             self._section(band, '5  ADD-ONS', self._addons_body,
                           expanded=False)
-            # Full width, under both columns. It is about the whole window
-            # rather than the patching half, it reads better with the long
-            # paths it prints on one line, and opening it no longer makes
-            # one column half as tall again as the other.
             # Side by side at the foot, on the same split as the columns
-            # above, so the two headings line up whatever is open. About
-            # was pinned to the bottom of the left column before, which
-            # only lined up when that column happened to be the shorter
-            # one, and left a gap over it that changed as it opened.
+            # above, so the two headings line up whatever is open.
             self._section(foot_left, 'LOG', self._log_body, expanded=False)
             self._section(foot_right, 'ABOUT', self._about_body,
                           expanded=False)
@@ -7548,7 +7513,7 @@ def run_tk():
                 row.pack(fill='x', pady=self.px(3))
                 var = tk.BooleanVar(value=state[key])
                 self.vars[key] = var
-                if key in ALWAYS:
+                if key in ESSENTIAL:
                     # A permanently ticked box that cannot be clicked reads
                     # like something is broken. A plain line does not, and
                     # the card's own heading says these are always applied.
@@ -7731,7 +7696,7 @@ def run_tk():
                 for key, check in self.checks.items():
                     self.vars[key].set(False)
                     check.state(['disabled'])
-                # ALWAYS keys have no widget to disable; _apply forces them.
+                # ESSENTIAL keys have no widget to disable; _apply forces them.
                 self._chose = False
                 self.apply_btn.state(['disabled'])
                 self.restore_btn.state(['disabled'])
@@ -7767,7 +7732,7 @@ def run_tk():
         def _selected(self):
             """How many patches Apply would write right now."""
             return sum(1 for key, var in self.vars.items()
-                       if key in ALWAYS or var.get())
+                       if key in ESSENTIAL or var.get())
 
         def _retally(self, *_args):
             """Keep the count honest as boxes are ticked."""
@@ -7777,7 +7742,7 @@ def run_tk():
 
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
-            wanted.update({key: True for key in ALWAYS})
+            wanted.update({key: True for key in ESSENTIAL})
             ok, lines = self.core.apply(wanted)
             for line in lines:
                 self._log(line)
@@ -7790,7 +7755,7 @@ def run_tk():
             for check in self.checks.values():
                 check.state(['disabled'])
             # No sync warning here any more: both patches internet play
-            # needs are in ALWAYS, so Apply cannot produce a file without
+            # needs are in ESSENTIAL, so Apply cannot produce a file without
             # them. netplay_sync_ready still checks the file on disk when
             # the add-on is installed, which catches a copy patched by an
             # older release.
@@ -7800,8 +7765,9 @@ def run_tk():
             # A selection is worth keeping across the reload only if there
             # was one to make - _chose says whether the boxes were ever
             # usable for this file. They are disabled after an apply as well
-            # as after a refusal, so their own state cannot answer it. Somebody who unticked two patches, applied, and
-            # restored should get their two back rather than a fresh set of
+            # as after a refusal, so their own state cannot answer it.
+            # Somebody who unticked two patches, applied, and restored
+            # should get their two back rather than a fresh set of
             # defaults - but somebody who opened the patcher on an already
             # patched copy never chose anything: every box was unticked and
             # disabled because the file could not be patched, and carrying
@@ -7988,7 +7954,7 @@ def install_cli(args):
     except (DiscError, OSError, ValueError) as exc:
         return '\n%s' % copy_failure(dest, exc)
     print('\rInstalled %d files to %s' % (len(written), dest))
-    return 0
+    return None
 
 
 def rip_cli(argv):

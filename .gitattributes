@@ -7,3 +7,7 @@
 *.md text eol=lf
 *.asm text eol=lf
 *.inc text eol=lf
+*.sh text eol=lf
+*.c text eol=lf
+*.def text eol=lf
+*.service text eol=lf

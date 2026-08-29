@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Build the credit line out of the game's own lettering.
 
 The ending roll is pre-rendered text chopped into 8x8 cells, not a font, so

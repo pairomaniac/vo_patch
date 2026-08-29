@@ -305,7 +305,8 @@ to bump.
 
 The title-screen line is the one thing the patcher writes that is not the same
 for everyone, so it is written after the patch table rather than from it and
-`EXPECTED_ALL` in `selftest.py` stays one digest.
+`EXPECTED_ALL` in `selftest.py` stays one digest per build rather than one
+per release.
 
 ```bash
 git pull

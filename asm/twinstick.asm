@@ -16,9 +16,9 @@ extern LEV1B
 extern LEV2A
 extern LEV2B
 extern ACCEPT1                    ; key buffer slots the tick pokes for A
-extern ACC2
+extern ACCEPT2
 extern CAMERA1                    ; and for Back
-extern CAM2
+extern CAMERA2
 extern SCR1                       ; scratch the tick keeps per player
 extern SCR2
 
@@ -56,4 +56,4 @@ maskb:
 block1:
     dd 0, binds, LEV1A, LEV1B, maska, maskb, ACCEPT1, SCR1, KBD1P, CAMERA1
 block2:
-    dd 1, binds, LEV2A, LEV2B, maska, maskb, ACC2, SCR2, KBD2P, CAM2
+    dd 1, binds, LEV2A, LEV2B, maska, maskb, ACCEPT2, SCR2, KBD2P, CAMERA2

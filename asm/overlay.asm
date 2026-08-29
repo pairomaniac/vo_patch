@@ -23,8 +23,8 @@ extern HELD                     ; credits.asm's hold count
 extern PRIMARY                  ; the surface DRAW paints on, and the one
 extern BACK                     ; that is about to be flipped over it
 
-extern WIDE                     ; the two the pause text halves its own
-extern HALF                     ; coordinates on, at 0x5c9a98
+extern FSFLAGS                  ; the pause text halves its coordinates
+extern FSMODE                   ; on these two, at 0x5c9a98
 
 X           equ 320             ; of 640 by 480, halved in low resolution
 Y           equ 440
@@ -50,9 +50,9 @@ overlay:
     je      .out
     mov     eax, X
     mov     edx, Y
-    test    byte [WIDE], 4
+    test    byte [FSFLAGS], 4
     jz      .full
-    cmp     dword [HALF], 0
+    cmp     dword [FSMODE], 0
     je      .full
     sar     eax, 1
     sar     edx, 1

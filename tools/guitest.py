@@ -13,8 +13,9 @@ Needs a display. Under CI that is xvfb; locally, run it inside
 
 With no display it skips rather than fails, so a checkout on a headless box
 without xvfb still gets a clean run - but it says so as a `note:` line, which
-is what check.py surfaces, because a green run that tested no window at all
-should not look like one that did.
+is what check.py surfaces. Under CI (CI=true) the same skip is a failure: the
+runner is meant to have xvfb and tkinter, and a green run that tested no
+window at all should not look like one that did.
 
 Most of it needs no copy of the game - the disc is built by disctest, with a
 stand-in for v_on.exe. Pass a game folder (or set VO_GAME) and the checks
@@ -84,18 +85,21 @@ def text_of(widget):
 
 
 def main():
+    # A skip is a note locally and a failure in CI, where the runner is
+    # meant to have both and a green run that tested no window is wrong.
+    skip = 1 if os.environ.get('CI') == 'true' else 0
     try:
         import tkinter as tk
         from tkinter import ttk
     except ImportError:
         print('note: no tkinter, so the window was not tested')
-        return 0
+        return skip
     try:
         tk.Tk().destroy()
     except tk.TclError as exc:
         print('note: no display (%s), so the window was not tested - run it '
               'under xvfb-run' % exc)
-        return 0
+        return skip
 
     vp = disctest.load_patcher()
     tmp = tempfile.mkdtemp(prefix='vo-guitest-')

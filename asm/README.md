@@ -762,5 +762,5 @@ displaced load is repeated before the `ret`.
 
 The version string is not in the blob: the blob carries zeros where it goes
 and `stamp_version` writes it after the patch table has been applied. That is
-what leaves `EXPECTED_ALL` in `selftest.py` one digest rather than one per
-release.
+what leaves `EXPECTED_ALL` in `selftest.py` one digest per build rather than
+one per release.

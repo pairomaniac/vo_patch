@@ -12,7 +12,7 @@ bits 32
 extern BLOCKS
 SIMPLE      equ 3
 extern DEVICES
-extern LIVE                     ; + player * 0x18
+extern BINDS1                     ; + player * 0x18
 
 commitdev:
     mov     [ecx*4 + DEVICES], eax
@@ -31,7 +31,7 @@ commitdev:
     add     esi, 0x30
 .block_found:
     imul    edi, ecx, 0x18
-    lea     edi, [edi + LIVE]
+    lea     edi, [edi + BINDS1]
     mov     ecx, 6
     rep movsd
     pop     ecx

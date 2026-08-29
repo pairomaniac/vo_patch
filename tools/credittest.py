@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Does the credit line read back out of the patched files as written?
 
 Same idea as bannertest.py, one layer further in. The line is spread over

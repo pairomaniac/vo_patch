@@ -2,16 +2,14 @@ name: "Build"
 
 on:
   push:
-    # Long-lived work branches build too: a branch that only meets CI at
-    # the pull request finds out about a missing tool or a stale blob at
-    # the worst moment.
-    branches: [main, mediakite]
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
 
+# Read-only by default; the windows job takes write for the release upload.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # vo_patch.py carries the assembled bytes rather than assembling on demand,
@@ -115,6 +113,8 @@ jobs:
     needs: verify
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4

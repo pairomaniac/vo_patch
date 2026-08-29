@@ -1,7 +1,4 @@
 bits 32
-                        ; starts four bytes into the section's padding: the
-                        ; frame rate patch's F5 labels grew the last resource
-                        ; into it. 420 bytes to the end of the section.
 
 ; Places the intro movie's window.
 ;

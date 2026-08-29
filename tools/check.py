@@ -58,7 +58,7 @@ CHECKS = [
       'tools/credittest.py', 'tools/vocredits.py', 'tools/disctest.py',
       'tools/guitest.py', 'tools/check.py', 'tools/buildsites.py',
       'tools/vomap.py', 'tools/votrans.py', 'tools/whereis.py',
-      'tools/rvload.py'], False, False),
+      'tools/rvload.py', 'net/rendezvous.py'], False, False),
     ('tree', 'no uncommitted generated files',
      ['git', 'diff', '--exit-code', '--stat'], False, True),
     ('offsets', 'every patch against a real v_on.exe',

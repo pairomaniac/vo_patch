@@ -12,7 +12,7 @@ extern KEYLIST
 extern PADLIST
 KEYCOUNT    equ 0x21
 PADCOUNT    equ 0x10
-extern MAPDONE                  ; where the search loop's jge went
+extern SELSET                  ; where the search loop's jge went
 %include "frames.inc"      ; the caller's locals, by name; the offset
                             ; is the retail build's, and build.py finds
                             ; each use so a build can move it
@@ -41,7 +41,7 @@ mapcount:
 .test:
     jl      .stay
     add     esp, 4
-    jmp     MAPDONE
+    jmp     SELSET
 .stay:
     ret
 

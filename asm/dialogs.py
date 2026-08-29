@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The two dialogs the patches build, and the data the Extras box reads.
 
     build_extras()  the F11 template, and the strings and tables

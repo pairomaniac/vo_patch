@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The gamepad patch's tables: what each pad input is, and what it is called.
 
 One list drives four blobs that used to be four hex strings, and the pointers

@@ -18,7 +18,7 @@ bits 32
 extern BLOCKS
 SIMPLE      equ 3
 extern DEVICES
-extern LIVE                     ; + player * 0x18
+extern BINDS1                     ; + player * 0x18
 extern PARSE12                  ; asm/iniparse.asm
 
 loadsimple:
@@ -39,7 +39,7 @@ loadsimple:
     jne     .done
     lea     esi, [edi + 0x30]       ; live table <- the Simple block
     imul    edi, ebx, 0x18
-    lea     edi, [edi + LIVE]
+    lea     edi, [edi + BINDS1]
     mov     ecx, 6
     rep movsd
 .done:

@@ -242,7 +242,7 @@ build_path:
 ; D_PATH and D_CMD are single shared buffers with no locking. The game drives
 ; music from one thread.
 
-; Sends the string constant whose data-cave offset is in eax.
+; Sends the string constant whose offset in the data blob is in eax.
 send_const:
         push    0
         push    0

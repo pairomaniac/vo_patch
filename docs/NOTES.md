@@ -671,8 +671,8 @@ routine tests, names the loaded asset set rather than the screen.
 
 The string is not in the blob, since the version comes from the git tag, so
 the patcher writes it into a field of zeros on the end after the rest of the
-patch is applied. That keeps `EXPECTED_ALL` in `selftest.py` one digest
-rather than one per release.
+patch is applied. That keeps `EXPECTED_ALL` in `selftest.py` one digest per
+build rather than one per release.
 
 ### Prompt text
 

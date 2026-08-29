@@ -66,6 +66,16 @@ def endpoint_bytes(addr):
     return socket.inet_aton(addr[0]) + addr[1].to_bytes(2, 'big')
 
 
+def send(sock, data, addr):
+    """sendto that cannot take the server down. A datagram with a spoofed
+    or unroutable source arrives fine and the reply to it fails, and an
+    exception here would drop every open code."""
+    try:
+        sock.sendto(data, addr)
+    except OSError as exc:
+        print('send to %s:%d failed: %s' % (*addr, exc), flush=True)
+
+
 def new_code():
     """secrets, not random: the default generator can be predicted from a
     few hundred codes seen, and a predicted code can be joined first."""
@@ -139,18 +149,18 @@ def handle(sock, data, addr, now):
             return
         c = new_code()
         codes[c] = {'host': addr, 'guest': None, 'seen': now}
-        sock.sendto(MAGIC + b'K' + c.encode(), addr)
+        send(sock, MAGIC + b'K' + c.encode(), addr)
         print('%s created by %s:%d (%d open)' % (c, *addr, len(codes)),
               flush=True)
 
     elif op == b'H':
         e = codes.get(code)
         if not e or e['host'] != addr:
-            sock.sendto(MAGIC + b'N', addr)
+            send(sock, MAGIC + b'N', addr)
             return
         e['seen'] = now
         if e['guest']:
-            sock.sendto(MAGIC + b'P' + endpoint_bytes(e['guest']), addr)
+            send(sock, MAGIC + b'P' + endpoint_bytes(e['guest']), addr)
 
     elif op == b'J':
         if banned(addr[0], now):
@@ -158,17 +168,17 @@ def handle(sock, data, addr, now):
         e = codes.get(code)
         if not e:
             miss(addr[0], now)
-            sock.sendto(MAGIC + b'N', addr)
+            send(sock, MAGIC + b'N', addr)
             return
         if e['guest'] is None:
             e['guest'] = addr
             print('%s joined by %s:%d' % (code, *addr), flush=True)
         if e['guest'] != addr:
-            sock.sendto(MAGIC + b'N', addr)   # someone else got there first
+            send(sock, MAGIC + b'N', addr)   # someone else got there first
             return
         e['seen'] = now
-        sock.sendto(MAGIC + b'P' + endpoint_bytes(e['host']), addr)
-        sock.sendto(MAGIC + b'P' + endpoint_bytes(addr), e['host'])
+        send(sock, MAGIC + b'P' + endpoint_bytes(e['host']), addr)
+        send(sock, MAGIC + b'P' + endpoint_bytes(addr), e['host'])
 
     elif op == b'R':
         if len(data) > 5 + CODE_LEN + MAX_RELAY:
@@ -197,7 +207,7 @@ def handle(sock, data, addr, now):
             e['relayed'] = True
             print('%s relaying' % code, flush=True)
         e['seen'] = now
-        sock.sendto(MAGIC + b'D' + data[5 + CODE_LEN:], other)
+        send(sock, MAGIC + b'D' + data[5 + CODE_LEN:], other)
 
 
 UNIT = 'vo-rendezvous'

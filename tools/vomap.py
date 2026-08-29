@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Map retail v_on.exe addresses onto another build of the game.
 
     python3 tools/vomap.py RETAIL.exe OTHER.exe [MAP.pkl]

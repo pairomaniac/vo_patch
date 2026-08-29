@@ -577,7 +577,8 @@ unpatched game do not fit the new device list. The title artwork -
 `escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
 with the new title prompt, after a copy is kept as `.bak`.
 
-**Restore original** puts all three back, keeping whatever the patched game
+**Restore original** puts every backed-up file back - those three and the
+two roll files the credit line rewrites - keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
 hand: the artwork and `v_on.exe` have to match, and restoring one alone
 draws the title prompt as scrambled letters.

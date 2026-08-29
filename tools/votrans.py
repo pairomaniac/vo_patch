@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Translate the patch table and the asm sources' addresses through a
 vomap.py map.
 
