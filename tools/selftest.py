@@ -28,7 +28,7 @@ import sys
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '5b531921069d99d887f18545be80e43c',
     'd19320bdc3381a48228990907910a391': 'a714a5ff2f042673ed62296c26fdc9ea',
-    '4c70f780a7f0d98d74be62304fb99021': '7d3f2e56f43a243bfea9820aaec51523',
+    '4c70f780a7f0d98d74be62304fb99021': 'c46525acafe136359629436a077771e1',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))

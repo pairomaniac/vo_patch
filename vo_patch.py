@@ -1974,6 +1974,8 @@ def site_in(off, build):
     """A retail site offset as this build has it."""
     if isinstance(off, At):
         return off.for_build(build)
+    if isinstance(off, In):
+        return int(off)
     if build.sites is not None:
         # a hook that starts a byte or more into its site names that spot
         for back in range(16):
@@ -1981,6 +1983,16 @@ def site_in(off, build):
                 return build.sites[off - back][0] + back
         raise KeyError(off)
     return off
+
+
+class In(int):
+    """A file offset in the site table that one build has and retail has
+    not - code the other compile grew. The offset is that build's own, so
+    a site written this way needs no entry in its map."""
+    def __new__(cls, md5, off):
+        obj = int.__new__(cls, off)
+        obj.md5 = md5
+        return obj
 
 
 def call(off, target, pad=0, op='e8'):
@@ -2625,7 +2637,12 @@ FEATURES = [
     ('nocpucheck', 'Skip processor check',
      'The game will not start on a modern CPU without this. It removes the\n'
      'MMX, Pentium and vendor checks as well.', [
-         (0x00107930, '830dc884bf0001', '90909090909090')]),
+         (0x00107930, '830dc884bf0001', '90909090909090'),
+         # The OEM has no vendor check; its test is a CPU class from the
+         # cpuid32.dll it ships, and only two answers pass. Take any, and
+         # set the MMX flag it would set for one of them.
+         (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
+         (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
@@ -2951,13 +2968,16 @@ def features(build):
     expecting its own original bytes, writing what its symbols resolve to
     here. A site at a cave the build does not have is left out - the patch
     that owns it puts the blob somewhere else at apply time."""
-    if build is RETAIL:
-        return FEATURES
     out = []
     for key, label, tip, sites in FEATURES:
         rows = []
         for off, orig, new in sites:
-            if isinstance(off, At):
+            if isinstance(off, In):
+                if off.md5 != build.md5:
+                    continue
+            elif build is RETAIL:
+                pass
+            elif isinstance(off, At):
                 try:
                     off = off.for_build(build)
                 except KeyError:
@@ -2971,7 +2991,7 @@ def features(build):
                 if build.sites[off] is None:
                     continue                # the build has no such code
                 off, orig = build.sites[off]
-            if isinstance(new, Sym):
+            if isinstance(new, Sym) and build is not RETAIL:
                 new = new.for_build(build)
             rows.append((off, orig, new))
         out.append((key, label, tip, rows))
@@ -2991,7 +3011,8 @@ DI_FIND = re.compile(
     rb'\x6a\x06[\s\S]{0,20}?\xff(?:[\x50-\x57]\x34|[\x90-\x97]\x34\x00\x00\x00)')
 
 # key -> (label, description, sites), with sites None meaning DI_FIND.
-BY_KEY = {key: (label, tip, sites) for key, label, tip, sites in FEATURES}
+BY_KEY = {key: (label, tip, sites)
+          for key, label, tip, sites in features(RETAIL)}
 
 # The patches a lockstep match cannot differ on are the frame rate and the
 # round-loss fix: both change what the simulation computes. Both are Essential

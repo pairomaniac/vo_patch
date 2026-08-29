@@ -555,8 +555,9 @@ prints the size and MD5 it found. That is what the row needs.
 The three retail pressings - USA, USA Alt and the European rerelease -
 carry the same `v_on.exe` byte for byte, so any of them patches. The OEM
 pressing and the Japanese rerelease are different compiles of the same
-game and patch with the same patches; the OEM has no processor check to
-skip, so that box does nothing there, and the rerelease's title artwork is
+game and patch with the same patches; the OEM's processor check is a
+different one and gets its own version of that patch, and the rerelease's
+title artwork is
 `jscrgame.bin`, which the banner patch redraws as it does `escrgame.bin`.
 Anything else is unrecognised, with the checksums side by side - in
 **GAME FILE** for a file you picked, in **INSTALL** for a disc image.

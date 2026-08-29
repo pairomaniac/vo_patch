@@ -138,10 +138,13 @@ The same toolchain a month before retail, and the closest of the builds
 to it: 7852 of 7934 functions match, 7593 identically, every frame is
 laid out the same, and the map placed all but four sites. It is carried
 like the rerelease - a `Build` with an annex - and differs in one thing:
-it has no vendor check. Retail's `GenuineIntel` test, which the processor
-check patch removes, is not in it; its check is an MMX test through the
-`cpuid32.dll` it ships, which a modern CPU passes. The patch's site is
-`None` in its map and the box does nothing.
+its processor check. Retail's `GenuineIntel` test, which the processor
+check patch removes, is not in it; instead `cpuid32.dll`, which it ships,
+classifies the CPU and only two classes pass - a modern one is neither,
+and under Wine the game refuses to start. So the patch has two sites of
+its own there, written as `In(OEM_MD5, ...)` in the table: the accept
+branch made unconditional, and the MMX flag set as it would be for the
+class that has it. Retail's site is `None` in the OEM's map.
 
 ### Why no v_on.ini
 

@@ -36,7 +36,7 @@ def main():
     rows, problems = [], []
     for key, _label, _tip, sites in vp.FEATURES:
         for off, orig, new in sites:
-            if isinstance(off, vp.At):
+            if isinstance(off, (vp.At, vp.In)):
                 continue
             off = int(off)
             o = bytes.fromhex(str(orig))
