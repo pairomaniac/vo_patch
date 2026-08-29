@@ -26,7 +26,7 @@ import sys
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '61ff1b98b4cb940133c138b483c274d9',
-    'd19320bdc3381a48228990907910a391': '04cbf6b3d9daf71f4dcf79767bdf7fd3',
+    'd19320bdc3381a48228990907910a391': '0d16840c33b3a529ea559228b425d6d4',
     '4c70f780a7f0d98d74be62304fb99021': 'd981cde5431e3480758bb9800a511bfd',
 }
 

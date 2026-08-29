@@ -2704,7 +2704,15 @@ FEATURES = [
          # setactive's entry: push ebp; mov ebp,esp; push ebx; push esi
          (0x001c5726, '558bec5356', jump(0x001c5726, ('ACTIVATE', 'resume'))),
          # the loop's idle pass while inactive
-         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle')))]),
+         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle'))),
+         # The rerelease alone reports a failed recreate with a message box
+         # from inside it, three times over - the display mode, the primary,
+         # the attached back buffer - which during the retry is a box per
+         # attempt, and under Proton an invisible one. The three calls go;
+         # the add esp after each takes the arguments they were pushed.
+         (In(JAPAN_MD5, 0x001bf3de), 'e894440000', '9090909090'),
+         (In(JAPAN_MD5, 0x001bf4ae), 'e8c4430000', '9090909090'),
+         (In(JAPAN_MD5, 0x001bf4f9), 'e879430000', '9090909090')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
