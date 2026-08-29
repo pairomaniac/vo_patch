@@ -152,10 +152,10 @@ Removes the check, so `ProcessorCheck=Off` in `v_on.ini` is not needed.
 Viper II, Apharmd or Raiden.
 - **Fix keyboard input after ALT+TAB** - alt-tabbing away, or opening an
 F-key dialog, kills the keyboard for the rest of the session.
-- **Fix crash on ALT+TAB** - coming back to the window, the game rebuilt its
-screen surfaces and carried on whether or not that had worked. When the
-display could not be reclaimed yet it crashed on the next frame. It waits
-and retries now.
+- **Fix crash on ALT+TAB** - switching away during the intro movie stops
+it, and the game treated that as the movie ending without rebuilding the
+screen it had handed to the player; the next frame crashed. It rebuilds it
+now.
 
 ### Extra
 

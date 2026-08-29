@@ -36,7 +36,6 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `credits.asm` | ending screens: ends the credits once the button has been held a second |
 | `overlay.asm` | ending screens: draws HOLD TO SKIP over the credits while it is held |
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
-| `activate.asm` | the window coming back: no resume until the surfaces are recreated |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |

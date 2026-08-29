@@ -137,7 +137,7 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
 
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
@@ -280,14 +280,6 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'PADPREV': 0x0365cb84,         # last polled buttons, one word per pad,
     'DZTHR1': 0x0365cb8c,          # stick thresholds out of 32767, 1P then
     'DZSTR1': 0x0365cb94,          # the digit pairs; see asm/padxinput.asm
-    'PENDING': 0x0365cb9c,         # a recreate owed
-    'RETADDR': 0x0365cba0,         # where one returns to
-    'RECREATE': 0x005c56a2,        # release and create the surfaces
-    'IDLE': 0x005c63aa,            # the loop's pass while inactive
-    'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
-    'INACTIVE': 0x01add128,        # the flag it idles on
-    'FSFLAGS': 0x006bf598,          # bit 2: the low-resolution modes
-    'FSMODE': 0x006bf560,           # and 320x240 among them
     'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
     'LOADLIB': 0x0365d504,         # LoadLibraryA
     'GETPROC': 0x0365d508,         # GetProcAddress
@@ -450,14 +442,6 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'PADPREV': 0x036577e4,         # last polled buttons, one word per pad,
     'DZTHR1': 0x036577ec,          # stick thresholds out of 32767, 1P then
     'DZSTR1': 0x036577f4,          # the digit pairs; see asm/padxinput.asm
-    'PENDING': 0x036577fc,
-    'RETADDR': 0x03657800,
-    'RECREATE': 0x005bff42,
-    'IDLE': 0x005c0c79,
-    'SETACTIVE': 0x005c0bf5,
-    'INACTIVE': 0x01ad7db0,
-    'FSFLAGS': 0x006bb2b0,
-    'FSMODE': 0x006bb278,
     'GETMODULE': 0x036584bc,       # GetModuleHandleA
     'LOADLIB': 0x03658514,         # LoadLibraryA
     'GETPROC': 0x03658518,         # GetProcAddress
@@ -612,14 +596,6 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'PADPREV': 0x0365cb04,
     'DZTHR1': 0x0365cb0c,
     'DZSTR1': 0x0365cb14,
-    'PENDING': 0x0365cb1c,
-    'RETADDR': 0x0365cb20,
-    'RECREATE': 0x005c5172,
-    'IDLE': 0x005c5ec3,
-    'SETACTIVE': 0x005c5e3f,
-    'INACTIVE': 0x01add0c0,
-    'FSFLAGS': 0x006bf530,
-    'FSMODE': 0x006bf4f8,
     'GETMODULE': 0x0365d4c8,   # iat GetModuleHandleA
     'LOADLIB': 0x0365d544,   # iat LoadLibraryA
     'GETPROC': 0x0365d548,   # iat GetProcAddress
@@ -734,9 +710,7 @@ JAPAN.sites = {
     0x0010b1c4: (0x0010794a, '00000000'),
     0x001c76d4: (0x001c1fa3, '0f840a000000'),
     0x00107930: (0x001040f0, '830d5031bf0001'),
-    0x001c4aa2: (0x001bf342, '558bec81ece0000000'),
-    0x001c5726: (0x001bfff5, '558bec5356'),
-    0x001c5412: (0x001bfce1, 'e893030000'),
+    0x001b0920: (0x001ab5dc, '0f850f000000'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
     0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
@@ -992,9 +966,7 @@ OEM.sites = {
     0x0010b1c4: (0x0010ad34, '00000000'),
     0x001c76d4: (0x001c71ed, '0f840a000000'),
     0x00107930: None,  # nocpucheck
-    0x001c4aa2: (0x001c4572, '558bec81ece0000000'),
-    0x001c5726: (0x001c523f, '558bec5356'),
-    0x001c5412: (0x001c4ee1, 'e8dd030000'),
+    0x001b0920: (0x001b03f0, '0f850f000000'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
     0x000275d3: (0x00027533, 'c705c842be0003000000'),
@@ -1771,37 +1743,6 @@ BLOBS = {
         'titlever': 0x0,
         'text': 0x55,
     }),
-    'ACTIVATE': (bytes.fromhex(
-        '58a30000000068190000005589e581ece0000000e90500000085c07514c70500'
-        '00000001000000c7050000000001000000ff2500000000837c240400751e833d'
-        '00000000007515c7050000000001000000c7050000000001000000c35589e553'
-        '56e901000000e8fcffffff833d000000000074456a10f6050000000004741583'
-        '3d0000000000740c68f00000006840010000eb0a68e00100006880020000e8fc'
-        'ffffff83c40c85c0740fc7050000000000000000e8fcffffffb801000000c3'
-    ), (
-        (0x2, 'abs', 'RETADDR', 0),
-        (0x7, 'abs', '.', 25),
-        (0x15, 'rel', 'RECREATE', 5),
-        (0x1f, 'abs', 'PENDING', 0),
-        (0x29, 'abs', 'INACTIVE', 0),
-        (0x33, 'abs', 'RETADDR', 0),
-        (0x40, 'abs', 'BACK', 0),
-        (0x49, 'abs', 'PENDING', 0),
-        (0x53, 'abs', 'INACTIVE', 0),
-        (0x62, 'rel', 'SETACTIVE', 1),
-        (0x67, 'rel', 'IDLE', -4),
-        (0x6d, 'abs', 'PENDING', 0),
-        (0x78, 'abs', 'FSFLAGS', 0),
-        (0x81, 'abs', 'FSMODE', 0),
-        (0x9f, 'rel', 'RECREATE', -4),
-        (0xac, 'abs', 'PENDING', 0),
-        (0xb5, 'rel', 'GRESUME', -4),
-    ), {
-        'recreate': 0x0,
-        'made': 0x19,
-        'resume': 0x37,
-        'idle': 0x66,
-    }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
         '0200000000010000020000000002000003000200400000000300030040000000'
@@ -2116,7 +2057,6 @@ NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
 CAMSKIP_CODE = link('CAMSKIP', RETAIL)
 OVERLAY_CODE = link('OVERLAY', RETAIL)
 TITLEVER_CODE = link('TITLEVER', RETAIL)
-ACTIVATE_CODE = link('ACTIVATE', RETAIL)
 # voxt.asm rides in the appended .voxt section and reaches everything through
 # absolute addresses, so it links without a cave.
 VOXT_CODE = link('VOXT', RETAIL)
@@ -2677,19 +2617,14 @@ FEATURES = [
          (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
          (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
     ('activate', 'Fix crash on ALT+TAB',
-     'Coming back to the window, the game recreates its DirectDraw surfaces\n'
-     'and resumes whether or not that worked. If the display cannot be\n'
-     'reclaimed at that instant it resumed with no surfaces and crashed on\n'
-     'the next frame. No resume goes through without them now; it waits and\n'
-     'retries. Seen on Wine without cnc-ddraw, during the intro movie.', [
-         (site('ACTIVATE'), zeros('ACTIVATE'), blob('ACTIVATE')),
-         # the recreate's entry: push ebp; mov ebp,esp; sub esp,0xe0
-         (0x001c4aa2, '558bec81ece0000000',
-          jump(0x001c4aa2, ('ACTIVATE', 'recreate'), 4)),
-         # setactive's entry: push ebp; mov ebp,esp; push ebx; push esi
-         (0x001c5726, '558bec5356', jump(0x001c5726, ('ACTIVATE', 'resume'))),
-         # the loop's idle pass while inactive
-         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle')))]),
+     'Switching away during the intro movie stops it, and the game ends it\n'
+     'as stopped - without rebuilding the screen it had handed to the\n'
+     'player. Nothing rebuilt it afterwards, and the next frame crashed.\n'
+     'The movie\'s exit rebuilds it now, however the movie ended.', [
+         # the movie's exit: if "stopped by deactivation", clear that and
+         # return without recreating the surfaces. jne -> jmp: always
+         # recreate.
+         (0x001b0920, '0f850f000000', '90e90f000000')]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
