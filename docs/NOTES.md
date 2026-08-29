@@ -245,14 +245,16 @@ the surfaces checks for null first, and the frame path does not.
 
 The patch is three hooks around that handler, `asm/activate.asm`. The
 two recreate calls (`0x5c6d6a`, `0x5c6d83`, one per resolution) go
-through a wrap that keeps the arguments and records whether it worked;
-the resume at `0x5c6db0` only resumes if it did; and the idle pass the
-main loop makes each iteration while inactive (`0x5c6012` calling
-`0x5c63aa`) retries the recreate with the kept arguments and resumes when
-it takes. The inactive flag `0x1add128` is the game's own: set by
-`GPAUSE`, cleared by `GRESUME`, and the loop already idles on it, so
-staying inactive costs nothing but the frames that had nothing to draw
-on. cnc-ddraw never fails the create and never saw any of this.
+through a wrap that keeps the arguments, records whether it worked, and
+on failure sets the inactive flag `0x1add128` itself - the intro movie's
+deactivation does not pause the game, so nothing else would; the resume
+at `0x5c6db0` only resumes if it worked; and the idle pass the main loop
+makes each iteration while inactive (`0x5c6012` calling `0x5c63aa`)
+retries the recreate with the kept arguments and resumes when it takes.
+The flag is the game's own: set by `GPAUSE`, cleared by `GRESUME`, and
+the loop already idles on it, so waiting costs nothing but the frames
+that had nothing to draw on. cnc-ddraw never fails the create and never
+saw any of this.
 
 ### Frame rate
 

@@ -283,6 +283,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'PENDING': 0x0365cb9c,         # a recreate owed, and its arguments
     'RECREATE': 0x005c56a2,        # release and create the surfaces
     'IDLE': 0x005c63aa,            # the loop's pass while inactive
+    'INACTIVE': 0x01add128,        # the flag it idles on
     'GETMODULE': 0x0365d4a0,       # GetModuleHandleA
     'LOADLIB': 0x0365d504,         # LoadLibraryA
     'GETPROC': 0x0365d508,         # GetProcAddress
@@ -448,6 +449,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'PENDING': 0x036577fc,
     'RECREATE': 0x005bff42,
     'IDLE': 0x005c0c79,
+    'INACTIVE': 0x01ad7db0,
     'GETMODULE': 0x036584bc,       # GetModuleHandleA
     'LOADLIB': 0x03658514,         # LoadLibraryA
     'GETPROC': 0x03658518,         # GetProcAddress
@@ -605,6 +607,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'PENDING': 0x0365cb1c,
     'RECREATE': 0x005c5172,
     'IDLE': 0x005c5ec3,
+    'INACTIVE': 0x01add0c0,
     'GETMODULE': 0x0365d4c8,   # iat GetModuleHandleA
     'LOADLIB': 0x0365d544,   # iat LoadLibraryA
     'GETPROC': 0x0365d548,   # iat GetProcAddress
@@ -1760,30 +1763,31 @@ BLOBS = {
     }),
     'ACTIVATE': (bytes.fromhex(
         '8b442404a3040000008b442408a3080000008b44240ca30c000000ff74240cff'
-        '74240cff74240ce8fcffffff83c40c83f001a300000000c3833d000000000075'
-        '05e9fcffffffc3e8fcffffff833d0000000000742dff350c000000ff35080000'
-        '00ff3504000000e8fcffffff83c40c85c0740fc7050000000000000000e8fcff'
-        'ffffb801000000c3'
+        '74240cff74240ce8fcffffff83c40c83f001a30000000085c0740ac705000000'
+        '0001000000c3833d00000000007505e9fcffffffc3e8fcffffff833d00000000'
+        '00742dff350c000000ff3508000000ff3504000000e8fcffffff83c40c85c074'
+        '0fc7050000000000000000e8fcffffffb801000000c3'
     ), (
         (0x5, 'abs', 'PENDING', 4),
         (0xe, 'abs', 'PENDING', 8),
         (0x17, 'abs', 'PENDING', 12),
         (0x28, 'rel', 'RECREATE', -4),
         (0x33, 'abs', 'PENDING', 0),
-        (0x3a, 'abs', 'PENDING', 0),
-        (0x42, 'rel', 'GRESUME', -4),
-        (0x48, 'rel', 'IDLE', -4),
-        (0x4e, 'abs', 'PENDING', 0),
-        (0x57, 'abs', 'PENDING', 12),
-        (0x5d, 'abs', 'PENDING', 8),
-        (0x63, 'abs', 'PENDING', 4),
-        (0x68, 'rel', 'RECREATE', -4),
-        (0x75, 'abs', 'PENDING', 0),
-        (0x7e, 'rel', 'GRESUME', -4),
+        (0x3d, 'abs', 'INACTIVE', 0),
+        (0x48, 'abs', 'PENDING', 0),
+        (0x50, 'rel', 'GRESUME', -4),
+        (0x56, 'rel', 'IDLE', -4),
+        (0x5c, 'abs', 'PENDING', 0),
+        (0x65, 'abs', 'PENDING', 12),
+        (0x6b, 'abs', 'PENDING', 8),
+        (0x71, 'abs', 'PENDING', 4),
+        (0x76, 'rel', 'RECREATE', -4),
+        (0x83, 'abs', 'PENDING', 0),
+        (0x8c, 'rel', 'GRESUME', -4),
     ), {
         'recreate': 0x0,
-        'resume': 0x38,
-        'idle': 0x47,
+        'resume': 0x46,
+        'idle': 0x55,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'

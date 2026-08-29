@@ -15,6 +15,8 @@ extern GRESUME                  ; the built-in dialogs' resume; clears the
 extern IDLE                     ; what the loop does per pass while inactive
 extern PENDING                  ; scratch: 1 while a recreate is owed, then
                                 ; the three arguments to make it with
+extern INACTIVE                 ; the flag GPAUSE sets and GRESUME clears;
+                                ; the loop idles while it is set
 
 recreate:
     mov     eax, [esp + 4]
@@ -30,6 +32,12 @@ recreate:
     add     esp, 12
     xor     eax, 1              ; 1 on success -> 0 owed; 0 -> 1 owed
     mov     [PENDING], eax
+    test    eax, eax
+    jz      .done
+    mov     dword [INACTIVE], 1 ; not every deactivation pauses the game -
+                                ; the intro movie's does not - so make the
+                                ; loop idle until the surfaces are back
+.done:
     ret
 
 resume:
