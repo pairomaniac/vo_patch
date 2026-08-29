@@ -21,7 +21,7 @@ SIMPLE_OFF  equ 0x38
 
 %include "padtables.inc"    ; SIMPLEDEF
 
-; ---------------------------------------------------------------- 0x5ff24c
+; ----------------------------------------------------------------
 ; Replaces `add eax, BASE / add eax, 8`. In: eax = player * 0x70.
 blockaddr:
     cmp     dword [eax + BLOCKS], SIMPLE
@@ -34,7 +34,7 @@ blockaddr:
 
     times   0x18 - ($ - blockaddr) db 0x90
 
-; ---------------------------------------------------------------- 0x5ff264
+; ----------------------------------------------------------------
 ; The Default button's copier takes its shipped set from a table picked
 ; here: the gamepad's at 0x66d600, or SIMPLEDEF. In: eax = player.
 defsource:                      ; edx is free at the site
@@ -50,7 +50,7 @@ defsource:                      ; edx is free at the site
 
     times   0x34 - ($ - blockaddr) db 0x90
 
-; ---------------------------------------------------------------- 0x5ff280
+; ----------------------------------------------------------------
 ; The preselect's `mov al, [ecx + eax*2 + BASE+8]`, the same read with the
 ; registers the other way around. In: ecx = player * 0x70, eax = slot.
 preselbind:
@@ -64,9 +64,9 @@ preselbind:
 
     times   0x50 - ($ - blockaddr) db 0x90
 
-; ---------------------------------------------------------------- 0x5ff29c
+; ----------------------------------------------------------------
 ; Low four bits of al as an ascii hex digit at [edi], advancing it.
-; asm/inisave.asm calls this; it lives here because its own cave is full.
+; asm/inisave.asm calls this; it lives here for room.
 hexchar:
     and     al, 0x0f
     cmp     al, 10

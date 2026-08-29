@@ -2,7 +2,7 @@ bits 32
 ; The preselect half of asm/pagesec.asm: on the gamepad page the letter
 ; and digit matching is skipped and a list hit is the combo index itself.
 ; The tail is unrelated lodging: the deadzone digits formatter, which
-; asm/iniall.asm's cave had no room for.
+; asm/iniall.asm had no room for.
 
 extern DEVCUR                   ; ZF set when the pending device is Simple
 extern SELDIGITS, SELLIST       ; the preselect's digit and list loops

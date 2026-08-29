@@ -53,7 +53,7 @@ WM_KEYUP    equ 0x0101
 VK_SPACE    equ 0x20
 VK_F3       equ 0x72
 
-; ---------------------------------------------------------------- 0x608060
+; ----------------------------------------------------------------
 ; One stub per player, installed in profile slot 1 of the F7 device list.
 entry1p:
     push    block1
@@ -71,7 +71,7 @@ entry2p:
 
     times   0x38 - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608098
+; ----------------------------------------------------------------
 ; Runs in place of one `call PeekMessageA` in the game's message pump. The
 ; input tick does not run while the game is paused, so pause and resume are
 ; posted from here instead.
@@ -86,7 +86,7 @@ pump:
 
     times   0x44 - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x6080a4
+; ----------------------------------------------------------------
 ; Poll both pads and post the edges for the keys the window procedure handles
 ; itself. Called from the pump each frame, and from introwait.asm while the
 ; intro movie holds the loop.
@@ -159,7 +159,7 @@ keytab_end:
 
     times   0xf9 - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608159
+; ----------------------------------------------------------------
 ; The input tick, one call per player per frame, reached through the profile
 ; dispatch. [ebp-4] records whether a pad was read, which the lever cleanup
 ; that replaces the epilogue reads.
@@ -353,7 +353,7 @@ resolve:
 
     times   0x2a2 - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x608302
+; ----------------------------------------------------------------
 ; Replaced by levers.asm, which does the same five things after cleaning the
 ; contamination out of the lever words.
 epilogue:

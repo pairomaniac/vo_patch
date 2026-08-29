@@ -80,21 +80,18 @@ DISC_IMAGES = {
 
 class Build(object):
     def __init__(self, name, short, md5, size, sections, caves, symbols, art,
-                 sites=None, annex=None, rdata_exec=()):
+                 sites=None, annex=None):
         # the name on screen, and a word for a label or a log line
         self.name, self.short = name, short
         self.md5, self.size = md5, size
-        # the patches with code in this build's .rdata, which then needs
-        # the executable flag; none when every blob is in the annex
-        self.rdata_exec = rdata_exec
         # (file offset, virtual address) of each section, in file order
         self.sections = sections
         self.caves, self.symbols = caves, symbols
-        # Blobs with no safe cave go in a section appended before any patch
-        # is written, in this order, 16-aligned. Where it lands is fixed by
-        # the file's own headers - the first appended section can only go
-        # in one place - so its blobs link at import like any cave:
-        # (virtual address, file offset, names).
+        # The blobs live in a section appended before any patch is written,
+        # in this order, 16-aligned. Where it lands is fixed by the file's
+        # own headers - the first appended section can only go in one
+        # place - so they link at import: (virtual address, file offset,
+        # names). The two caves are the places the game itself reaches.
         self.annex = None
         if annex:
             va, raw = annex_place(size, sections)
@@ -132,6 +129,16 @@ def annex_place(size, sections):
     return (va + length + 0xfff) & ~0xfff, (size + 0x1ff) & ~0x1ff
 
 
+# Every blob but the two the game reaches itself, in the order a build's
+# annex lays them out. A build other than retail keeps them all there.
+ANNEX_BLOBS = (
+    'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
+    'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
+    'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
+    'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
+    'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
+
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f4400, 0x005f5000),       # .rdata
@@ -140,42 +147,11 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00602c00, 0x0365f000),       # .rsrc
     (0x0060c400, 0x03669000),       # .reloc
 ), caves={
-    'TIMER': 0x005f4e3e,            # .text padding past the code
-    'DEBUGBOX': 0x005f4e7c,         # the rest of it; hook, then procedure
-    'OVERLAY': 0x005f80e0,
-    'COMMITDEV': 0x005fd74c,        # runs of zeros in .rdata from here on
-    'BINDLIST': 0x005fd7e4,
-    'BLOCKCUR': 0x005fd864,
-    'BINDMAP': 0x005fd904,
-    'BINDBLOCK': 0x005ff24c,
-    'INIPARSE': 0x00601b0c,
-    'PAGESEC': 0x00601b70,
-    'PAGESEL': 0x00601bd4,
-    'INISAVE': 0x00601c38,
-    'DEVORDER': 0x00604734,
-    'INILOAD': 0x0060702c,
-    'PADX': 0x00608060,
-    'LEVERS': ('PADX', 'end'),      # written straight after the routine
-    'TITLEVER': 0x00623d98,
-    'PAD_SIMPLEDEF': 0x00624788,
-    'PAD_BINDS': 0x00624843,
-    'TWIN': 0x006249c4,
-    'PAD_INIKEYS': 0x00624ae0,
-    'PAD_NAMES': 0x00624b9b,
-    'PAD_PROFILES': 0x00624c08,     # the rest of the same run
-    'PAD_COND': 0x00624d1b,
-    'F11PAUSE': 0x0063bf24,
-    'INIALL': 0x0063c5f4,
-    'CREDITS': 0x0063d6d0,
-    'CAMSKIP': 0x0063dda0,
-    'NAMEENTRY': 0x0063ddc4,
-    'EXTRAS_DATA': 0x0063e8e8,
-    'KBPAGE': 0x0063e938,
-    'INTROWAIT': 0x0063e970,        # .rdata raw padding after it
-    'PAD_DEVLIST': 0x0066d418,      # the F7 device list's own run, in .data
-    'MOVIE': 0x0366865c,            # .rsrc padding
-    # VOXT rides in the appended .voxt section and names nothing relative
-    # to itself, so it has no cave: link() is given None.
+    # Two places the game itself looks: the F7 device list's own run in
+    # .data, and the levers tail inside the XInput routine. Everything else
+    # is in the annex, a section appended before any patch is written.
+    'PAD_DEVLIST': 0x0066d418,
+    'LEVERS': ('PADX', 'end'),
 }, symbols={
     # Places inside our own blobs, by label
     'DEVCUR': ('BINDLIST', 'devcur'),
@@ -316,18 +292,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'MOVEWINDOW': 0x0365d5e0,      # MoveWindow
     'MCISEND': 0x0365d648,         # mciSendCommandA
 }, art=('escrgame.bin', 4194304, 'f0c2b33c6d32e8e25cee840a0de65dc0'),
-    rdata_exec=('padxinput', 'movie', 'credits'))
+    annex=ANNEX_BLOBS)
 
-
-# Every blob but the two the game reaches itself, in the order a build's
-# annex lays them out. A build other than retail keeps them all there.
-ANNEX_BLOBS = (
-    'TIMER', 'DEBUGBOX', 'PADX', 'TWIN', 'INTROWAIT', 'KBPAGE',
-    'BINDLIST', 'BINDMAP', 'BINDBLOCK', 'INISAVE', 'INILOAD', 'BLOCKCUR',
-    'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
-    'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
-    'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
 
 # The Japanese rerelease: the same source through the same toolchain four
 # months on, with every address moved. See docs/NOTES.md, and tools/vomap.py
@@ -2086,17 +2052,7 @@ PAD_SIMPLEDEF = link('PAD_SIMPLEDEF', RETAIL)
 PAD_INIKEYS = link('PAD_INIKEYS', RETAIL)
 EXTRAS_DATA = link('EXTRAS_DATA', RETAIL)
 
-# debugbox.asm assembles as one run, but the patch writes it as two sites:
-# the byte in front of the dialog procedure is alignment padding that has
-# never been written, so it is dropped rather than assume what the original
-# file has there.
-DEBUGBOX_SPLIT = label_at('DEBUGBOX', 'dlgproc') - 1
-_dbg = link('DEBUGBOX', RETAIL)
-DEBUGBOX_HOOK = _dbg[:DEBUGBOX_SPLIT]
-DEBUGBOX_PROC = _dbg[DEBUGBOX_SPLIT + 1:]
-# and as the site table writes the two halves, for any build with a cave
-debugbox_hook = Sym([lambda b: link('DEBUGBOX', b)[:DEBUGBOX_SPLIT].hex()])
-debugbox_proc = Sym([lambda b: link('DEBUGBOX', b)[DEBUGBOX_SPLIT + 1:].hex()])
+DEBUGBOX_CODE = link('DEBUGBOX', RETAIL)
 
 # DIALOGS BLOB BEGIN
 EXTRAS_TPL = bytes.fromhex(
@@ -2700,11 +2656,10 @@ FEATURES = [
          (0x001c4d42, '0f850c000000', '909090909090'),
          (0x001c4d4b, '65000000', '00000000'),
          (0x001c4d7e, '57685c00', abs32(('DEBUGBOX', 'hook'))),
-         (site('DEBUGBOX'), '00' * DEBUGBOX_SPLIT, debugbox_hook),
+         (site('DEBUGBOX'), zeros('DEBUGBOX'), blob('DEBUGBOX')),
          # the pause-and-resume wrapper the hook runs the dialog through,
          # matching the built-in F-key dialogs; see asm/f11pause.asm
          (site('F11PAUSE'), zeros('F11PAUSE'), blob('F11PAUSE')),
-         (At(('DEBUGBOX', 'dlgproc')), '00' * len(DEBUGBOX_PROC), debugbox_proc),
          (site('EXTRAS_DATA'), zeros('EXTRAS_DATA'), blob('EXTRAS_DATA'))]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
@@ -3024,12 +2979,6 @@ BY_KEY['dinput'] = (
     'Without this, alt-tabbing away or opening an F-key dialog kills\n'
     'keyboard input until the game is restarted.', None)
 
-# Both padxinput and the ending stubs put routines in .rdata, which the
-# loader maps without making it executable. The site that changes the section
-# flag belongs to neither of them: written twice it would fail its own
-# original check, so it is applied once for whichever patch is ticked.
-RDATA_EXEC = (0x000001c4, '40000040', '40000060')
-
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
@@ -3075,11 +3024,7 @@ def _check_table(build=RETAIL):
     if apply_order()[-1] != 'nodisc':
         raise AssertionError('nodisc must be applied last')
 
-    # RDATA_EXEC is not in any feature's list, so seed it here or the four
-    # bytes it writes are the one place two patches could collide unnoticed.
-    owner = dict.fromkeys(range(RDATA_EXEC[0],
-                                RDATA_EXEC[0] + len(RDATA_EXEC[1]) // 2),
-                          'the .rdata executable flag')
+    owner = {}
     for key in table:
         written = {}
         for off, old, new in table[key][2] or ():
@@ -4969,8 +4914,8 @@ def apply_extras_template(buf, build=RETAIL):
                          'f11pause site put it')
     struct.pack_into('<I', pe.d, at, pe.base + rva)
 
-    dbgproc_va = cave_va('DEBUGBOX', build) + DEBUGBOX_SPLIT + 1
-    proc = link('DEBUGBOX', build)[DEBUGBOX_SPLIT + 1:]
+    dbgproc_va = symbol_va(('DEBUGBOX', 'dlgproc'), build)
+    proc = link('DEBUGBOX', build)[label_at('DEBUGBOX', 'dlgproc'):]
     pattern = struct.pack('<I', MAGIC_ANNEXREL)
     if proc.count(pattern) != 1:
         raise ValueError('the ANNEXREL placeholder should appear exactly '
@@ -5311,7 +5256,8 @@ class PatchFailed(Exception):
 def apply_annex(buf, build):
     """Append the build's annex, empty: the site table writes the blobs into
     it like any cave. It has to land where the tables say, which the file's
-    own headers guarantee for the first section appended."""
+    own headers guarantee for the first section appended. Always applied,
+    so the essentials can rely on it - the timer stub is there."""
     va, raw, _names = build.annex
     _layout, length = annex_layout(build)
     pe = _PE(buf)
@@ -5335,17 +5281,7 @@ def apply_selected(buf, wanted, build=RETAIL):
     """
     applied, skipped = [], []
     table = by_key(build)
-    if build.annex:
-        buf = apply_annex(buf, build)
-    shared = [key for key in build.rdata_exec if wanted.get(key)]
-    if shared:
-        try:
-            apply_feature(buf, [RDATA_EXEC])
-        except ValueError as exc:
-            # Named after the first patch that wanted it, so the message the
-            # user gets points at a box they ticked rather than at a site
-            # that belongs to no patch.
-            raise PatchFailed(shared[0], exc) from exc
+    buf = apply_annex(buf, build)
     for key in apply_order():
         if not wanted.get(key):
             continue

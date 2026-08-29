@@ -11,7 +11,7 @@ bits 32
 ; The tail seeds the stick deadzones: 40% per player unless that
 ; player's "1P Deadzone=" or "2P Deadzone=" v_on.ini line says otherwise
 ; - two digits, 05 to 95; anything else keeps 40. asm/pagesel.asm's
-; tail, which this cave had no room for, writes the threshold for the
+; tail, which this blob had no room for, writes the threshold for the
 ; tick and the digit pair for that player's F11 box; the boxes write
 ; the lines back when the dialog closes, through asm/iniparse.asm's
 ; tail.

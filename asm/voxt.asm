@@ -1,7 +1,7 @@
 bits 32
 ; The F11 dialog's long tails, riding at the end of the .voxt section after
 ; the template: the close-time deadzone read and save, and the Quit case.
-; The dialog procedure in asm/debugbox.asm stays a dispatcher - its cave is
+; The dialog procedure in asm/debugbox.asm stays a dispatcher - its blob is
 ; six bytes from full - and calls here through a relative placeholder that
 ; vo_patch.py fills once the section's address exists.
 ;

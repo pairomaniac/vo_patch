@@ -38,7 +38,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
-| `layout.py` | data cave layout and string table, shared by `vocd.asm` and the blob |
+| `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
 | `build.py` | builds every blob in `../vo_patch.py`, from the `.asm` and `.py` sources above |
@@ -97,8 +97,8 @@ file as an ELF object, whose relocations say which bytes want which symbol.
 code as the fixup list. The addresses themselves live in one place per
 build, the `symbols` table of its `Build` in `vo_patch.py`: a virtual
 address for a place in the game, or `(blob, label)` for a place in one of
-ours. Where a blob goes is the `caves` table beside it, or for a build
-that appends a section for its blobs, the `annex` list.
+ours. Where a blob goes is the build's `annex` list, or for the two
+places the game itself reaches, its `caves` table.
 
 The locals of the game's own functions that a stub reads - a loop counter
 at `[ebp-8]` - are the frame-offset symbols, plain constants from
@@ -113,9 +113,9 @@ check box's game flag. Their `.inc` files declare the labels the assembly
 reads as `extern`.
 
 So one set of machine code serves any build of the game; a second build is
-a second `Build` with its own caves and symbols. The site table names its
-hooks the same way - `call(0x0009703f, ('PAGESEC', 'fillsec'), 5)` computes
-the rel32 from the cave, and `site('PADX')` the file offset a blob is
+a second `Build` with its own tables. The site table names its hooks the
+same way - `call(0x0009703f, ('PAGESEC', 'fillsec'), 5)` computes the
+rel32 from where the blob is, and `site('PADX')` the file offset a blob is
 written at - so there is no hand-computed address for the two to disagree
 on.
 
@@ -152,7 +152,7 @@ runner you would run locally:
 | Check | Catches |
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
-| `asm` | a source edited without the blobs being regenerated; a blob's site and the address its source names disagreeing; a blob grown past a `CEILINGS` pin; a call the site table writes into a cave landing on no assembled label |
+| `asm` | a source edited without the blobs being regenerated; a blob failing to link for a build; a pin the site table relies on moved |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -196,153 +196,39 @@ relative, so the section can go anywhere.
 
 **`padtables.py`** fills the condition table, the bind list and the strings
 both point at, and the device list in `.data`. **`dialogs.py`** fills the
-`.rdata` cave the Extras box reads, the template payload for the `.voxt`
-section the patch appends, and the tail of the F5
+strings and tables the Extras box reads, the template payload for the
+`.voxt` section the patch appends, and the tail of the F5
 resource that the frame rate labels live in. That last one is the only site
 whose `original` column is generated too: the stock labels packed by the same
 code, which is the check that this packing matches the resource compiler's.
 
-**`padxinput.asm`**, **`levers.asm`**, **`twinstick.asm`** and **`kbpage.asm`**
-each go to one site inside the XInput patch table, at `0x00207460`,
-`0x0020779e`, `0x00223dc4` and `0x0023dd38`. Every entry reads its length
-from the blob, so a routine can change size without the run of `00` beside it
-needing a manual edit - but it
-has to stay inside its cave, so growing one past the cave means a new cave
-in the `caves` table and not just a rebuild. The thirteen keyboard profile
-and F11 files in the cave table above work the same way: one site each,
-length read from the blob, the cave named in the table.
+## Where the blobs go
 
-## Space left in the executable
+Every blob but two is in the annex: a section, `.vojp`, that the patcher
+appends before any patch is written, executable, and fills through the
+site table like any other site. Where it lands is fixed by the file's own
+headers, so its addresses are known when the patcher loads and nothing
+is relinked at apply time; `.voxt` and `.vocd`, the sections two patches
+append at apply time, land after it. Every entry reads its length from the
+blob, so a routine can change size with a rebuild and nothing else.
 
-Sites written into section padding, and what is still free after them:
+The two exceptions are places the game itself reaches: the F7 device
+list, which `padtables.py` writes into the game's own run in `.data`, and
+`levers.asm`, written straight after `padxinput.asm` because the epilogue
+it replaces falls through into it. Those are the `caves` table of each
+`Build`.
 
-| Cave | File range | Size | Used | Free |
-| --- | --- | --- | --- | --- |
-| `.text` past VirtualSize | `0x1f423e`-`0x1f4400` | 450 | 328 | 122 |
-| `.rdata` past VirtualSize | `0x23dce8`-`0x23de00` | 280 | 252 | 28 |
-| `.rsrc` past VirtualSize | `0x60c25c`-`0x60c400` | 420 | 396 | **24** |
-
-The `.text` cave holds `timer.asm` and `debugbox.asm`, and has room again:
-the dialog procedure is a dispatcher now, its long paths - the deadzone
-read, the ini save, Quit's teardown order - living in `voxt.asm` at the
-end of the template's section, reached through a rel32 the patcher fills;
-the run of zeros
-continuing past
-`0x1f4400` is not more cave - `0x5f5000` is a `qword` 0.0 that `0x401ce4`
-compares against, and `0x5f5008` a 1.0 that three sites read. `BOXLEN` stops
-at the first of them and `build.py` checks it. This is why CD audio got a
-section of its own rather than another cave. The `.rdata` one holds the
-Extras box's strings and tables, the keyboard page fixes and the intro-movie
-message wait; the `.rsrc` one holds `movie.asm`. The dialog template is in
-neither - it goes in the `.voxt` section the patch appends, with
-`voxt.asm` after it. Anything else of any size wants its own section, the
-way `vocd.asm` has one.
+Nothing goes in a run of zeros in `.rdata`. A run there is never known to
+be free: a pointer just before it means the tail of a structure or the
+NULL slots of a handler table, read or called through without any
+reference the file shows, and both have crashed the game before. Two
+runs, at `0x5f80e0` and `0x623d98`, are `qword` constants that scan as
+zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 
 Inside the `.vocd` data blob there is room: `D_CMD` holds 448 bytes against a
 worst case of 318, and `D_TOC` is an exact fit at 100 dwords. Changing
 `layout.py` costs nothing in the file until the section passes 3 KB, because
 it is page aligned.
-
-Most of the gamepad patch's caves are runs of zeros inside `.rdata` proper
-rather than padding, which is why that section's characteristics get the
-execute bit:
-
-| Cave | File range | Size | Used | Free |
-| --- | --- | --- | --- | --- |
-| routine and lever cleanup | `0x207460`-`0x2077e0` | 896 | 881 | **15** |
-| input names, profile names and deadzone keys | `0x223f9b`-`0x224058` | 189 | 177 | 12 |
-| bind list table | `0x223c43`-`0x223d00` | 189 | 128 | 61 |
-| condition table | `0x22411b`-`0x2241cb` | 176 | 128 | 48 |
-| twin-stick stubs, binds, masks, blocks | `0x223dc4`-`0x223e73` | 175 | 164 | **11** |
-| keyboard page fixes | `0x23dd38`-`0x23dd6d` | 53 | 53 | 0 |
-| intro-movie message wait | `0x23dd70`-`0x23de00` | 144 | 136 | 8 |
-| win and lose skip, initials | `0x23d1a0`-`0x23d23c` | 156 | 91 | 65 |
-
-The last two of the first seven are the `.rdata` padding from the table
-above, so they appear twice. The last row is shared: `camskip.asm` ships with
-the gamepad patch and `nameentry.asm` with the ending screens, so either can
-be present without the other.
-
-The keyboard profile work sits in thirteen more runs on the same terms, one
-file per run - which is why there are so many small files: the free zero
-runs of any size are scattered, and a routine only works at the address it
-was assembled for. Grouping is by concern in the sections at the end of
-this file, not by address:
-
-| Cave | File range | Size | Used | Free |
-| --- | --- | --- | --- | --- |
-| `bindlist.asm` | `0x1fcbe4`-`0x1fcc58` | 116 | 103 | 13 |
-| `bindmap.asm` | `0x1fcd04`-`0x1fcd78` | 116 | 114 | **2** |
-| `bindblock.asm` | `0x1fe64c`-`0x1fe6c0` | 116 | 94 | 22 |
-| `blockcur.asm` | `0x1fcc64`-`0x1fccb8` | 84 | 71 | 13 |
-| `commitdev.asm` | `0x1fcb4c`-`0x1fcb98` | 76 | 57 | 19 |
-| `iniall.asm` | `0x23b9f4`-`0x23ba4c` | 88 | 88 | **0** |
-| `iniparse.asm` | `0x200f0c`-`0x200f6c` | 96 | 92 | **4** |
-| `pagesec.asm` | `0x200f70`-`0x200fd0` | 96 | 60 | 36 |
-| `pagesel.asm` | `0x200fd4`-`0x201034` | 96 | 91 | **5** |
-| `inisave.asm` | `0x201038`-`0x201098` | 96 | 86 | **10** |
-| `iniload.asm` | `0x20642c`-`0x2064a0` | 116 | 79 | 37 |
-| `devorder.asm` | `0x203b34`-`0x203b90` | 92 | 54 | 38 |
-| `f11pause.asm` | `0x23b324`-`0x23b37c` | 88 | 87 | **1** |
-
-`inisave.asm`'s cave ends early: `0x601c98` is a live address `0x4cf61b`
-reads, inside what scans as a longer run - the trap the second check below
-describes. `iniall.asm` is full, and `bindmap.asm` and `f11pause.asm` have
-a byte or two each; growing any of them is a rehoming job.
-
-`iniall.asm` moved to this cave in v0.10.2. It sat at `0x1fa544` before,
-which is zeros in the file and not free: the attract loop's scoreboard state
-copies 21 dwords from `0x5fb140` into its own record and reads an index out
-of them, so the blob's bytes were the index and the loop crashed on its way
-back to the title screen.
-
-The ending screens and the credit use three more runs of zeros in `.rdata`,
-on the same terms:
-
-| Cave | File range | Size | Used | Free |
-| --- | --- | --- | --- | --- |
-| credits skip | `0x23cad0`-`0x23cb6c` | 156 | 99 | 57 |
-| HOLD TO SKIP overlay | `0x1f74e0`-`0x1f7588` | 168 | 142 | 26 |
-| title screen version | `0x223198`-`0x223240` | 168 | 109 | 59 |
-
-The last two are the pair the three checks below warn about, and the last
-runs of that size. Picking a new cave means finding a run of zeros and
-proving it is free, which takes those three checks.
-
-Addresses below are virtual; the tables above are file offsets. The two
-differ by `0x400c00`.
-
-**Nothing points into it.** Search the file for a dword equal to any address
-in the span, and read the instruction at each hit - four bytes of data can
-happen to equal an address, so counting hits is not enough. `selftest.py`
-does this for every cave already in use, on the real file; the three checks
-here are for picking a new one.
-
-`0x6083e0` sits in the middle of the run the XInput routine's cave was cut
-from. It is a base address the geometry code indexes off, reading as zeros
-because that is what the game expects there. Writing over it corrupts the
-loading screens, so the routine stops short at `0x6083d1` and the usable tail
-is fifteen bytes rather than sixty-five.
-
-**It does not end inside one.** A run that abuts a small constant scans as
-longer than it is, so check what the bytes after it belong to.
-
-`0x1f74e0` and `0x223198` scan as free 174-byte runs and are neither free nor
-174 bytes; both are in use now, at the 168 they really hold. `0x623d08` is a
-table of twenty-byte entries the code at `0x5be302` walks, and each run ends
-inside a `qword` the FPU loads: both `0x5f8188` and `0x623e40` hold `480.0`,
-which is `00 00 00 00 00 00 7e 40`.
-Six leading zero bytes, so the scan overshoots by six.
-
-**Its start is a multiple of four.** Every address in this image is below
-`0x01000000`, so every pointer has a zero top byte, and the longest run of
-`00` begins one byte inside the last pointer of a table. Writing there turns
-`0x00623bb0` into `0x11623bb0` and the game dies dereferencing it. A cave
-picked by hand needs the same.
-
-All of these sit past their section's VirtualSize but inside SizeOfRawData,
-so the loader maps them. Any tool that rebuilds the PE from VirtualSize will
-silently drop them.
 
 ## vocd.asm
 
@@ -437,7 +323,7 @@ control's id is the game's own command id, so a click is posted straight to
 the main window as `WM_COMMAND` and needs no lookup table; the deadzone
 edits are the exception, their notifications being the dialog's own.
 Closing writes the boxes back and, when the gamepad patch's `iniparse.asm`
-cave is patched - its first byte says - calls the write-back in its tail,
+is in place - its first byte says - calls the write-back in its tail,
 so the values land in their v_on.ini lines.
 
 Credits is the exception to the rule. There is no menu item behind it, so the
@@ -445,13 +331,8 @@ procedure acts on it rather than posting it: `0x1f` into the sub-state at
 `0x1ae3690`, which sets the ending up and steps to the credits, `0x20`, on
 its own. Only while `0x1ae3594` reads 4, since that state number means
 something else in the title and attract tables. It is written with a
-`push`/`pop` pair rather than a `mov` because the cave has exactly two bytes
-to spare; see `BOXLEN`.
-
-It assembles as one run but lands as two sites, since the byte in front of the
-dialog procedure is alignment padding the patch has never written. `build.py`
-splits the blob there and refuses to do it if the source puts anything but a
-zero in that byte.
+`push`/`pop` pair rather than a `mov`, from when the blob had exactly two
+bytes to spare; see `BOXLEN`.
 
 The strings, the two tables it reads and the dialog template are data, packed
 by `dialogs.py`.
@@ -603,7 +484,7 @@ block per player, mostly tables.
 
 ## kbpage.asm
 
-Two unrelated repairs to the keyboard bind page, sharing a cave.
+Two unrelated repairs to the keyboard bind page, sharing a blob.
 
 The first is the duplicate-key test. The page refuses a key for 2P if 1P
 already holds it, which is right when both are on the keyboard and needlessly
@@ -665,10 +546,10 @@ numbers themselves stay what the executable and `v_on.ini` always used.
 
 The F11 Extras dialog's runner. The built-in F-key dialogs pause the game
 and the music around their DialogBox call and resume after; the F11 hook
-in `debugbox.asm` had no room left in its cave for the same calls, so the
-whole DialogBox block moved here and gained them. The tail is the dialog's
-check-box init, evicted from the same cave when the second deadzone box
-needed the room. Ships with **Disable menu bar**, not the gamepad patch.
+in `debugbox.asm` had no room left for the same calls, so the whole
+DialogBox block moved here and gained them. The tail is the dialog's
+check-box init, moved for the same reason. Ships with **Disable menu bar**,
+not the gamepad patch.
 
 ## movie.asm
 

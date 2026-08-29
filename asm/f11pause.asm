@@ -6,7 +6,7 @@ bits 32
 ; parent window); it pushes the dialog's five arguments itself.
 ;
 ; The tail is the dialog's check-box init, evicted from debugbox.asm's
-; cave when the second deadzone box needed the room. (hwnd), stdcall;
+; blob for room. (hwnd), stdcall;
 ; esi and edi are the caller's to lose, which the dialog procedure
 ; refills after the call.
 

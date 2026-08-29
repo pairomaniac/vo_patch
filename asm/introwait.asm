@@ -88,11 +88,3 @@ nap:
 
 kern32:     db 'kernel32.dll', 0
 sleepnm:    db 'Sleep', 0
-
-; This is the raw padding past .rdata's VirtualSize, not a run of zeros
-; inside it: nothing can reference it, because it is past the size the image
-; declares. The zero runs at 0x5f80e0 and 0x623d98 are data, not space - see
-; the cave rules in asm/README.md.
-;
-; It ends at file offset 0x23de00. Growing past that runs into .data, where
-; the site's expected bytes stop being zeros, so selftest.py catches it.

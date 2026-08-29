@@ -8,7 +8,7 @@ bits 32
 ; The tail is the deadzone write-back: both players' digit pairs out to
 ; their "1P Deadzone" and "2P Deadzone" lines, through the game's own
 ; line writer. The F11 dialog calls it when it closes, behind a byte
-; test that proves this cave is patched at all.
+; test that proves this blob is in place at all.
 
 
 %include "padtables.inc"    ; DZKEYS

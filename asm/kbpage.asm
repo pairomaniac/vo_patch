@@ -10,7 +10,7 @@ extern KBACCEPT                 ; take the key
 extern DEFAULTS                 ; fill a player's binds from the shipped set
 extern RESUME                   ; what the Default button does next
 
-; ---------------------------------------------------------------- 0x63e938
+; ----------------------------------------------------------------
 ; The page refuses a key for 2P if 1P already has it. Sensible when both are
 ; on the keyboard, needlessly strict when 1P is on a pad: 1P's binds are still
 ; in the map but nothing reads them. Replaces the "am I 2P" test.
@@ -32,7 +32,7 @@ dupkey:
 
     times   32 - ($ - dupkey) db 0x90
 
-; ---------------------------------------------------------------- 0x63e958
+; ----------------------------------------------------------------
 ; Default passed a hardcoded player 0, so pressing it on the 2P side reset
 ; 1P's binds and left 2P's alone. The gamepad and joystick pages both pass
 ; ds:0xbf6bac here; this one is the odd one out.

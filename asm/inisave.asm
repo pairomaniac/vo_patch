@@ -2,16 +2,14 @@ bits 32
 ; Keyboard (Simple)'s binds get a v_on.ini line of their own. The game's
 ; apply-and-serialize switch at 0x496e4f writes one Assign line per player
 ; for the committed device, and both keyboard-page devices land here: the
-; cave writes "NP Simple Assign" from the +0x38 block - twelve binds as the
+; blob writes "NP Simple Assign" from the +0x38 block - twelve binds as the
 ; same lowbyte-highbyte hex pairs "Keyboard Assign" uses - and then falls
 ; into the stock device 1 case, which refreshes the live table (through the
 ; block fork) and writes "Keyboard Assign" from +0x08. Both lines are
 ; always written, so neither profile's set is lost while the other is
 ; selected. Runs inside the F7 dialog's frame: [ebp + SAVEPLAYER] is the
 ; player, and the hex text is built in the frame's own line buffer through
-; the cursor at [ebp + SAVELINE] - the caves sit in .rdata, which the loader
-; maps executable but never writable, so no static buffer can be scribbled
-; on.
+; the cursor at [ebp + SAVELINE], not a static buffer of its own.
 ; The stock case rebuilds that buffer from the start afterwards.
 
 

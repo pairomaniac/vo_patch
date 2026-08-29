@@ -1,6 +1,6 @@
 bits 32
 ; The F11 Extras dialog: a window-procedure hook, the dialog procedure, and
-; the Credits case that did not fit before the end of the second cave.
+; the Credits case, out of line.
 ;
 ; Two addresses in here are named from outside this file and cannot move:
 ;
@@ -12,11 +12,8 @@ bits 32
 ; The strings, the tables and the dialog template are data, built by
 ; asm/dialogs.py, which also emits the addresses and control ids below.
 
-BOXLEN      equ 388             ; the cave from here to 0x5f5000. The zeros
-                                ; run fourteen bytes further, to 0x5f500e,
-                                ; but 0x5f5000 is a qword 0.0 that 0x401ce4
-                                ; compares against and 0x5f5008 a qword 1.0
-                                ; that three sites read. Zero is not free.
+BOXLEN      equ 388             ; a bound on the blob: the dialog procedure
+                                ; has outgrown its room before, unnoticed
 
 ; USER32 and DLGBOXPROC, the two strings; CHECKS, one entry per check box;
 ; TEMPLATE, the dialog itself; and CMD_QUIT, IDCANCEL and ID_DZ, three of
@@ -62,7 +59,7 @@ extern F11WRAP                  ; asm/f11pause.asm
 ; this replaces used the 8b and 33 encodings. The `db` lines below keep the
 ; blob byte-identical to the hex it was reconstructed from.
 
-; ---------------------------------------------------------------- 0x5f4e7c
+; ----------------------------------------------------------------
 ; Window procedure hook. Everything except F11 goes on to the original.
 hook:
     push    ebp
@@ -95,7 +92,7 @@ hook:
 
     times   0x5c - ($ - $$) db 0
 
-; ---------------------------------------------------------------- 0x5f4ed8
+; ----------------------------------------------------------------
 ; Dialog procedure. Control ids are the game's own command ids, so a click
 ; is posted to the main window as the menu item it replaces.
 dlgproc:
@@ -109,7 +106,7 @@ dlgproc:
     jne     .command
 
     ; The check boxes are ticked in asm/f11pause.asm's tail, where the loop
-    ; moved when the second deadzone box needed this cave's room.
+    ; kept there for room.
     push    dword [ebp + 8]
     call    F11CHECKS
 
@@ -148,8 +145,8 @@ dlgproc:
 .tail:
     ; Close and Quit are the long paths - the deadzone read, the ini save,
     ; the teardown order - and live in asm/voxt.asm at the end of the
-    ; template's section, this cave being six bytes from full when they
-    ; grew. The annex says what to do with its answer.
+    ; template's section, for room. The annex says what to do with its
+    ; answer.
     mov     edx, dword [ebp + 8]
     db      0xe8                        ; call rel32; nasm would subtract the
     dd      ANNEXREL                    ; site from a plain call, and the
@@ -178,7 +175,7 @@ dlgproc:
 ; Credits is the one button with no menu item behind it, so it is handled
 ; here rather than posted; everything else is forwarded as the menu item
 ; it replaces. Out of line from when the dialog procedure ran to the end
-; of its cave. 0x1f is the state that sets the ending up and steps to the
+; of the blob. 0x1f is the state that sets the ending up and steps to the
 ; credits itself; it only means that during a match, so pressing this
 ; anywhere else does nothing. The Quit case that lived above this is
 ; gone with its button - the window X quits the game the same way.
@@ -195,5 +192,5 @@ credits:
     jmp     dlgproc.post
 
 %if ($ - $$) > BOXLEN
-%error the dialog procedure has grown past the end of the cave
+%error the dialog procedure has grown past BOXLEN
 %endif

@@ -48,10 +48,9 @@ jobs:
       #          cross-patch collisions, the intra-patch overlap the XInput
       #          routine relies on, and every banner tile index in range.
       # asm      reassembles asm/ and compares against the committed blobs,
-      #          checks each blob's site against the address its source
-      #          names, blob growth against the CEILINGS pins, and every
-      #          call the site table writes into a cave against the
-      #          assembled labels - the mistakes nothing downstream notices.
+      #          links every blob for every build, and checks the pins the
+      #          site table relies on - the mistakes nothing downstream
+      #          notices.
       #          Writes nothing; nasm works in a temporary directory.
       # net      two mingw versions do not produce identical bytes, so the
       #          blob records a hash of net/dpctrl.c and this compares

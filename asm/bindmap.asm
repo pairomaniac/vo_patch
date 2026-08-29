@@ -1,7 +1,7 @@
 bits 32
 ; The restore half of asm/bindlist.asm: mapping a saved bind byte back to a
 ; combo index walks the same list, in a routine too far from the other two
-; to share their cave. Same rules: pinned slots, device picked by the side
+; to share a blob. Same rules: pinned slots, device picked by the side
 ; being configured. The startup defaults writer rides along at the end,
 ; there being no room for it beside its subject in asm/kbpage.asm.
 
@@ -18,7 +18,7 @@ extern MAPDONE                  ; where the search loop's jge went
                             ; each use so a build can move it
                             ; SELIDX: the preselect loop counter
 
-; ---------------------------------------------------------------- 0x5fd904
+; ----------------------------------------------------------------
 devcur:
     push    eax
     mov     eax, [CURPLAYER]
@@ -29,7 +29,7 @@ devcur:
 
     times   0x18 - ($ - devcur) db 0x90
 
-; ---------------------------------------------------------------- 0x5fd91c
+; ----------------------------------------------------------------
 ; The search loop's `cmp [ebp-0xc], count` and the jge after it.
 mapcount:
     call    devcur
@@ -47,7 +47,7 @@ mapcount:
 
     times   0x38 - ($ - devcur) db 0x90
 
-; ---------------------------------------------------------------- 0x5fd93c
+; ----------------------------------------------------------------
 ; The search's `cmp [eax*8 + list + 4], ecx`. The jne after it stays at the
 ; site and reads the flags this leaves.
 mapid:
@@ -59,7 +59,7 @@ mapid:
     cmp     [eax*8 + KEYLIST + 4], ecx
     ret
 
-; ---------------------------------------------------------------- 0x5fd954
+; ----------------------------------------------------------------
 ; Startup fills every profile's block in turn. The call that filled +0x38
 ; with 2 Joysticks defaults lands here instead, and the block gets Keyboard
 ; (Simple)'s shipped set. The live-refresh flag is dropped: the shared live

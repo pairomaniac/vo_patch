@@ -19,7 +19,7 @@ extern FILLDONE                 ; where the fill loop's jge went
                             ; each use so a build can move it
                             ; FILLIDX: the fill loop counter
 
-; ---------------------------------------------------------------- 0x5fd7e4
+; ----------------------------------------------------------------
 ; ZF set when the side being configured is on Keyboard (Simple).
 devcur:
     push    eax
@@ -31,7 +31,7 @@ devcur:
 
     times   0x18 - ($ - devcur) db 0x90
 
-; ---------------------------------------------------------------- 0x5fd7fc
+; ----------------------------------------------------------------
 ; Replaces the fill loop's `cmp [ebp-8], count` and the jge after it. The
 ; not-taken path returns into the loop body; the taken one leaves through
 ; the jge's own target, dropping the return address first.
@@ -51,7 +51,7 @@ fillcount:
 
     times   0x38 - ($ - devcur) db 0x90
 
-; ---------------------------------------------------------------- 0x5fd81c
+; ----------------------------------------------------------------
 ; The fill loop's `mov eax, [eax*8 + list]`, an entry's name.
 fillname:
     call    devcur
@@ -64,7 +64,7 @@ fillname:
 
     times   0x50 - ($ - devcur) db 0x90
 
-; ---------------------------------------------------------------- 0x5fd834
+; ----------------------------------------------------------------
 ; The store routine's `mov al, [eax*8 + list + 4]`, an entry's bind byte.
 storeid:
     call    devcur

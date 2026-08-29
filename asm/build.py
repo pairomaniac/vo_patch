@@ -18,10 +18,9 @@ that build's CAVES and SYMBOLS tables. So one set of machine code serves every
 build, and the retail addresses live in one table in the patcher rather than
 in twenty-eight files here.
 
-Besides matching the blobs, the check pass links every blob for the retail
-build and checks blob growth against pinned ceilings (check_ceilings). It
-runs vo_patch.py --selfcheck afterwards, which is where the site table is
-validated.
+Besides matching the blobs, the check pass links every blob for every
+build and checks the pins the site table relies on. It runs vo_patch.py
+--selfcheck afterwards, which is where the site table is validated.
 
 vo_patch.py carries the assembled bytes because it ships as a single file that
 has to run from a fresh checkout with nothing installed. So this writes them
@@ -49,12 +48,6 @@ sys.path.insert(0, HERE)
 import dialogs                                            # noqa: E402
 import layout                                             # noqa: E402
 import padtables                                          # noqa: E402
-
-# debugbox.asm is one run; the dialog procedure inside it is pinned 0x5c
-# bytes in, one byte further on than the hook ends. vo_patch.py splits the
-# linked blob there (DEBUGBOX_SPLIT), so the two halves must be checked as
-# one here.
-DEBUGBOX_SPLIT = 0x5c - 1
 
 MAGICS = [
     ('MAGIC_ORIGENTRY', 0xE1E1E1E1, 'VA of the entry point we chain to'),
@@ -234,41 +227,6 @@ def emit_blobs(blobs):
     return ''.join(out)
 
 
-# A cave's last usable byte, for the ones where something live sits close
-# enough behind them to matter. The zeros run past these; that is the point.
-# `selftest.py` finds them against a real v_on.exe, this pins what it found
-# so a blob cannot grow into one without CI saying so.
-CEILINGS = {
-    'DEBUGBOX': (0x005f5000, 'a qword 0.0 that 0x401ce4 compares '
-                             'depth against'),
-    'INISAVE': (0x00601c98, 'a live address 0x4cf61b reads, inside '
-                            'what scans as a longer run'),
-    'INIALL': (0x0063c64c, 'the end of its run; the deadzone seed '
-                           'took most of the slack'),
-    'F11PAUSE': (0x0063bf7c, 'the end of its run; the check-box loop '
-                             'took nearly all of it'),
-    'INIPARSE': (0x00601b6c, 'the end of its run; the deadzone '
-                             'write-back sits in its tail'),
-    'OVERLAY': (0x005f8188, 'a live address 18 sites point at'),
-    'TITLEVER': (0x00623e40, 'a qword 480.0 that 18 sites load'),
-}
-
-
-def check_ceilings(vp, blobs):
-    """Blobs whose cave ends before its run of zeros does.
-
-    A blob that outgrows its cave writes onto whatever follows it, and if
-    that is zeroed data every other check in the project passes. The F11
-    dialog procedure did this in v0.8.5: two bytes over the end, onto a
-    constant the game reads."""
-    for name, (limit, what) in CEILINGS.items():
-        end = vp.cave_va(name, vp.RETAIL) + len(blobs[name][0])
-        if end > limit:
-            raise SystemExit('%s ends at 0x%08x, %d bytes past 0x%08x, where '
-                             'the cave stops: %s'
-                             % (name, end, end - limit, limit, what))
-
-
 def check_link(vp, blobs):
     """Every blob links for every build, and every pin the site table
     relies on is where the assembly put it. A blob whose cave only exists
@@ -288,15 +246,6 @@ def check_link(vp, blobs):
     if len(padx) != vp.PADX_LEN:
         raise SystemExit('padxinput.asm assembles to %d bytes, not %d'
                          % (len(padx), vp.PADX_LEN))
-    dbg = blobs['DEBUGBOX'][0]
-    if dbg[DEBUGBOX_SPLIT]:
-        raise SystemExit('debugbox.asm puts %#04x at the byte between the '
-                         'hook and the dialog procedure, which the patch '
-                         'does not write' % dbg[DEBUGBOX_SPLIT])
-    if blobs['DEBUGBOX'][2]['dlgproc'] != DEBUGBOX_SPLIT + 1:
-        raise SystemExit('debugbox.asm has the dialog procedure at 0x%x, '
-                         'not 0x%x' % (blobs['DEBUGBOX'][2]['dlgproc'],
-                                       DEBUGBOX_SPLIT + 1))
     for blob, magic in (('F11PAUSE', dialogs.TEMPLATE),
                         ('DEBUGBOX', vp.MAGIC_ANNEXREL)):
         pattern = struct.pack('<I', magic)
@@ -379,7 +328,6 @@ def main(check=False):
         vp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(vp)
     check_link(vp, blobs)
-    check_ceilings(vp, blobs)
 
     sizes = ', '.join('%s %d' % (name.lower(), len(code))
                       for name, (code, _f, _l) in blobs.items()
