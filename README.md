@@ -155,7 +155,7 @@ F-key dialog, kills the keyboard for the rest of the session.
 - **Fix crash on ALT+TAB** - switching away during the intro movie stops
 it, and the game treated that as the movie ending without rebuilding the
 screen it had handed to the player; the next frame crashed. It rebuilds it
-now.
+now, and waits until that has worked before it carries on.
 
 ### Extra
 

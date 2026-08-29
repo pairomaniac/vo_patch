@@ -137,7 +137,7 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
 
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     (0x00000400, 0x00401000),       # .text
@@ -221,6 +221,16 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c680b,
+    'PENDING': 0x0365cb9c,         # a recreate owed
+    'RETADDR': 0x0365cba0,         # where one returns to
+    'RECREATE': 0x005c56a2,        # release and create the surfaces
+    'IDLE': 0x005c63aa,            # the loop's pass while inactive
+    'INACTIVE': 0x01add128,        # the flag it idles on
+    'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
+    'FSFLAGS': 0x006bf598,         # bit 2: the low-resolution modes
+    'FSMODE': 0x006bf560,          # and 320x240 among them
+    'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
+    'ISICONIC': 0x0365d594,        # IAT: IsIconic
     'LOCKBACK': 0x005c8108,        # the frame's back buffer lock, its result test
     'FLIPBACK': 0x005c6510,        # and its flip of the primary, the same         # and their resume
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
@@ -384,6 +394,16 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'KBHANDLER2': 0x005b785d,      # and 2P
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
+    'PENDING': 0x036577fc,
+    'RETADDR': 0x03657800,
+    'RECREATE': 0x005bff42,
+    'IDLE': 0x005c0c79,
+    'INACTIVE': 0x01ad7db0,
+    'SETACTIVE': 0x005c0bf5,
+    'FSFLAGS': 0x006bb2b0,
+    'FSMODE': 0x006bb278,
+    'HAVESURF': 0x006bb288,
+    'ISICONIC': 0x036585a4,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
     'ORIG': 0x005c29ae,            # the call this one is made in place of
     'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
@@ -539,6 +559,16 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'KBHANDLER2': 0x005bc9bd,   # func
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
+    'PENDING': 0x0365cb1c,
+    'RETADDR': 0x0365cb20,
+    'RECREATE': 0x005c5172,
+    'IDLE': 0x005c5ec3,
+    'INACTIVE': 0x01add0c0,
+    'SETACTIVE': 0x005c5e3f,
+    'FSFLAGS': 0x006bf530,
+    'FSMODE': 0x006bf4f8,
+    'HAVESURF': 0x006bf508,
+    'ISICONIC': 0x0365d5c8,
     'ORIGWNDPROC': 0x005c6370,   # func
     'ORIG': 0x005c7bf8,   # func
     'DRAW': 0x005c9454,   # func
@@ -711,6 +741,9 @@ JAPAN.sites = {
     0x001c76d4: (0x001c1fa3, '0f840a000000'),
     0x00107930: (0x001040f0, '830d5031bf0001'),
     0x001b0920: (0x001ab5dc, '0f850f000000'),
+    0x001c4aa2: (0x001bf342, '558bec81ece0000000'),
+    0x001c5726: (0x001bfff5, '558bec5356'),
+    0x001c5412: (0x001bfce1, 'e893030000'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
     0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
@@ -967,6 +1000,9 @@ OEM.sites = {
     0x001c76d4: (0x001c71ed, '0f840a000000'),
     0x00107930: None,  # nocpucheck
     0x001b0920: (0x001b03f0, '0f850f000000'),
+    0x001c4aa2: (0x001c4572, '558bec81ece0000000'),
+    0x001c5726: (0x001c523f, '558bec5356'),
+    0x001c5412: (0x001c4ee1, 'e8dd030000'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
     0x000275d3: (0x00027533, 'c705c842be0003000000'),
@@ -1743,6 +1779,41 @@ BLOBS = {
         'titlever': 0x0,
         'text': 0x55,
     }),
+    'ACTIVATE': (bytes.fromhex(
+        '58a30000000068190000005589e581ece0000000e90500000085c0751ec70500'
+        '00000001000000c7050000000001000000c7050000000001000000ff25000000'
+        '00837c240400751e833d00000000007515c7050000000001000000c705000000'
+        '0001000000c35589e55356e901000000e8fcffffff833d00000000007455ff35'
+        '00000000ff150000000085c075456a10f60500000000047415833d0000000000'
+        '740c68f00000006840010000eb0a68e00100006880020000e8fcffffff83c40c'
+        '85c0740fc7050000000000000000e8fcffffffb801000000c3'
+    ), (
+        (0x2, 'abs', 'RETADDR', 0),
+        (0x7, 'abs', '.', 25),
+        (0x15, 'rel', 'RECREATE', 5),
+        (0x1f, 'abs', 'PENDING', 0),
+        (0x29, 'abs', 'INACTIVE', 0),
+        (0x33, 'abs', 'HAVESURF', 0),
+        (0x3d, 'abs', 'RETADDR', 0),
+        (0x4a, 'abs', 'BACK', 0),
+        (0x53, 'abs', 'PENDING', 0),
+        (0x5d, 'abs', 'INACTIVE', 0),
+        (0x6c, 'rel', 'SETACTIVE', 1),
+        (0x71, 'rel', 'IDLE', -4),
+        (0x77, 'abs', 'PENDING', 0),
+        (0x80, 'abs', 'HWND', 0),
+        (0x86, 'abs', 'ISICONIC', 0),
+        (0x92, 'abs', 'FSFLAGS', 0),
+        (0x9b, 'abs', 'FSMODE', 0),
+        (0xb9, 'rel', 'RECREATE', -4),
+        (0xc6, 'abs', 'PENDING', 0),
+        (0xcf, 'rel', 'GRESUME', -4),
+    ), {
+        'recreate': 0x0,
+        'made': 0x19,
+        'resume': 0x41,
+        'idle': 0x70,
+    }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
         '0200000000010000020000000002000003000200400000000300030040000000'
@@ -2057,6 +2128,7 @@ NAMEENTRY_CODE = link('NAMEENTRY', RETAIL)
 CAMSKIP_CODE = link('CAMSKIP', RETAIL)
 OVERLAY_CODE = link('OVERLAY', RETAIL)
 TITLEVER_CODE = link('TITLEVER', RETAIL)
+ACTIVATE_CODE = link('ACTIVATE', RETAIL)
 # voxt.asm rides in the appended .voxt section and reaches everything through
 # absolute addresses, so it links without a cave.
 VOXT_CODE = link('VOXT', RETAIL)
@@ -2619,12 +2691,20 @@ FEATURES = [
     ('activate', 'Fix crash on ALT+TAB',
      'Switching away during the intro movie stops it, and the game ends it\n'
      'as stopped - without rebuilding the screen it had handed to the\n'
-     'player. Nothing rebuilt it afterwards, and the next frame crashed.\n'
-     'The movie\'s exit rebuilds it now, however the movie ended.', [
+     'player, and if it tried while still in the background the rebuild\n'
+     'came back half done. The exit rebuilds it now, and a rebuild that\n'
+     'fails pauses the game until one succeeds.', [
+         (site('ACTIVATE'), zeros('ACTIVATE'), blob('ACTIVATE')),
          # the movie's exit: if "stopped by deactivation", clear that and
-         # return without recreating the surfaces. jne -> jmp: always
-         # recreate.
-         (0x001b0920, '0f850f000000', '90e90f000000')]),
+         # return without recreating the surfaces. jne -> jmp: always try.
+         (0x001b0920, '0f850f000000', '90e90f000000'),
+         # the recreate's entry: push ebp; mov ebp,esp; sub esp,0xe0
+         (0x001c4aa2, '558bec81ece0000000',
+          jump(0x001c4aa2, ('ACTIVATE', 'recreate'), 4)),
+         # setactive's entry: push ebp; mov ebp,esp; push ebx; push esi
+         (0x001c5726, '558bec5356', jump(0x001c5726, ('ACTIVATE', 'resume'))),
+         # the loop's idle pass while inactive
+         (0x001c5412, 'e893030000', call(0x001c5412, ('ACTIVATE', 'idle')))]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
