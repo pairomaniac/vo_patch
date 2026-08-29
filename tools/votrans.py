@@ -1,8 +1,10 @@
 """Translate the patch table and the asm sources' addresses through a
 vomap.py map.
 
-    python3 tools/votrans.py sites [MAP.pkl]     every FEATURES site
-    python3 tools/votrans.py asm   [MAP.pkl]     every address in asm/*.asm
+    python3 tools/votrans.py sites   [MAP.pkl]   every FEATURES site
+    python3 tools/votrans.py asm     [MAP.pkl]   every address in asm/*.asm
+    python3 tools/votrans.py symbols [MAP.pkl]   RETAIL.symbols for the other
+                                                 build, to paste into a Build
     python3 tools/votrans.py one VA... [MAP.pkl] single addresses
 
 MAP.pkl defaults to vomap.pkl in the current directory; the executables are
@@ -115,8 +117,9 @@ def translate_off(off):
     return (exeB.off(r) if r is not None else None), how
 
 
-# Resolved by hand from the disassembly; see docs/NOTES.md.
-MANUAL = {
+# Resolved by hand from the disassembly, per target build (by MD5); see
+# docs/NOTES.md. Sites by retail file offset, then addresses by retail VA.
+HAND = {'d19320bdc3381a48228990907910a391': ({           # Japanese rerelease
     0x000970bf: 0x00095c1c, 0x000970d5: 0x00095c32,   # bind page fill loop, [ebp-8] is [ebp-0x18] in JP
     0x00095ec7: 0x00094a26,                           # mov dl,[eax+ecx*2+block]: block moved
     0x00096b61: 0x000956bf,                           # 2P-key check, retail split this function in two
@@ -126,13 +129,15 @@ MANUAL = {
     0x0009703f: 0x00095b9c,                           # bind page fill: the letter loop entry;
                                                       # its bytes also occur in another function
     0x0000023f: 0x0000023f, 0x000000a8: 0x000000a8,   # PE header: same section order, same field
-}
-MANUAL_VA = {
+}, {
     0x0049776e: 0x004962cc, 0x004977c6: 0x00496324,   # kbpage: 2P-key check labels
     0x00497c70: 0x004967cd, 0x00497cb0: 0x0049680d,   # pagesec: bind page loop heads
     0x00497cf7: 0x00496854,                           # bindlist: loop exit
     0x005c680b: 0x005c10da,                           # f11pause: GRESUME
-}
+})}
+
+import hashlib                                                  # noqa: E402
+MANUAL, MANUAL_VA = HAND.get(hashlib.md5(exeB.d).hexdigest(), ({}, {}))
 
 
 if __name__ == '__main__':
@@ -203,6 +208,27 @@ if __name__ == '__main__':
                 ok += 1
             print('%08x -> %-8s %-6s %-32s %s' % (va, '%08x' % r if r else '????????', sec, how, ','.join(sorted(addrs[va]))))
         print('translated %d, failed %d' % (ok, bad))
+    elif what == 'symbols':
+        # RETAIL's symbols as the other build would have them, to paste into
+        # a new Build; what could not be resolved is listed for the hand
+        spec = importlib.util.spec_from_file_location('vp', os.path.join(ROOT, 'vo_patch.py'))
+        vp = importlib.util.module_from_spec(spec); spec.loader.exec_module(vp)
+        unresolved = []
+        for name, value in vp.RETAIL.symbols.items():
+            if isinstance(value, tuple):
+                print("    '%s': %r," % (name, value))
+            elif value < 0:
+                print("    '%s': %s,%s" % (name, '-0x%x' % -value,
+                                          '   # frame offset: read the disassembly'))
+            else:
+                r, how = translate(value)
+                if r is None:
+                    unresolved.append((name, value, how))
+                    print("    # '%s': 0x%08x -> ?  %s" % (name, value, how))
+                else:
+                    print("    '%s': 0x%08x,%s" % (name, r, '' if 'votes' in how and int(how.split()[1]) >= 3
+                                                   else '   # ' + how))
+        print('# %d unresolved' % len(unresolved))
     elif what == 'one':
         for a in [x for x in sys.argv[2:] if not x.endswith('.pkl')]:
             va = int(a, 16)

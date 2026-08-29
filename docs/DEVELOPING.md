@@ -83,15 +83,15 @@ inside one will do.
 | Name | What it proves |
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
-| `asm` | `asm/` reassembles to the committed blobs, each blob's site agrees with the address its source names, no blob has grown past a cave ceiling in `CEILINGS`, and every call the site table writes that leaves `.text` lands on an assembled label |
+| `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, the pins the site table relies on are where the assembly put them, and no blob has grown past a retail cave ceiling in `CEILINGS` |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
 | `lint` | pyflakes |
 | `tree` | nothing regenerated was left uncommitted. Skipped outside CI, where it would fail on every edit in progress |
-| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5 |
-| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte |
-| `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
+| `offsets` | `selftest.py`: every `original` column against a real file, no cave write landing on an address the game reads or just past one it points at, hundreds of patch combinations applied, and the fully patched MD5. Runs against whichever build the file is |
+| `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte. Retail only: the other builds' artwork has no reference MD5 yet |
+| `credit` | `credittest.py` (retail only): the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
 
 Some need a copy of the game, which is not in the repository, so CI skips
 them and says so. They are the manual step before tagging.
@@ -156,8 +156,12 @@ Edit `LINES` at the top to change what it says. The result goes between the
 
 ## Placing a blob
 
-Nothing downstream checks that a cave is really free, so this is done by
-hand, once, per blob:
+This is the retail build's concern. The Japanese rerelease keeps every
+blob in an appended section, the annex, because the runs of zeros in its
+`.rdata` turned out to be the NULL tails of handler tables the game calls
+through (docs/NOTES.md); a build added later should do the same unless it
+has a reason not to. For retail, nothing downstream checks that a cave is
+really free, so this is done by hand, once, per blob:
 
 1. `python3 tools/freespace.py DIR <length>` and take a clean candidate.
    The address has to be a multiple of four - `build.py` refuses otherwise,
@@ -173,6 +177,38 @@ Moving one is the same edit: every hook in the site table computes its
 rel32 from the cave through `call()` and `jump()`, and every blob that
 names a place inside another goes through the `symbols` table, so nothing
 else holds the old address.
+
+## Adding a build
+
+A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
+what every symbol the blobs name resolves to, its title artwork, and for
+any build but retail a site map and an annex. The tables come from the
+retail executable and the new one side by side, none of which is
+committed:
+
+1. `python3 tools/vomap.py retail.exe other.exe map.pkl` matches the two
+   function by function and votes on where every address went.
+2. `python3 tools/votrans.py symbols map.pkl` prints `RETAIL.symbols` as
+   the other build has them, with the unresolved ones commented out. Frame
+   offsets, the scratch past `.data` and the two spare bytes are always by
+   hand: read the disassembly at each hook (`votrans.py one VA`) and pick
+   free memory.
+3. Add the `Build` with `sites=None` and an `annex` listing every blob but
+   `PAD_DEVLIST` and `LEVERS`; `PAD_DEVLIST` is the game's own device list,
+   translated like any symbol.
+4. Put `# SITES NAME BEGIN` / `END` markers after the JAPAN ones and run
+   `python3 tools/buildsites.py NAME retail.exe other.exe map.pkl`. What
+   it cannot place is listed; those go in `HAND` in `votrans.py`, keyed by
+   the build's MD5, with a reason each.
+5. A row in `SYNC_SITES`, and one in `fp_builds` in `net/dpctrl.c` with
+   the PE timestamp (`net/build.py` afterwards).
+6. `python3 asm/build.py --check`, then `selftest.py` on the new file and
+   pin its all-patches MD5 in `EXPECTED_ALL`. Then someone has to play it.
+
+A site the matcher places in the wrong function is the failure to expect:
+ten bytes of `cmp [ebp-8], 0x1a; jge` occur in more than one place, and
+only the disassembly says which copy has the recompiled frame.
+`tools/whereis.py` turns a crash address into a blob and label.
 
 ## Netplay
 
@@ -420,8 +456,9 @@ and nothing looked wrong. That is what the cave check in `selftest.py` and
 
 A stub in `.rdata` needs that mark, and the site that sets it is `RDATA_EXEC`
 in `vo_patch.py` rather than any one patch's site list, because a site written
-twice fails its own original check. Add the patch's key to `RDATA_EXEC_KEYS`
-and it is applied once for whichever of them is ticked. `_check_table` seeds
+twice fails its own original check. Add the patch's key to the build's
+`rdata_exec` tuple and it is applied once for whichever of them is ticked.
+`_check_table` seeds
 its collision map with those four bytes, so putting them in a patch's list as
 well is caught at import rather than in someone's game.
 

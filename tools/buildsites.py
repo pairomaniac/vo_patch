@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Write the JAPAN build's site map into vo_patch.py.
+"""Write a build's site map into vo_patch.py.
 
-    python3 tools/jpsites.py RETAIL.exe JP.exe [MAP.pkl]
+    python3 tools/buildsites.py NAME RETAIL.exe OTHER.exe [MAP.pkl]
 
-For every site the table names by retail offset: where it is in the
-rerelease, through votrans.py, and the bytes the rerelease has there. A site
-whose retail original is not what the retail file holds is one an earlier
-site in the same patch wrote, so its original is kept as the table has it.
-The result goes between the SITES BLOB markers.
+NAME is the Build's name in vo_patch.py (JAPAN). For every site the table
+names by retail offset: where it is in the other build, through votrans.py,
+and the bytes that build has there. A site whose retail original is not
+what the retail file holds is one an earlier site in the same patch wrote,
+so its original is kept as the table has it. The result goes between the
+`# SITES NAME BEGIN` and `END` markers, which must exist.
 """
 import os
 import re
@@ -23,8 +24,8 @@ TARGET = os.path.join(ROOT, 'vo_patch.py')
 
 
 def main():
-    retail_path, jp_path = sys.argv[1], sys.argv[2]
-    sys.argv = ['votrans', 'one'] + sys.argv[3:]
+    name, retail_path, jp_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    sys.argv = ['votrans', 'one'] + sys.argv[4:]
     import votrans                                       # noqa: E402
     spec = importlib.util.spec_from_file_location('vp', TARGET)
     vp = importlib.util.module_from_spec(spec)
@@ -79,7 +80,7 @@ def main():
     if problems:
         raise SystemExit('unplaced:\n  ' + '\n  '.join(problems))
 
-    out = ['JAPAN.sites = {\n']
+    out = ['%s.sites = {\n' % name]
     for off, jo, jorig, key, how, own in rows:
         note = '  # %s' % 'written by an earlier site' if own else ''
         if len(jorig) <= 40:
@@ -91,11 +92,11 @@ def main():
             out.append("    ),\n")
     out.append('}\n')
     text = open(TARGET, encoding='utf-8').read()
-    new, n = re.subn(r'(# SITES BLOB BEGIN\n).*?(# SITES BLOB END)',
+    new, n = re.subn(r'(# SITES %s BEGIN\n).*?(# SITES %s END)' % (name, name),
                      lambda m: m.group(1) + ''.join(out) + m.group(2),
                      text, flags=re.S)
     if n != 1:
-        raise SystemExit('SITES BLOB markers not found')
+        raise SystemExit('# SITES %s BEGIN / END markers not found' % name)
     open(TARGET, 'w', encoding='utf-8').write(new)
     print('%d sites written' % len(rows))
 

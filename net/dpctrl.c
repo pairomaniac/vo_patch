@@ -1446,13 +1446,13 @@ static int negotiate_delay(void)
    A visual-only or input-reading patch (sound, movie, defaults, XInput)
    does not appear here on purpose: those may differ between the two sides.
    If a future patch changes the simulation, add its site to this list. */
-#define FP_DIVISOR_VA  0x0050bbc4u   /* framerate: 03 vs 01               */
-#define FP_CONTINUE_VA 0x00478b5au   /* continuefix: 8b vs 90             */
-/* The Japanese rerelease is a separate compile, told apart by its PE
-   timestamp; the same two sites live here. See docs/NOTES.md. */
-#define JP_TIMESTAMP   0x345107FAu
-#define JP_DIVISOR_VA  0x0050834au
-#define JP_CONTINUE_VA 0x0047770au
+/* Per build, told apart by the PE timestamp: the frame divisor site
+   (03 vs 01) and a continuefix site (8b vs 90). The retail entry is the
+   fallback for a timestamp not listed. See docs/NOTES.md. */
+static const struct { unsigned long stamp, divisor, cont; } fp_builds[] = {
+    { 0x334D33FCu, 0x0050bbc4u, 0x00478b5au },   /* English retail      */
+    { 0x345107FAu, 0x0050834au, 0x0047770au },   /* Japanese rerelease  */
+};
 
 static unsigned char sync_fingerprint(void)
 {
@@ -1460,16 +1460,18 @@ static unsigned char sync_fingerprint(void)
        base) is the byte at VA wherever the image loaded, relocation or
        not; the game has a .reloc but is always seen at 0x400000. */
     unsigned char *base = (unsigned char *)GetModuleHandleA(NULL);
-    unsigned long pe, stamp, divisor, cont;
+    unsigned long pe, stamp;
+    unsigned i, which = 0;
 
     if (!base)
         return 0;
     pe = *(unsigned long *)(base + 0x3c);
     stamp = *(unsigned long *)(base + pe + 8);
-    divisor = stamp == JP_TIMESTAMP ? JP_DIVISOR_VA : FP_DIVISOR_VA;
-    cont = stamp == JP_TIMESTAMP ? JP_CONTINUE_VA : FP_CONTINUE_VA;
-    return (unsigned char)(*(base + (divisor - 0x00400000u)) * 31
-                         + *(base + (cont - 0x00400000u)));
+    for (i = 0; i < sizeof fp_builds / sizeof fp_builds[0]; i++)
+        if (fp_builds[i].stamp == stamp)
+            which = i;
+    return (unsigned char)(*(base + (fp_builds[which].divisor - 0x00400000u)) * 31
+                         + *(base + (fp_builds[which].cont - 0x00400000u)));
 }
 
 int __stdcall InitialDirectPlay(VO_NETINIT *init)

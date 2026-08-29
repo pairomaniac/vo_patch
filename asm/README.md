@@ -79,8 +79,9 @@ Each `BLOBS` entry is `(code, fixups, labels)`. The code has its address
 slots empty; a fixup says which slot holds which symbol and how (absolute,
 or relative to the end of the slot); the labels are the offsets of the
 source's labels, for another blob or the site table to name. `vo_patch.py`
-links each one for the retail build as it loads - `PADX_CODE = link('PADX',
-RETAIL)` and so on - and that is what the site table writes.
+links each one for the build being patched - `PADX_CODE = link('PADX',
+RETAIL)` is the retail copy the names refer to, and `features(build)` links
+the same blob for another build - and that is what the site table writes.
 
 The three `.py` modules also emit an `.inc` file each, which the assembly
 includes. An address both sides need - the condition table, the Extras
@@ -93,10 +94,18 @@ No `.asm` file names an address in the game. Every place it touches is an
 `extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles the
 file as an ELF object, whose relocations say which bytes want which symbol.
 `build.py` reads those out and writes them into `vo_patch.py` beside the
-code as the fixup list. The addresses themselves live in one place, the
-`RETAIL` build's `symbols` table in `vo_patch.py`: a virtual address for a
-place in the game, or `(blob, label)` for a place in one of ours. Where a
-blob goes is the `caves` table beside it.
+code as the fixup list. The addresses themselves live in one place per
+build, the `symbols` table of its `Build` in `vo_patch.py`: a virtual
+address for a place in the game, or `(blob, label)` for a place in one of
+ours. Where a blob goes is the `caves` table beside it, or for a build
+that appends a section for its blobs, the `annex` list.
+
+The locals of the game's own functions that a stub reads - a loop counter
+at `[ebp-8]` - are the frame-offset symbols, plain constants from
+`frames.inc`, which `build.py` writes from the retail table. It finds
+where each one sits in the code by assembling the source once more with
+that constant moved and diffing; a relocation would do it, but nasm
+versions disagree on what an 8-bit relocation against an extern encodes.
 
 The `.py` modules work the same way: `padtables.py` emits the bind list
 with a fixup on `PAD_NAMES` for every pointer, `dialogs.py` a fixup on each

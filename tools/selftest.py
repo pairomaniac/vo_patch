@@ -200,13 +200,12 @@ def main(path):
                 data = fh.read()
         except OSError as err:
             return str(err)
-        if len(data) != vp.EXE_SIZE:
-            return ('%s is %d bytes, expected %d, and there is no %s.bak '
-                    'holding the original'
-                    % (path, len(data), vp.EXE_SIZE, path))
-        return ('%s has MD5 %s, expected %s, and there is no %s.bak holding '
-                'the original' % (path, hashlib.md5(data).hexdigest(),
-                                  vp.ORIGINAL_MD5, path))
+        known = ', '.join('%s (%d bytes, MD5 %s)' % (b.name, b.size, b.md5)
+                          for b in vp.BUILDS.values())
+        return ('%s is %d bytes with MD5 %s, and there is no %s.bak holding '
+                'an original. Known: %s'
+                % (path, len(data), hashlib.md5(data).hexdigest(), path,
+                   known))
     if read != path:
         print('note: read %s, not the patched file beside it' % read)
     digest = hashlib.md5(original).hexdigest()

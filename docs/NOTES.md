@@ -73,35 +73,38 @@ so no address may be derived from a neighbour's; every one goes through
 the map.
 
 The patcher carries it as a second `Build` beside `RETAIL`: sections,
-caves, symbols, and `JAPAN.sites`, the rerelease's offset and original
-bytes for every site the table names by retail offset. The blobs are the
-same bytes with their addresses linked from that build's tables, and the
-site table's hooks and blob sites are expressions the build fills in. Four
-tools made the tables, all needing the two executables beside them:
+symbols, `JAPAN.sites` - the rerelease's offset and original bytes for
+every site the table names by retail offset - and an annex. The blobs are
+the same bytes with their addresses linked from that build's tables, and
+the site table's hooks and blob sites are expressions the build fills in.
+Three tools made the tables, all needing the two executables beside them:
 
 - `tools/vomap.py` matches functions by their instruction stream with
   addresses masked (7291 of 7934 match, 6329 identically) and votes on
   where every absolute address went.
-- `tools/votrans.py` runs the site table and the asm symbols through it;
-  ten sites were settled by hand where the matcher had split a function
-  at the wrong place or the site sits in a switch table. Those are
-  `MANUAL` in it, with the reason.
-- `tools/jpcaves.py` picks caves: runs of zeros in `.rdata` that nothing
-  in `.reloc` points into, usable up to the first thing that does, longest
-  blob first. Its output is the `JAPAN` caves table.
-- `tools/jpsites.py` writes `JAPAN.sites`.
+- `tools/votrans.py` runs the site table, the asm symbols and the symbol
+  table through it; eleven sites and six labels were settled by hand where
+  the matcher had split a function at the wrong place, the site sits in a
+  switch table, or its bytes occur twice. Those are `HAND` in it, with the
+  reason.
+- `tools/buildsites.py` writes `JAPAN.sites`.
 
 What differs from retail in the way it is patched:
 
-- `.text` has 50 bytes of padding, not 450, so the timer stub is in
-  `.rdata` and `framerate` sets the executable flag there. The debugbox
-  pair has no run of 269 bytes anywhere clean, so it rides in the appended
-  `.voxt` section between the template and the annex; the F11 wrapper and
-  the window-procedure hook link against `PENDING` until
-  `apply_extras_template()` knows the address and relinks them.
+- Every blob lives in an appended section, `.vojp`, written empty before
+  any patch and filled through the site table like a cave. The `.rdata`
+  here has 50 bytes of `.text` padding to offer instead of 450, and every
+  run of zeros long enough for a blob turned out to be the NULL tail of a
+  handler table: a code pointer just before it, and the game calling
+  through the slots. The first attempt put the name-entry stub in one and
+  the crash was its first four bytes as an address. The section's place is
+  fixed by the file's headers, so it links at import; `.voxt` and `.vocd`
+  land after it. Only the F7 device list and the levers tail, which the
+  game reaches itself, stay in place.
 - Frame layouts differ in the patched functions: the bind page's loop
   counter is `[ebp-0x18]` for retail's `[ebp-8]`, the F7 combo selection
-  `[ebp-0x10]`, the OK handler's line buffer `[ebp-0x18c]`. Those are the
+  `[ebp-0x10]`, the OK handler's line buffer `[ebp-0x18c]`, the movie
+  placer's X and Y `[ebp-0x14]` and `[ebp-0x18]`. Those are the
   frame-offset symbols.
 - The XInput scratch sits in the page slack past `.data` as it does in
   retail, at `0x36577a0`; the ending screens' two spare bytes at
@@ -109,12 +112,16 @@ What differs from retail in the way it is patched:
 - The netplay DLL tells the builds apart by the PE timestamp
   (`0x345107FA`) and fingerprints the rerelease's own two sites.
 - The title artwork is `jscrgame.bin`, at the same 4 MB; the tile layout
-  is assumed to match and no MD5 is pinned for it.
+  is assumed to match and no MD5 is pinned for it, so the banner patch
+  does not check it.
 
-Two caves sit four bytes past something the game points at (`INILOAD` at
-`0x5f6144`, `BLOCKCUR` at `0x5ff5fc`), the same shape retail's device-order
-cave has. If the rerelease misbehaves on the F7 page or at launch, look
-there first.
+Two lessons from getting it to run. Ten bytes of `cmp [ebp-8], 0x1a; jge`
+occur in more than one function, and a site found by searching for its
+bytes went into the wrong one; only the disassembly says which copy has
+the recompiled frame. And anything the apply code writes by hand rather
+than through the site table - the `.voxt` annex code was one - has to be
+linked for the build being patched, not taken from the module-level
+constant, which is retail's.
 
 The ending roll files are byte-identical to retail, so the harvested
 glyphs stay valid, and `dpctrl.dll` is imported with the same exports.

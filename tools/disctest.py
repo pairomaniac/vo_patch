@@ -282,8 +282,8 @@ def main():
     # as the supported one for the length of this run so the build test has
     # something to agree with.
     exe = bytes(vp.EXE_SIZE)
-    original = vp.ORIGINAL_MD5
-    vp.ORIGINAL_MD5 = hashlib.md5(exe).hexdigest()
+    stand_in = hashlib.md5(exe).hexdigest()
+    vp.BUILDS[stand_in] = vp.RETAIL
 
     tmp = tempfile.mkdtemp(prefix='vo-disctest-')
     try:
@@ -569,7 +569,7 @@ def main():
         _why, level = vp.dest_problem(tmp, 1 << 60)
         check('too little room is refused', level == 'bad', level)
     finally:
-        vp.ORIGINAL_MD5 = original
+        del vp.BUILDS[stand_in]
         shutil.rmtree(tmp, ignore_errors=True)
 
     print()

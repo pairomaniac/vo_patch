@@ -545,7 +545,7 @@ fixed file offset, and on another build it would write into unrelated code.
 | --- | --- | --- | --- |
 | English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | installs, does not patch |
-| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | installs, does not patch |
+| Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
 | Japanese original | not known | not known | not seen |
 
 I have not been able to acquire the Japanese original, so there is no
@@ -553,14 +553,18 @@ checksum for it. The patcher calls that build an unrecognised file and
 prints the size and MD5 it found. That is what the row needs.
 
 The three retail pressings - USA, USA Alt and the European rerelease -
-carry the same `v_on.exe` byte for byte, so any of them patches. Anything
-else is named if it is one of the builds above and unrecognised if not,
-with both checksums side by side either way - in **GAME FILE** for a file
-you picked, in **INSTALL** for a disc image.
+carry the same `v_on.exe` byte for byte, so any of them patches. The
+Japanese rerelease is a different compile of the same game and patches
+with the same patches; its title artwork is `jscrgame.bin`, which the
+banner patch redraws as it does `escrgame.bin`. Anything else is named if
+it is one of the builds above and unrecognised if not, with the checksums
+side by side either way - in **GAME FILE** for a file you picked, in
+**INSTALL** for a disc image.
 
 Installing and ripping the soundtrack work whichever build the disc holds.
-Only patching needs the English retail build, and copying its `v_on.exe`
-into another build's install is not a way round that.
+Only patching needs one of the builds marked "patches", and copying a
+patched `v_on.exe` into another build's install is not a way round that:
+the two executables are laid out differently inside.
 
 ### What gets written
 
@@ -627,7 +631,7 @@ LLMs are part of the toolchain here. The scope, the disc dumps, the testing
 and the debugging are human, and nothing ships without a thorough read of the
 code and a run on the real game. Offsets and byte sequences are verified
 against the original executable before anything is written, and the patcher
-refuses any file that is not the unmodified English retail build - but this
+refuses any file that is not an unmodified build it has tables for - but this
 is a hobby project poking at a nearly 30-year-old binary, so expect bugs.
 
 ## Credits and licence
