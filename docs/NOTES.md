@@ -232,15 +232,16 @@ ini says. The OEM's check is a different one, above.
 ### Crash on ALT+TAB
 
 The game releases its DirectDraw surfaces when it loses the window and
-recreates them when it gets it back, and the frame routine at `0x5c80df`
-can run in between: it locks the back buffer through a wrapper that reads
-the vtable of whatever pointer `0x1ae5f5c` holds, and with no surface that
-is a null dereference at `0x5c8103`. Under cnc-ddraw the retail build never
-sees the gap; the OEM and Japanese builds do on every ALT+TAB, and retail
-does without cnc-ddraw. The wrapper already treats a failed lock as "no
-frame this time" - `test eax, eax` on the result, then a zero return - so
-the guard makes a null surface a failed lock: `DDERR_SURFACELOST`, the
-five pushed arguments dropped, and a jump back to that test.
+recreates them when it gets it back, and the frame routine at `0x5c6441`
+can run in between. It locks the back buffer through the wrapper at
+`0x5c80df`, which reads the vtable of whatever `0x1ae5f5c` holds, then
+flips the primary at `0x5c6506` the same way through `0x1ae5f40`; with the
+surfaces gone both are null dereferences, and the wrapper's failure return
+is not checked, so guarding one is not enough. Both are guarded: a null
+surface reports `DDERR_SURFACELOST` with the pushed arguments dropped, and
+the routine takes the failure path it already has for each. Seen during
+the intro movie on Wine's own DirectDraw, on every build; cnc-ddraw
+recreates the surfaces before the frame runs.
 
 ### Frame rate
 

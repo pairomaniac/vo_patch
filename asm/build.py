@@ -70,7 +70,9 @@ def hexblob(name, raw, indent='    '):
 def frame_symbols():
     """The retail build's frame-offset symbols: the locals of the game's own
     functions our stubs read, as name -> offset. They are the negative
-    entries in the symbol table."""
+    entries in the symbol table. Imported in bootstrap mode: a blob being
+    added for the first time is not in the table yet."""
+    os.environ['VO_PATCH_BOOTSTRAP'] = '1'
     spec = importlib.util.spec_from_file_location('vopatch', TARGET)
     vp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(vp)
@@ -324,6 +326,7 @@ def main(check=False):
         path = os.path.join(tmp, 'vo_patch.py')
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write(new)
+        os.environ.pop('VO_PATCH_BOOTSTRAP', None)   # the real thing now
         spec = importlib.util.spec_from_file_location('vopatch', path)
         vp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(vp)

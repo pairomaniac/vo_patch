@@ -24,3 +24,25 @@ lockguard:
     add     esp, 0x14           ; the five arguments Lock would have eaten
     mov     eax, DDERR_SURFACELOST
     jmp     LOCKBACK
+
+; The same frame's flip of the primary surface, a few instructions on.
+; The wrapper's failure is not checked by its caller, so with both surfaces
+; gone the flip dereferences the second one. Same answer: with no surface
+; the flip fails, and the frame ends where a failed flip ends it.
+;
+; In: the frame routine, its two Flip arguments pushed.
+
+extern PRIMARY                  ; the surface the frame flips
+extern FLIPBACK                 ; the frame's test of the flip's result
+
+flipguard:
+    mov     eax, [PRIMARY]
+    test    eax, eax
+    jz      .none
+    mov     eax, [eax]
+    call    [eax + 0x2c]        ; IDirectDrawSurface::Flip, stdcall
+    jmp     FLIPBACK
+.none:
+    add     esp, 8              ; the two arguments Flip would have eaten
+    mov     eax, DDERR_SURFACELOST
+    jmp     FLIPBACK

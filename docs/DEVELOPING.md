@@ -154,15 +154,14 @@ one is not a thing that happens.
 ## Adding a blob or a site
 
 A new blob is a source in `asm/`, a line in `SOURCES` in `build.py`, a
-name in `ANNEX_BLOBS`, a `NAME_CODE = link(...)` beside the others, and a
-site in the table. Run `build.py` before the last three: it imports the
-patcher to link, and the patcher links every blob in the annex. A new site
-by retail offset then needs every other build's map regenerated -
-`buildsites.py NAME retail.exe other.exe map.pkl` per build, with
-`vomap.py` run first if there is no map - and any symbol the blob names
-added to every build's table. Until the maps have the site, the patcher
-refuses to import; `buildsites.py` sets `VO_PATCH_BOOTSTRAP` to get past
-that for itself.
+name in `ANNEX_BLOBS`, a `NAME_CODE = link(...)` beside the others, its
+symbols in every build's table, and a site in the table. Then
+`python3 asm/build.py`, and for a site by retail offset, every other
+build's map regenerated: `buildsites.py NAME retail.exe other.exe map.pkl`
+per build, `vomap.py` first if there is no map. Both tools import the
+patcher in bootstrap mode (`VO_PATCH_BOOTSTRAP`), where a blob, label or
+site that does not exist yet reads as empty rather than failing the
+import, so the order of the edits does not matter.
 
 ## Adding a build
 

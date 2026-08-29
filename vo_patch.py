@@ -221,7 +221,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c680b,
-    'LOCKBACK': 0x005c8108,        # the frame's back buffer lock, its result test         # and their resume
+    'LOCKBACK': 0x005c8108,        # the frame's back buffer lock, its result test
+    'FLIPBACK': 0x005c6510,        # and its flip of the primary, the same         # and their resume
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
     'ORIG': 0x005c80df,            # the call this one is made in place of
     'DRAW': 0x005c991c,            # (text, x, y, colour, flag), cdecl
@@ -384,6 +385,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
     'LOCKBACK': 0x005c29d7,
+    'FLIPBACK': 0x005c0ddf,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
     'ORIG': 0x005c29ae,            # the call this one is made in place of
     'DRAW': 0x005c4198,            # (text, x, y, colour, flag), cdecl
@@ -540,6 +542,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
     'LOCKBACK': 0x005c7c21,
+    'FLIPBACK': 0x005c6029,
     'ORIGWNDPROC': 0x005c6370,   # func
     'ORIG': 0x005c7bf8,   # func
     'DRAW': 0x005c9454,   # func
@@ -712,6 +715,7 @@ JAPAN.sites = {
     0x001c76d4: (0x001c1fa3, '0f840a000000'),
     0x00107930: (0x001040f0, '830d5031bf0001'),
     0x001c7500: (0x001c1dcf, '8b45088b00ff5064'),
+    0x001c5906: (0x001c01d5, 'a1340cae018b00ff502c'),
     0x000000a8: (0x000000a8, '70151e00'),
     0x000273c1: (0x00027021, '833d5cefbd0003'),
     0x000275d3: (0x00027233, 'c7055cefbd0003000000'),
@@ -968,6 +972,7 @@ OEM.sites = {
     0x001c76d4: (0x001c71ed, '0f840a000000'),
     0x00107930: None,  # nocpucheck
     0x001c7500: (0x001c7019, '8b45088b00ff5064'),
+    0x001c5906: (0x001c541f, 'a1d05eae018b00ff502c'),
     0x000000a8: (0x000000a8, '70741e00'),
     0x000273c1: (0x00027321, '833dc842be0003'),
     0x000275d3: (0x00027533, 'c705c842be0003000000'),
@@ -1745,12 +1750,17 @@ BLOBS = {
         'text': 0x55,
     }),
     'LOCKGUARD': (bytes.fromhex(
-        '8b450885c0740a8b00ff5064e9fcffffff83c414b8c2017688e9fcffffff'
+        '8b450885c0740a8b00ff5064e9fcffffff83c414b8c2017688e9fcffffffa100'
+        '00000085c0740a8b00ff502ce9fcffffff83c408b8c2017688e9fcffffff'
     ), (
         (0xd, 'rel', 'LOCKBACK', -4),
         (0x1a, 'rel', 'LOCKBACK', -4),
+        (0x1f, 'abs', 'PRIMARY', 0),
+        (0x2d, 'rel', 'FLIPBACK', -4),
+        (0x3a, 'rel', 'FLIPBACK', -4),
     ), {
         'lockguard': 0x0,
+        'flipguard': 0x1e,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
@@ -1838,15 +1848,28 @@ BLOBS = {
 # BLOBS BLOB END
 
 
+# Set by asm/build.py and tools/buildsites.py while they import this module
+# to regenerate it: a blob, label or site they are about to write does not
+# exist yet, and reads as empty rather than failing the import.
+BOOTSTRAP = bool(os.environ.get('VO_PATCH_BOOTSTRAP'))
+EMPTY = (b'', (), {})
+
+
+def blob_of(name, blobs=None):
+    blobs = BLOBS if blobs is None else blobs
+    if BOOTSTRAP:
+        return blobs.get(name, EMPTY)
+    return blobs[name]
+
+
 def annex_layout(build, blobs=None):
     """name -> offset into the annex, and the annex's padded length."""
-    blobs = BLOBS if blobs is None else blobs
     out, at = {}, 0
     for name in build.annex[2]:
         out[name] = at
-        length = len(blobs[name][0])
+        length = len(blob_of(name, blobs)[0])
         if name == 'PADX':
-            length += len(blobs['LEVERS'][0])    # written straight after it
+            length += len(blob_of('LEVERS', blobs)[0])   # written after it
         at = (at + length + 15) & ~15
     return out, (at + 0x1ff) & ~0x1ff
 
@@ -1865,11 +1888,12 @@ def cave_va(name, build, blobs=None):
 
 def label_at(name, label, blobs=None):
     """A label's offset in a blob; 'end' is its length."""
-    blobs = BLOBS if blobs is None else blobs
-    code, _fixups, labels = blobs[name]
+    code, _fixups, labels = blob_of(name, blobs)
     if label == 'end':
         return len(code)
-    return label if isinstance(label, int) else labels[label]
+    if isinstance(label, int):
+        return label
+    return labels.get(label, 0) if BOOTSTRAP else labels[label]
 
 
 def symbol_va(sym, build, blobs=None):
@@ -1889,8 +1913,7 @@ def link(name, build, blobs=None, base=None):
 
     `base` overrides the cave, for a blob whose address is only known at
     apply time; None means the blob must not name itself."""
-    blobs = BLOBS if blobs is None else blobs
-    code, fixups, _labels = blobs[name]
+    code, fixups, _labels = blob_of(name, blobs)
     if base is None and (name in build.caves
                          or (build.annex and name in build.annex[2])):
         base = cave_va(name, build, blobs)
@@ -2015,7 +2038,7 @@ def blob(name):
 
 def zeros(name):
     """What a cave holds before the blob goes in."""
-    return Sym([lambda build: '00' * len(BLOBS[name][0])])
+    return Sym([lambda build: '00' * len(blob_of(name)[0])])
 
 
 def site(name):
@@ -2614,14 +2637,17 @@ FEATURES = [
          (In(OEM_MD5, 0x001c4b85), '0f8425000000', '90e925000000'),
          (In(OEM_MD5, 0x001c4bb4), '0f850a000000', '909090909090')]),
     ('lockguard', 'Fix crash on ALT+TAB',
-     'The game locks its back buffer every frame, and after a switch away\n'
-     'and back the surface can be gone for a frame. That frame is skipped\n'
-     'now instead of the game dereferencing nothing. Retail under cnc-ddraw\n'
-     'never hit it; the other builds, and retail without cnc-ddraw, did.', [
+     'The game locks its back buffer and flips its primary surface every\n'
+     'frame, and after a switch away and back both can be gone for a frame.\n'
+     'That frame is skipped now instead of the game dereferencing nothing.\n'
+     'Seen during the intro movie, on Wine without cnc-ddraw.', [
          (site('LOCKGUARD'), zeros('LOCKGUARD'), blob('LOCKGUARD')),
          # the lock: mov eax,[ebp+8]; mov eax,[eax]; call [eax+0x64]
          (0x001c7500, '8b45088b00ff5064',
-          jump(0x001c7500, ('LOCKGUARD', 'lockguard'), 3))]),
+          jump(0x001c7500, ('LOCKGUARD', 'lockguard'), 3)),
+         # and the flip: mov eax,[PRIMARY]; mov eax,[eax]; call [eax+0x2c]
+         (0x001c5906, 'a1405fae018b00ff502c',
+          jump(0x001c5906, ('LOCKGUARD', 'flipguard'), 5))]),
     ('framerate', 'Fix frame rate (60 FPS)',
      'Three fixes, all for the game not running at full speed.\n'
      '\n'
