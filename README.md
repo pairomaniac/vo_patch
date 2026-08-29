@@ -555,7 +555,7 @@ The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
 above, and the window names the one it is looking at.
 
-The Japanese original has not been sourced, so there is nothing to write
+**[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
 tables against and the patcher treats it as an unknown file. If you have a
 disc image of it, please get in touch - see [Credits and
 licence](#credits-and-licence).
