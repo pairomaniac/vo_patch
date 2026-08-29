@@ -169,7 +169,8 @@ the Debug options to a new F11 dialog: No shot, SE, CD, Kill 1P, Kill 2P,
 Scorekeeping and Quit Game. **Credits** is new - it jumps to the credit roll
 from any match, so you can see it without finishing the game. Motion has
 moved to F5. With the gamepad patch in, F11 also sets each player's
-[stick deadzone](#stick-deadzone). Every other menu was already on a key:
+[stick deadzone](#stick-deadzone). Like the other F keys, it does nothing
+during an internet match. Every other menu was already on a key:
 
     | Key | Opens |
     | --- | --- |

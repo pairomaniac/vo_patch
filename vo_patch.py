@@ -221,6 +221,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'KBHANDLER2': 0x005bceed,      # and 2P
     'GPAUSE': 0x005c67c5,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c680b,         # and their resume
+    'GAMEMODE': 0x006bc94c,        # the loop's mode; 2 is a network match
     'PENDING': 0x0365cb9c,         # a recreate owed
     'RETADDR': 0x0365cba0,         # where one returns to
     'RECREATE': 0x005c56a2,        # release and create the surfaces
@@ -392,6 +393,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'KBHANDLER2': 0x005b785d,      # and 2P
     'GPAUSE': 0x005c1094,          # the built-in dialogs' pause, arg 0
     'GRESUME': 0x005c10da,         # and their resume
+    'GAMEMODE': 0x006b86ac,
     'PENDING': 0x036577fc,
     'RETADDR': 0x03657800,
     'RECREATE': 0x005bff42,
@@ -557,6 +559,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'KBHANDLER2': 0x005bc9bd,   # func
     'GPAUSE': 0x005c62de,   # func
     'GRESUME': 0x005c6324,   # func
+    'GAMEMODE': 0x006bc8e4,
     'PENDING': 0x0365cb1c,
     'RETADDR': 0x0365cb20,
     'RECREATE': 0x005c5172,
@@ -1199,9 +1202,9 @@ BLOBS = {
         'procname': 0x2e,
     }),
     'DEBUGBOX': (bytes.fromhex(
-        '558bec53817d0c000100007532817d107a00000075296800000000ff15000000'
-        '00680000000050ff150000000085c074078bd8e8fcffffff33c05b5dc210005b'
-        '5de9fcffffff00000000000000000000000000000000000000000000558bec53'
+        '558bec53817d0c00010000753b817d107a0000007532833d0000000002742968'
+        '00000000ff1500000000680000000050ff150000000085c074078bd8e8fcffff'
+        'ff33c05b5dc210005b5de9fcffffff00000000000000000000000000558bec53'
         '56578b450c3d100100007532ff7508e8fcffffff31ff8d475250ff7508ff1500'
         '0000008d14bd00000000526a006a0c50ff15000000004783ff0272daeb453d11'
         '01000075450fb74d108d51ae83fa01763283f902740d83f954740881f9419c00'
@@ -1209,12 +1212,13 @@ BLOBS = {
         '000000b801000000eb0233c05f5e5b5dc2100083f9517513833d000000000475'
         '086a1f8f0500000000ebd8ebc2'
     ), (
-        (0x17, 'abs', 'USER32', 0),
-        (0x1d, 'abs', 'LOADLIB', 0),
-        (0x22, 'abs', 'DLGBOXPROC', 0),
-        (0x29, 'abs', 'GETPROC', 0),
-        (0x34, 'rel', 'F11WRAP', -4),
-        (0x42, 'rel', 'ORIGWNDPROC', -4),
+        (0x18, 'abs', 'GAMEMODE', 0),
+        (0x20, 'abs', 'USER32', 0),
+        (0x26, 'abs', 'LOADLIB', 0),
+        (0x2b, 'abs', 'DLGBOXPROC', 0),
+        (0x32, 'abs', 'GETPROC', 0),
+        (0x3d, 'rel', 'F11WRAP', -4),
+        (0x4b, 'rel', 'ORIGWNDPROC', -4),
         (0x70, 'rel', 'F11CHECKS', -4),
         (0x7f, 'abs', 'GETDLGITEM', 0),
         (0x86, 'abs', 'DZSTR1', 0),

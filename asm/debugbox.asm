@@ -54,6 +54,9 @@ ANNEXREL    equ 0xEAEAEAEA      ; a placeholder: the rel32 to asm/voxt.asm's
                                 ; vo_patch.py computes and fills it
 VK_F11      equ 0x7a
 extern F11WRAP                  ; asm/f11pause.asm
+extern GAMEMODE                 ; 2 during a network match, when every F-key
+                                ; command handler returns before doing
+                                ; anything; so does this
 
 ; nasm assembles `mov r32, r32` and `xor r32, r32` as 89 and 31; the code
 ; this replaces used the 8b and 33 encodings. The `db` lines below keep the
@@ -69,6 +72,8 @@ hook:
     jne     .pass
     cmp     dword [ebp + 0x10], strict dword VK_F11
     jne     .pass
+    cmp     dword [GAMEMODE], 2         ; a network match: as F5 to F8
+    je      .pass
 
     ; DialogBoxIndirectParamA is not in the import table, so it is fetched.
     push    USER32

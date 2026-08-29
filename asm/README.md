@@ -301,6 +301,10 @@ after every other patch.
 
 ## debugbox.asm
 
+During a network match the game's own F-key handlers return before doing
+anything - `cmp [0x6bc94c], 2` at the top of each, the loop's mode - and
+the hook does the same test in the same place, so F11 is as inert as F5.
+
 The Debug options only ever existed as menu items, so once the menu bar goes
 there is nothing to open them with. This builds a dialog instead.
 
