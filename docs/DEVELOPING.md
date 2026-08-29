@@ -247,7 +247,7 @@ two installs with two prefixes - both write `v_on.ini` and save state, and
 sharing either produces failures that look like netcode bugs and are not.
 
 ```bash
-tools/vo-loopback.sh build install
+tools/vo-loopback.sh build install status
 tools/vo-loopback.sh a            # hosts on 127.0.0.1
 tools/vo-loopback.sh b            # joins
 tools/vo-loopback.sh restore

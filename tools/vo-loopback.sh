@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # vo-loopback.sh - two local instances of the game, for netplay testing.
 #
-#   tools/vo-loopback.sh build     compile net/dpctrl.dll
+#   tools/vo-loopback.sh build     compile net/dpctrl.dll (actions chain:
+#                                  build install status)
 #   tools/vo-loopback.sh install   put the fresh DLL into both installs
 #   tools/vo-loopback.sh a         launch A, which hosts on 127.0.0.1
 #   tools/vo-loopback.sh b         launch B, which joins 127.0.0.1
@@ -166,12 +167,17 @@ run() {
     fi
 }
 
-case "${1:-}" in
-    build)   build ;;
-    install) install_dll ;;
-    restore) restore ;;
-    status)  status ;;
-    a)       run a ;;
-    b)       run b ;;
-    *)       sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
-esac
+# Each argument is one action, in order: `build install status` is the
+# usual sequence.
+[ $# -gt 0 ] || { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+for action in "$@"; do
+    case "$action" in
+        build)   build ;;
+        install) install_dll ;;
+        restore) restore ;;
+        status)  status ;;
+        a)       run a ;;
+        b)       run b ;;
+        *)       die "unknown action: $action" ;;
+    esac
+done
