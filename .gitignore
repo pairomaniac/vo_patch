@@ -20,7 +20,7 @@ vo-net.log
 # tools/setup-dev.sh makes the venv; the tooling lives there, never in git.
 .venv/
 
-# vomap.py maps and hiresport.py output: regenerated from the executables,
-# which are not in the repository either.
-*.pkl
-*_port.txt
+# tools/maps.sh writes the vomap maps and port tables here, from the game
+# executables, which are not in the repository either.
+maps/*
+!maps/README.md

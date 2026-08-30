@@ -167,9 +167,9 @@ landing spot.
 ## Rebuilding
 
     python3 tools/uibuild.py            # ui.asm -> UI_CODE + constants
-    python3 tools/vomap.py RETAIL.exe OTHER.exe other.pkl
-    python3 tools/hiresport.py other.pkl > other_port.txt
-    # splice between the PORT TABLES markers in vo_patch.py
+    sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe
+                                        # maps/*.pkl and maps/*_port.txt
+    # splice a clean table between the PORT TABLES markers in vo_patch.py
 
 tools/vo_patch_hires.py is the import shim the tools use to read the
 tables out of vo_patch.py. tools/uibuild.py --check runs in
