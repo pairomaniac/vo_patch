@@ -135,7 +135,7 @@ PORT = {
             0x00514576: 0x00510aa6,
             0x00531f6a: 0x0052e2ad,
             0x005495b1: 0x00544c21,
-            0x0055d221: 0x00558897,
+            0x0055d221: 0x00558711,
             0x005670c0: 0x00562400,
             0x005674f0: 0x0047f0a0,
             0x0057f1b0: 0x0057a480,
@@ -200,7 +200,7 @@ PORT = {
             0x113976: (0x10fea6, '558bec535657'),
             0x13136a: (0x12d6ad, '558bec535657'),
             0x1489b1: (0x144021, '558bec83ec10'),
-            0x15c621: (0x157c97, '0000833d3cab'),
+            0x15c621: (0x157b11, '558bec83ec10'),
             0x166888: (0x161bc8, 'e0326c00'),
             0x1668e0: (0x161c20, 'e0326c00'),
             0x166d79: (0x1620b9, 'e0326c00'),
@@ -237,7 +237,6 @@ PORT = {
             0x1c759a: (0x1c1e69, 'e8c2fdf9ff'),
             0x1c7726: (0x1c1ff5, '0000803f'),
             0x1c7730: (0x1c1fff, '0000003f'),
-            0x1c7775: (0x1c2044, 'b4486c00'),
             0x1c782d: (0x1c2093, 'd905447f6b00dc35a8f46100d91d447f6b00d905487f6b00dc0db0f46100d91d487f6b00d905b8486c00dc0db0f46100d91db8486c008b45088b40248945fc8b45088b40108945f88b45fca3300cae018b45'),
             0x1c78f0: (0x1c2138, '80020000'),
             0x1c7907: (0x1c214f, '28000000'),
@@ -319,7 +318,7 @@ PORT = {
             0x1cfe90: (0x1d55f0, '50000000'),
             0x1d0eac: (0x1cb73c, 'c4090000'),
             0x1d0ed0: (0x1cb760, '4c986f00'),
-            0x1d11d8: (0x1cba68, '50986f00'),
+            0x1d11d8: (0x1cba78, '83e10783'),
             0x1d161f: (0x1cbeaf, '70da6c00'),
             0x1d162c: (0x1cbebc, '83c850'),
             0x1d1a30: (0x1cc2c0, '70da6c00'),
@@ -375,6 +374,11 @@ PORT = {
             0x2c7370: (0x2c2488, '18000000'),
             0x2c73f0: (0x2c2508, '18000000'),
         },
+        'passlen': {
+            0x004d0280: 5,
+            0x00531f6a: 5,
+        },
+        'absent': (0x1c7775,),
     },
     '3317246a': {                       # oem.exe
         'va': {
@@ -503,7 +507,7 @@ PORT = {
             0x1c7907: (0x1c7440, '28000000'),
             0x1c794a: (0x1c7481, '80020000'),
             0x1c7961: (0x1c7498, '28000000'),
-            0x1c799b: (0x1c74d2, '80c1e0048b0df0846c'),
+            0x1c799b: (0x1c74cd, '8d04408d0480c1e004'),
             0x1c79bd: (0x1c74f5, '004b0000'),
             0x1c7a2c: (0x1c7564, '28000000'),
             0x1c7a8e: (0x1c75c6, '28000000'),
@@ -1285,8 +1289,9 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
         struct.pack_into('<i', buf, rawptr + off + 1,
                          target - (sec_va + off + 5))
     # pass stubs: call hud_enter, the displaced prologue, jump back
-    pass_funcs = [(A('PASS%d' % n), ln)
-                  for n, (_s, ln) in enumerate(UI_PASS_FUNCS)]
+    lens = port.get('passlen', {}) if port else {}
+    pass_funcs = [(A('PASS%d' % n), lens.get(s, ln))
+                  for n, (s, ln) in enumerate(UI_PASS_FUNCS)]
     for n, (site, ln) in enumerate(pass_funcs):
         o = UI_PASS_STUBS + 20 * n
         va = sec_va + o
@@ -1342,8 +1347,16 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
                         else None, A=A)
     if port is not None:
         moved = []
+        lens = port.get('passlen', {})
+        pass_offs = {s - 0x400c00: n for n, (s, _l)
+                     in enumerate(UI_PASS_FUNCS)}
         for off, old_, new_ in sites:
+            if off in port.get('absent', ()):
+                continue
             boff, bold = port['off'][off]
+            if off in pass_offs and 0x400c00 + off in lens:
+                # the build's shorter prologue: fewer displaced bytes
+                new_ = new_[:5] + b'\x90' * (lens[0x400c00 + off] - 5)
             bold = None if old_ is None else bytes.fromhex(bold)
             if new_ and new_[0] in (0xe8, 0xe9):
                 # a jump into the section: same target, moved site
@@ -1351,6 +1364,17 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
                        + struct.unpack_from('<i', new_, 1)[0])
                 new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
                         + new_[5:])
+            if off in (0x1c799b, 0x1c7ad2, 0x1c7bb1, 0x1c7c36):
+                # row maths rewritten as imul: use the register the
+                # build's own lea/shl chain uses
+                reg = None
+                for i2 in range(len(bold) - 1):
+                    if bold[i2] == 0xc1 and 0xe0 <= bold[i2 + 1] <= 0xe7:
+                        reg = bold[i2 + 1] & 7
+                        break
+                assert reg is not None, hex(off)
+                new_ = (b'\x69' + bytes([0xc0 | reg << 3 | reg])
+                        + new_[2:6] + b'\x90' * (len(bold) - 6))
             if off == 0x7e504:
                 # cmp [mode], 8 / je: the je keeps the build's own
                 # distance, one byte further in

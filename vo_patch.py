@@ -3069,8 +3069,7 @@ BY_KEY['hires'] = (
     'Widescreen 1080p',
     'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
     'menus and the text are redrawn at the new size, and widescreen\n'
-    'shows more at the sides. F4 and the 320x240 mode are turned off.\n'
-    'Retail build only.',
+    'shows more at the sides. F4 and the 320x240 mode are turned off.',
     None)
 
 # The patches a lockstep match cannot differ on are the frame rate and the
@@ -5446,9 +5445,6 @@ def apply_selected(buf, wanted, build=RETAIL):
             if hires is None:
                 skipped.append((key, 'hires.py is not beside the script'))
                 continue
-            if build is not RETAIL:
-                skipped.append((key, 'the retail build only'))
-                continue
             try:
                 hires.install(buf, w, hh)
             except ValueError as exc:
@@ -7815,10 +7811,6 @@ def run_tk():
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
                 check.state(['!disabled'] if ok else ['disabled'])
-            if ok and self.core.build is not RETAIL and 'hires' in self.checks:
-                # Its offsets are retail's; keep the box honest elsewhere.
-                self.vars['hires'].set(False)
-                self.checks['hires'].state(['disabled'])
             self._chose = bool(ok)
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(

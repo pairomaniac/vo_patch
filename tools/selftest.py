@@ -26,9 +26,8 @@ import sys
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '81f81cf5f2edf4c9cee16733e0500ca9',
-    # Unpinned since the overlay position change; re-pin from those discs.
-    'd19320bdc3381a48228990907910a391': None,
-    '4c70f780a7f0d98d74be62304fb99021': None,
+    'd19320bdc3381a48228990907910a391': 'd6cc7cba9c2e7da893024805b18b5b0a',
+    '4c70f780a7f0d98d74be62304fb99021': 'e2040e26ad24a4c232c7a126c26dc60b',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
