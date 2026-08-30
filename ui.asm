@@ -273,11 +273,6 @@ submit_a:
 submit_a_here:
     pop ebx
     sub ebx, submit_a_here
-    push [esp+20]                   ; a3
-    push [esp+20]                   ; a2
-    push [esp+20]                   ; a1
-    push [esp+20]                   ; caller
-    mov eax, [ebx+D_DEPTH]
     cmp dword ptr [ebx+D_DEPTH], 0
     je submit_a_world
 submit_a_hud:
@@ -327,11 +322,6 @@ submit_b:
 submit_b_here:
     pop ebx
     sub ebx, submit_b_here
-    push [esp+20]                   ; a3
-    push [esp+20]                   ; a2
-    push [esp+20]                   ; a1
-    push [esp+20]                   ; caller
-    mov eax, [ebx+D_DEPTH]
     cmp dword ptr [ebx+D_DEPTH], 0
     je submit_b_world
 submit_b_hud:
