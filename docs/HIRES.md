@@ -48,7 +48,12 @@ Around 196 sites over the retail executable, in families:
   so translucency blends against the real background.
 - HUD passes: twenty pass prologues (UI_PASS_FUNCS) are wrapped by
   20-byte stubs that count pass depth in and out; submissions inside a
-  pass get the HUD projection.
+  pass get the HUD projection, and the insert hooks rescale their
+  vertices to the HUD frame. Measured against stock, the health bars sit
+  inside their frames to within a pixel in 640x480 terms, which is the
+  precision the original geometry was placed at; the remaining top/bottom
+  asymmetry is a 0.7 px offset in the frame position, tunable if it ever
+  shows.
 - GDI text: the draw at 0x5c991c centres on (x,y); the wrap routine
   0x5c8da6 and the loading-strip rects carry 640x480 bounds; the two
   24px LOGFONTs (.data 0x2c7370/0x2c73f0) scale by h/480.
