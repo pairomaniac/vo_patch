@@ -685,3 +685,14 @@ all. All three are set out in [TEXT.md](TEXT.md).
 The mech select screen's *PRESS  BUTTON* and *MACHINE SELECT* are
 pre-rendered word sprites rather than text, and appear in no file as a
 string, so they are left as they are.
+
+## The resolution patch
+
+Lives in vo_patch.py (the section headed "The resolution patch"), blob
+source in ui.asm, built by tools/uibuild.py. Design, the game structures
+it rewrites (viewport globals, row tables, coverage mask, projection,
+the two 2D engines, the scalar and MMX rasterizer families), and the
+full record of the JP/OEM porting attempt - what broke, what it taught,
+and the per-build addresses recovered - are in docs/HIRES.md. Both
+non-retail builds are withheld there until the rasterizer-family sites
+are ported by renderer kind.

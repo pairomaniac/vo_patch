@@ -1,4 +1,6 @@
 ; 2D layer drawn into an offscreen canvas, then composited onto the
+; Built into vo_patch.py by tools/uibuild.py; --check guards drift.
+; docs/HIRES.md documents the design and the porting record.
 ; viewport; HUD polygons projected at 640x480 and rescaled at insert.
 ;
 ; 2D: four stubs replace the four 2D calls in 0x5c80df (viewport 1

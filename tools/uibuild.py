@@ -17,6 +17,7 @@ this for the non-retail tables.
 import os
 import re
 import struct
+import sys
 
 import capstone
 import keystone
@@ -24,7 +25,7 @@ import keystone
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 UI = os.path.join(ROOT, 'ui.asm')
-HIRES = os.path.join(ROOT, 'hires.py')
+HIRES = os.path.join(ROOT, 'vo_patch.py')
 
 LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
@@ -69,6 +70,7 @@ def assemble(lines, longs):
 
 
 def main():
+    check = '--check' in sys.argv
     lines, longs = preprocess(open(UI).read())
     blob = assemble(lines, longs)
     probed = assemble(lines + ['    jmp %s' % l for l in LABELS], longs)
@@ -95,6 +97,14 @@ def main():
                     refs.append((i.address + o, v))
 
     src = open(HIRES).read()
+    if check:
+        import vo_patch_hires as hires
+        if hires.UI_CODE == blob:
+            print('ui.asm matches the committed blob')
+            return
+        print('ui.asm and the committed UI_CODE differ: run '
+              'tools/uibuild.py and tools/hiresport.py')
+        sys.exit(1)
 
     def setblock(begin, end, body):
         nonlocal src

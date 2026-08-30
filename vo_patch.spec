@@ -57,7 +57,6 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['hires'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

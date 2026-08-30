@@ -199,7 +199,7 @@ def build_resolvers(votrans, retail, other):
 def main():
     sys.argv = ['votrans', 'one'] + sys.argv[1:]
     import votrans                                       # noqa: E402
-    import hires                                         # noqa: E402
+    import vo_patch_hires as hires                       # noqa: E402
     other = open(votrans.M['other'], 'rb').read()
     retail = open(votrans.M['retail'], 'rb').read()
     place, resolve_va = build_resolvers(votrans, retail, other)
@@ -263,7 +263,7 @@ def main():
             out.update(dict(zip(left_r, left_o)))
         # the coverage-mask advances: the span's own bytes with the mask
         # pointer swapped for the build's, paired in order
-        import hires as _h
+        import vo_patch_hires as _h
         mp_r = struct.pack('<I', _h.ADDR['MASKPTR'])
         mp_o = struct.pack('<I', va_map[_h.ADDR['MASKPTR']])
         done = set()
@@ -402,7 +402,7 @@ def main():
               (off, off_map[off], old_map[off]))
     print("        },")
     lens = {}
-    import hires as _h2
+    import vo_patch_hires as _h2
     for n, (site, ln) in enumerate(_h2.UI_PASS_FUNCS):
         bva = va_map.get(site)
         if bva is None:

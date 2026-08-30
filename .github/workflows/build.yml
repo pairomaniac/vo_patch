@@ -201,9 +201,6 @@ jobs:
           version = re.search(rb"^VERSION = '(.*)'$", text, re.M).group(1).decode()
           pathlib.Path('dist/vo_patch-%s.py' % version).write_bytes(text)
           print('staged vo_patch-%s.py' % version)
-          hires = pathlib.Path('hires.py').read_bytes().replace(b'\r\n', b'\n')
-          pathlib.Path('dist/hires.py').write_bytes(hires)
-          print('staged hires.py')
           EOF
           if grep -q $'\r' dist/vo_patch-*.py; then
             echo 'a CR survived - ./vo_patch.py would not run on Linux'
