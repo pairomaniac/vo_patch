@@ -443,6 +443,13 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
                         0x1c8abe, 0x1c8b52, 0x1c4dd8], 640, w)
     sites += imm_sites([0x1b098b, 0x1c617a, 0x1c68fc, 0x1c6d3d, 0x1c898b,
                         0x1c8ab9, 0x1c8b4d, 0x1c4dd3], 480, h)
+    # The 320x240 mode has no place at this size: F4's toggle at 0x5c74da
+    # falls through to its exit, and the menu command that picked 320x240
+    # outright (0x5c79aa) jumps there too. Both would set a mode this
+    # patch's scales do not cover.
+    sites += [(0x1c68e1, bytes.fromhex('0f8505000000'), b'\x90' * 6),
+              (0x1c6daa, bytes.fromhex('6a1068f0000000'),
+               bytes.fromhex('e94f04000090') + b'\x90')]
     # 0x5c9404 returns failure for any mode but the two it knows. This is
     # the crash: the caller then runs on without a surface.
     sites += imm_sites([0x1c8810], 640, w)

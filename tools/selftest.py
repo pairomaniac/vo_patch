@@ -25,7 +25,7 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '1c078c56d35c8e123c91be6c6cf99160',
+    'a464b0ff32d5bab499f265e45658504e': '81f81cf5f2edf4c9cee16733e0500ca9',
     # Unpinned since the overlay position change; re-pin from those discs.
     'd19320bdc3381a48228990907910a391': None,
     '4c70f780a7f0d98d74be62304fb99021': None,

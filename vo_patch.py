@@ -3066,12 +3066,11 @@ BY_KEY = {key: (label, tip, sites)
 # Sites computed at apply time from the chosen size, so it cannot live in
 # FEATURES. Applied last, after nodisc, since it appends its own section.
 BY_KEY['hires'] = (
-    'High resolution and widescreen',
-    'Runs the game at the width and height entered beside the box:\n'
-    '3D, HUD, menus and text rescaled; wide modes see more at the\n'
-    'sides. Width a multiple of 32 (at most 2040), height of 8.\n'
-    'Retail build only. The F4 320x240 toggle stays 640x480-era for\n'
-    'now and should be left alone at high resolution.',
+    'Widescreen 1080p',
+    'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
+    'menus and the text are redrawn at the new size, and widescreen\n'
+    'shows more at the sides. F4 and the 320x240 mode are turned off.\n'
+    'Retail build only.',
     None)
 
 # The patches a lockstep match cannot differ on are the frame rate and the
@@ -6076,9 +6075,9 @@ ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
 # byte edit cannot, so it sits under ADD-ONS with the netplay DLL.
 DDRAW_LINK = ('Resolution and windowing', 'cnc-ddraw',
               'https://github.com/FunkyFr3sh/cnc-ddraw',
-              'Windowed and borderless modes, and 640x480 scaled to your '
-              'monitor without stretching. Install downloads it and puts '
-              'it beside v_on.exe.')
+              'Windowed and borderless modes, and the game scaled to your '
+              'monitor without stretching, whatever size it runs at. '
+              'Install downloads it and puts it beside v_on.exe.')
 
 # Dropping the files in is not enough under Wine, and someone who misses
 # this sees no change at all, so it gets the accent colour rather than
@@ -7630,21 +7629,6 @@ def run_tk():
                     self.checks[key] = check
                 Info(row, label, tip, self).btn.pack(side='right',
                                                      padx=(6, 2))
-                if key == 'hires':
-                    # Width and height beside the box; read at Apply.
-                    self.hires_w = tk.StringVar(value='1920')
-                    self.hires_h = tk.StringVar(value='1080')
-                    self.hires_entries = []
-                    for var_ in (self.hires_h, self.hires_w):
-                        e = ttk.Entry(row, textvariable=var_,
-                                      style='Vo.TEntry', width=5,
-                                      font=self.small, justify='center')
-                        e.pack(side='right', padx=(2, 2))
-                        self.hires_entries.append(e)
-                        if var_ is self.hires_h:
-                            ttk.Label(row, text='x',
-                                      style='Card.TLabel',
-                                      font=self.small).pack(side='right')
 
 
         def _about_body(self, parent):
@@ -7864,17 +7848,7 @@ def run_tk():
             wanted = {k: v.get() for k, v in self.vars.items()}
             wanted.update({key: True for key in ESSENTIAL})
             if wanted.get('hires'):
-                try:
-                    w = int(self.hires_w.get())
-                    hh = int(self.hires_h.get())
-                    if w % 32 or w > 2040 or hh % 8 or hh < 480:
-                        raise ValueError
-                except ValueError:
-                    self._set_status('Width must be a multiple of 32, at '
-                                     'most 2040; height a multiple of 8.',
-                                     False)
-                    return
-                wanted['hires'] = (w, hh)
+                wanted['hires'] = (1920, 1080)
             ok, lines = self.core.apply(wanted)
             for line in lines:
                 self._log(line)
