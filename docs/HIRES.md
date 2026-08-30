@@ -137,14 +137,19 @@ runtime, which is the lesson in itself.
    corrupted list-type masks, blank screens, then a null bucket walk.
    That tier is deleted; windows align to instruction boundaries; and
    the boundary audit is the gate.
-5. The builds pair their renderer variants differently. The game has
-   scalar and MMX rasterizer families; JP's renderer A is the MMX one,
-   so the scalar mask patterns "found" renderer B twice (all eight A
-   spans collided onto B's offsets - renderer A never patched). OEM
-   crashes the same way once real 3D loads. This is why both builds are
-   withheld: the mask, pool and row sites need porting by renderer
-   kind, function by function, with an exact instruction-boundary audit
-   over every emitted site - not another pattern tier.
+5. Identical code copies fool the map twice over. JP's mask sites all
+   collided onto renderer B, and the explanation written first - that
+   JP's renderer A was an MMX variant with no scalar mask code - was
+   wrong: every build is MMX throughout (it is a start-up requirement),
+   and the scalar mask-advance idiom is in all three, sixteen times
+   each. The map had translated the mask pointer to a neighbouring
+   global, so the span search found nothing and the fallbacks found
+   renderer B, twice. The generator now derives the mask pointer from
+   the build's own spans, and any site whose surroundings occur more
+   than once in retail is paired by order of occurrence rather than by
+   the map. JP generates clean with that; OEM's table did not change,
+   so its rasterizer fault has another cause, still to be found. Both
+   stay withheld until they boot.
 
 ## The scenes, as read off the game
 
@@ -214,12 +219,14 @@ blit path (the 0x47f0c0 family) and the ring buffer above.
   only offers the exact half (960x540) for free, since every low-mode
   path is a halving.
 - **Credits fade removal**, once the lead above lands.
-- **The JP and OEM port**, by renderer kind - see above.
+- **The JP and OEM port.** JP's table now generates clean and needs a
+  boot; OEM's rasterizer fault is unexplained - see lesson 5.
 
 ## Per-build facts worth keeping
 
 Japanese rerelease (stamp 345107fa): FSFLAGS 0x6bb2b0, FB family from
-0x6bb2c0, mask pointer 0x6c4938, SCALE_A 0x6b7f44, FOV block at file
+0x6bb2c0, mask pointer 0x6c4a78 (derived from its spans; the map's
+vote said 0x6c4938, which is not it), SCALE_A 0x6b7f44, FOV block at file
 0x1c2093; the 0.95 hardware projection case was dropped in this
 revision (only the 1.0 store remains, at 0x1c1fef); PASS8/PASS9 were
 restructured (0x4cde03, 0x52e2ad) with 5-byte prologues; 2D targets

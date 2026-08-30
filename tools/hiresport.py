@@ -283,6 +283,22 @@ def main():
             if sorted(same) == rh and len(rh) == len(oh):
                 for r2, o2 in zip(rh, oh):
                     out[r2] = o2
+        # twin code: a site whose surroundings occur more than once in
+        # retail (the two renderer copies) is paired by order of
+        # occurrence with the same surroundings in the build, since the
+        # map collapses identical copies onto one of them
+        for off, old, new in sites:
+            if off in out or off > 0x1f4400:
+                continue
+            ln = len(old) if old is not None else len(new)
+            back = min(off, 12)
+            pat = wildcard_pat(retail[off - back:off + ln + 12])
+            rh = [m.start() + back for m in pat.finditer(retail)]
+            if len(rh) < 2 or off not in rh:
+                continue
+            oh = [m.start() + back for m in pat.finditer(other)]
+            if len(oh) == len(rh):
+                out[off] = oh[rh.index(off)]
         # pmaddwd interleave in the MMX rasteriser: the span-buffer
         # advance immediate rides at +13
         pm = re.compile(re.escape(b'\x0f\xf5\xe1\xa1') + b'....'
@@ -328,6 +344,27 @@ def main():
             continue
         va_map[va] = t
 
+    # The coverage-mask pointer, from the build's own advance spans: the
+    # sixteen mov/add/mov idioms share one global, and that is it. The
+    # map's vote once landed on a neighbouring global for JP, and every
+    # mask site went wrong from there.
+    seen = {}
+    for pat in (rb'\xa1(....)\x46\x83\xc0\x50\x5b\xa3(....)',
+                rb'\xa1(....)\x83\xc0\x50\x46\xa3(....)'):
+        for m in re.finditer(pat, other, re.S):
+            if m.group(1) == m.group(2):
+                p = struct.unpack('<I', m.group(1))[0]
+                seen[p] = seen.get(p, 0) + 1
+    if len(seen) == 1 and list(seen.values())[0] == 16:
+        va_map[hires.ADDR['MASKPTR']] = next(iter(seen))
+    else:
+        fails.append('mask pointer: spans found %s' %
+                     {hex(k): v for k, v in seen.items()})
+
+    # The sites, at a representative size: offsets and originals do not
+    # depend on it.
+    sites = hires.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
+                              (0x39c0000, hires.HIRES_POLYS))
     ORDERED = pool_sites()
 
     # The four 2D-layer call targets, from the build's own call sites:
@@ -348,10 +385,7 @@ def main():
                      % {hex(k): hex(v) for k, v in calls.items()})
     va_map.update(calls)
 
-    # The sites, at a representative size: offsets and originals do not
-    # depend on it.
-    sites = hires.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
-                              (0x39c0000, hires.HIRES_POLYS))
+
     off_map, old_map = {}, {}
     manual = MANUAL.get('%08x' % stamp(other), {})
     absent = []
@@ -366,10 +400,12 @@ def main():
             continue
         if 0x400c00 + off in va_map:      # a named address: keep them equal
             jo, how = va_map[0x400c00 + off] - 0x400c00, 'named'
+        elif off in ORDERED:
+            # anchored on the build's own bytes, so it outranks the map,
+            # which collapses identical code copies onto one of them
+            jo, how = ORDERED[off], 'ordered pattern'
         else:
             jo, how = votrans.translate_off(off)
-        if jo is None and off in ORDERED:
-            jo, how = ORDERED[off], 'ordered pattern'
         if jo is None:
             jo, why = place(off)
             if jo is None:

@@ -145,12 +145,9 @@ RETAIL_STAMP = 0x334d33fc
 # GENERATED - do not edit by hand. tools/hiresport.py writes these from a
 # vomap.py map of each build; regenerate rather than editing.
 # PORT TABLES BEGIN
-# Both other builds are withheld. Their rasterizers pair the scalar and
-# MMX renderer variants differently from retail, and the mask, pool and
-# row sites in them sit in functions the map cannot match; every pattern
-# tier so far has produced at least one plausible but mid-instruction
-# placement there. Those sites need porting by renderer kind, with an
-# exact boundary audit as the gate, before a table ships again.
+# Both other builds are withheld until they boot. Their tables come from
+# tools/hiresport.py; docs/HIRES.md records what went wrong in the
+# renderer-family sites and what the generator now does about it.
 PORT = {
 }
 # PORT TABLES END
