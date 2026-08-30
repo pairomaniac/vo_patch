@@ -19,9 +19,6 @@ import re
 import struct
 import sys
 
-import capstone
-import keystone
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 UI = os.path.join(ROOT, 'ui.asm')
@@ -30,6 +27,16 @@ HIRES = os.path.join(ROOT, 'vo_patch.py')
 LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
           'insert_a', 'insert_b', 'hangar_draw']
+
+
+def normalized(src):
+    """The source as the hash sees it: comments and blanks stripped."""
+    out = []
+    for ln in src.split('\n'):
+        code = ln.split(';')[0].rstrip()
+        if code.strip():
+            out.append(code)
+    return '\n'.join(out)
 
 
 def preprocess(src):
@@ -57,8 +64,8 @@ def preprocess(src):
     return [subst(l) for l in lines], longs
 
 
-def assemble(lines, longs):
-    ks = keystone.Ks(keystone.KS_ARCH_X86, keystone.KS_MODE_32)
+def assemble(ks_mod, lines, longs):
+    ks = ks_mod.Ks(ks_mod.KS_ARCH_X86, ks_mod.KS_MODE_32)
     enc, _ = ks.asm('\n'.join(lines), 0)
     blob = bytearray(enc)
     for k, v in enumerate(longs):
@@ -71,9 +78,31 @@ def assemble(lines, longs):
 
 def main():
     check = '--check' in sys.argv
-    lines, longs = preprocess(open(UI).read())
-    blob = assemble(lines, longs)
-    probed = assemble(lines + ['    jmp %s' % l for l in LABELS], longs)
+    src_asm = open(UI).read()
+    try:
+        import capstone
+        import keystone
+    except ImportError:
+        if not check:
+            sys.exit('building needs keystone and capstone: '
+                     'pip install keystone-engine capstone')
+        # a fresh checkout with nothing installed still gets a real
+        # answer: the recorded fingerprint of the source that built the
+        # committed blob
+        import hashlib
+        import vo_patch_hires as hires
+        digest = hashlib.sha256(normalized(src_asm).encode()).hexdigest()
+        if digest == hires.UI_ASM_SHA:
+            print('ui.asm matches the committed blob (by fingerprint; '
+                  'install keystone-engine and capstone to reassemble)')
+            return
+        print('ui.asm changed but the committed UI_CODE was not rebuilt: '
+              'run tools/uibuild.py and tools/hiresport.py')
+        sys.exit(1)
+    lines, longs = preprocess(src_asm)
+    blob = assemble(keystone, lines, longs)
+    probed = assemble(keystone, lines + ['    jmp %s' % l for l in LABELS],
+                      longs)
     assert probed[:len(blob)] == blob
     offs = {}
     p = len(blob)
@@ -111,9 +140,12 @@ def main():
         i, j = src.index(begin), src.index(end)
         src = src[:i] + begin + '\n' + body + src[j:]
 
+    import hashlib
+    sha = hashlib.sha256(normalized(src_asm).encode()).hexdigest()
     hexstr = blob.hex()
     rows = [hexstr[i:i + 72] for i in range(0, len(hexstr), 72)]
     setblock('# UI CODE BEGIN', '# UI CODE END',
+             "UI_ASM_SHA = '%s'\n" % sha +
              "UI_CODE = bytes.fromhex(\n" +
              '\n'.join("    '%s'" % r for r in rows) + ')\n')
     setblock('# UI REFS BEGIN', '# UI REFS END',
