@@ -141,6 +141,76 @@ runtime, which is the lesson in itself.
    kind, function by function, with an exact instruction-boundary audit
    over every emitted site - not another pattern tier.
 
+## The scenes, as read off the game
+
+Retail addresses; what the patch relies on and what was learnt around it.
+
+**Picture geometry.** 0x5c88ac chooses the viewport per mode each frame:
+FLAGS (0x6bf598) bit 0 is the 496x384 Screen=Normal window, bit 1 the
+320x240 window, else 640x480; it writes the picture origin and size
+(0x6bf578/7c, 0x6bf5b8/bc) that overlay.asm reads for the credits
+prompt. ScrSize is staged at 0xbe4300/0xbe42fc before it reaches FLAGS.
+F4's handler is 0x5c74da (guarded on split 0x6bc94c == 2), the direct
+320x240 menu command lands at 0x5c79aa, both exit through 0x5c7dfe; the
+mode selector 0x5c9404 knows two modes and fails on any other.
+
+**GDI text.** 0x5c991c draws centred on (x, y) through
+GetTextExtentPoint32, halving under FSFLAGS bit 4 in low resolution.
+Fonts are HFONTs at 0x6c8568/6c built at 0x5c8ca0 from the LOGFONTs at
+0x6c8570/0x6c85f0 (24px) and 0x6c85b0/0x6c8630 (16px, low resolution);
+the 24px pair is what the patch scales, in .data at file
+0x2c7370/0x2c73f0. The wrap routine is 0x5c8da6.
+
+**F5 Graphic Settings.** The dialog template sits in .rsrc around file
+0x60be42, located by its strings because the frame rate patch grows the
+template before it. Screen Split radios are ids 0x42e/0x42f/0x431
+(Type1/2/3), handler 0x427fa0; Type2 duplicated Type1 under the new
+layouts, so it is hidden (style 0x50010009 -> 0x40010009).
+
+**Machine select (the hangar).** A platform mech is drawn while its
+angle is within a window of the camera's - 0x59e3a1 tests 31.57 degrees
+left and 28.43 right, .data doubles at file 0x2213f0/0x2213f8, sized for
+a 4:3 view. The draw is the call at 0x59e4ea to 0x59cb93, which the blob
+wraps (hangar_draw). The game keeps palettes only for the selection and
+the previous one - rows 1/3/5/7 and 9/11 of the colour planes - loaded
+asynchronously, so a mech beyond 28.43 degrees right can come out in
+someone else's colours; that is why the widened window fades the
+outermost mech to a silhouette over the twelve degrees inside that
+edge instead of drawing it lit. The PRESS BUTTON and MACHINE SELECT
+words on that screen are sprites, not text.
+
+**Ending.** The title state machine's sub-state 0x20 handler 0x59081f
+runs phases through 0x1ad0964: 0 the cutscene (0x58c1cc), 1 mission
+complete (0x58e659), 2 the roll (0x58ecd0); anything past 2 falls to
+the tail that stops the music and moves to name entry, which is what
+the skip writes. The in-game machine's analogue is 0x44a523/0x4489d6.
+The roll's tile ring buffer is 0x1cc18ea.
+
+**Credits letterboxing, an open lead.** The roll's text fades out near
+the top and bottom edges (visible band about rows 90..385 of 480), the
+3D scenery behind it unaffected, so the fade is applied inside the
+tile/scroll-layer draw rather than as a screen overlay; the source has
+not been found. The arcade's letterbox and shade call
+(0x4a70c6/0x4ff496 into 0x514629/0x5cc579, alpha 0x80 arguments) is a
+stubbed no-op on PC - it lands in bare sort flushes at
+0x5d1a70/0x5dc940 - so it is not that. Next place to look: the scroll
+blit path (the 0x47f0c0 family) and the ring buffer above.
+
+## Queued work
+
+- **Split-screen HUD band.** In side-by-side split, pin only the top
+  HUD elements (timer and health bars, HUD-space y below about 110 of
+  480) to the viewport top: a per-polygon top-aligned offset in the
+  insert hooks, and the 2D canvas composited in slices so the pre-fill
+  samples the moved rows. Gated on split only.
+- **F4 as a real 1080/720 toggle.** Every baked scale (2D, HUD,
+  projection, split geometry, row maths) becomes a pair selected at
+  runtime on the flag. A rework of its own; the game's own plumbing
+  only offers the exact half (960x540) for free, since every low-mode
+  path is a halving.
+- **Credits fade removal**, once the lead above lands.
+- **The JP and OEM port**, by renderer kind - see above.
+
 ## Per-build facts worth keeping
 
 Japanese rerelease (stamp 345107fa): FSFLAGS 0x6bb2b0, FB family from
