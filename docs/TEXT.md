@@ -13,7 +13,7 @@ globals are named by virtual address, the way a debugger shows them: add
 
 | Path | Used by | Source |
 | --- | --- | --- |
-| GDI | pause, loading, connecting, the credits prompt | C strings, `TextOutA` onto a DC from the DirectDraw surface |
+| GDI | pause, loading, connecting, the credits prompt | C strings, `TextOutA` onto a DC from the DirectDraw surface; **Widescreen 1080p** scales the two 24px faces with the height and recentres the wrap bounds |
 | Tile font | mech data, tutorial lines | ASCII strings, one character per 8x8 cell |
 | Tile artwork | title and scoreboard prompt | a table of tile indices; the pixels are in `escrgame.bin` |
 

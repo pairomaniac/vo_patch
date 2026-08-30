@@ -152,6 +152,7 @@ will not start until it passes. It installs nasm and runs
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
 | `asm` | a source edited without the blobs being regenerated; a blob that fails to link for one of the builds; a placeholder the apply-time sections fill gone missing or duplicated |
+| `ui` | `ui.asm` edited without the resolution blob being rebuilt |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -199,9 +200,12 @@ reference the file shows, and both have crashed the game before. Two
 runs, at `0x5f80e0` and `0x623d98`, are `qword` constants that scan as
 zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 
-Two patches append a section of their own rather than use the annex,
+Three patches append a section of their own rather than use the annex,
 because what they carry is too big for it and only exists once the patch
-is applied.
+is applied. The third, `.vohr`, is **Widescreen 1080p**'s: its code is
+`ui.asm` at the repository root, built by `tools/uibuild.py` rather than
+`build.py`, since it is position independent and carries its own
+address list - see [HIRES.md](../docs/HIRES.md).
 
 **`vocd.asm`** is the CD audio routine, in a new `.vocd` section that
 `apply_cdaudio` appends to the executable. The code starts with two thunks:
