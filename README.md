@@ -16,6 +16,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
+  <a href="#widescreen-1080p">Widescreen</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
   <a href="#builds">Builds</a>
@@ -163,6 +164,9 @@ rebuilt now, and the game waits until that has worked before carrying on.
 - **XInput gamepad support** - a modern controller for both players: twelve
 bindable actions, plus the arcade twin-stick scheme. See
 [Gamepad](#gamepad).
+- **Widescreen 1080p** - runs the game at 1920x1080 instead of 640x480,
+menus and text redrawn to match, more of the arena at the sides. Retail
+build only for now. See [Widescreen 1080p](#widescreen-1080p).
 - **No disc required** - removes the disc check and plays the soundtrack from
 `music\trackNN.wav` beside the game. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - hides the menu bar and moves
@@ -184,12 +188,6 @@ during an internet match. Every other menu was already on a key:
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
-- **Widescreen 1080p** - runs the game at 1920x1080 instead of 640x480.
-The picture, the menus and the text are redrawn at the new size, and
-widescreen shows more of the arena at the sides. F4 and the 320x240 mode
-are turned off, and the F5 Screen Split choices read **Ver** (side by side)
-and **Hor** (top and bottom). Pair it with cnc-ddraw for windowed or
-borderless play at that size. Retail build only for now.
 - **Better defaults with no v_on.ini** - what the game falls back on for any
 setting `v_on.ini` does not have, which on a first run is all of them: Sky
 on, all three Texture boxes on, Field Graphic Rich, Screen Large.
@@ -435,6 +433,34 @@ Closing the dialog saves each to its own `v_on.ini` line, editable by hand:
 
 Two digits, `05` to `95` - lower is more sensitive, higher rides out a worn
 stick's drift.
+
+## Widescreen 1080p
+
+The game draws everything at 640x480 and assumes it everywhere, so scaling
+the picture up only makes it bigger. This patch makes the game render at
+1920x1080 itself: the 3D view, the menus, the HUD and the text are drawn
+at that size, and a widescreen view shows more of the arena at the sides
+rather than stretching the middle.
+
+What changes when it is on:
+
+- **F4** does nothing. Stock toggles a 320x240 mode; there is no
+  320x240 here, so the key and its menu entry are turned off.
+- **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
+  bottom); the third choice, which duplicated the first, is gone.
+- The pause, loading and credits text scales with the picture.
+
+It works with every other patch and with cnc-ddraw, which is what gives
+you windowed or borderless play at that size - see
+[Resolution and windowing](#resolution-and-windowing-cnc-ddraw). The
+game itself still asks the display for exclusive fullscreen at
+1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
+your monitor without stretching.
+
+**Retail build only for now.** On the USA OEM and Japanese builds the box
+is greyed out and every other patch applies as usual. Both crash inside
+the renderer with the current tables; the work left is written up in
+[docs/HIRES.md](docs/HIRES.md).
 
 ## Music
 
