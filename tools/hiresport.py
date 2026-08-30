@@ -379,6 +379,12 @@ def main():
         off_map[off] = jo
         old_map[off] = other[jo:jo + n].hex()
 
+    seen = {}
+    for off, jo in off_map.items():
+        if jo in seen:
+            fails.append('sites 0x%06x and 0x%06x both map to 0x%06x'
+                         % (seen[jo], off, jo))
+        seen[jo] = off
     if fails:
         for f in fails:
             print('FAIL', f)

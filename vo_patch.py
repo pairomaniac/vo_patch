@@ -5445,6 +5445,9 @@ def apply_selected(buf, wanted, build=RETAIL):
             if hires is None:
                 skipped.append((key, 'hires.py is not beside the script'))
                 continue
+            if not hires.supported(buf):
+                skipped.append((key, 'not ready for this build yet'))
+                continue
             try:
                 hires.install(buf, w, hh)
             except ValueError as exc:
@@ -5529,6 +5532,7 @@ class Patcher:
         self.exe_path = None
         self.compare = None
         self.build = RETAIL
+        self.stamp = None
 
     def load(self, path):
         """Return (description, accepted). Raises OSError.
@@ -5559,6 +5563,8 @@ class Patcher:
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
+        pe = struct.unpack_from('<I', data, 0x3c)[0]
+        self.stamp = struct.unpack_from('<I', data, pe + 8)[0]
         digest = hashlib.md5(data).hexdigest()
         if digest in BUILDS:
             self.build = BUILDS[digest]
@@ -7811,6 +7817,11 @@ def run_tk():
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
                 check.state(['!disabled'] if ok else ['disabled'])
+            if ok and 'hires' in self.checks and hires is not None \
+                    and (self.core.stamp is None
+                         or not hires.supported_stamp(self.core.stamp)):
+                self.vars['hires'].set(False)
+                self.checks['hires'].state(['disabled'])
             self._chose = bool(ok)
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
