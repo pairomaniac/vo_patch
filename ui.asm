@@ -29,7 +29,9 @@
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
 ; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y and the log fields
 ; are written by the patcher.
+FB_PTR    = 0x6bf5a8            ; locked surface pointer
 FB_PITCH  = 0x6bf5ac
+FB_ROW    = 0x6bf5b0            ; current row pointer
 FB_W      = 0x6bf5b8
 FB_H      = 0x6bf5bc
 SPLIT     = 0x6bc948
@@ -678,6 +680,11 @@ pre_here:
     mov esi, [ebx+D_BASEPTR]
     mov eax, [esi]
     mov [ebx+D_BASE], eax
+    test eax, eax                   ; no surface yet (JP boot warning):
+    jnz pre_live                    ; leave this frame to the stock path
+    popad
+    ret
+pre_live:
     mov eax, [FB_PITCH]
     mov [ebx+D_PITCH], eax
     mov eax, [FB_W]
@@ -861,6 +868,11 @@ post_here:
     mov [SPLIT], eax
     mov esi, [ebx+D_BASEPTR]
     mov eax, [ebx+D_BASE]
+    test eax, eax                   ; the frame pre stood down for
+    jnz post_live
+    popad
+    ret
+post_live:
     mov [esi], eax
     mov eax, [ebx+D_PITCH]
     mov [FB_PITCH], eax
