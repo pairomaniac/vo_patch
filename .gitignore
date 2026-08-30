@@ -16,3 +16,11 @@ asm/*.bin
 # net/build.py bakes the DLL into vo_patch.py; the file itself is scratch.
 net/dpctrl.dll
 vo-net.log
+
+# tools/setup-dev.sh makes the venv; the tooling lives there, never in git.
+.venv/
+
+# vomap.py maps and hiresport.py output: regenerated from the executables,
+# which are not in the repository either.
+*.pkl
+*_port.txt

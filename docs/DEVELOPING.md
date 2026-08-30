@@ -30,13 +30,19 @@ either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 ```bash
 sudo dnf install nasm gcc-mingw64-i686 xorg-x11-server-Xvfb
                                            # or apt: nasm gcc-mingw-w64-i686 xvfb
-pip install pyflakes
+sh tools/setup-dev.sh                      # venv at .venv with the Python tools
+. .venv/bin/activate
 ```
 
 `nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
 DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo_patch.py` as text. pyflakes is the `lint` check, and xvfb is the
-display the `gui` one needs; without it that check skips itself and says so.
+into `vo_patch.py` as text. The venv holds pyflakes (the `lint` check) and
+capstone with keystone-engine, which rebuild `ui.asm` (`tools/uibuild.py`)
+and drive the build-mapping tools (`vomap`, `votrans`, `hiresport`); the
+`ui` check compares a fingerprint instead when they are absent. xvfb is the
+display the `gui` check needs; without it that check skips itself and says
+so. Run the checks with the venv active so `tools/check.py` finds the
+packages.
 
 A pre-push hook catches a forgotten build before CI does:
 
