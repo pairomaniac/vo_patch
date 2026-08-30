@@ -104,6 +104,577 @@ def imm_sites(offsets, old, new):
 # guard rows above and below, since the 2D code draws outside the
 # viewport in split screen. Source: ui.asm; assembled with keystone,
 # position independent apart from the four calls fixed up here.
+
+def _pe_stamp(buf):
+    pe = struct.unpack_from('<I', buf, 0x3c)[0]
+    return struct.unpack_from('<I', buf, pe + 8)[0]
+
+
+RETAIL_STAMP = 0x334d33fc
+
+# GENERATED - do not edit by hand. tools/hiresport.py writes these from a
+# vomap.py map of each build; regenerate rather than editing.
+# PORT TABLES BEGIN
+PORT = {
+    '345107fa': {                       # jp.exe
+        'va': {
+            0x0042cda6: 0x0042cac8,
+            0x00432fbe: 0x0043270e,
+            0x00433141: 0x00432891,
+            0x00460b70: 0x0045fbf0,
+            0x00460cf3: 0x0045fd73,
+            0x004800d0: 0x0047ec80,
+            0x004804f0: 0x0047f0a0,
+            0x004b6030: 0x004b43a0,
+            0x004b981f: 0x004b7a61,
+            0x004c468e: 0x004c24d6,
+            0x004d0280: 0x004cde03,
+            0x004d9c3d: 0x004d715b,
+            0x0051444d: 0x0051097d,
+            0x0051448e: 0x005109be,
+            0x00514576: 0x00510aa6,
+            0x00531f6a: 0x0052e2ad,
+            0x005495b1: 0x00544c21,
+            0x0055d221: 0x00558897,
+            0x005670c0: 0x00562400,
+            0x005674f0: 0x0047f0a0,
+            0x0057f1b0: 0x0057a480,
+            0x005829c3: 0x0057db65,
+            0x0058881e: 0x0058390a,
+            0x00588d85: 0x00583e71,
+            0x005a1f3c: 0x0059ccd4,
+            0x005a251b: 0x0059d2b3,
+            0x005b5f2e: 0x005b0bb6,
+            0x005c79aa: 0x005c2279,
+            0x005c7dfe: 0x005c26cd,
+            0x005c813a: 0x005c2a09,
+            0x005c814c: 0x005c2a1b,
+            0x005c8188: 0x005c2a57,
+            0x005c819a: 0x005c2a69,
+            0x005cc39d: 0x005c6c3d,
+            0x005cc3de: 0x005c6c7e,
+            0x005cc4c6: 0x005c6d66,
+            0x00624728: 0x0061f4b0,
+            0x0066c17c: 0x00668104,
+            0x006bc1e4: 0x006b7f44,
+            0x006bc1e8: 0x006b7f48,
+            0x006bc948: 0x006b86a8,
+            0x006bf598: 0x006bb2b0,
+            0x006bf5ac: 0x006bb2c4,
+            0x006bf5b8: 0x006bb2d0,
+            0x006bf5bc: 0x006bb2d4,
+            0x006c8b24: 0x006c48b4,
+            0x006c8b28: 0x006c48b8,
+            0x006c8ce8: 0x006c4a78,
+            0x006d0dc4: 0x006ccb54,
+            0x006db4c8: 0x006d7258,
+            0x006db530: 0x006d72c0,
+            0x006db534: 0x006d72c4,
+            0x007001d0: 0x006fbf60,
+            0x00708818: 0x007045a8,
+            0x00708870: 0x00704600,
+            0x00708874: 0x00704604,
+            0x00725f50: 0x00721ce0,
+            0x033cd5f4: 0x033c8280,
+        },
+        'off': {
+            0x02c1a6: (0x02bec8, '558bec81eca8000000'),
+            0x0323be: (0x031b0e, '558bec83ec04'),
+            0x032541: (0x031c91, '558bec5356'),
+            0x05ff70: (0x05eff0, '558bec83ec04'),
+            0x0600f3: (0x05f173, '558bec5356'),
+            0x07e504: (0x07d0b4, '8b0da8866b003bc80f84bd010000'),
+            0x07f890: (0x07e440, 'e0326c00'),
+            0x07f8e0: (0x07e490, 'e0326c00'),
+            0x07fd71: (0x07e921, 'e0326c00'),
+            0x07fe3c: (0x07e9ec, 'e0326c00'),
+            0x07fea1: (0x07ea51, 'e0326c00'),
+            0x0802fc: (0x07eebc, 'e0326c00'),
+            0x0b5430: (0x0b37a0, '558bec83ec34'),
+            0x0b8c1f: (0x0b6e61, '558bec83ec34'),
+            0x0c3a8e: (0x0c18d6, '558bec81ec8c000000'),
+            0x0cf680: (0x0cd203, '558bec535657'),
+            0x0d903d: (0x0d655b, '558bec81eca8000000'),
+            0x11384d: (0x10fd7d, '558bec535657'),
+            0x11388e: (0x10fdbe, '558bec535657'),
+            0x113976: (0x10fea6, '558bec535657'),
+            0x13136a: (0x12d6ad, '558bec535657'),
+            0x1489b1: (0x144021, '558bec83ec10'),
+            0x15c621: (0x157c97, '0000833d3cab'),
+            0x166888: (0x161bc8, 'e0326c00'),
+            0x1668e0: (0x161c20, 'e0326c00'),
+            0x166d79: (0x1620b9, 'e0326c00'),
+            0x166e44: (0x162184, 'e0326c00'),
+            0x166eb1: (0x1621f1, 'e0326c00'),
+            0x167324: (0x162664, 'e0326c00'),
+            0x17e5b0: (0x179880, '558bec83ec34'),
+            0x181dc3: (0x17cf65, '558bec83ec34'),
+            0x187c1e: (0x182d0a, '558bec83ec0c'),
+            0x188185: (0x183271, '558bec83ec0c'),
+            0x19d8ea: (0x1986ea, 'e8a4e6ffff'),
+            0x1a133c: (0x19c0d4, '558bec83ec0c'),
+            0x1a191b: (0x19c6b3, '558bec83ec0c'),
+            0x1b098b: (0x1ab647, 'e0010000'),
+            0x1b0990: (0x1ab64c, '80020000'),
+            0x1b532e: (0x1affb6, '558bec81ec8c000000'),
+            0x1c4dd3: (0x1bf6b8, 'e0010000'),
+            0x1c4dd8: (0x1bf6bd, '80020000'),
+            0x1c4f73: (0x1bf842, 'e0326c00'),
+            0x1c4fc9: (0x1bf898, '603a6c00'),
+            0x1c5011: (0x1bf8e0, '80020000'),
+            0x1c501e: (0x1bf8ed, 'e0010000'),
+            0x1c617a: (0x1c0a49, 'e0010000'),
+            0x1c617f: (0x1c0a4e, '80020000'),
+            0x1c68e1: (0x1c11b0, '0f8505000000'),
+            0x1c68fc: (0x1c11cb, 'e0010000'),
+            0x1c6901: (0x1c11d0, '80020000'),
+            0x1c6d3d: (0x1c160c, 'e0010000'),
+            0x1c6d42: (0x1c1611, '80020000'),
+            0x1c6daa: (0x1c1679, '6a1068f0000000'),
+            0x1c753a: (0x1c1e09, 'e872c2ebff'),
+            0x1c754c: (0x1c1e1b, 'e8e0f9f9ff'),
+            0x1c7588: (0x1c1e57, 'e844c6ebff'),
+            0x1c759a: (0x1c1e69, 'e8c2fdf9ff'),
+            0x1c7726: (0x1c1ff5, '0000803f'),
+            0x1c7730: (0x1c1fff, '0000003f'),
+            0x1c7775: (0x1c2044, 'b4486c00'),
+            0x1c782d: (0x1c2093, 'd905447f6b00dc35a8f46100d91d447f6b00d905487f6b00dc0db0f46100d91d487f6b00d905b8486c00dc0db0f46100d91db8486c008b45088b40248945fc8b45088b40108945f88b45fca3300cae018b45'),
+            0x1c78f0: (0x1c2138, '80020000'),
+            0x1c7907: (0x1c214f, '28000000'),
+            0x1c794a: (0x1c2190, '80020000'),
+            0x1c7961: (0x1c21a7, '28000000'),
+            0x1c799b: (0x1c21e1, '8d0c498d0c89c1e104'),
+            0x1c79bd: (0x1c2203, '004b0000'),
+            0x1c7a2c: (0x1c2272, '28000000'),
+            0x1c7a8e: (0x1c22d4, '28000000'),
+            0x1c7ad2: (0x1c2318, 'c1e1038d0c498d0c89'),
+            0x1c7af4: (0x1c233a, '80250000'),
+            0x1c7b72: (0x1c23b8, '80020000'),
+            0x1c7b89: (0x1c23cf, '28000000'),
+            0x1c7bb1: (0x1c23f7, '8d04408d0480c1e004'),
+            0x1c7bd0: (0x1c2416, '004b0000'),
+            0x1c7c0e: (0x1c2454, '28000000'),
+            0x1c7c36: (0x1c247c, 'c1e0038d04408d0480'),
+            0x1c7c55: (0x1c249b, '80250000'),
+            0x1c7cb8: (0x1c24fe, '02'),
+            0x1c7cc5: (0x1c250b, '40010000'),
+            0x1c7ccf: (0x1c2515, 'f0000000'),
+            0x1c7cf2: (0x1c2538, '40010000'),
+            0x1c7cfc: (0x1c2542, 'f0000000'),
+            0x1c7d68: (0x1c25ae, 'f0010000'),
+            0x1c7d72: (0x1c25b8, '80010000'),
+            0x1c7d77: (0x1c25bd, '80020000'),
+            0x1c7d89: (0x1c25cf, 'e0010000'),
+            0x1c7da5: (0x1c25eb, '80020000'),
+            0x1c7daf: (0x1c25f5, 'e0010000'),
+            0x1c7e3a: (0x1c2680, '02'),
+            0x1c824e: (0x1c2ab4, 'e0010000'),
+            0x1c834b: (0x1c2bdb, '80020000'),
+            0x1c8435: (0x1c2ce9, '50010000'),
+            0x1c843c: (0x1c2cf0, '80020000'),
+            0x1c8443: (0x1c2cf7, 'e0010000'),
+            0x1c8491: (0x1c2d45, 'b0010000'),
+            0x1c8498: (0x1c2d4c, '80020000'),
+            0x1c849f: (0x1c2d53, 'e0010000'),
+            0x1c84d6: (0x1c2d8a, 'b0010000'),
+            0x1c84dd: (0x1c2d91, '80020000'),
+            0x1c84e4: (0x1c2d98, 'e0010000'),
+            0x1c8810: (0x1c308c, '80020000'),
+            0x1c881d: (0x1c3099, 'e0010000'),
+            0x1c898b: (0x1c3207, 'e0010000'),
+            0x1c8990: (0x1c320c, '80020000'),
+            0x1c8a88: (0x1c3304, 'a1a0436c00'),
+            0x1c8ab9: (0x1c3335, 'e0010000'),
+            0x1c8abe: (0x1c333a, '80020000'),
+            0x1c8b4d: (0x1c33c9, 'e0010000'),
+            0x1c8b52: (0x1c33ce, '80020000'),
+            0x1c8e8d: (0x1c3709, '40010000'),
+            0x1c8e94: (0x1c3710, 'a0000000'),
+            0x1c8f1d: (0x1c3799, '40010000'),
+            0x1c8f24: (0x1c37a0, 'a0000000'),
+            0x1c90b8: (0x1c3934, 'e0326c00'),
+            0x1c90e9: (0x1c3965, 'e0326c00'),
+            0x1cb79d: (0x1c603d, '558bec535657'),
+            0x1cb7de: (0x1c607e, '558bec535657'),
+            0x1cb8c6: (0x1c6166, '558bec535657'),
+            0x1cd5d4: (0x1c7e64, '70cb6c008d0570da6c00b9e0010000890783c05089470483c05083c70883e9027fed'),
+            0x1cd5da: (0x1c7e6a, '70da6c00'),
+            0x1cd605: (0x1c7e95, '70da6c00'),
+            0x1cd60c: (0x1c7e9c, '80250000'),
+            0x1cd8a5: (0x1c8135, '70da6c00'),
+            0x1cd8b8: (0x1c8148, '83c850'),
+            0x1cd9db: (0x1c826b, '70da6c00'),
+            0x1cd9ee: (0x1c827e, '83c850'),
+            0x1ce0f9: (0x1c8989, '70da6c00'),
+            0x1ce11b: (0x1c89ab, '83c850'),
+            0x1ce988: (0x1d40e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1ce9de: (0x1d413e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cf028: (0x1d4788, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cf07e: (0x1d47de, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cf6d8: (0x1d4e38, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cf72e: (0x1d4e8e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cfd88: (0x1d54e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cfdde: (0x1d553e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cfe32: (0x1d5592, '50000000'),
+            0x1cfe90: (0x1d55f0, '50000000'),
+            0x1d0eac: (0x1cb73c, 'c4090000'),
+            0x1d0ed0: (0x1cb760, '4c986f00'),
+            0x1d11d8: (0x1cba68, '50986f00'),
+            0x1d161f: (0x1cbeaf, '70da6c00'),
+            0x1d162c: (0x1cbebc, '83c850'),
+            0x1d1a30: (0x1cc2c0, '70da6c00'),
+            0x1d1a3d: (0x1cc2cd, '83c850'),
+            0x1d1deb: (0x1cc67b, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1d1e22: (0x1cc6b2, 'a1784a6c000ffefe83c0508b0dc4b26b00a3784a6c00'),
+            0x1d2111: (0x1cc9a1, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1d2152: (0x1cc9e2, 'a1784a6c000ffefe83c0508b0dc4b26b00a3784a6c00'),
+            0x1d395b: (0x1ce1eb, 'c4090000'),
+            0x1d3967: (0x1ce1f7, '70756d00'),
+            0x1d3970: (0x1ce200, '304a6f00'),
+            0x1d3a28: (0x1ce2b8, '8b349d60bf6f00'),
+            0x1d46ae: (0x1cef3e, 'c4090000'),
+            0x1d46ba: (0x1cef4a, '70756d00'),
+            0x1d46c3: (0x1cef53, '304a6f00'),
+            0x1d4760: (0x1ceff0, '8b349d60bf6f00'),
+            0x1d876b: (0x1d2ffb, '70da6c00'),
+            0x1d877e: (0x1d300e, '83c850'),
+            0x1d88a7: (0x1d3137, '70da6c00'),
+            0x1d88ba: (0x1d314a, '83c850'),
+            0x1d8fcf: (0x1d385f, '70da6c00'),
+            0x1d8ff1: (0x1d3881, '83c850'),
+            0x1d9858: (0x1d40e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1d98ae: (0x1d413e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1d9ef8: (0x1d4788, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1d9f4e: (0x1d47de, 'a1784a6c0083c05046a3784a6c00'),
+            0x1da5a8: (0x1d4e38, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1da5fe: (0x1d4e8e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1dac58: (0x1d54e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1dacae: (0x1d553e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1dad02: (0x1d5592, '50000000'),
+            0x1dad60: (0x1d55f0, '50000000'),
+            0x1dc4f8: (0x1d6d88, '70da6c00'),
+            0x1dc502: (0x1d6d92, '83c850'),
+            0x1dc919: (0x1d71a9, '70da6c00'),
+            0x1dc923: (0x1d71b3, '83c850'),
+            0x1dcccb: (0x1d755b, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1dcd02: (0x1d7592, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
+            0x1dcff1: (0x1d7881, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1dd032: (0x1d78c2, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
+            0x1de938: (0x1d91c8, '8b349de01c7200'),
+            0x1df6b0: (0x1d9f40, '8b349de01c7200'),
+            0x2213f0: (0x21b978, '52b81e85eb913f40'),
+            0x2213f8: (0x21b980, 'ae47e17a146e3c40'),
+            0x2baff4: (0x2b6154, '00000047'),
+            0x2baffc: (0x2b615c, '00000048'),
+            0x2c734c: (0x2c2464, '40000000'),
+            0x2c7350: (0x2c2468, '40000000'),
+            0x2c7354: (0x2c246c, 'b0000000'),
+            0x2c7358: (0x2c2470, '00010000'),
+            0x2c735c: (0x2c2474, '78000000'),
+            0x2c7360: (0x2c2478, '78000000'),
+            0x2c7370: (0x2c2488, '18000000'),
+            0x2c73f0: (0x2c2508, '18000000'),
+        },
+    },
+    '3317246a': {                       # oem.exe
+        'va': {
+            0x0042cda6: 0x0042cd06,
+            0x00432fbe: 0x00432f1e,
+            0x00433141: 0x004330a1,
+            0x00460b70: 0x00460ad0,
+            0x00460cf3: 0x00460c53,
+            0x004800d0: 0x0047ffe0,
+            0x004804f0: 0x00480400,
+            0x004b6030: 0x004b5ed0,
+            0x004b981f: 0x004b96bf,
+            0x004c468e: 0x004c452e,
+            0x004d0280: 0x004d0120,
+            0x004d9c3d: 0x004d9add,
+            0x0051444d: 0x00513fbd,
+            0x0051448e: 0x00513ffe,
+            0x00514576: 0x005140e6,
+            0x00531f6a: 0x00531ada,
+            0x005495b1: 0x00549121,
+            0x0055d221: 0x0055cd91,
+            0x005670c0: 0x00566c30,
+            0x005674f0: 0x00567060,
+            0x0057f1b0: 0x0057ec80,
+            0x005829c3: 0x00582493,
+            0x0058881e: 0x005882ee,
+            0x00588d85: 0x00588855,
+            0x005a1f3c: 0x005a1a0c,
+            0x005a251b: 0x005a1feb,
+            0x005b5f2e: 0x005b59fe,
+            0x005c79aa: 0x005c74c3,
+            0x005c7dfe: 0x005c7917,
+            0x005c813a: 0x005c7c53,
+            0x005c814c: 0x005c7c65,
+            0x005c8188: 0x005c7ca1,
+            0x005c819a: 0x005c7cb3,
+            0x005cc39d: 0x005cbedd,
+            0x005cc3de: 0x005cbf1e,
+            0x005cc4c6: 0x005cc006,
+            0x00624728: 0x00624718,
+            0x0066c17c: 0x0066c174,
+            0x006bc1e4: 0x006bc17c,
+            0x006bc1e8: 0x006bc180,
+            0x006bc948: 0x006bc8e0,
+            0x006bf598: 0x006bf530,
+            0x006bf5ac: 0x006bf544,
+            0x006bf5b8: 0x006bf550,
+            0x006bf5bc: 0x006bf554,
+            0x006c8b24: 0x006c8aec,
+            0x006c8b28: 0x006c8af0,
+            0x006c8ce8: 0x006c8ca8,
+            0x006d0dc4: 0x006d0d84,
+            0x006db4c8: 0x006db488,
+            0x006db530: 0x006db4f0,
+            0x006db534: 0x006db4f4,
+            0x007001d0: 0x00700190,
+            0x00708818: 0x007087d8,
+            0x00708870: 0x00708830,
+            0x00708874: 0x00708834,
+            0x00725f50: 0x00725f10,
+            0x033cd5f4: 0x033cd584,
+        },
+        'off': {
+            0x02c1a6: (0x02c106, '558bec81eca8000000'),
+            0x0323be: (0x03231e, '558bec83ec04'),
+            0x032541: (0x0324a1, '558bec5356'),
+            0x05ff70: (0x05fed0, '558bec83ec04'),
+            0x0600f3: (0x060053, '558bec5356'),
+            0x07e504: (0x07e404, '8b0de0c86b003bc80f84bd010000'),
+            0x07f890: (0x07f7a0, '60756c00'),
+            0x07f8e0: (0x07f7f0, '60756c00'),
+            0x07fd71: (0x07fc81, '60756c00'),
+            0x07fe3c: (0x07fd4c, '60756c00'),
+            0x07fea1: (0x07fdb1, '60756c00'),
+            0x0802fc: (0x08020c, '60756c00'),
+            0x0b5430: (0x0b52d0, '558bec83ec34'),
+            0x0b8c1f: (0x0b8abf, '558bec83ec34'),
+            0x0c3a8e: (0x0c392e, '558bec81ec8c000000'),
+            0x0cf680: (0x0cf520, '558bec83ec08'),
+            0x0d903d: (0x0d8edd, '558bec81eca8000000'),
+            0x11384d: (0x1133bd, '558bec535657'),
+            0x11388e: (0x1133fe, '558bec535657'),
+            0x113976: (0x1134e6, '558bec535657'),
+            0x13136a: (0x130eda, '558bec83ec08'),
+            0x1489b1: (0x148521, '558bec83ec10'),
+            0x15c621: (0x15c191, '558bec83ec10'),
+            0x166888: (0x1663f8, '60756c00'),
+            0x1668e0: (0x166450, '60756c00'),
+            0x166d79: (0x1668e9, '60756c00'),
+            0x166e44: (0x1669b4, '60756c00'),
+            0x166eb1: (0x166a21, '60756c00'),
+            0x167324: (0x166e94, '60756c00'),
+            0x17e5b0: (0x17e080, '558bec83ec34'),
+            0x181dc3: (0x181893, '558bec83ec34'),
+            0x187c1e: (0x1876ee, '558bec83ec0c'),
+            0x188185: (0x187c55, '558bec83ec0c'),
+            0x19d8ea: (0x19d3ba, 'e8a4e6ffff'),
+            0x1a133c: (0x1a0e0c, '558bec83ec0c'),
+            0x1a191b: (0x1a13eb, '558bec83ec0c'),
+            0x1b098b: (0x1b045b, 'e0010000'),
+            0x1b0990: (0x1b0460, '80020000'),
+            0x1b532e: (0x1b4dfe, '558bec81ec8c000000'),
+            0x1c4dd3: (0x1c48a3, 'e0010000'),
+            0x1c4dd8: (0x1c48a8, '80020000'),
+            0x1c4f73: (0x1c4a42, '60756c00'),
+            0x1c4fc9: (0x1c4a98, 'e07c6c00'),
+            0x1c5011: (0x1c4ae0, '80020000'),
+            0x1c501e: (0x1c4aed, 'e0010000'),
+            0x1c617a: (0x1c5c93, 'e0010000'),
+            0x1c617f: (0x1c5c98, '80020000'),
+            0x1c68e1: (0x1c63fa, '0f8505000000'),
+            0x1c68fc: (0x1c6415, 'e0010000'),
+            0x1c6901: (0x1c641a, '80020000'),
+            0x1c6d3d: (0x1c6856, 'e0010000'),
+            0x1c6d42: (0x1c685b, '80020000'),
+            0x1c6daa: (0x1c68c3, '6a1068f0000000'),
+            0x1c753a: (0x1c7053, 'e88883ebff'),
+            0x1c754c: (0x1c7065, 'e8c6eff9ff'),
+            0x1c7588: (0x1c70a1, 'e85a87ebff'),
+            0x1c759a: (0x1c70b3, 'e8a8f3f9ff'),
+            0x1c7726: (0x1c7261, '0000803f'),
+            0x1c7730: (0x1c726b, '0000003f'),
+            0x1c7775: (0x1c72b0, '3333733f'),
+            0x1c782d: (0x1c7368, 'd9057cc16b00833ddc09a000007508dc3510476200eb11ff3514476200ff3510476200e828d30100d91d7cc16b00d90580c16b00dc0d18476200d91d80c16b00d905f08a6c00dc0d18476200d91df08a6c00'),
+            0x1c78f0: (0x1c7429, '80020000'),
+            0x1c7907: (0x1c7440, '28000000'),
+            0x1c794a: (0x1c7481, '80020000'),
+            0x1c7961: (0x1c7498, '28000000'),
+            0x1c799b: (0x1c74d2, '80c1e0048b0df0846c'),
+            0x1c79bd: (0x1c74f5, '004b0000'),
+            0x1c7a2c: (0x1c7564, '28000000'),
+            0x1c7a8e: (0x1c75c6, '28000000'),
+            0x1c7ad2: (0x1c760a, 'c1e1038d0c498d0c89'),
+            0x1c7af4: (0x1c762c, '80250000'),
+            0x1c7b72: (0x1c76aa, '80020000'),
+            0x1c7b89: (0x1c76c1, '28000000'),
+            0x1c7bb1: (0x1c76e9, '8d04408d0480c1e004'),
+            0x1c7bd0: (0x1c7708, '004b0000'),
+            0x1c7c0e: (0x1c7746, '28000000'),
+            0x1c7c36: (0x1c776e, 'c1e0038d04408d0480'),
+            0x1c7c55: (0x1c778d, '80250000'),
+            0x1c7cb8: (0x1c77f0, '02'),
+            0x1c7cc5: (0x1c77fd, '40010000'),
+            0x1c7ccf: (0x1c7807, 'f0000000'),
+            0x1c7cf2: (0x1c782a, '40010000'),
+            0x1c7cfc: (0x1c7834, 'f0000000'),
+            0x1c7d68: (0x1c78a0, 'f0010000'),
+            0x1c7d72: (0x1c78aa, '80010000'),
+            0x1c7d77: (0x1c78af, '80020000'),
+            0x1c7d89: (0x1c78c1, 'e0010000'),
+            0x1c7da5: (0x1c78dd, '80020000'),
+            0x1c7daf: (0x1c78e7, 'e0010000'),
+            0x1c7e3a: (0x1c7972, '02'),
+            0x1c824e: (0x1c7d86, 'e0010000'),
+            0x1c834b: (0x1c7e83, '80020000'),
+            0x1c8435: (0x1c7f6d, '50010000'),
+            0x1c843c: (0x1c7f74, '80020000'),
+            0x1c8443: (0x1c7f7b, 'e0010000'),
+            0x1c8491: (0x1c7fc9, 'b0010000'),
+            0x1c8498: (0x1c7fd0, '80020000'),
+            0x1c849f: (0x1c7fd7, 'e0010000'),
+            0x1c84d6: (0x1c800e, 'b0010000'),
+            0x1c84dd: (0x1c8015, '80020000'),
+            0x1c84e4: (0x1c801c, 'e0010000'),
+            0x1c8810: (0x1c8348, '80020000'),
+            0x1c881d: (0x1c8355, 'e0010000'),
+            0x1c898b: (0x1c84c3, 'e0010000'),
+            0x1c8990: (0x1c84c8, '80020000'),
+            0x1c8a88: (0x1c85c0, 'a120866c00'),
+            0x1c8ab9: (0x1c85f1, 'e0010000'),
+            0x1c8abe: (0x1c85f6, '80020000'),
+            0x1c8b4d: (0x1c8685, 'e0010000'),
+            0x1c8b52: (0x1c868a, '80020000'),
+            0x1c8e8d: (0x1c89c5, '40010000'),
+            0x1c8e94: (0x1c89cc, 'a0000000'),
+            0x1c8f1d: (0x1c8a55, '40010000'),
+            0x1c8f24: (0x1c8a5c, 'a0000000'),
+            0x1c90b8: (0x1c8bf0, '60756c00'),
+            0x1c90e9: (0x1c8c21, '60756c00'),
+            0x1cb79d: (0x1cb2dd, '558bec535657'),
+            0x1cb7de: (0x1cb31e, '558bec535657'),
+            0x1cb8c6: (0x1cb406, '558bec535657'),
+            0x1cd5d4: (0x1cd114, 'a00d6d008d05a01c6d00b9e0010000890783c05089470483c05083c70883e9027fed'),
+            0x1cd5da: (0x1cd11a, 'a01c6d00'),
+            0x1cd605: (0x1cd145, 'a01c6d00'),
+            0x1cd60c: (0x1cd14c, '80250000'),
+            0x1cd8a5: (0x1cd3e5, 'a01c6d00'),
+            0x1cd8b8: (0x1cd3f8, '83c850'),
+            0x1cd9db: (0x1cd51b, 'a01c6d00'),
+            0x1cd9ee: (0x1cd52e, '83c850'),
+            0x1ce0f9: (0x1cdc39, 'a01c6d00'),
+            0x1ce11b: (0x1cdc5b, '83c850'),
+            0x1ce988: (0x1ce4c8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1ce9de: (0x1ce51e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cf028: (0x1ceb68, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cf07e: (0x1cebbe, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cf6d8: (0x1cf218, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cf72e: (0x1cf26e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cfd88: (0x1cf8c8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cfdde: (0x1cf91e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cfe32: (0x1cf972, '50000000'),
+            0x1cfe90: (0x1cf9d0, '50000000'),
+            0x1d0eac: (0x1d09ec, 'c4090000'),
+            0x1d0ed0: (0x1d0a10, '7cda6f00'),
+            0x1d11d8: (0x1d0d18, '80da6f00'),
+            0x1d161f: (0x1d115f, 'a01c6d00'),
+            0x1d162c: (0x1d116c, '83c850'),
+            0x1d1a30: (0x1d1570, 'a01c6d00'),
+            0x1d1a3d: (0x1d157d, '83c850'),
+            0x1d1deb: (0x1d192b, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1d1e22: (0x1d1962, 'a1a88c6c000ffefe83c0508b0d44f56b00a3a88c6c00'),
+            0x1d2111: (0x1d1c51, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1d2152: (0x1d1c92, 'a1a88c6c000ffefe83c0508b0d44f56b00a3a88c6c00'),
+            0x1d395b: (0x1d349b, 'c4090000'),
+            0x1d3967: (0x1d34a7, 'a0b76d00'),
+            0x1d3970: (0x1d34b0, '608c6f00'),
+            0x1d3a28: (0x1d3568, '8b349d90017000'),
+            0x1d46ae: (0x1d41ee, 'c4090000'),
+            0x1d46ba: (0x1d41fa, 'a0b76d00'),
+            0x1d46c3: (0x1d4203, '608c6f00'),
+            0x1d4760: (0x1d42a0, '8b349d90017000'),
+            0x1d876b: (0x1d82ab, 'a01c6d00'),
+            0x1d877e: (0x1d82be, '83c850'),
+            0x1d88a7: (0x1d83e7, 'a01c6d00'),
+            0x1d88ba: (0x1d83fa, '83c850'),
+            0x1d8fcf: (0x1d8b0f, 'a01c6d00'),
+            0x1d8ff1: (0x1d8b31, '83c850'),
+            0x1d9858: (0x1d9398, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1d98ae: (0x1d93ee, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1d9ef8: (0x1d9a38, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1d9f4e: (0x1d9a8e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1da5a8: (0x1da0e8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1da5fe: (0x1da13e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1dac58: (0x1da798, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1dacae: (0x1da7ee, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1dad02: (0x1da842, '50000000'),
+            0x1dad60: (0x1da8a0, '50000000'),
+            0x1dc4f8: (0x1dc038, 'a01c6d00'),
+            0x1dc502: (0x1dc042, '83c850'),
+            0x1dc919: (0x1dc459, 'a01c6d00'),
+            0x1dc923: (0x1dc463, '83c850'),
+            0x1dcccb: (0x1dc80b, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1dcd02: (0x1dc842, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
+            0x1dcff1: (0x1dcb31, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1dd032: (0x1dcb72, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
+            0x1de938: (0x1de478, '8b349d105f7200'),
+            0x1df6b0: (0x1df1f0, '8b349d105f7200'),
+            0x2213f0: (0x220de0, '52b81e85eb913f40'),
+            0x2213f8: (0x220de8, 'ae47e17a146e3c40'),
+            0x2baff4: (0x2ba98c, '00000047'),
+            0x2baffc: (0x2ba994, '00000048'),
+            0x2c734c: (0x2c6ce4, '40000000'),
+            0x2c7350: (0x2c6ce8, '40000000'),
+            0x2c7354: (0x2c6cec, 'b0000000'),
+            0x2c7358: (0x2c6cf0, '00010000'),
+            0x2c735c: (0x2c6cf4, '78000000'),
+            0x2c7360: (0x2c6cf8, '78000000'),
+            0x2c7370: (0x2c6d08, '18000000'),
+            0x2c73f0: (0x2c6d88, '18000000'),
+        },
+    },
+}
+# PORT TABLES END
+
+
+# Every game address this tool bakes into written bytes, the ui blob, or
+# its hook tables. PORT (generated by tools/hiresport.py) carries these
+# per build; retail is the identity.
+ADDR = {
+    # ui.asm globals compiled into UI_CODE
+    'FB_PITCH': 0x6bf5ac, 'FB_W': 0x6bf5b8, 'FB_H': 0x6bf5bc,
+    'SPLIT': 0x6bc948, 'FLAGS': 0x6bf598, 'DRAWN': 0x6d0dc4,
+    'PROJ_A': 0x6db4c8, 'ASPECT_A': 0x6bc1e8, 'PROJ_B': 0x708818,
+    'ASPECT_B': 0x6c8b28, 'SCALE_A': 0x6bc1e4, 'SCALE_B': 0x6c8b24,
+    'CENTRE_AX': 0x6db530, 'CENTRE_BX': 0x708870, 'CENTRE_A': 0x6db534,
+    'CENTRE_B': 0x708874, 'LIST_A': 0x7001d0, 'LIST_B': 0x725f50,
+    'PIXFMT': 0x33cd5f4,
+    # the four 2D calls and their stubs' call sites
+    'CALL_PRE1': 0x4800d0, 'CALL_POST1': 0x4804f0,
+    'CALL_PRE2': 0x5670c0, 'CALL_POST2': 0x5674f0,
+    'STUB1': 0x5c813a, 'STUB2': 0x5c8188, 'STUB3': 0x5c814c,
+    'STUB4': 0x5c819a,
+    # projection setups and submit hooks
+    'WORLD1': 0x51444d, 'WORLD2': 0x51448e, 'WORLD3': 0x5cc39d,
+    'WORLD4': 0x5cc3de, 'SUBMIT_A': 0x514576, 'SUBMIT_B': 0x5cc4c6,
+    # the wrapped pass prologues
+    'PASS0': 0x5b5f2e, 'PASS1': 0x4c468e, 'PASS2': 0x55d221,
+    'PASS3': 0x5495b1, 'PASS4': 0x5a1f3c, 'PASS5': 0x5a251b,
+    'PASS6': 0x58881e, 'PASS7': 0x588d85, 'PASS8': 0x4d0280,
+    'PASS9': 0x531f6a, 'PASS10': 0x4d9c3d, 'PASS11': 0x42cda6,
+    'PASS12': 0x460b70, 'PASS13': 0x460cf3, 'PASS14': 0x432fbe,
+    'PASS15': 0x433141, 'PASS16': 0x57f1b0, 'PASS17': 0x5829c3,
+    'PASS18': 0x4b6030, 'PASS19': 0x4b981f,
+    # addresses in written bytes: the coverage mask pointer, the FOV
+    # block, and the F4 fall-through
+    'MASKPTR': 0x6c8ce8, 'SPRITEMODE': 0x66c17c,
+    'F4EXIT': 0x5c7dfe, 'F4CASE': 0x5c79aa,
+    'FCONST': 0x624728,
+}
+
 UI_CODE = bytes.fromhex(
     'b80000adde53e8000000005b81eb0b0000008b442408ff35e8c16b00ff35e4c16b00ff74'
     '2410ff7424106a02e84811000083c4148b4424088983e8180000c783ec18000000000000'
@@ -366,9 +937,11 @@ def add_section(buf, size, raw=b'', name=b'.vohr'):
     return base + rva, rawptr
 
 
-def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
+def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True, A=None,
                 pool=None):
     sx, sy = w / BASE_W, h / BASE_H
+    if A is None:
+        A = ADDR.__getitem__
     sites = []
     stride = w // 8
     # Coverage mask at 0x6d1ce0 (twelve references), its row pointer
@@ -397,7 +970,7 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
     for off, n, between in MASK_ADVANCE:
         old = MASK_LOAD + bytes.fromhex(between) + MASK_ADD + MASK_STORE
         assert len(old) == n
-        new = (bytes.fromhex(between) + b'\x81\x05\xe8\x8c\x6c\x00'
+        new = (bytes.fromhex(between) + b'\x81\x05' + u32(A('MASKPTR'))
                + u32(stride))
         sites.append((off, None, new.ljust(n, b'\x90')))
     sites += [(o, bytes.fromhex('83c850'), bytes([0xb0, stride, 0x90]))
@@ -449,7 +1022,7 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
     # patch's scales do not cover.
     sites += [(0x1c68e1, bytes.fromhex('0f8505000000'), b'\x90' * 6),
               (0x1c6daa, bytes.fromhex('6a1068f0000000'),
-               bytes.fromhex('e94f04000090') + b'\x90')]
+               b'\xe9' + u32(A('F4EXIT') - (A('F4CASE') + 5)) + b'\x90\x90')]
     # 0x5c9404 returns failure for any mode but the two it knows. This is
     # the crash: the caller then runs on without a surface.
     sites += imm_sites([0x1c8810], 640, w)
@@ -593,22 +1166,22 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
     # scale of the 4:3 screen that fits inside it; the aspect multiplies
     # that follow are kept. Fits the original block.
     ksbs, ktb = sec_va + UI_KSBS, sec_va + UI_KSBS + 4
-    block = (b'\xf6\x05' + u32(0x6bf598) + b'\x03'   # test byte [flags], 3
+    block = (b'\xf6\x05' + u32(A('FLAGS')) + b'\x03'   # test byte [flags], 3
              + b'\x75\x08'                             # jne top/bottom
              + b'\xd9\x05' + u32(ksbs)                 # fld [ksbs]
              + b'\xeb\x06'                             # jmp join
              + b'\xd9\x05' + u32(ktb)                  # fld [ktb]
-             + b'\xd9\x05' + u32(0x6bc1e4)             # fld [xscale]
+             + b'\xd9\x05' + u32(A('SCALE_A'))             # fld [xscale]
              + b'\xd8\xc9'                             # fmul st, st(1)
-             + b'\xd9\x1d' + u32(0x6bc1e4)             # fstp [xscale]
-             + b'\xd8\x0d' + u32(0x6c8b24)             # fmul [xscale B]
-             + b'\xd9\x1d' + u32(0x6c8b24)             # fstp [xscale B]
-             + b'\xdd\x05' + u32(0x624728)             # fld qword [1.21875]
-             + b'\xd9\x05' + u32(0x6bc1e8)             # fld [aspect]
+             + b'\xd9\x1d' + u32(A('SCALE_A'))             # fstp [xscale]
+             + b'\xd8\x0d' + u32(A('SCALE_B'))             # fmul [xscale B]
+             + b'\xd9\x1d' + u32(A('SCALE_B'))             # fstp [xscale B]
+             + b'\xdd\x05' + u32(A('FCONST'))             # fld qword [1.21875]
+             + b'\xd9\x05' + u32(A('ASPECT_A'))             # fld [aspect]
              + b'\xd8\xc9'                             # fmul st, st(1)
-             + b'\xd9\x1d' + u32(0x6bc1e8)             # fstp [aspect]
-             + b'\xd8\x0d' + u32(0x6c8b28)             # fmul [aspect B]
-             + b'\xd9\x1d' + u32(0x6c8b28))            # fstp [aspect B]
+             + b'\xd9\x1d' + u32(A('ASPECT_A'))             # fstp [aspect]
+             + b'\xd8\x0d' + u32(A('ASPECT_B'))             # fmul [aspect B]
+             + b'\xd9\x1d' + u32(A('ASPECT_B')))            # fstp [aspect B]
     old = bytes.fromhex(
         'd905e4c16b00833d1c0aa000007508dc3520476200eb11ff3524476200ff35204762'
         '00e823d30100d91de4c16b00d905e8c16b00dc0d28476200d91de8c16b00d905288b'
@@ -618,14 +1191,14 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True,
     return sites
 
 
-def apply(buf, sites):
+def apply(buf, sites, mask_load=MASK_LOAD, mask_store=MASK_STORE):
     for off, old, new in sites:
         if old is None:                  # a rewritten span: check its parts
             cur = buf[off:off + len(new)]
             if cur[:3] == bytes.fromhex('558bec'):   # a pass prologue
                 continue
-            if MASK_LOAD not in cur or MASK_ADD not in cur \
-                    or MASK_STORE not in cur:
+            if mask_load not in cur or MASK_ADD not in cur \
+                    or mask_store not in cur:
                 raise ValueError('unexpected bytes at 0x%06x: %s'
                                  % (off, cur.hex()))
             continue
@@ -669,6 +1242,16 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
     if width % 32 or height % 8 or width > 2040:
         raise ValueError('width must be a multiple of 32 and at most 2040, '
                          'height a multiple of 8')
+    stamp = _pe_stamp(buf)
+    port = None
+    if stamp != RETAIL_STAMP:
+        port = PORT.get('%08x' % stamp)
+        if port is None:
+            raise ValueError('not a build this tool knows')
+    if port is None:
+        A = ADDR.__getitem__
+    else:
+        A = lambda name: port['va'][ADDR[name]]     # noqa: E731
     w, hh = width, height
     mask_off = UI_OFF + UI_OFF_SIZE
     rowtab_off = mask_off + hh * (w // 8 + 4)
@@ -681,13 +1264,30 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
         if polys < 2500:
             raise ValueError('polys must be at least 2500')
         size += polys * 0x3c + 8       # records, side array, list
-    raw = bytearray(UI_CODE.ljust(UI_OFF, b'\0'))
+    code = UI_CODE
+    if port is not None:
+        code = bytearray(code)
+        for name, va in ADDR.items():
+            p, q = struct.pack('<I', va), struct.pack('<I', port['va'][va])
+            j = 0
+            while True:
+                j = code.find(p, j)
+                if j < 0:
+                    break
+                code[j:j + 4] = q
+                j += 4
+        code = bytes(code)
+    raw = bytearray(code.ljust(UI_OFF, b'\0'))
     sec_va, rawptr = add_section(buf, size, raw=bytes(raw))
-    for off, target in UI_CALLS:      # fix the rel32 calls
+    targets = [A(n) for n in
+               ('CALL_PRE1', 'CALL_POST1', 'CALL_PRE2', 'CALL_POST2')]
+    for (off, _t), target in zip(UI_CALLS, targets):
         struct.pack_into('<i', buf, rawptr + off + 1,
                          target - (sec_va + off + 5))
     # pass stubs: call hud_enter, the displaced prologue, jump back
-    for n, (site, ln) in enumerate(UI_PASS_FUNCS):
+    pass_funcs = [(A('PASS%d' % n), ln)
+                  for n, (_s, ln) in enumerate(UI_PASS_FUNCS)]
+    for n, (site, ln) in enumerate(pass_funcs):
         o = UI_PASS_STUBS + 20 * n
         va = sec_va + o
         stub = (b'\xe8' + u32(sec_va + UI_HUD_ENTER - (va + 5))
@@ -739,8 +1339,33 @@ def install(buf, width, height, split_fov='mean', split_fov_tb=None,
     sites = build_sites(w, hh, sec_va, sec_va + mask_off,
                         sec_va + rowtab_off, hangar_all=hangar == 'wide',
                         pool=(sec_va + pool_off, polys) if polys
-                        else None)
-    apply(buf, sites)
+                        else None, A=A)
+    if port is not None:
+        moved = []
+        for off, old_, new_ in sites:
+            boff, bold = port['off'][off]
+            bold = None if old_ is None else bytes.fromhex(bold)
+            if new_ and new_[0] in (0xe8, 0xe9):
+                # a jump into the section: same target, moved site
+                tgt = (0x400c00 + off + 5
+                       + struct.unpack_from('<i', new_, 1)[0])
+                new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
+                        + new_[5:])
+            if off == 0x7e504:
+                # cmp [mode], 8 / je: the je keeps the build's own
+                # distance, one byte further in
+                rel = struct.unpack_from('<i', bold, 10)[0]
+                new_ = (b'\x83\x3d' + u32(A('SPRITEMODE')) + b'\x08'
+                        + b'\x0f\x84' + u32(rel + 1) + b'\x90')
+                assert len(new_) == len(bold)
+            moved.append((boff, bold, new_))
+        sites = moved
+        masks = tuple(struct.pack('<I', A('MASKPTR')).join(
+            m.split(struct.pack('<I', ADDR['MASKPTR'])))
+            for m in (MASK_LOAD, MASK_STORE))
+        apply(buf, sites, mask_load=masks[0], mask_store=masks[1])
+    else:
+        apply(buf, sites)
     _split_dialog(buf)
     return len(sites)
 
