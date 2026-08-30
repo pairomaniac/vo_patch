@@ -35,6 +35,15 @@ import zipfile
 import zlib
 import urllib.error
 
+try:
+    import hires                    # the resolution patch, its own module
+except ImportError:
+    try:                            # loaded from another directory
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import hires
+    except ImportError:             # the bare script copied out alone
+        hires = None
+
 # Stamped by the build from the tag; see .github/workflows/build.yml. A
 # source checkout has no version of its own, and saying so is more use in a
 # bug report than a number nobody bumped.
@@ -3041,6 +3050,7 @@ def by_key(build):
     table = {key: (label, tip, sites)
              for key, label, tip, sites in features(build)}
     table['dinput'] = BY_KEY['dinput']
+    table['hires'] = BY_KEY['hires']
     return table
 
 
@@ -3052,6 +3062,17 @@ DI_FIND = re.compile(
 # key -> (label, description, sites), with sites None meaning DI_FIND.
 BY_KEY = {key: (label, tip, sites)
           for key, label, tip, sites in features(RETAIL)}
+
+# Sites computed at apply time from the chosen size, so it cannot live in
+# FEATURES. Applied last, after nodisc, since it appends its own section.
+BY_KEY['hires'] = (
+    'High resolution and widescreen',
+    'Runs the game at the width and height entered beside the box:\n'
+    '3D, HUD, menus and text rescaled; wide modes see more at the\n'
+    'sides. Width a multiple of 32 (at most 2040), height of 8.\n'
+    'Retail build only. The F4 320x240 toggle stays 640x480-era for\n'
+    'now and should be left alone at high resolution.',
+    None)
 
 # The patches a lockstep match cannot differ on are the frame rate and the
 # round-loss fix: both change what the simulation computes. Both are Essential
@@ -3071,7 +3092,8 @@ ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
 # of them produced a game broken in a way nobody chose: no start on a modern
 # CPU, a crash on a lost round, a third of the frame rate, dead keys after
 # ALT+TAB. Two of them are also what internet play needs.
-EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
+EXTRA = ('hires', 'padxinput', 'nodisc', 'debugbox', 'defaults', 'sound',
+         'movie')
 # Its own group so it stays out of the patch list: it fixes nothing and
 # undoes nothing the game does, so it belongs beside the version and the
 # link rather than among the patches. Ticked by default all the same.
@@ -3084,8 +3106,9 @@ def apply_order():
     The menu bar patch appends a section too - the F11 template's - but
     earlier is fine: each append places itself from the headers as they
     are, so the two stack in whatever combination is ticked."""
-    keys = [k for k in ESSENTIAL + EXTRA + ABOUT if k != 'nodisc']
-    return keys + ['nodisc']
+    keys = [k for k in ESSENTIAL + EXTRA + ABOUT
+            if k not in ('nodisc', 'hires')]
+    return keys + ['nodisc', 'hires']
 
 
 def _check_table(build=RETAIL):
@@ -3102,8 +3125,8 @@ def _check_table(build=RETAIL):
     table = by_key(build)
     if set(table) != set(ESSENTIAL) | set(EXTRA) | set(ABOUT):
         raise AssertionError('patch list and display order disagree')
-    if apply_order()[-1] != 'nodisc':
-        raise AssertionError('nodisc must be applied last')
+    if apply_order()[-2:] != ['nodisc', 'hires']:
+        raise AssertionError('nodisc, then hires, must be applied last')
 
     owner = {}
     for key in table:
@@ -3145,7 +3168,7 @@ for _build in BUILDS.values():
 
 
 def default_state():
-    return {key: True for key in BY_KEY}
+    return {key: key != 'hires' for key in BY_KEY}
 
 
 def apply_feature(buf, sites):
@@ -5415,6 +5438,26 @@ def apply_selected(buf, wanted, build=RETAIL):
     for key in apply_order():
         if not wanted.get(key):
             continue
+        if key == 'hires':
+            # Computed sites, own section append; wanted['hires'] carries
+            # (width, height) from the window, or True from a caller that
+            # takes the default.
+            size = wanted[key]
+            w, hh = size if isinstance(size, tuple) else (1920, 1080)
+            if hires is None:
+                skipped.append((key, 'hires.py is not beside the script'))
+                continue
+            if build is not RETAIL:
+                skipped.append((key, 'the retail build only'))
+                continue
+            try:
+                hires.install(buf, w, hh)
+            except ValueError as exc:
+                raise PatchFailed(key, exc) from exc
+            except Exception as exc:
+                raise PatchFailed(key, exc) from exc
+            applied.append(key)
+            continue
         sites = table[key][2]
         try:
             if sites is not None:
@@ -7587,6 +7630,21 @@ def run_tk():
                     self.checks[key] = check
                 Info(row, label, tip, self).btn.pack(side='right',
                                                      padx=(6, 2))
+                if key == 'hires':
+                    # Width and height beside the box; read at Apply.
+                    self.hires_w = tk.StringVar(value='1920')
+                    self.hires_h = tk.StringVar(value='1080')
+                    self.hires_entries = []
+                    for var_ in (self.hires_h, self.hires_w):
+                        e = ttk.Entry(row, textvariable=var_,
+                                      style='Vo.TEntry', width=5,
+                                      font=self.small, justify='center')
+                        e.pack(side='right', padx=(2, 2))
+                        self.hires_entries.append(e)
+                        if var_ is self.hires_h:
+                            ttk.Label(row, text='x',
+                                      style='Card.TLabel',
+                                      font=self.small).pack(side='right')
 
 
         def _about_body(self, parent):
@@ -7773,6 +7831,10 @@ def run_tk():
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
                 check.state(['!disabled'] if ok else ['disabled'])
+            if ok and self.core.build is not RETAIL and 'hires' in self.checks:
+                # Its offsets are retail's; keep the box honest elsewhere.
+                self.vars['hires'].set(False)
+                self.checks['hires'].state(['disabled'])
             self._chose = bool(ok)
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
@@ -7801,6 +7863,18 @@ def run_tk():
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
             wanted.update({key: True for key in ESSENTIAL})
+            if wanted.get('hires'):
+                try:
+                    w = int(self.hires_w.get())
+                    hh = int(self.hires_h.get())
+                    if w % 32 or w > 2040 or hh % 8 or hh < 480:
+                        raise ValueError
+                except ValueError:
+                    self._set_status('Width must be a multiple of 32, at '
+                                     'most 2040; height a multiple of 8.',
+                                     False)
+                    return
+                wanted['hires'] = (w, hh)
             ok, lines = self.core.apply(wanted)
             for line in lines:
                 self._log(line)
