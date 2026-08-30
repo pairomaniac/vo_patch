@@ -316,6 +316,24 @@ def main():
 
     ORDERED = pool_sites()
 
+    # The four 2D-layer call targets, from the build's own call sites:
+    # the engines are near-identical code and the map can collapse them,
+    # which pairs one engine's pre with the other's post.
+    calls = {}
+    for (roff, _site, _stub), name in zip(
+            hires.UI_STUBS, ('CALL_PRE1', 'CALL_POST1',
+                             'CALL_PRE2', 'CALL_POST2')):
+        jo, _how = votrans.translate_off(roff)
+        if jo is None or other[jo:jo + 1] != b'\xe8':
+            fails.append('%s: stub site 0x%x untranslatable' % (name, roff))
+            continue
+        rel = struct.unpack_from('<i', other, jo + 1)[0]
+        calls[hires.ADDR[name]] = 0x400c00 + jo + 5 + rel
+    if len(set(calls.values())) != len(calls):
+        fails.append('2D call targets collapsed: %s'
+                     % {hex(k): hex(v) for k, v in calls.items()})
+    va_map.update(calls)
+
     # The sites, at a representative size: offsets and originals do not
     # depend on it.
     sites = hires.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
