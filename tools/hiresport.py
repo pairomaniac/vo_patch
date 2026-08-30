@@ -121,7 +121,19 @@ def build_resolvers(votrans, retail, other):
         return best if votes[best] >= max(1, sum(votes.values()) // 2) else None
 
     def ctx_pat(off, loose=False):
-        return wildcard_pat(retail[off - 16:off + 16], loose=loose)
+        for back in range(16, 25):
+            s = off - back
+            ends = set()
+            for ins in _md.disasm(retail[s:off + 16], 0):
+                ends.add(ins.address + ins.size)
+            if back in ends or any(e > back for e in ends
+                                   if e - back <= 6 and back in
+                                   {e2 for e2 in ends if e2 <= back} | {back}):
+                pass
+            if back in ends or back == 24:
+                pat = wildcard_pat(retail[s:off + 16], loose=loose)
+                return pat, back
+        return wildcard_pat(retail[off - 16:off + 16], loose=loose), 16
 
     def place(off):
         """(build_off, why) for a file offset the map could not."""
@@ -157,18 +169,11 @@ def build_resolvers(votrans, retail, other):
         lo = bs - 0x400c00
         hi = lo + (A[fi]['e'] - fs) + 0x400
         for loose in (False, True):
-            pat = ctx_pat(off, loose)
-            hits = [lo + m.start() + 16
-                    for m in pat.finditer(other[lo - 16:hi])]
+            pat, back = ctx_pat(off, loose)
+            hits = [lo + m.start() + back
+                    for m in pat.finditer(other[lo - back:hi])]
             if len(hits) == 1:
                 return hits[0], 'context window' + (' loose' if loose else '')
-        # a wider window over the whole build: 48 bytes of instruction
-        # shape is distinctive even where the function span is not known
-        for w in (48, 64):
-            pat = wildcard_pat(retail[off - 16:off + w - 16])
-            hits = [m.start() + 16 for m in pat.finditer(other)]
-            if len(hits) == 1:
-                return hits[0], 'whole-build context %d' % w
         return None, 'function found, no unique context'
 
     def resolve_va(va):
@@ -285,6 +290,15 @@ def main():
                         + re.escape(b'\x0f\xf5\xcd\xc1\xe0\x10'), re.S)
         rh = [m.start() + 13 for m in pm.finditer(retail)]
         oh = [m.start() + 13 for m in pm.finditer(other)]
+        if len(rh) == len(oh):
+            out.update(dict(zip(rh, oh)))
+        # flush-bucket reads: dec edi; jl; mov esi,[edi*4+heads];
+        # mov ebx,[esi+4]
+        fb = re.compile(re.escape(b'\x4f\x0f\x8c') + b'....'
+                        + re.escape(b'\x8b\x34\xbd') + b'....'
+                        + re.escape(b'\x8b\x5e\x04'), re.S)
+        rh = [m.start() + 10 for m in fb.finditer(retail)]
+        oh = [m.start() + 10 for m in fb.finditer(other)]
         if len(rh) == len(oh):
             out.update(dict(zip(rh, oh)))
         # pool freelist walk: mov edx,[eax+4]; mov eax,[eax];
