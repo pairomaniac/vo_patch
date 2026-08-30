@@ -674,7 +674,9 @@ Draws `HOLD TO SKIP` over the credits while the button is down.
 The tile font was the obvious way and the wrong one: that layer is what the
 roll scrolls, so anything printed into it climbs the screen with the
 credits. `0x5c991c` takes screen pixels instead, the same call the pause
-text uses, including the halving at `0x5c9a98` for low resolution.
+text uses, including the halving at `0x5c9a98` for low resolution. The
+point is 320, 440 of the picture, computed from the origin and size
+globals at `0x6bf578`/`0x6bf5b8` so a resized mode places it the same way.
 
 Two things about when and where it paints. It paints at the moment it is
 called, so it has to run after the frame is drawn: the hook is the call at

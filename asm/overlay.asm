@@ -25,8 +25,11 @@ extern BACK                     ; that is about to be flipped over it
 extern FSFLAGS                  ; the pause text halves its coordinates
 extern FSMODE                   ; on these two, at 0x5c9a98
 
-X           equ 320             ; of 640 by 480, halved in low resolution
-Y           equ 440
+extern FBX                      ; picture origin and size on the surface,
+extern FBY                      ; set per mode at 0x5c88ac; 0,0 and 640x480
+extern FBW                      ; in the stock full-screen mode
+extern FBH
+
 COLOUR      equ 0x0000ff00
 
 overlay:
@@ -44,8 +47,18 @@ overlay:
     jne     .out
     cmp     byte [HELD], 0
     je      .out
-    mov     eax, X
-    mov     edx, Y
+    ; 320,440 of the stock 640x480, computed from the picture geometry so
+    ; a resized mode places it the same way.
+    mov     eax, [FBH]
+    imul    eax, eax, 11        ; y = top + height * 440/480
+    mov     ecx, 12
+    cdq
+    idiv    ecx
+    add     eax, [FBY]
+    mov     edx, eax
+    mov     eax, [FBW]          ; x = left + width / 2
+    shr     eax, 1
+    add     eax, [FBX]
     test    byte [FSFLAGS], 4
     jz      .full
     cmp     dword [FSMODE], 0

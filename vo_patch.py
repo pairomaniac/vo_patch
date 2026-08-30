@@ -230,6 +230,10 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
     'FSFLAGS': 0x006bf598,         # bit 2: the low-resolution modes
     'FSMODE': 0x006bf560,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bf578,             # picture origin and size on the
+    'FBY': 0x006bf57c,             # surface, set per mode at 0x5c88ac
+    'FBW': 0x006bf5b8,
+    'FBH': 0x006bf5bc,
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
@@ -395,6 +399,10 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'SETACTIVE': 0x005c0bf5,
     'FSFLAGS': 0x006bb2b0,
     'FSMODE': 0x006bb278,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bb290,             # picture origin and size, as retail
+    'FBY': 0x006bb294,
+    'FBW': 0x006bb2d0,
+    'FBH': 0x006bb2d4,
     'HAVESURF': 0x006bb288,
     'ISICONIC': 0x036585a4,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
@@ -554,6 +562,10 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'SETACTIVE': 0x005c5e3f,
     'FSFLAGS': 0x006bf530,
     'FSMODE': 0x006bf4f8,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bf510,             # picture origin and size, as retail
+    'FBY': 0x006bf514,
+    'FBW': 0x006bf550,
+    'FBH': 0x006bf554,
     'HAVESURF': 0x006bf508,
     'ISICONIC': 0x0365d5c8,
     'ORIGWNDPROC': 0x005c6370,   # func
@@ -1727,28 +1739,33 @@ BLOBS = {
         'camskip': 0x0,
     }),
     'OVERLAY': (bytes.fromhex(
-        'ff742404e8fcffffff83c404833d0000000004756b833d00000000207562803d'
-        '00000000027559803d00000000007450b840010000bab8010000f60500000000'
-        '04740d833d00000000007404d1f8d1fa8b0d00000000518b0d00000000890d00'
-        '0000006a016800ff000052506881000000e8fcffffff83c41459890d00000000'
-        'c3484f4c4420544f20534b495000'
+        'ff742404e8fcffffff83c404833d00000000040f8586000000833d0000000020'
+        '757d803d00000000027574803d0000000000746ba1000000006bc00bb90c0000'
+        '0099f7f903050000000089c2a100000000d1e8030500000000f6050000000004'
+        '740d833d00000000007404d1f8d1fa8b0d00000000518b0d00000000890d0000'
+        '00006a016800ff0000525068a0000000e8fcffffff83c41459890d00000000c3'
+        '484f4c4420544f20534b495000'
     ), (
         (0x5, 'rel', 'ORIG', -4),
         (0xe, 'abs', 'MODE', 0),
-        (0x17, 'abs', 'SUBMODE', 0),
-        (0x20, 'abs', 'PHASE', 0),
-        (0x29, 'abs', 'HELD', 0),
-        (0x3c, 'abs', 'FSFLAGS', 0),
-        (0x45, 'abs', 'FSMODE', 0),
-        (0x52, 'abs', 'PRIMARY', 0),
-        (0x59, 'abs', 'BACK', 0),
-        (0x5f, 'abs', 'PRIMARY', 0),
-        (0x6d, 'abs', '.', 129),
-        (0x72, 'rel', 'DRAW', -4),
-        (0x7c, 'abs', 'PRIMARY', 0),
+        (0x1b, 'abs', 'SUBMODE', 0),
+        (0x24, 'abs', 'PHASE', 0),
+        (0x2d, 'abs', 'HELD', 0),
+        (0x35, 'abs', 'FBH', 0),
+        (0x46, 'abs', 'FBY', 0),
+        (0x4d, 'abs', 'FBW', 0),
+        (0x55, 'abs', 'FBX', 0),
+        (0x5b, 'abs', 'FSFLAGS', 0),
+        (0x64, 'abs', 'FSMODE', 0),
+        (0x71, 'abs', 'PRIMARY', 0),
+        (0x78, 'abs', 'BACK', 0),
+        (0x7e, 'abs', 'PRIMARY', 0),
+        (0x8c, 'abs', '.', 160),
+        (0x91, 'rel', 'DRAW', -4),
+        (0x9b, 'abs', 'PRIMARY', 0),
     ), {
         'overlay': 0x0,
-        'prompt': 0x81,
+        'prompt': 0xa0,
     }),
     'TITLEVER': (bytes.fromhex(
         'a10000000083f8017545a10000000083f806740a83f817740583f8117531ba55'
