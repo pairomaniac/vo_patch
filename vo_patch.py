@@ -38,7 +38,7 @@ import urllib.error
 
 
 # ==========================================================================
-# The resolution patch. Formerly hires.py; docs/HIRES.md tells its story.
+# The resolution patch. docs/HIRES.md describes it.
 # #!/usr/bin/env python3
 # Higher resolution for Virtual-On.
 #

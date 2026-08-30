@@ -71,10 +71,8 @@ uibuild splices the blob and every derived offset constant into
 vo_patch.py, and regenerates UI_REFS: every game-address dword in the
 blob by exact position, from its own disassembly, excluding call/jmp
 rel32s (those are fixed per site). `tools/uibuild.py --check` is in the
-check pipeline, so ui.asm and the committed blob can no longer drift -
-the earlier blob predated the tool and carried leftover
-`mov eax, 0xdeadNNNN` marker instructions from however it was first
-extracted; the rebuild dropped them.
+check pipeline, by fingerprint when keystone is not installed, so ui.asm
+and the committed blob cannot drift.
 
 Section layout: code (under 0x1600), pass stubs at 0x1600, data block at
 0x1800 (D_*), split FOV factors at 0x1848, then the row table, the mask,

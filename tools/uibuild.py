@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build hires.py's UI_CODE from ui.asm and splice it in.
+"""Build the resolution patch's UI_CODE from ui.asm into vo_patch.py.
 
     python3 tools/uibuild.py
 
@@ -10,7 +10,7 @@ directives). Label offsets are read back by assembling a second copy
 with a jmp to every wanted label appended at the end - appending shifts
 nothing - and decoding the rel32s. The blob and every offset constant
 derived from it (UI_CALLS, UI_STUBS, UI_WORLD, UI_SUBMIT, UI_HUD_ENTER,
-UI_INSERT_A/B, UI_HANGAR_DRAW) are written into hires.py. UI_REFS is
+UI_INSERT_A/B, UI_HANGAR_DRAW) are written into vo_patch.py. UI_REFS is
 regenerated from the new blob. tools/hiresport.py must be rerun after
 this for the non-retail tables.
 """

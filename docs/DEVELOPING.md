@@ -59,13 +59,14 @@ chmod +x .git/hooks/pre-push
 ```bash
 python3 asm/build.py              # only if you touched asm/ - regenerates the hex
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
+python3 tools/uibuild.py          # only if you touched ui.asm - the resolution blob
 
 python3 tools/check.py            # the checks CI runs, in two seconds
 python3 vo_patch.py               # does the window still open?
 ```
 
-Both build scripts rewrite blobs inside `vo_patch.py`, so `git diff` after one
-shows the hex changing and nothing else. If it shows more, something else
+All three build scripts rewrite blobs inside `vo_patch.py`, so `git diff`
+after one shows the hex changing and nothing else. If it shows more, something else
 moved too.
 
 For anything non-trivial, branch and open a PR - CI runs on both.
@@ -93,6 +94,7 @@ wrong on the build it is for; before tagging, give all three.
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
+| `ui` | `ui.asm` matches the committed resolution blob: reassembled with keystone when it is installed, by the recorded fingerprint of the source when it is not |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |

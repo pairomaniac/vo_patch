@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Port hires.py's offsets and addresses to another build.
+"""Port the resolution patch's offsets and addresses to another build.
 
     python3 tools/hiresport.py MAP.pkl
 
-Prints a python dict for hires.PORT: every site offset translated, the
+Prints a python dict for vo_patch.PORT: every site offset translated, the
 build's own original bytes per site, and every named address hires embeds
 in code or writes. A site in a function vomap could not match is found by
 signature: its retail bytes with game-range immediates wildcarded, which
@@ -313,7 +313,7 @@ def main():
 
 
     # Every named address hires bakes into new bytes, the ui blob, or its
-    # hook tables. Parsed out of hires.py's ADDR dict so the two cannot
+    # hook tables. Parsed out of vo_patch.py's ADDR dict so the two cannot
     # drift: this script only translates what the runtime will ask for.
     va_map = {}
     targets = {('ADDR:' + n): v for n, v in hires.ADDR.items()}

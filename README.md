@@ -177,13 +177,19 @@ during an internet match. Every other menu was already on a key:
     | --- | --- |
     | **F1** | Help |
     | **F3** | Pause |
-    | **F4** | High / low resolution |
+    | **F4** | High / low resolution (does nothing with Widescreen 1080p on) |
     | **F5** | Graphic Settings |
     | **F6** | Mode Settings |
     | **F7** | Device Settings |
     | **F8** | Sound Test |
     | **F11** | Extras, the new dialog |
 
+- **Widescreen 1080p** - runs the game at 1920x1080 instead of 640x480.
+The picture, the menus and the text are redrawn at the new size, and
+widescreen shows more of the arena at the sides. F4 and the 320x240 mode
+are turned off, and the F5 Screen Split choices read **Ver** (side by side)
+and **Hor** (top and bottom). Pair it with cnc-ddraw for windowed or
+borderless play at that size. Retail build only for now.
 - **Better defaults with no v_on.ini** - what the game falls back on for any
 setting `v_on.ini` does not have, which on a first run is all of them: Sky
 on, all three Texture boxes on, Field Graphic Rich, Screen Large.
@@ -479,10 +485,11 @@ used, disc or no disc. Under Wine they play through `mciwave` - no
 
 ## Resolution and windowing (cnc-ddraw)
 
-The game asks for 640x480 exclusive fullscreen and leaves the rest to the
-display, which on a modern panel usually means a stretched picture. The 4:3
-framebuffer is baked into the rasteriser, so no byte edit fixes it - it takes
-something between the game and the graphics driver.
+The game asks for exclusive fullscreen at its render size - 640x480 stock,
+1920x1080 with **Widescreen 1080p** on - and leaves the rest to the display,
+which on a modern panel can mean a stretched picture or no windowed mode.
+That part is between the game and the graphics driver, and it is what
+cnc-ddraw is for.
 
 <img height="360" alt="cnc-ddraw row under ADD-ONS" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
 <br /><br />
@@ -553,7 +560,8 @@ Four builds of the game exist. Three of them patch:
 
 The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
-above, and the window names the one it is looking at.
+above except **Widescreen 1080p**, which is retail only for now and greyed
+out on the others; the window names the build it is looking at.
 
 **[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
 tables against and the patcher treats it as an unknown file. If you have a
@@ -576,6 +584,9 @@ was.
 unpatched game do not fit the new device list. The title artwork -
 `escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
 with the new title prompt, after a copy is kept as `.bak`.
+
+**Widescreen 1080p** adds a section to `v_on.exe` for its own code and
+its off-screen canvas; nothing else on disk changes.
 
 **Restore original** puts every backed-up file back - those three and the
 two roll files the credit line rewrites - keeping whatever the patched game
