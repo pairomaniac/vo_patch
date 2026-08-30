@@ -622,6 +622,9 @@ draws the title prompt as scrambled letters.
 
 ## Running from source
 
+Working on the patcher rather than running it? [docs/README.md](docs/README.md)
+maps the developer documentation.
+
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
 ```

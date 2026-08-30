@@ -351,7 +351,7 @@ def main():
     # The sites, at a representative size: offsets and originals do not
     # depend on it.
     sites = hires.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
-                              hangar_all=True, pool=(0x39c0000, 8000))
+                              (0x39c0000, hires.HIRES_POLYS))
     off_map, old_map = {}, {}
     manual = MANUAL.get('%08x' % stamp(other), {})
     absent = []

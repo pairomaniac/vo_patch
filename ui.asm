@@ -29,7 +29,7 @@
 ; viewport. Outside a pass everything is left alone.
 ;
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y and the log fields
+; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y
 ; are written by the patcher.
 FB_PTR    = 0x6bf5a8            ; locked surface pointer
 FB_PITCH  = 0x6bf5ac
@@ -110,18 +110,10 @@ D_DEPTH   = 0x1908            ; HUD pass nesting depth (see hud_enter)
 D_RETS    = 0x190c            ; saved return addresses, D_RETS_N deep
 D_RETS_N  = 32
 D_SP      = 0x19d8            ; how many are saved
-D_LOGQUADS = 0x1a60           ; log quads too (patcher)
 D_DIM     = 0x1a64            ; hangar: shade factor 16.16 for the mech being
                               ; drawn, 0 when none (see hangar_draw)
 D_HDRET   = 0x1a68            ; hangar_draw's return address
 D_RETD    = 0x19dc            ; and the depth to come back to for each
-D_LOGBASE = 0x198c            ; log buffer VA (patcher, 0 when off)
-D_LOGEND  = 0x1990
-D_LOGPTR  = 0x1994            ; patcher sets it to D_LOGBASE
-D_LOGON   = 0x1998
-D_LOGFRAME = 0x199c
-D_LOGTMP  = 0x19a0
-D_LOGNAME = 0x19a4            ; "hires.log" (patcher)
 SCALE_A   = 0x6bc1e4          ; the game's 3D scale, per renderer
 SCALE_B   = 0x6c8b24
 CENTRE_AX = 0x6db530
@@ -146,13 +138,6 @@ world_a_here:
     pop ebx
     sub ebx, world_a_here
     mov eax, [esp+8]
-    push [ASPECT_A]
-    push [SCALE_A]
-    push [esp+16]                   ; focal
-    push [esp+16]                   ; caller
-    push 2
-    call log_entry
-    add esp, 20
     mov eax, [esp+8]
     mov [ebx+D_SAVE_FA], eax
     mov dword ptr [ebx+D_VAR_A], 0
@@ -171,13 +156,6 @@ world_a2_here:
     pop ebx
     sub ebx, world_a2_here
     mov eax, [esp+8]
-    push [ASPECT_A]
-    push [SCALE_A]
-    push [esp+16]                   ; focal
-    push [esp+16]                   ; caller
-    push 2
-    call log_entry
-    add esp, 20
     mov eax, [esp+8]
     mov [ebx+D_SAVE_FA], eax
     mov dword ptr [ebx+D_VAR_A], 1
@@ -225,13 +203,6 @@ world_b_here:
     pop ebx
     sub ebx, world_b_here
     mov eax, [esp+8]
-    push [ASPECT_B]
-    push [SCALE_B]
-    push [esp+16]                   ; focal
-    push [esp+16]                   ; caller
-    push 6
-    call log_entry
-    add esp, 20
     mov eax, [esp+8]
     mov [ebx+D_SAVE_FB], eax
     mov dword ptr [ebx+D_VAR_B], 0
@@ -250,13 +221,6 @@ world_b2_here:
     pop ebx
     sub ebx, world_b2_here
     mov eax, [esp+8]
-    push [ASPECT_B]
-    push [SCALE_B]
-    push [esp+16]                   ; focal
-    push [esp+16]                   ; caller
-    push 6
-    call log_entry
-    add esp, 20
     mov eax, [esp+8]
     mov [ebx+D_SAVE_FB], eax
     mov dword ptr [ebx+D_VAR_B], 1
@@ -314,11 +278,6 @@ submit_a_here:
     push [esp+20]                   ; a1
     push [esp+20]                   ; caller
     mov eax, [ebx+D_DEPTH]
-    shl eax, 8
-    or eax, 1
-    push eax
-    call log_entry
-    add esp, 20
     cmp dword ptr [ebx+D_DEPTH], 0
     je submit_a_world
 submit_a_hud:
@@ -373,11 +332,6 @@ submit_b_here:
     push [esp+20]                   ; a1
     push [esp+20]                   ; caller
     mov eax, [ebx+D_DEPTH]
-    shl eax, 8
-    or eax, 5
-    push eax
-    call log_entry
-    add esp, 20
     cmp dword ptr [ebx+D_DEPTH], 0
     je submit_b_world
 submit_b_hud:
@@ -447,13 +401,6 @@ hud_enter_here:
     inc dword ptr [ebx+D_SP]
     mov ecx, [esp+16]               ; the function's return address
     mov [ebx+D_RETS+eax*4], ecx
-    push 0
-    push 0
-    push eax
-    push ecx
-    push 3
-    call log_entry
-    add esp, 20
     lea ecx, [ebx+hud_leave]
     mov [esp+16], ecx
 enter_done:
@@ -549,7 +496,6 @@ s1p_here:
     sub ebx, s1p_here
     mov dword ptr [ebx+D_BASEPTR], FB_PTR
     mov dword ptr [ebx+D_PHASE], 1
-    call log_frame
     ; the projection centres as the game has just set them (0x5c8317
     ; runs right before this hook); captured here only, since the HUD
     ; pass can run between the two hooks and would have nudged them
@@ -1199,18 +1145,6 @@ insert_a:
 ins_a_here:
     pop ebx
     sub ebx, ins_a_here
-    cmp dword ptr [ebx+D_LOGQUADS], 0
-    je ins_a_nolog
-    push [edx+0x18]
-    push [edx+0x14]
-    push [edx+0x10]
-    push [esp+28]                   ; bucket (pushad's ebx)
-    mov eax, [ebx+D_PASS_A]
-    shl eax, 8
-    or eax, 10
-    push eax
-    call log_entry
-    add esp, 20
 ins_a_nolog:
     mov eax, [ebx+D_DIM]            ; hangar: shade the mech being drawn
     test eax, eax
@@ -1222,15 +1156,6 @@ ins_a_nodim:
     cmp dword ptr [ebx+D_PASS_A], 0
     je ins_a_done
     call rescale
-    cmp dword ptr [ebx+D_LOGQUADS], 0
-    je ins_a_done
-    push [edx+0x18]
-    push [edx+0x14]
-    push [edx+0x10]
-    push [edx+0x1c]
-    push 11
-    call log_entry
-    add esp, 20
 ins_a_done:
     popad
     mov esi, [ebx*4+LIST_A]
@@ -1241,31 +1166,10 @@ insert_b:
 ins_b_here:
     pop ebx
     sub ebx, ins_b_here
-    cmp dword ptr [ebx+D_LOGQUADS], 0
-    je ins_b_nolog
-    push [edx+0x18]
-    push [edx+0x14]
-    push [edx+0x10]
-    push [esp+28]                   ; bucket (pushad's ebx)
-    mov eax, [ebx+D_PASS_B]
-    shl eax, 8
-    or eax, 10
-    push eax
-    call log_entry
-    add esp, 20
 ins_b_nolog:
     cmp dword ptr [ebx+D_PASS_B], 0
     je ins_b_done
     call rescale
-    cmp dword ptr [ebx+D_LOGQUADS], 0
-    je ins_b_done
-    push [edx+0x18]
-    push [edx+0x14]
-    push [edx+0x10]
-    push [edx+0x1c]
-    push 11
-    call log_entry
-    add esp, 20
 ins_b_done:
     popad
     mov esi, [ebx*4+LIST_B]
@@ -1366,103 +1270,6 @@ rescale_pack:
     jl rescale_loop
     ret
 
-; Diagnostic log (--log): 20-byte entries (tag, address, a, b, c) in a
-; buffer after the row table, written to hires.log every 120 frames.
-; Tags: 1/5 submission A/B (caller, a1, a2, a3; depth and HUD flag in
-; the tag's upper bytes), 2/6 projection setup A/B (caller, focal,
-; scale, aspect), 3 HUD pass entry (function return address, depth),
-; 4 frame (number, split flag, flags), 10 a quad at insert (bucket, v0,
-; v1, v2; the pass flag in the tag's second byte), 11 a HUD quad after
-; the rescale (v3, v0, v1, v2). Only three frames in every 120 are logged.
-; log_entry(tag, address, a, b, c): cdecl, all registers preserved.
-log_entry:
-    pushad
-    call log_here
-log_here:
-    pop ebx
-    sub ebx, log_here
-    cmp dword ptr [ebx+D_LOGON], 0
-    je log_done
-    mov edi, [ebx+D_LOGPTR]
-    test edi, edi
-    je log_done
-    lea eax, [edi+20]
-    cmp eax, [ebx+D_LOGEND]
-    ja log_done
-    mov [ebx+D_LOGPTR], eax
-    lea esi, [esp+36]
-    mov ecx, 5
-    rep movsd dword ptr es:[edi], dword ptr [esi]
-log_done:
-    popad
-    ret
-; log_frame: called from set1pre. Counts frames, turns logging on for
-; three of every 120, and rewrites the file each time it turns off.
-log_frame:
-    pushad
-    call log_frame_here
-log_frame_here:
-    pop ebx
-    sub ebx, log_frame_here
-    cmp dword ptr [ebx+D_LOGBASE], 0
-    je log_frame_done
-    mov eax, [ebx+D_LOGFRAME]
-    inc eax
-    mov [ebx+D_LOGFRAME], eax
-    xor edx, edx
-    mov ecx, 120
-    div ecx
-    cmp dword ptr [ebx+D_LOGQUADS], 0
-    je log_frame_all
-    cmp edx, 3
-    jb log_frame_on
-    jmp log_frame_off
-log_frame_all:                      ; without quads every frame fits:
-    test edx, edx                   ; write every 120
-    jne log_frame_on
-    cmp dword ptr [ebx+D_LOGON], 0
-    je log_frame_on
-log_frame_off:
-    cmp dword ptr [ebx+D_LOGON], 0
-    je log_frame_done
-    mov dword ptr [ebx+D_LOGON], 0
-    ; write the whole buffer
-    push 0
-    push 0x80                       ; FILE_ATTRIBUTE_NORMAL
-    push 2                          ; CREATE_ALWAYS
-    push 0
-    push 0
-    push 0x40000000                 ; GENERIC_WRITE
-    lea eax, [ebx+D_LOGNAME]
-    push eax
-    call dword ptr [0x365d4cc]      ; CreateFileA
-    cmp eax, -1
-    je log_frame_done
-    mov esi, eax
-    push 0
-    lea eax, [ebx+D_LOGTMP]
-    push eax
-    mov eax, [ebx+D_LOGPTR]
-    sub eax, [ebx+D_LOGBASE]
-    push eax
-    push [ebx+D_LOGBASE]
-    push esi
-    call dword ptr [0x365d490]      ; WriteFile
-    push esi
-    call dword ptr [0x365d4b8]      ; CloseHandle
-    jmp log_frame_done
-log_frame_on:
-    mov dword ptr [ebx+D_LOGON], 1
-    push [FLAGS]
-    push [SPLIT]
-    push [ebx+D_LOGFRAME]
-    push 0
-    push 4
-    call log_entry
-    add esp, 20
-log_frame_done:
-    popad
-    ret
 
 ; Machine-select hangar: the idle platform draw of a mech (0x59e4ea,
 ; "call 0x59cb93") comes here. The game keeps palettes for the selection

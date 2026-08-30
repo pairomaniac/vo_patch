@@ -38,17 +38,12 @@ import urllib.error
 
 
 # ==========================================================================
-# The resolution patch. docs/HIRES.md describes it.
-# #!/usr/bin/env python3
-# Higher resolution for Virtual-On.
+# The resolution patch: the game at a size other than 640x480. docs/HIRES.md
+# describes it; this is the short form.
 #
-# Applied through the patcher window or apply_selected; hires_install
-# takes any size the sites can carry, the window fixes 1920x1080.
-#
-# Run vo_patch first and point this at the patched v_on.exe. Nothing here
-# overlaps vo_patch's sites, and a stock exe is accepted too. The exe is
-# patched in place; the original goes to v_on.exe.prehires and --restore
-# puts it back.
+# hires_install takes any size the sites can carry, and the window applies
+# 1920x1080. Nothing here overlaps the other patches' sites, and it goes on
+# last, after nodisc.
 #
 # What it changes:
 #
@@ -64,8 +59,8 @@ import urllib.error
 #   -  The 2D layer (HUD, fonts, backdrops, menus) is drawn at its designed
 #      size into an offscreen buffer and scaled onto its viewport each time
 #      the game calls it, so it keeps its layout and art (nearest, or
-#      bilinear with --hud-filter linear). In a wide mode
-#      backdrops cover the full width and the HUD stays 4:3, centred.
+#      bilinear if UI_FILTER is set). In a wide mode backdrops cover the
+#      full width and the HUD stays 4:3, centred.
 #   -  HUD polygons (bars, frames, timer box, reticle, weapon strips,
 #      machine select, cursors) are projected at 640x480 and scaled at
 #      insert to the same 4:3 frame as the 2D layer, so both layers share
@@ -74,16 +69,17 @@ import urllib.error
 #      projection setups (UI_PASS_FUNCS) are wrapped, and everything
 #      submitted while one of them is running is HUD.
 #   -  The machine-select hangar draws a platform mech while it is within
-#      an angle window sized for 4:3; the window is widened to the view
-#      (--hangar). The renderer's polygon cap is raised (--polys).
+#      an angle window sized for 4:3; the window is widened to the view.
+#      The renderer's polygon cap is raised to HIRES_POLYS.
 #   -  Split screen: side by side is two W/2 x H viewports, top/bottom two
 #      W x H/2 (instead of the game's staggered 320x240 boxes). Each gets
 #      a field of view between the 4:3 frame that fits inside it and the
-#      one that covers it (--split-fov, --split-fov-tb); the HUD always
-#      fits, drawn at its own scale.
+#      one that covers it (HIRES_SPLIT_FOV); the HUD always fits, drawn at
+#      its own scale.
+#   -  F4 and the 320x240 mode are defused; no baked scale covers them.
 #
-# The exe grows by one section: 6 KB of code and data plus a header; the
-# buffers are zero-filled by the loader.
+# The exe grows by one section: about 5 KB of code and data plus a
+# header; the buffers are zero-filled by the loader.
 #
 # Width must be a multiple of 32 and at most 2040 (the coverage-mask
 # stride is an 8-bit immediate in ten places). Nothing else is tied to a
@@ -93,15 +89,14 @@ import urllib.error
 # vertical field of view, more at the sides); the sky dome was built for
 # 4:3 and may not reach the edges.
 #
-# Not touched: the "Screen=Normal" window size beyond scaling it, and a GDI
-# text wrap at 640 pixels.
+# Retail only: the PORT table below is empty until the other builds'
+# rasterizer sites are ported; hires_supported says which builds apply.
 # ==========================================================================
 
 
 
 
 BASE_W, BASE_H = 640, 480
-KEEP = '.prehires'
 
 # Each site is (file offset, old bytes, new bytes) built from W and H.
 # Offsets are of the immediate, not the instruction, unless noted.
@@ -167,115 +162,105 @@ PORT = {
 # in place for non-retail builds. Regenerate if ui.asm changes.
 # UI REFS BEGIN
 UI_REFS = (
-    (0x0013, 0x06bc1e8),
-    (0x0019, 0x06bc1e4),
-    (0x0045, 0x06bc1e4),
-    (0x004f, 0x06bc1e8),
-    (0x005b, 0x06bc1e4),
-    (0x0061, 0x06bc1e8),
+    (0x0027, 0x06bc1e4),
+    (0x0031, 0x06bc1e8),
+    (0x003d, 0x06bc1e4),
+    (0x0043, 0x06bc1e8),
+    (0x0076, 0x06bc1e4),
     (0x0080, 0x06bc1e8),
-    (0x0086, 0x06bc1e4),
-    (0x00b2, 0x06bc1e4),
-    (0x00bc, 0x06bc1e8),
-    (0x00c7, 0x06bc1e4),
-    (0x00d3, 0x06bc1e4),
-    (0x00e8, 0x06db4c8),
-    (0x00f3, 0x06db4d0),
-    (0x00fe, 0x06db4d4),
-    (0x010c, 0x06bc1e8),
-    (0x011f, 0x06db4d0),
-    (0x012a, 0x06db530),
-    (0x0135, 0x06db534),
-    (0x0158, 0x06c8b28),
-    (0x015e, 0x06c8b24),
-    (0x018a, 0x06c8b28),
+    (0x008b, 0x06bc1e4),
+    (0x0097, 0x06bc1e4),
+    (0x00ac, 0x06db4c8),
+    (0x00b7, 0x06db4d0),
+    (0x00c2, 0x06db4d4),
+    (0x00d0, 0x06bc1e8),
+    (0x00e3, 0x06db4d0),
+    (0x00ee, 0x06db530),
+    (0x00f9, 0x06db534),
+    (0x0130, 0x06c8b28),
+    (0x013a, 0x06c8b24),
+    (0x0146, 0x06c8b28),
+    (0x014c, 0x06c8b24),
+    (0x0183, 0x06c8b28),
+    (0x0189, 0x06c8b24),
     (0x0194, 0x06c8b24),
-    (0x01a0, 0x06c8b28),
-    (0x01a6, 0x06c8b24),
-    (0x01c5, 0x06c8b28),
-    (0x01cb, 0x06c8b24),
-    (0x01fb, 0x06c8b28),
-    (0x0201, 0x06c8b24),
-    (0x020c, 0x06c8b24),
-    (0x021c, 0x06c8b24),
-    (0x022d, 0x0708818),
-    (0x0238, 0x070881c),
-    (0x0243, 0x0708820),
-    (0x0251, 0x06c8b28),
-    (0x0264, 0x070881c),
-    (0x026f, 0x0708870),
-    (0x027a, 0x0708874),
-    (0x02ce, 0x06bc1e8),
-    (0x02d4, 0x06db4c8),
-    (0x02d9, 0x06bc1e8),
-    (0x02ec, 0x06db4d0),
-    (0x02f7, 0x06db4d4),
-    (0x0302, 0x06db530),
-    (0x030d, 0x06db534),
-    (0x0324, 0x06db4c8),
-    (0x032f, 0x06db4d0),
-    (0x033a, 0x06db4d4),
-    (0x0345, 0x06db530),
-    (0x0350, 0x06db534),
-    (0x0367, 0x051457c),
-    (0x03b0, 0x06c8b28),
-    (0x03b6, 0x0708818),
-    (0x03bb, 0x06c8b28),
-    (0x03ce, 0x070881c),
-    (0x03d9, 0x0708820),
-    (0x03e4, 0x0708870),
-    (0x03ef, 0x0708874),
-    (0x0406, 0x0708818),
-    (0x0411, 0x070881c),
-    (0x041c, 0x0708820),
-    (0x0427, 0x0708870),
-    (0x0432, 0x0708874),
-    (0x0449, 0x05cc4cc),
-    (0x050a, 0x06bf5b8),
-    (0x0515, 0x06bf5bc),
-    (0x0520, 0x06db4c8),
-    (0x052b, 0x06db4d0),
-    (0x0536, 0x06db4d4),
-    (0x0541, 0x0708818),
-    (0x054c, 0x070881c),
-    (0x0557, 0x0708820),
-    (0x0562, 0x06db530),
-    (0x056d, 0x06db534),
-    (0x0578, 0x0708870),
-    (0x0583, 0x0708874),
-    (0x05f1, 0x06bf5a8),
-    (0x0605, 0x06db534),
-    (0x0610, 0x0708874),
-    (0x061b, 0x06db530),
-    (0x0626, 0x0708870),
-    (0x0647, 0x06bf5a8),
-    (0x0656, 0x06d0dc4),
-    (0x0676, 0x06bf5b0),
-    (0x0699, 0x06bf5b0),
-    (0x06c0, 0x06bf598),
-    (0x07c4, 0x06bf5ac),
-    (0x07cf, 0x06bf5b8),
-    (0x07da, 0x06bf5bc),
-    (0x07e5, 0x06bc948),
-    (0x07f1, 0x06bc948),
-    (0x080b, 0x06bf598),
-    (0x0867, 0x06bf598),
-    (0x0a5d, 0x06bf5ac),
-    (0x0a6c, 0x06bf5b8),
-    (0x0a77, 0x06bf5bc),
-    (0x0aac, 0x06bc948),
-    (0x0acb, 0x06bf5ac),
-    (0x0ad6, 0x06bf5b8),
-    (0x0ae1, 0x06bf5bc),
-    (0x0e2b, 0x33cd5f4),
-    (0x0ed5, 0x33cd5f4),
-    (0x0f98, 0x07001d0),
-    (0x1006, 0x0725f50),
-    (0x1244, 0x06bf598),
-    (0x124a, 0x06bc948),
-    (0x1280, 0x345bd58),
-    (0x1293, 0x345b2c8),
-    (0x12f7, 0x059cb93),
+    (0x01a4, 0x06c8b24),
+    (0x01b5, 0x0708818),
+    (0x01c0, 0x070881c),
+    (0x01cb, 0x0708820),
+    (0x01d9, 0x06c8b28),
+    (0x01ec, 0x070881c),
+    (0x01f7, 0x0708870),
+    (0x0202, 0x0708874),
+    (0x0247, 0x06bc1e8),
+    (0x024d, 0x06db4c8),
+    (0x0252, 0x06bc1e8),
+    (0x0265, 0x06db4d0),
+    (0x0270, 0x06db4d4),
+    (0x027b, 0x06db530),
+    (0x0286, 0x06db534),
+    (0x029d, 0x06db4c8),
+    (0x02a8, 0x06db4d0),
+    (0x02b3, 0x06db4d4),
+    (0x02be, 0x06db530),
+    (0x02c9, 0x06db534),
+    (0x02e0, 0x051457c),
+    (0x031a, 0x06c8b28),
+    (0x0320, 0x0708818),
+    (0x0325, 0x06c8b28),
+    (0x0338, 0x070881c),
+    (0x0343, 0x0708820),
+    (0x034e, 0x0708870),
+    (0x0359, 0x0708874),
+    (0x0370, 0x0708818),
+    (0x037b, 0x070881c),
+    (0x0386, 0x0708820),
+    (0x0391, 0x0708870),
+    (0x039c, 0x0708874),
+    (0x03b3, 0x05cc4cc),
+    (0x0464, 0x06bf5b8),
+    (0x046f, 0x06bf5bc),
+    (0x047a, 0x06db4c8),
+    (0x0485, 0x06db4d0),
+    (0x0490, 0x06db4d4),
+    (0x049b, 0x0708818),
+    (0x04a6, 0x070881c),
+    (0x04b1, 0x0708820),
+    (0x04bc, 0x06db530),
+    (0x04c7, 0x06db534),
+    (0x04d2, 0x0708870),
+    (0x04dd, 0x0708874),
+    (0x054b, 0x06bf5a8),
+    (0x055a, 0x06db534),
+    (0x0565, 0x0708874),
+    (0x0570, 0x06db530),
+    (0x057b, 0x0708870),
+    (0x059c, 0x06bf5a8),
+    (0x05ab, 0x06d0dc4),
+    (0x05cb, 0x06bf5b0),
+    (0x05ee, 0x06bf5b0),
+    (0x0615, 0x06bf598),
+    (0x0719, 0x06bf5ac),
+    (0x0724, 0x06bf5b8),
+    (0x072f, 0x06bf5bc),
+    (0x073a, 0x06bc948),
+    (0x0746, 0x06bc948),
+    (0x0760, 0x06bf598),
+    (0x07bc, 0x06bf598),
+    (0x09b2, 0x06bf5ac),
+    (0x09c1, 0x06bf5b8),
+    (0x09cc, 0x06bf5bc),
+    (0x0a01, 0x06bc948),
+    (0x0a20, 0x06bf5ac),
+    (0x0a2b, 0x06bf5b8),
+    (0x0a36, 0x06bf5bc),
+    (0x0d80, 0x33cd5f4),
+    (0x0e2a, 0x33cd5f4),
+    (0x0ea3, 0x07001d0),
+    (0x0ec7, 0x0725f50),
+    (0x1023, 0x345bd58),
+    (0x1036, 0x345b2c8),
+    (0x109a, 0x059cb93),
 )
 # UI REFS END
 
@@ -315,184 +300,163 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '9267c5478a2483edd1bf8b84425d5c70c0b08ce446cc1737937118562ead7ab8'
+UI_ASM_SHA = 'dcaf2d390e92ff30563c247245f80b2a47ff5643b0c77f188a4056b1d3d2e32a'
 UI_CODE = bytes.fromhex(
-    '53e8000000005b81eb060000008b442408ff35e8c16b00ff35e4c16b00ff742410ff7424'
-    '106a02e81811000083c4148b4424088983e8180000c783ec18000000000000d905e4c16b'
-    '00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d99be0180000eb'
-    '6453e8000000005b81eb730000008b442408ff35e8c16b00ff35e4c16b00ff742410ff74'
-    '24106a02e8ab10000083c4148b4424088983e8180000c783ec18000001000000d905e4c1'
-    '6b00d84c2408d80de8c16b00d99bdc180000a1e4c16b008983e0180000d905e4c16b00d8'
-    '4c2408d99be41800008b83dc180000a3c8b46d008b83e0180000a3d0b46d008b83e41800'
-    '00a3d4b46d0083bb08190000007438a1e8c16b0083bbec180000007405b80000803fa3d0'
-    'b46d008b83c8190000a330b56d008b83cc190000a334b56d00c783c0180000010000005b'
-    'c353e8000000005b81eb4b0100008b442408ff35288b6c00ff35248b6c00ff742410ff74'
-    '24106a06e8d30f000083c4148b4424088983fc180000c7830019000000000000d905288b'
-    '6c00d84c2408d80d248b6c00d99bf0180000d905288b6c00d80d248b6c00d99bf4180000'
-    'eb6453e8000000005b81ebb80100008b442408ff35288b6c00ff35248b6c00ff742410ff'
-    '7424106a06e8660f000083c4148b4424088983fc180000c7830019000001000000d94424'
-    '08d80d288b6c00d80d248b6c00d99bf0180000a1248b6c008983f4180000d9442408d80d'
-    '248b6c00d99bf81800008b83f0180000a3188870008b83f4180000a31c8870008b83f818'
-    '0000a32088700083bb08190000007438a1288b6c0083bb00190000007405b80000803fa3'
-    '1c8870008b83c8190000a3708870008b83cc190000a374887000c783c418000001000000'
-    '5bc35350e8000000005b81eb91020000ff742414ff742414ff742414ff7424148b830819'
-    '0000c1e00883c80150e88a0e000083c41483bb08190000007457d983e8180000d80de8c1'
-    '6b00d91dc8b46d00a1e8c16b0083bbec180000007405b80000803fa3d0b46d008b83e818'
-    '0000a3d4b46d008b83c8190000a330b56d008b83cc190000a334b56d00c783c018000001'
-    '000000eb418b83dc180000a3c8b46d008b83e0180000a3d0b46d008b83e4180000a3d4b4'
-    '6d008b83b8180000a330b56d008b839c180000a334b56d00c783c018000000000000585b'
-    '5589e5535657687c455100c35350e8000000005b81eb73030000ff742414ff742414ff74'
-    '2414ff7424148b8308190000c1e00883c80550e8a80d000083c41483bb08190000007457'
-    'd983fc180000d80d288b6c00d91d18887000a1288b6c0083bb00190000007405b8000080'
-    '3fa31c8870008b83fc180000a3208870008b83c8190000a3708870008b83cc190000a374'
-    '887000c783c418000001000000eb418b83f0180000a3188870008b83f4180000a31c8870'
-    '008b83f8180000a3208870008b83bc180000a3708870008b83a0180000a374887000c783'
-    'c418000000000000585b5589e553565768ccc45c00c3535051e8000000005b81eb560400'
-    '008b83d819000083f820733f8b8b08190000898c83dc19000041898b08190000ff83d819'
-    '00008b4c2410898c830c1900006a006a0050516a03e8aa0c000083c4148d8bab04000089'
-    '4c241059585bc35350e8000000005b81ebb2040000ff8bd81900008b83d8190000508b84'
-    '83dc19000089830819000085c07505e812000000588b84830c1900008704248b5c2404c2'
-    '040050c783c018000000000000c783c4180000000000008b8308180000a3b8f56b008b83'
-    '0c180000a3bcf56b008b83dc180000a3c8b46d008b83e0180000a3d0b46d008b83e41800'
-    '00a3d4b46d008b83f0180000a3188870008b83f4180000a31c8870008b83f8180000a320'
-    '8870008b83b8180000a330b56d008b839c180000a334b56d008b83bc180000a370887000'
-    '8b83a0180000a37488700058c3e84f000000e80f020000e838fb4700e8fb040000c3e890'
-    '000000e8fa010000e843ff4700e8e6040000c3e8ab000000e8e5010000e8fe6a5600e8d1'
-    '040000c3e8b9000000e8d0010000e8196f5600e8bc040000c35350e8000000005b81ebe4'
-    '050000c7831c180000a8f56b00c7833818000001000000e87e0b0000a134b56d0089839c'
-    '180000a1748870008983a0180000a130b56d008983b8180000a1708870008983bc180000'
-    '585bc35350e8000000005b81eb3a060000c7831c180000a8f56b00c78338180000000000'
-    '00a1c40d6d00898350180000585bc353e8000000005b81eb69060000c7831c180000b0f5'
-    '6b00c78338180000010000005bc353e8000000005b81eb8c060000c7831c180000b0f56b'
-    '00c78338180000000000005bc38b836818000083bb541800000074158b836c180000f605'
-    '98f56b000374068b837018000089835c180000b800000100c1e00831d2f7b35c180000c1'
-    'e00885d27401408983101800008983141800008b8b281800000faf8b5c180000c1e9108b'
-    '830818000029c8d1f8c783601800000000000085c0791301c1f7d80faf83101800008983'
-    '6018000031c08983341800008b930818000029c239d17e0289d1898b301800008b8b2c18'
-    '00000faf8b5c180000c1e9108b830c18000029c8d1f8c783641800000000000085c07913'
-    '01c1f7d80faf831418000089836418000031c08983441800008b930c18000029c239d17e'
-    '0289d1898b40180000c360e8000000005b81eba80700008bb31c1800008b068983001800'
-    '0085c0750261c3a1acf56b00898304180000a1b8f56b00898308180000a1bcf56b008983'
-    '0c180000a148c96b00898354180000c70548c96b00000000008b8b7418000085c074158b'
-    '8b78180000f60598f56b000374068b8b7c180000898b80180000d98380180000d88ba818'
-    '0000db9bc8180000db8308180000d98380180000d88bac180000dee9d88bb4180000db9b'
-    'cc1800008b83b819000083bb541800000074158b83bc190000f60598f56b000374068b83'
-    'c01900000183cc180000db830c180000d98380180000d88bb0180000dee9d88bb4180000'
-    'db9bd01800008b83c41900000183d0180000db8308180000d88bb4180000d8b380180000'
-    'db9bc8190000db830c180000d88bb4180000d8b380180000db9bcc1900008b83c8190000'
-    '2d400100000faf83c81800008b8bcc180000c1e11029c1898bd01900008b83cc1900002d'
-    'f00000000faf83c81800008b8bd0180000c1e11029c1898bd4190000c7832c180000e001'
-    '0000b8e001000083bb3818000000742683bb5418000000751d0faf830818000031d2f7b3'
-    '0c1800003d000400007e13b800040000eb0cc1e00231d2b903000000f7f1898328180000'
-    'e838fdffffc78318180000000000008dbb001b0f008bab44180000c1e5108b8364180000'
-    'c1e8100faf835c18000029c589e8c1f81078683b830c1800007d600faf83041800000383'
-    '0018000089c68b9334180000c1e2108b8360180000c1e8100faf835c18000029c231c989'
-    'd0c1f810780e3b83081800007d06668b0446eb0231c06689044f6689844f00001e000393'
-    '5c180000413b8b281800007cceeb1e5731c08b8b28180000f366ab5f5781c700001e008b'
-    '8b28180000f366ab5f81c70008000003ab5c180000ff83181800008b83181800003b832c'
-    '1800000f8c4fffffff8d83001b0f008bb31c1800008906c705acf56b00000800008b8328'
-    '180000a3b8f56b008b832c180000a3bcf56b008bbb3c18000031c031c989048f05000800'
-    '004181f9e00100007cef61c360e8000000005b81eb9e0a00008b8354180000a348c96b00'
-    '8bb31c1800008b830018000085c0750261c389068b8304180000a3acf56b008b83081800'
-    '00a3b8f56b008b830c180000a3bcf56b008bbb3c18000031c031c989048f038304180000'
-    '413b8b0c1800007cee83bb381800000074678b832c180000c1e00231d2b903000000f7f1'
-    '3b83281800007d4d89c18db3001b0f0031d251668b044e663b844e00001e007533413b8b'
-    '281800007ce95981c600080000423b932c1800007cd88b832c180000c1e00231d2b90300'
-    '0000f7f1898328180000eb0159e833fbffff8b83441800000faf83041800000383001800'
-    '008bbb341800008d3c788b8364180000898358180000c78318180000000000008bb35818'
-    '000089f025ffff0000c1e80889838c180000c1ee1089f0403b832c1800007c014869c000'
-    '0800008d8403001b0f0089838818000069f6000800008db433001b0f008b936018000031'
-    'c989d5c1ed1083bb8418000000751b668b046e663b846e00001e000f8461010000668904'
-    '4fe958010000668b046e663b846e00001e00753a668b446e02663b846e02001e00752b56'
-    '8bb388180000668b046e663b846e00001e007515668b446e02663b846e02001e0075065e'
-    'e9110100005e515289e8403b83281800007c01485089d181e1ffff0000c1e9080fb7046e'
-    'e89c010000ba0001000029cae8fb010000ffb390180000ffb394180000ffb3981800008b'
-    '44240c0fb70446e87101000089cae8d50100005801839818000058018394180000580183'
-    '90180000ba000100002b938c180000e8b0010000ffb390180000ffb394180000ffb39818'
-    '0000568bb3881800000fb7046ee823010000ba0001000029cae882010000ffb390180000'
-    'ffb394180000ffb3981800008b44241c0fb70446e8f800000089cae85c01000058018398'
-    '18000058018394180000580183901800008b938c180000e83c0100005e58018398180000'
-    '5801839418000058018390180000585a59e84e0100006689044f039310180000413b8b30'
-    '1800000f8c6cfeffff03bb041800008b8314180000018358180000ff83181800008b8318'
-    '1800003b83401800000f8cf5fdffff83bb3818000000746783bb5018000000755e83bb34'
-    '1800000074558bbb00180000c783181800000000000031c0578b8b34180000f366ab8b8b'
-    '301800008d3c4f8b8b081800002b8b301800002b8b34180000f366ab5f03bb04180000ff'
-    '83181800008b8b181800003b8b0c1800007cbd61c3515289c2813df4d53c032b02000074'
-    '2cc1ea0bc1e20389939018000089c2c1ea0583e23fc1e20289939418000083e01fc1e003'
-    '8983981800005a59c3c1ea0a83e21fc1e20389939018000089c2c1ea0583e21fc1e20389'
-    '939418000083e01fc1e0038983981800005a59c3508b83901800000fafc2898390180000'
-    '8b83941800000fafc28983941800008b83981800000fafc289839818000058c3528b8390'
-    '180000c1e8108b9394180000c1ea10813df4d53c032b020000741ec1e803c1e00bc1ea02'
-    'c1e20509d08b9398180000c1ea10c1ea0309d05ac3c1e803c1e00ac1ea03c1e20509d08b'
-    '9398180000c1ea10c1ea0309d05ac360e8000000005b81eb210f000083bb601a00000074'
-    '22ff7218ff7214ff7210ff74241c8b83c0180000c1e00883c80a50e8f401000083c4148b'
-    '83641a000085c0740a0faf420cc1e81089420c83bbc0180000007424e89600000083bb60'
-    '1a0000007416ff7218ff7214ff7210ff721c6a0be8b301000083c414618b349dd0017000'
-    'c360e8000000005b81eba30f000083bb601a0000007422ff7218ff7214ff7210ff74241c'
-    '8b83c4180000c1e00883c80a50e87201000083c41483bbc4180000007424e82800000083'
-    'bb601a0000007416ff7218ff7214ff7210ff721c6a0be84501000083c414618b349d505f'
-    '7200c3c783d4180000ffffff7fc783d8180000ffffff7fc783b019000001000080c783b4'
-    '190000010000808d7210b9040000000fbf063b83d41800007d068983d41800003b83b019'
-    '00007e068983b01900000fbf46023b83d81800007d068983d81800003b83b41900007e06'
-    '8983b419000083c6044975bb8d721031c90fbf063b83d418000075168bbbb01900003bbb'
-    'd418000075218d79ff83ff027319400faf83c81800000383d01900000500800000c1f810'
-    '48eb150faf83c81800000383d01900000500800000c1f8100fbf7e023bbbd8180000751a'
-    '508b83b41900003b83d8180000587524508d41ff83f80258731a470fafbbc818000003bb'
-    'd419000081c700800000c1ff104feb160fafbbc818000003bbd419000081c700800000c1'
-    'ff1025ffff0000c1e71009f8890683c6044183f9040f8c42ffffffc360e8000000005b81'
-    'eb4a11000083bb981900000074268bbb9419000085ff741c8d47143b8390190000771189'
-    '83941900008d742424b905000000f3a561c360e8000000005b81eb8811000083bb8c1900'
-    '00000f84c40000008b839c1900004089839c19000031d2b978000000f7f183bb601a0000'
-    '00740783fa037278eb0d85d2757283bb9819000000746983bb98190000000f8484000000'
-    'c78398190000000000006a0068800000006a026a006a0068000000408d83a419000050ff'
-    '15ccd4650383f8ff745689c66a008d83a0190000508b83941900002b838c19000050ffb3'
-    '8c19000056ff1590d4650356ff15b8d46503eb28c7839819000001000000ff3598f56b00'
-    'ff3548c96b00ffb39c1900006a006a04e8e7feffff83c41461c353e8000000005b81eb68'
-    '12000050528b45088d04808b55088d0482d9048558bd45038b450c8d04808b550c8d0482'
-    'd82485c8b24503d88324130000d88b28130000d8932c130000dfe0f6c4017408ddd8d983'
-    '2c130000d9e8d8d9dfe0f6c401750ed88ba8180000db9b641a0000eb0cddd8c783641a00'
-    '00000000005a58508b4424088983681a00008d83fc12000089442408585b6893cb5900c3'
-    '53e8000000005b81eb02130000c783641a000000000000ffb3681a00008b5c240483c408'
-    'ff6424f8a470e341abaaaa3d00008037')
+    '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
+    '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
+    '9be0180000eb4653e8000000005b81eb550000008b4424088b4424088983e8180000c783'
+    'ec18000001000000d905e4c16b00d84c2408d80de8c16b00d99bdc180000a1e4c16b0089'
+    '83e0180000d905e4c16b00d84c2408d99be41800008b83dc180000a3c8b46d008b83e018'
+    '0000a3d0b46d008b83e4180000a3d4b46d0083bb08190000007438a1e8c16b0083bbec18'
+    '0000007405b80000803fa3d0b46d008b83c8190000a330b56d008b83cc190000a334b56d'
+    '00c783c0180000010000005bc353e8000000005b81eb0f0100008b4424088b4424088983'
+    'fc180000c7830019000000000000d905288b6c00d84c2408d80d248b6c00d99bf0180000'
+    'd905288b6c00d80d248b6c00d99bf4180000eb4653e8000000005b81eb5e0100008b4424'
+    '088b4424088983fc180000c7830019000001000000d9442408d80d288b6c00d80d248b6c'
+    '00d99bf0180000a1248b6c008983f4180000d9442408d80d248b6c00d99bf81800008b83'
+    'f0180000a3188870008b83f4180000a31c8870008b83f8180000a32088700083bb081900'
+    '00007438a1288b6c0083bb00190000007405b80000803fa31c8870008b83c8190000a370'
+    '8870008b83cc190000a374887000c783c4180000010000005bc35350e8000000005b81eb'
+    '19020000ff742414ff742414ff742414ff7424148b830819000083bb08190000007457d9'
+    '83e8180000d80de8c16b00d91dc8b46d00a1e8c16b0083bbec180000007405b80000803f'
+    'a3d0b46d008b83e8180000a3d4b46d008b83c8190000a330b56d008b83cc190000a334b5'
+    '6d00c783c018000001000000eb418b83dc180000a3c8b46d008b83e0180000a3d0b46d00'
+    '8b83e4180000a3d4b46d008b83b8180000a330b56d008b839c180000a334b56d00c783c0'
+    '18000000000000585b5589e5535657687c455100c35350e8000000005b81ebec020000ff'
+    '742414ff742414ff742414ff7424148b830819000083bb08190000007457d983fc180000'
+    'd80d288b6c00d91d18887000a1288b6c0083bb00190000007405b80000803fa31c887000'
+    '8b83fc180000a3208870008b83c8190000a3708870008b83cc190000a374887000c783c4'
+    '18000001000000eb418b83f0180000a3188870008b83f4180000a31c8870008b83f81800'
+    '00a3208870008b83bc180000a3708870008b83a0180000a374887000c783c41800000000'
+    '0000585b5589e553565768ccc45c00c3535051e8000000005b81ebc00300008b83d81900'
+    '0083f820732f8b8b08190000898c83dc19000041898b08190000ff83d81900008b4c2410'
+    '898c830c1900008d8b05040000894c241059585bc35350e8000000005b81eb0c040000ff'
+    '8bd81900008b83d8190000508b8483dc19000089830819000085c07505e812000000588b'
+    '84830c1900008704248b5c2404c2040050c783c018000000000000c783c4180000000000'
+    '008b8308180000a3b8f56b008b830c180000a3bcf56b008b83dc180000a3c8b46d008b83'
+    'e0180000a3d0b46d008b83e4180000a3d4b46d008b83f0180000a3188870008b83f41800'
+    '00a31c8870008b83f8180000a3208870008b83b8180000a330b56d008b839c180000a334'
+    'b56d008b83bc180000a3708870008b83a0180000a37488700058c3e84f000000e80a0200'
+    '00e8defb4700e8f6040000c3e88b000000e8f5010000e8e9ff4700e8e1040000c3e8a600'
+    '0000e8e0010000e8a46b5600e8cc040000c3e8b4000000e8cb010000e8bf6f5600e8b704'
+    '0000c35350e8000000005b81eb3e050000c7831c180000a8f56b00c78338180000010000'
+    '00a134b56d0089839c180000a1748870008983a0180000a130b56d008983b8180000a170'
+    '8870008983bc180000585bc35350e8000000005b81eb8f050000c7831c180000a8f56b00'
+    'c7833818000000000000a1c40d6d00898350180000585bc353e8000000005b81ebbe0500'
+    '00c7831c180000b0f56b00c78338180000010000005bc353e8000000005b81ebe1050000'
+    'c7831c180000b0f56b00c78338180000000000005bc38b836818000083bb541800000074'
+    '158b836c180000f60598f56b000374068b837018000089835c180000b800000100c1e008'
+    '31d2f7b35c180000c1e00885d27401408983101800008983141800008b8b281800000faf'
+    '8b5c180000c1e9108b830818000029c8d1f8c783601800000000000085c0791301c1f7d8'
+    '0faf831018000089836018000031c08983341800008b930818000029c239d17e0289d189'
+    '8b301800008b8b2c1800000faf8b5c180000c1e9108b830c18000029c8d1f8c783641800'
+    '000000000085c0791301c1f7d80faf831418000089836418000031c08983441800008b93'
+    '0c18000029c239d17e0289d1898b40180000c360e8000000005b81ebfd0600008bb31c18'
+    '00008b0689830018000085c0750261c3a1acf56b00898304180000a1b8f56b0089830818'
+    '0000a1bcf56b0089830c180000a148c96b00898354180000c70548c96b00000000008b8b'
+    '7418000085c074158b8b78180000f60598f56b000374068b8b7c180000898b80180000d9'
+    '8380180000d88ba8180000db9bc8180000db8308180000d98380180000d88bac180000de'
+    'e9d88bb4180000db9bcc1800008b83b819000083bb541800000074158b83bc190000f605'
+    '98f56b000374068b83c01900000183cc180000db830c180000d98380180000d88bb01800'
+    '00dee9d88bb4180000db9bd01800008b83c41900000183d0180000db8308180000d88bb4'
+    '180000d8b380180000db9bc8190000db830c180000d88bb4180000d8b380180000db9bcc'
+    '1900008b83c81900002d400100000faf83c81800008b8bcc180000c1e11029c1898bd019'
+    '00008b83cc1900002df00000000faf83c81800008b8bd0180000c1e11029c1898bd41900'
+    '00c7832c180000e0010000b8e001000083bb3818000000742683bb5418000000751d0faf'
+    '830818000031d2f7b30c1800003d000400007e13b800040000eb0cc1e00231d2b9030000'
+    '00f7f1898328180000e838fdffffc78318180000000000008dbb001b0f008bab44180000'
+    'c1e5108b8364180000c1e8100faf835c18000029c589e8c1f81078683b830c1800007d60'
+    '0faf830418000003830018000089c68b9334180000c1e2108b8360180000c1e8100faf83'
+    '5c18000029c231c989d0c1f810780e3b83081800007d06668b0446eb0231c06689044f66'
+    '89844f00001e0003935c180000413b8b281800007cceeb1e5731c08b8b28180000f366ab'
+    '5f5781c700001e008b8b28180000f366ab5f81c70008000003ab5c180000ff8318180000'
+    '8b83181800003b832c1800000f8c4fffffff8d83001b0f008bb31c1800008906c705acf5'
+    '6b00000800008b8328180000a3b8f56b008b832c180000a3bcf56b008bbb3c18000031c0'
+    '31c989048f05000800004181f9e00100007cef61c360e8000000005b81ebf30900008b83'
+    '54180000a348c96b008bb31c1800008b830018000085c0750261c389068b8304180000a3'
+    'acf56b008b8308180000a3b8f56b008b830c180000a3bcf56b008bbb3c18000031c031c9'
+    '89048f038304180000413b8b0c1800007cee83bb381800000074678b832c180000c1e002'
+    '31d2b903000000f7f13b83281800007d4d89c18db3001b0f0031d251668b044e663b844e'
+    '00001e007533413b8b281800007ce95981c600080000423b932c1800007cd88b832c1800'
+    '00c1e00231d2b903000000f7f1898328180000eb0159e833fbffff8b83441800000faf83'
+    '041800000383001800008bbb341800008d3c788b8364180000898358180000c783181800'
+    '00000000008bb35818000089f025ffff0000c1e80889838c180000c1ee1089f0403b832c'
+    '1800007c014869c0000800008d8403001b0f0089838818000069f6000800008db433001b'
+    '0f008b936018000031c989d5c1ed1083bb8418000000751b668b046e663b846e00001e00'
+    '0f84610100006689044fe958010000668b046e663b846e00001e00753a668b446e02663b'
+    '846e02001e00752b568bb388180000668b046e663b846e00001e007515668b446e02663b'
+    '846e02001e0075065ee9110100005e515289e8403b83281800007c01485089d181e1ffff'
+    '0000c1e9080fb7046ee89c010000ba0001000029cae8fb010000ffb390180000ffb39418'
+    '0000ffb3981800008b44240c0fb70446e87101000089cae8d50100005801839818000058'
+    '01839418000058018390180000ba000100002b938c180000e8b0010000ffb390180000ff'
+    'b394180000ffb398180000568bb3881800000fb7046ee823010000ba0001000029cae882'
+    '010000ffb390180000ffb394180000ffb3981800008b44241c0fb70446e8f800000089ca'
+    'e85c0100005801839818000058018394180000580183901800008b938c180000e83c0100'
+    '005e580183981800005801839418000058018390180000585a59e84e0100006689044f03'
+    '9310180000413b8b301800000f8c6cfeffff03bb041800008b8314180000018358180000'
+    'ff83181800008b83181800003b83401800000f8cf5fdffff83bb3818000000746783bb50'
+    '18000000755e83bb341800000074558bbb00180000c783181800000000000031c0578b8b'
+    '34180000f366ab8b8b301800008d3c4f8b8b081800002b8b301800002b8b34180000f366'
+    'ab5f03bb04180000ff83181800008b8b181800003b8b0c1800007cbd61c3515289c2813d'
+    'f4d53c032b020000742cc1ea0bc1e20389939018000089c2c1ea0583e23fc1e202899394'
+    '18000083e01fc1e0038983981800005a59c3c1ea0a83e21fc1e20389939018000089c2c1'
+    'ea0583e21fc1e20389939418000083e01fc1e0038983981800005a59c3508b8390180000'
+    '0fafc28983901800008b83941800000fafc28983941800008b83981800000fafc2898398'
+    '18000058c3528b8390180000c1e8108b9394180000c1ea10813df4d53c032b020000741e'
+    'c1e803c1e00bc1ea02c1e20509d08b9398180000c1ea10c1ea0309d05ac3c1e803c1e00a'
+    'c1ea03c1e20509d08b9398180000c1ea10c1ea0309d05ac360e8000000005b81eb760e00'
+    '008b83641a000085c0740a0faf420cc1e81089420c83bbc0180000007405e82d00000061'
+    '8b349dd0017000c360e8000000005b81ebae0e000083bbc4180000007405e80900000061'
+    '8b349d505f7200c3c783d4180000ffffff7fc783d8180000ffffff7fc783b01900000100'
+    '0080c783b4190000010000808d7210b9040000000fbf063b83d41800007d068983d41800'
+    '003b83b01900007e068983b01900000fbf46023b83d81800007d068983d81800003b83b4'
+    '1900007e068983b419000083c6044975bb8d721031c90fbf063b83d418000075168bbbb0'
+    '1900003bbbd418000075218d79ff83ff027319400faf83c81800000383d0190000050080'
+    '0000c1f81048eb150faf83c81800000383d01900000500800000c1f8100fbf7e023bbbd8'
+    '180000751a508b83b41900003b83d8180000587524508d41ff83f80258731a470fafbbc8'
+    '18000003bbd419000081c700800000c1ff104feb160fafbbc818000003bbd419000081c7'
+    '00800000c1ff1025ffff0000c1e71009f8890683c6044183f9040f8c42ffffffc353e800'
+    '0000005b81eb0b10000050528b45088d04808b55088d0482d9048558bd45038b450c8d04'
+    '808b550c8d0482d82485c8b24503d883c7100000d88bcb100000d893cf100000dfe0f6c4'
+    '017408ddd8d983cf100000d9e8d8d9dfe0f6c401750ed88ba8180000db9b641a0000eb0c'
+    'ddd8c783641a0000000000005a58508b4424088983681a00008d839f1000008944240858'
+    '5b6893cb5900c353e8000000005b81eba5100000c783641a000000000000ffb3681a0000'
+    '8b5c240483c408ff6424f8a470e341abaaaa3d00008037')
 # UI CODE END
-UI_CALLS = [(0x593, 0x4800d0), (0x5a8, 0x4804f0),   # rel32 at offset+1
-            (0x5bd, 0x5670c0), (0x5d2, 0x5674f0)]
-UI_STUBS = [(0x1c753a, 0x5c813a, 0x589),
-            (0x1c7588, 0x5c8188, 0x59e),
-            (0x1c754c, 0x5c814c, 0x5b3),
-            (0x1c759a, 0x5c819a, 0x5c8)]
+UI_CALLS = [(0x4ed, 0x4800d0), (0x502, 0x4804f0),   # rel32 at offset+1
+            (0x517, 0x5670c0), (0x52c, 0x5674f0)]
+UI_STUBS = [(0x1c753a, 0x5c813a, 0x4e3),
+            (0x1c7588, 0x5c8188, 0x4f8),
+            (0x1c754c, 0x5c814c, 0x50d),
+            (0x1c759a, 0x5c819a, 0x522)]
 # Projection setups: the originals' entries jump to these, and the HUD
 # passes' setup calls go there too (the HUD/world decision is made per
 # submission, by the pass depth).
 UI_WORLD = ((0x51444d, 0x11384d, 0x0),
-(0x51448e, 0x11388e, 0x6d),
-(0x5cc39d, 0x1cb79d, 0x145),
-(0x5cc3de, 0x1cb7de, 0x1b2))
-UI_SUBMIT = ((0x514576, 0x113976, 0x28a),
-(0x5cc4c6, 0x1cb8c6, 0x36c))
-UI_INSERT_A, UI_INSERT_B = 0xf1b, 0xf9d
-UI_HUD_ENTER = 0x44e
-UI_HANGAR_DRAW = 0x1262
+(0x51448e, 0x11388e, 0x4f),
+(0x5cc39d, 0x1cb79d, 0x109),
+(0x5cc3de, 0x1cb7de, 0x158))
+UI_SUBMIT = ((0x514576, 0x113976, 0x212),
+(0x5cc4c6, 0x1cb8c6, 0x2e5))
+UI_INSERT_A, UI_INSERT_B = 0xe70, 0xea8
+UI_HUD_ENTER = 0x3b8
+UI_HANGAR_DRAW = 0x1005
 UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
 UI_ROWTAB = 0x183c                          # row table address, likewise
 UI_KSBS = 0x1848                            # split FOV factors, likewise
 UI_SCALE = 0x1868                           # 2D scale per layout, likewise
 UI_HUD = 0x1874                             # same as floats
-UI_HUDF = 0x1880                            # the one in use, read by the game
 UI_FILTER = 0x1884                          # 1: bilinear composite
 UI_CONST = 0x18a8                           # 65536, 640, 480, 0.5
 UI_SHIFT = 0x19b8                           # HUD polygon x shift per layout, y
-UI_LOGQUADS = 0x1a60                        # log polygons at insert too
-UI_LOG = 0x198c                             # log base, end, ptr; name at +0x18
-LOG_SIZE = 48 << 20                          # about 90 s of every frame
 assert len(UI_CODE) <= UI_PASS_STUBS        # data block starts at 0x1800
 UI_OFF = 0x1b00                             # offscreen: guard, canvas, guard
 # Functions that draw HUD elements: everything they submit, directly or
 # through callees, is HUD (see hud_enter in ui.asm). They are the
 # functions that call the projection setup with the HUD focal lengths
 # (600 in game, 128 in the machine select). The first two rows are the
-# ones seen running in the --log traces (1P, machine select, split in
+# ones seen running in the diagnostic traces (1P, machine select, split in
 # both layouts): bars, frames, timer box, reticle and lock-on for each
 # renderer; weapon strips; machine-select portraits and cursors. The
 # rest have the same shape and are wrapped for the modes not traced.
@@ -580,8 +544,7 @@ def add_section(buf, size, raw=b'', name=b'.vohr'):
     return base + rva, rawptr
 
 
-def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True, A=None,
-                pool=None):
+def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     sx, sy = w / BASE_W, h / BASE_H
     if A is None:
         A = ADDR.__getitem__
@@ -735,30 +698,28 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, hangar_all=True, A=None,
     # edge, so the outermost mech is a silhouette that lights up as it
     # turns in (ui.asm hangar_draw, wrapping the platform draw at
     # 0x59e4ea).
-    if hangar_all:
-        f = 600 * 1.21875                    # focal times the 1P aspect
-        margin = math.degrees(math.atan(w / (h / 480) / 2 / f)
-                              - math.atan(320 / f))
-        if margin > 0:
-            sites += [(0x2213f0, struct.pack('<d', 31.57),
-                       struct.pack('<d', 31.57 + margin + 8)),
-                      (0x2213f8, struct.pack('<d', 28.43),
-                       struct.pack('<d', 28.43 + margin + 8)),
-                      (0x59e4ea - 0x400c00, b'\xe8' + u32(0x59cb93 - (0x59e4ea + 5)),
-                       b'\xe8' + u32(sec_va + UI_HANGAR_DRAW - (0x59e4ea + 5)))]
+    f = 600 * 1.21875                    # focal times the 1P aspect
+    margin = math.degrees(math.atan(w / (h / 480) / 2 / f)
+                          - math.atan(320 / f))
+    if margin > 0:
+        sites += [(0x2213f0, struct.pack('<d', 31.57),
+                   struct.pack('<d', 31.57 + margin + 8)),
+                  (0x2213f8, struct.pack('<d', 28.43),
+                   struct.pack('<d', 28.43 + margin + 8)),
+                  (0x59e4ea - 0x400c00, b'\xe8' + u32(0x59cb93 - (0x59e4ea + 5)),
+                   b'\xe8' + u32(sec_va + UI_HANGAR_DRAW - (0x59e4ea + 5)))]
     # Renderer A's polygon record pool: 2500 records of 0x30 bytes at
     # 0x6db7e0, a side array of 8 per record at 0x6f8ca0 and the flush
     # list at 0x6fdabc, with the cap in the two insert paths and the
-    # flush. Moved to the section and enlarged (--polys); the stock
+    # flush. Moved to the section and enlarged; the stock
     # cap drops the last polygons of the machine-select hangar once all
     # three mechs are drawn.
-    if pool:
-        pool_va, n = pool
-        sites += imm_sites([0x1d3967, 0x1d46ba], 0x6db7e0, pool_va)
-        sites += imm_sites([0x1d3970, 0x1d46c3], 0x6f8ca0, pool_va + n * 0x30)
-        sites += imm_sites([0x1d0ed0], 0x6fdabc, pool_va + n * 0x38)
-        sites += imm_sites([0x1d11d8], 0x6fdac0, pool_va + n * 0x38 + 4)
-        sites += imm_sites([0x1d395b, 0x1d46ae, 0x1d0eac], 2500, n)
+    pool_va, n = pool
+    sites += imm_sites([0x1d3967, 0x1d46ba], 0x6db7e0, pool_va)
+    sites += imm_sites([0x1d3970, 0x1d46c3], 0x6f8ca0, pool_va + n * 0x30)
+    sites += imm_sites([0x1d0ed0], 0x6fdabc, pool_va + n * 0x38)
+    sites += imm_sites([0x1d11d8], 0x6fdac0, pool_va + n * 0x38 + 4)
+    sites += imm_sites([0x1d395b, 0x1d46ae, 0x1d0eac], 2500, n)
     # Perspective subdivision. 0x5d3430 splits a polygon while any edge is
     # longer than a threshold, squared, in pixels, with a fixed recursion
     # budget per polygon. Twice the pixels per edge means four times the
@@ -886,9 +847,14 @@ def hires_supported(buf):
     return hires_supported_stamp(_pe_stamp(buf))
 
 
-def hires_install(buf, width, height, split_fov='mean', split_fov_tb=None,
-            hud_shift=None, hangar='wide', polys=8000, hud_filter='nearest',
-            log=False, log_quads=False):
+# What the CLI-era knobs settled on: the split FOV between the 4:3 that
+# fits a viewport and the one that fills it, nearest-neighbour compositing,
+# the widened hangar window, and a polygon pool of 8000.
+HIRES_SPLIT_FOV = 'mean'
+HIRES_POLYS = 8000
+
+
+def hires_install(buf, width, height):
     """Patch buf (a bytearray of v_on.exe, stock or vo_patch'd) in place
     for width x height. Raises ValueError on a size or byte mismatch.
     Returns the number of sites written."""
@@ -909,14 +875,8 @@ def hires_install(buf, width, height, split_fov='mean', split_fov_tb=None,
     mask_off = UI_OFF + UI_OFF_SIZE
     rowtab_off = mask_off + hh * (w // 8 + 4)
     size = rowtab_off + 2 * hh * 4
-    log_off = size
-    if log:
-        size += LOG_SIZE
     pool_off = size
-    if polys:
-        if polys < 2500:
-            raise ValueError('polys must be at least 2500')
-        size += polys * 0x3c + 8       # records, side array, list
+    size += HIRES_POLYS * 0x3c + 8     # pool records, side array, list
     code = UI_CODE
     if port is not None:
         code = bytearray(code)
@@ -945,11 +905,6 @@ def hires_install(buf, width, height, split_fov='mean', split_fov_tb=None,
         buf[rawptr + o:rawptr + o + len(stub)] = stub
     struct.pack_into('<II', buf, rawptr + UI_MODEW, w, hh)
     struct.pack_into('<I', buf, rawptr + UI_ROWTAB, sec_va + rowtab_off)
-    if log:
-        struct.pack_into('<III', buf, rawptr + UI_LOG, sec_va + log_off,
-                         sec_va + log_off + LOG_SIZE, sec_va + log_off)
-        buf[rawptr + UI_LOG + 0x18:rawptr + UI_LOG + 0x22] = b'hires.log\0'
-        struct.pack_into('<I', buf, rawptr + UI_LOGQUADS, int(log_quads))
     # 3D scale: the height (vertical FOV kept, Hor+). Split viewports
     # take a scale between the 4:3 that fits inside them and the one
     # that fills them; the game's split block multiplies the 1P scale
@@ -959,8 +914,8 @@ def hires_install(buf, width, height, split_fov='mean', split_fov_tb=None,
         fit, fill = min(vw / 640, vh / 480), max(vw / 640, vh / 480)
         return {'fit': fit, 'fill': fill,
                 'mean': math.sqrt(fit * fill)}[mode]
-    s_sbs = split_scale(w / 2, hh, split_fov)
-    s_tb = split_scale(w, hh / 2, split_fov_tb or split_fov)
+    s_sbs = split_scale(w / 2, hh, HIRES_SPLIT_FOV)
+    s_tb = split_scale(w, hh / 2, HIRES_SPLIT_FOV)
     struct.pack_into('<ff', buf, rawptr + UI_KSBS,
                      s_sbs / full, s_tb / full)
     # HUD scale: the 4:3 frame that fits inside the viewport, for the
@@ -973,21 +928,14 @@ def hires_install(buf, width, height, split_fov='mean', split_fov_tb=None,
                      int(h_tb * 65536))
     struct.pack_into('<ffff', buf, rawptr + UI_HUD,
                      h_1p, h_sbs, h_tb, h_1p)
-    linear = hud_filter == 'linear'
-    struct.pack_into('<I', buf, rawptr + UI_FILTER, int(linear))
-    if hud_shift is None:
-        sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
-        sy = 0
-    else:
-        sx = [int(hud_shift.split(',')[0])] * 3
-        sy = int((hud_shift.split(',') + ['0'])[1])
-    struct.pack_into('<iiii', buf, rawptr + UI_SHIFT, sx[0], sx[1], sx[2], sy)
+    struct.pack_into('<I', buf, rawptr + UI_FILTER, 0)  # nearest
+    sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
+    struct.pack_into('<iiii', buf, rawptr + UI_SHIFT, sx[0], sx[1], sx[2], 0)
     struct.pack_into('<ffff', buf, rawptr + UI_CONST, 65536.0, 640.0,
                      480.0, 0.5)
     sites = build_sites(w, hh, sec_va, sec_va + mask_off,
-                        sec_va + rowtab_off, hangar_all=hangar == 'wide',
-                        pool=(sec_va + pool_off, polys) if polys
-                        else None, A=A)
+                        sec_va + rowtab_off,
+                        pool=(sec_va + pool_off, HIRES_POLYS), A=A)
     if port is not None:
         moved = []
         lens = port.get('passlen', {})
