@@ -543,7 +543,7 @@ set1pre:
 s1p_here:
     pop ebx
     sub ebx, s1p_here
-    mov dword ptr [ebx+D_BASEPTR], 0x6bf5a8
+    mov dword ptr [ebx+D_BASEPTR], FB_PTR
     mov dword ptr [ebx+D_PHASE], 1
     call log_frame
     ; the projection centres as the game has just set them (0x5c8317
@@ -567,7 +567,7 @@ set1post:
 s1q_here:
     pop ebx
     sub ebx, s1q_here
-    mov dword ptr [ebx+D_BASEPTR], 0x6bf5a8
+    mov dword ptr [ebx+D_BASEPTR], FB_PTR
     mov dword ptr [ebx+D_PHASE], 0
     mov eax, [DRAWN]
     mov [ebx+D_3D], eax
@@ -580,7 +580,7 @@ set2pre:
 s2p_here:
     pop ebx
     sub ebx, s2p_here
-    mov dword ptr [ebx+D_BASEPTR], 0x6bf5b0
+    mov dword ptr [ebx+D_BASEPTR], FB_ROW
     mov dword ptr [ebx+D_PHASE], 1
     pop ebx
     ret
@@ -590,7 +590,7 @@ set2post:
 s2q_here:
     pop ebx
     sub ebx, s2q_here
-    mov dword ptr [ebx+D_BASEPTR], 0x6bf5b0
+    mov dword ptr [ebx+D_BASEPTR], FB_ROW
     mov dword ptr [ebx+D_PHASE], 0
     pop ebx
     ret

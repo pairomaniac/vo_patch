@@ -302,7 +302,10 @@ def main():
     # hook tables. Parsed out of hires.py's ADDR dict so the two cannot
     # drift: this script only translates what the runtime will ask for.
     va_map = {}
-    for name, va in sorted(hires.ADDR.items()):
+    targets = {('ADDR:' + n): v for n, v in hires.ADDR.items()}
+    for o, v in hires.UI_REFS:
+        targets.setdefault('blob+0x%x' % o, v)
+    for name, va in sorted(targets.items()):
         t = resolve_va(va) if va < 0x63f000 + 0x400000 else None
         if t is None:
             t, how = votrans.translate(va)
