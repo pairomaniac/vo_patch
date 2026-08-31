@@ -15,8 +15,8 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#virus-warnings">Virus warnings</a> &nbsp;·&nbsp;
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
-  <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#native-widescreen">Widescreen</a> &nbsp;·&nbsp;
+  <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#windowing-and-scaling-cnc-ddraw">Windowing</a> &nbsp;·&nbsp;
   <a href="#builds">Builds</a>
@@ -162,12 +162,12 @@ rebuilt now, and the game waits until that has worked before carrying on.
 
 ### Extra
 
-- **XInput gamepad support** - a modern controller for both players: twelve
-bindable actions, plus the arcade twin-stick scheme. See
-[Gamepad](#gamepad).
 - **Native widescreen** - runs the game at 1920x1080 instead of 640x480,
 menus and text redrawn to match, more of the arena at the sides. Retail
 build only for now. See [Native widescreen](#native-widescreen).
+- **XInput gamepad support** - a modern controller for both players: twelve
+bindable actions, plus the arcade twin-stick scheme. See
+[Gamepad](#gamepad).
 - **No disc required** - removes the disc check and plays the soundtrack from
 `music\trackNN.wav` beside the game. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - hides the menu bar and moves
@@ -331,6 +331,48 @@ Create an empty file called `vo-net.log` beside `v_on.exe` and try again. The
 DLL writes what it did into it, and that file is what to send with a bug
 report.
 
+## Native widescreen
+
+The game draws everything at 640x480 and assumes it everywhere, so scaling
+the picture up only makes it bigger. This patch makes the game render at
+1920x1080 itself: the 3D view, the menus, the HUD and the text are drawn
+at that size, and a widescreen view shows more of the arena at the sides
+rather than stretching the middle.
+
+What changes when it is on:
+
+- **F4** switches between 1920x1080 and 1280x720, in place of stock's
+  640x480 / 320x240. **F5 Screen** offers the same choice as **1080p** /
+  **720p** (Normal, a small window centred in the picture, is gone) and
+  the choice is saved to `v_on.ini` as `ScrSize` bit 0, so the game
+  starts at the size it was left in. The menu entry that picked 320x240
+  outright is turned off.
+- **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
+  bottom); the third choice, which duplicated the first, is gone. In
+  side by side the timer and health bars sit at the top of each half,
+  with the rest of the HUD centred below. The machine select, which
+  showed the same grid in both halves, is drawn once at full size.
+- The pause, loading and credits text scales with the picture. The
+  ending credits lose their black bands and roll the whole screen:
+  lines slide in at the very bottom and out through the very top,
+  with the scenery clean behind both.
+
+It works with every other patch and with cnc-ddraw, which is what gives
+you windowed or borderless play at that size - see
+[Windowing and scaling](#windowing-and-scaling-cnc-ddraw). The
+game itself still asks the display for exclusive fullscreen at
+1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
+your monitor without stretching.
+
+**Off by default.** It is the one patch that changes how the game looks
+rather than fixing something broken, so the box starts unticked - tick it
+and Apply.
+
+**Retail build only for now.** On the USA OEM and Japanese builds the box
+is greyed out and every other patch applies as usual. Both crash inside
+the renderer with the current tables; the work left is written up in
+[docs/HIRES.md](docs/HIRES.md).
+
 ## Gamepad
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
@@ -436,48 +478,6 @@ Closing the dialog saves each to its own `v_on.ini` line, editable by hand:
 
 Two digits, `05` to `95` - lower is more sensitive, higher rides out a worn
 stick's drift.
-
-## Native widescreen
-
-The game draws everything at 640x480 and assumes it everywhere, so scaling
-the picture up only makes it bigger. This patch makes the game render at
-1920x1080 itself: the 3D view, the menus, the HUD and the text are drawn
-at that size, and a widescreen view shows more of the arena at the sides
-rather than stretching the middle.
-
-What changes when it is on:
-
-- **F4** switches between 1920x1080 and 1280x720, in place of stock's
-  640x480 / 320x240. **F5 Screen** offers the same choice as **1080p** /
-  **720p** (Normal, a small window centred in the picture, is gone) and
-  the choice is saved to `v_on.ini` as `ScrSize` bit 0, so the game
-  starts at the size it was left in. The menu entry that picked 320x240
-  outright is turned off.
-- **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
-  bottom); the third choice, which duplicated the first, is gone. In
-  side by side the timer and health bars sit at the top of each half,
-  with the rest of the HUD centred below. The machine select, which
-  showed the same grid in both halves, is drawn once at full size.
-- The pause, loading and credits text scales with the picture. The
-  ending credits lose their black bands and roll the whole screen:
-  lines slide in at the very bottom and out through the very top,
-  with the scenery clean behind both.
-
-It works with every other patch and with cnc-ddraw, which is what gives
-you windowed or borderless play at that size - see
-[Windowing and scaling](#windowing-and-scaling-cnc-ddraw). The
-game itself still asks the display for exclusive fullscreen at
-1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
-your monitor without stretching.
-
-**Off by default.** It is the one patch that changes how the game looks
-rather than fixing something broken, so the box starts unticked - tick it
-and Apply.
-
-**Retail build only for now.** On the USA OEM and Japanese builds the box
-is greyed out and every other patch applies as usual. Both crash inside
-the renderer with the current tables; the work left is written up in
-[docs/HIRES.md](docs/HIRES.md).
 
 ## Music
 
