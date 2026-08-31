@@ -42,7 +42,8 @@
 ; Single viewport in a split game: the machine select is the same
 ; portrait grid in both halves, so while either player is in a sub-state
 ; listed in D_SINGLE the frame is drawn as one full-screen viewport from
-; that player's engine (P1 first). frame_setup runs the game's viewport
+; that player's engine (P1 first); outside a match (MODE not 4: the boot
+; splash, the title) it is viewport 1 whatever the sub-state. frame_setup runs the game's viewport
 ; setup with the split flag cleared, which gives both renderers the 1P
 ; geometry, then points viewport 2 at the same surface; the other
 ; renderer's flush runs with its draw-skip flag set (the list is still
@@ -149,6 +150,12 @@ D_SHOW    = 0x1a88            ; 0 split as set, 1 viewport 1 full screen, 2
 D_LAYOUT  = 0x1a8c            ; 0 1P or single, 1 side by side, 2 top/bottom
 D_SINGLE  = 0x1a90            ; 64-bit mask of the sub-states drawn single
                               ; (patcher)
+D_DEBUG   = 0x1a98            ; 1: print both machines' states on the frame
+                              ; (patcher, HIRES_DEBUG_STATES)
+D_DBGSTR  = 0x1aa0            ; the text, 32 bytes
+PRIMARY   = 0x1ae5f40         ; the surface DRAW paints on, and the one
+BACK      = 0x1ae5f5c         ; about to be flipped over it
+DRAW      = 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
 LOOPMODE  = 0x6bc94c          ; 1 two players, 2 network
 FB_ROW2   = 0x6bf5b4
 MASKOFF   = 0x7087a0          ; renderer B's coverage mask offset
@@ -1160,7 +1167,70 @@ post_mloop:
     cmp ecx, [ebx+D_H]
     jl post_mloop
 post_done:
+    cmp dword ptr [ebx+D_DEBUG], 0
+    je post_out
+    cmp dword ptr [ebx+D_PHASE], 0
+    jne post_out
+    cmp dword ptr [ebx+D_BASEPTR], FB_PTR
+    jne post_out
+    call dbg_draw
+post_out:
     popad
+    ret
+
+; dbg_draw: "MODE SUBMODE  MODE2 SUBMODE2  SHOW", hex, through the game's
+; GDI text on the frame about to be shown (as asm/overlay.asm does).
+dbg_draw:
+    lea edi, [ebx+D_DBGSTR]
+    mov eax, [MODE]
+    call dbg_hex
+    mov byte ptr [edi], 0x20
+    inc edi
+    mov eax, [SUBMODE]
+    call dbg_hex
+    mov word ptr [edi], 0x2020
+    add edi, 2
+    mov eax, [MODE2]
+    call dbg_hex
+    mov byte ptr [edi], 0x20
+    inc edi
+    mov eax, [SUBMODE2]
+    call dbg_hex
+    mov word ptr [edi], 0x2020
+    add edi, 2
+    mov eax, [ebx+D_SHOW]
+    call dbg_hex
+    mov byte ptr [edi], 0
+    mov ecx, [PRIMARY]
+    push ecx
+    mov ecx, [BACK]
+    mov [PRIMARY], ecx
+    push 1
+    push 0x0000ff00
+    push 40
+    push 300
+    lea eax, [ebx+D_DBGSTR]
+    push eax
+    mov eax, DRAW
+    call eax
+    add esp, 20
+    pop ecx
+    mov [PRIMARY], ecx
+    ret
+dbg_hex:                            ; low byte of eax as two hex digits
+    push eax
+    shr eax, 4
+    call dbg_nib
+    pop eax
+dbg_nib:
+    and eax, 15
+    add al, 0x30
+    cmp al, 0x39
+    jbe dbg_put
+    add al, 7
+dbg_put:
+    mov [edi], al
+    inc edi
     ret
 
 ; unpack: ax (surface pixel) -> D_ACC r, D_ACC+4 g, D_ACC+8 b, 0..255
@@ -1414,8 +1484,8 @@ frame_here:
     cmp dword ptr [SPLIT], 0
     je frame_go
     mov ecx, 1
-    cmp dword ptr [MODE], 4
-    jne frame_p2
+    cmp dword ptr [MODE], 4         ; not a match (boot, title): one view
+    jne frame_single
     mov edx, [SUBMODE]
     call single_state
     jne frame_single
