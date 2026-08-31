@@ -331,11 +331,12 @@ filled at apply time.
 **The dialog procedure** ticks each check box from the game's own flag on
 `WM_INITDIALOG` (through the loop in `f11pause.asm`'s tail), shows both
 players' deadzone digits, and forwards clicks. Close, Defaults and Quit go
-to the annex in `voxt.asm`, which reads the boxes back on close - two
-digits clamped to 5-95 each, into the thresholds the tick compares per
-player and out to their v_on.ini lines through `iniparse.asm`'s tail, a
-rejected entry re-seeded to the percent in force - seeds 40s on Defaults,
-and says whether to post. Every
+to the annex in `voxt.asm`. On close it reads the deadzone boxes back:
+two digits per player, clamped to 5-95, written into the thresholds the
+tick compares and out to the v_on.ini lines through `iniparse.asm`'s
+tail; a rejected entry is re-seeded to the percent in force. Defaults
+seeds both boxes to 40. The routine also says whether the click should
+be posted on. Every
 control's id is the game's own command id, so a click is posted straight to
 the main window as `WM_COMMAND` and needs no lookup table; the deadzone
 edits are the exception, their notifications being the dialog's own.
@@ -410,22 +411,22 @@ the per-player input tick, and a parameter block per player. Everything else
 in the patch is tables.
 
 The **tick** runs through the F7 profile dispatch, once per player per frame.
-It resolves `XInputGetState`, polls the side's pad through **padpoll**, writes
-Space and the camera key
-into that player's key buffer if A or Back is held - before calling the game's
-keyboard handler, because that is the code which reads them - and then walks
-twelve bind slots, testing each against the condition table and clearing the
-lever bits its mask names.
+It resolves `XInputGetState` and polls the side's pad through
+**padpoll**. If A or Back is held it writes Space and the camera key
+into that player's key buffer - and it does so before calling the game's
+keyboard handler, because the handler is what reads them. Then it walks
+the twelve bind slots, testing each against the condition table and
+clearing the lever bits its mask names.
 
 **padpoll** decides which XInput slot a side reads, since slots are not
 player numbers: the sides on a pad profile, 1P first, take the connected
 slots in ascending order. So two pads on 0 and 1 serve 1P and 2P, and one
 pad on slot 0 serves 2P alone when 1P is on the keyboard - which the fixed
 0/1 of earlier versions could not do. The map (`PADIDX`, slot + 1 per side,
-5 for none) is built on the first poll and rebuilt on the next poll after a
-cached slot stops answering, after a side without a pad has missed 256
-polls, so a pad plugged in later is found within a few seconds, and after a
-device change, which `commitdev.asm` clears it for.
+5 for none) is built on the first poll. It is rebuilt on three
+occasions: when a cached slot stops answering; when a side without a pad
+has missed 256 polls, so a pad plugged in later is found within a few
+seconds; and on a device change, which `commitdev.asm` clears it for.
 
 Not every slot is live in every game state. The stock keyboard handler at
 `0x443074` runs all twelve only when `[0x1ae3594]` is 4 and `[0x1ae3690]` is

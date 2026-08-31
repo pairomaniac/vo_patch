@@ -27,12 +27,12 @@ imuls of the new height.
 
 ### Row tables
 
-the rasterizers index per-row pointers through 0x6c75c8 (and 0x6c7d48);
+The rasterizers index per-row pointers through 0x6c75c8 (and 0x6c7d48);
 the refs are rebased to a table in the section, filled by the blob.
 
 ### Coverage mask
 
-the renderers track drawn spans through a pointer at 0x6c8ce8, advancing
+The renderers track drawn spans through a pointer at 0x6c8ce8, advancing
 by the row stride (0x50 packed into or/add immediates); every advance,
 pack and stride site moves to the new stride. The blob blacks margins
 only when the last 3D flush drew nothing (DRAWN 0x6d0dc4).
@@ -48,16 +48,17 @@ replaced with a per-layout factor from section data.
 
 ### Render lists and pool
 
-the polygon cap (cmp eax, 2500) and the pool tables 0x6db7e0/0x6f8ca0 are
+The polygon cap (cmp eax, 2500) and the pool tables 0x6db7e0/0x6f8ca0 are
 raised and rebased (--polys); the flush walks bucket heads (0x6fdac0
 family) which move with them; the list-insert loads (LIST_A 0x7001d0,
 LIST_B 0x725f50) are hooked for HUD-pass vertex scaling.
 
 ### The 2D layer
 
-the game has two near-identical engine copies; each is called around by
-pre/post hooks (stubs call pre, the original (0x4800d0/0x4804f0,
-0x5670c0/0x5674f0), then post).
+The game has two near-identical copies of its 2D engine, called four
+times a frame: 0x4800d0/0x4804f0 for viewport 1 before and after the 3D
+flush, 0x5670c0/0x5674f0 for viewport 2. Each call is redirected to a
+stub that runs pre, then the original, then post.
 
 pre redirects the 2D draw to a canvas in the section (480 guard rows
 either side, since split draws outside the viewport) and post composites
@@ -67,18 +68,20 @@ background.
 
 ### HUD passes
 
-twenty pass prologues (UI_PASS_FUNCS) are wrapped by 20-byte stubs that
+Twenty pass prologues (UI_PASS_FUNCS) are wrapped by 20-byte stubs that
 count pass depth in and out; submissions inside a pass get the HUD
 projection, and the insert hooks rescale their vertices to the HUD frame.
 
-In side-by-side split the 4:3 frame is centred in a taller viewport; in
-the sub-states that draw the in-game HUD (MODE 4, SUBMODE 9..0x0c, 0x14,
-0x15, 0x1b; 2P's own machine for the second viewport) frame rows above
-HIRES_HUD_BAND (110) are pinned to the viewport top instead: a polygon
-whose lowest vertex is above the threshold gets the top-aligned y offset,
-and the 2D canvas is composited in two slices, the pre-fill sampling each
-from where it will land. The band the slice leaves in the centred frame
-is not composited.
+In side-by-side split the 4:3 frame is centred in a taller viewport.
+While a round's HUD is on screen (MODE 4, SUBMODE 9..0x0c, 0x14, 0x15,
+0x1b; the second viewport reads 2P's own machine), the frame's top rows
+- everything above HIRES_HUD_BAND, row 110: the timer and health bars -
+are pinned to the top of the viewport instead of riding with the centred
+frame. A polygon belongs to the top region when its lowest vertex is
+above the band, and gets the top-aligned y offset. The 2D canvas is
+composited in two slices to match, the pre-fill sampling each slice from
+where it will land; the gap the top slice leaves in the centred frame is
+simply not composited.
 
 The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
@@ -91,7 +94,7 @@ the frame position, tunable if it ever shows.
 
 ### Single viewport in a split game
 
-the call to the viewport setup (0x5c811b) and the two flush calls
+The call to the viewport setup (0x5c811b) and the two flush calls
 (0x5c8166, 0x5c8178) go through the section. The split is drawn only
 while either player's machine is in a sub-state that draws a round
 (HIRES_SPLIT_STATES: 9..0x0c, 0x14, 0x15, 0x1b); every other frame - the
@@ -107,20 +110,20 @@ its draw-skip flag (0x6c84c8 / 0x6c84cc) set, which sorts and empties the
 list without drawing, and its 2D layer is not composited.
 
 The blob keys its layouts on D_LAYOUT (1P or single, Ver, Hor) rather
-than the split flag. The polygons submitted in the frame a transition
-happens in still carry the previous frame's HUD placement.
+than the split flag. When the layout changes, polygons already submitted
+that frame keep the old placement for that one frame.
 HIRES_DEBUG_STATES prints both machines' states on the frame through the
 game's GDI text.
 
 ### GDI text
 
-the draw at 0x5c991c centres on (x,y); the wrap routine 0x5c8da6 and the
+The draw at 0x5c991c centres on (x,y); the wrap routine 0x5c8da6 and the
 loading-strip rects carry 640x480 bounds; the two 24px LOGFONTs (.data
 0x2c7370/0x2c73f0) scale by h/480.
 
 ### F4 and the size switch
 
-the handler (0x5c74ec, past the network-game guard) jumps to the blob's
+The handler (0x5c74ec, past the network-game guard) jumps to the blob's
 f4_toggle. The sites are written for the first size; a table in the
 section (UI_F4TAB_OFF, in the file) lists every site whose bytes differ
 for the second size (HIRES_ALT, 1280x720) with both byte sets, plus the
@@ -139,16 +142,22 @@ paths run. The direct 320x240 menu command (0x5c79aa) jumps to the
 handler exit.
 
 The F5 Screen radios (ids 0x420/0x421) become "720p"/"1080p" and drive
-the same switch: the dialog stages FLAGS into 0xbe4300 at 0x427ec4 (hook:
-bit 0 set from the mode word, so the radio shows the size in place), OK
-writes it back at 0x42823c (hook: bit 0 stripped into D_F4WANT), and the
-resume after DialogBoxParamA at 0x5c7494 (hook: switch if D_F4WANT
-differs, not in a network game, then GRESUME).
+the same switch, through three hooks on the dialog's own path:
 
-The ini keeps the choice as ScrSize bit 0: the load's join at 0x50bcc1
-(hook: strip it from FLAGS and apply the second size's sites before the
-mode is set - the load runs in WM_CREATE) and the save's read at 0x50c0c6
-(hook: bit 0 from the mode word).
+- opening, where the dialog stages FLAGS into 0xbe4300 (0x427ec4): the
+  hook sets bit 0 from the mode word, so the radio shows the size the
+  game is in;
+- OK, where the dialog writes FLAGS back (0x42823c): the hook strips
+  bit 0 out into D_F4WANT instead;
+- the resume after DialogBoxParamA (0x5c7494): the hook runs the switch
+  if D_F4WANT differs from the mode - never in a network game - then
+  falls into GRESUME.
+
+The ini keeps the choice as ScrSize bit 0, through two more hooks: the
+load's join (0x50bcc1) strips the bit from FLAGS and applies the second
+size's sites right there - the load runs in WM_CREATE, before the mode
+is set - and the save's read (0x50c0c6) supplies bit 0 from the mode
+word.
 
 FLAGS bit 0 itself - stock's Screen=Normal window - is never set at
 runtime. The Screen Split radio labels become "Ver"/"Hor" and the
@@ -306,9 +315,10 @@ text.
 ### Ending
 
 The title state machine's sub-state 0x20 handler 0x59081f runs phases
-through 0x1ad0964: 0 the cutscene (0x58c1cc), 1 mission complete
-(0x58e659), 2 the roll (0x58ecd0); anything past 2 falls to the tail that
-stops the music and moves to name entry, which is what the skip writes.
+through 0x1ad0964: 0 is the cutscene (0x58c1cc), 1 mission complete
+(0x58e659), 2 the roll (0x58ecd0), and anything past 2 falls to the tail
+that stops the music and moves on to name entry. The skip patch works by
+writing a phase past 2.
 The in-game machine's analogue is 0x44a523/0x4489d6. The roll's tile ring
 buffer is 0x1cc18ea.
 
@@ -333,14 +343,14 @@ top edge's push is re-encoded fine+8 (was 8-fine, ambiguous against the
 foot's) so the blit can tell the edges apart. One glyph source row is 16
 bytes in the full mode, the only mode left under this patch.
 
-The window itself is 50 tile rows (400 lines, 0x480556, plus the partial
-entering row), top-aligned, in a 64-row ring. The writer - the command
-interpreter at 0x4cdab4, cursors 0xbf7758/0xbf775c, driven by the
-hand-timed schedule in 0x58ecd0 - fills a ring row just as it reaches the
-window's foot, with stale 512-line-old content beyond it. So lines
-materialise at row 400 and there is nothing below to draw; a roll that
-enters at row 480 means re-timing the authored schedule, and is not
-attempted.
+The window itself is 50 tile rows tall - 400 lines, per 0x480556, plus
+the partial entering row - top-aligned in a 64-row ring. The writer (the
+command interpreter at 0x4cdab4, cursors 0xbf7758/0xbf775c, driven by
+the hand-timed schedule in 0x58ecd0) fills each ring row just as it
+scrolls up to the window's foot; below that the ring holds stale content
+from 512 lines ago. The upshot: lines appear at row 400 with nothing
+real below them, and making them enter at row 480 by feeding earlier
+would mean re-timing the authored schedule, which is not attempted.
 
 With the clip wired, a line slides in at the foot a glyph row at a time
 and out through the real row 0, the scenery clean behind both edges.
@@ -352,9 +362,11 @@ arcade's letterbox and shade call (0x4a70c6/0x4ff496 into
 0x514629/0x5cc579, alpha 0x80 arguments) remains a stubbed no-op on PC -
 it lands in bare sort flushes at 0x5d1a70/0x5dc940.
 
-Two engine facts came out of chasing the residue the bands' removal
-exposed, both verified by running the patched walkers under Unicorn
-against a synthetic ring and canvas.
+Removing the bands exposed garbage they had been hiding, and chasing it
+down produced two facts about the engine. Both were verified by running
+the patched walkers under Unicorn - the actual machine code, executed in
+an emulator against a fabricated tile ring and canvas, its output
+checked line by line.
 
 First, the window's foot is not the walker's row count but its
 destination helper: 0x480930 rejects tile rows past 0x31, so the roll
@@ -366,46 +378,51 @@ patch moves the whole window down thirteen rows: plane A's walker starts
 thirteen ring rows earlier ((coarse - 13) mod 64 in place of the plain
 coarse row), draws 60 rows, and the cap rises to 0x3d.
 
-The feed actually lands about two rows inside the old window, at its 0x31
-cap (measured on video: a fed line arrives ~0.6 s after its ring row
-would have entered at ten rows of shift, showing the row's stale
-512-line-old content in the meantime), so the bottom row (start+47)
-trails the feed (start+48) by a full row and a line is complete before it
-slides in at line 480.
+The feed turns out to land about two rows inside the old window, at the
+0x31 cap. (Measured on video: at ten rows of shift a fed line arrived
+~0.6 s after its ring row had already entered the window, showing the
+row's stale 512-line-old content in the meantime.) With thirteen rows of
+shift the window's bottom row, start+47, trails the feed at start+48 by
+a full row - so every line is complete before it slides in at line
+480.
 
-Thirteen exactly, not more: the writer composes an entering line over
-ring rows cursor..cursor+2, congruent to start-16..start-14 - at fourteen
-rows of shift the third compose row was the top display row, and its
-glyph bottoms flashed at the screen's top edge for a few frames per line
-(caught at 60 fps on video). At thirteen the window excludes all three
-scratch rows, and a history row keeps three rows of margin before the
-feed comes around to rewrite it.
+Why thirteen exactly, and not more: the writer composes each entering
+line in three scratch rows of the ring, cursor..cursor+2, which sit at
+start-16..start-14. At fourteen rows of shift the third scratch row and
+the top display row were the same row, so glyph bottoms flashed at the
+screen's top edge for a few frames per line - caught on 60 fps video. At
+thirteen the window clears all three scratch rows, and a row that has
+scrolled off the top keeps three rows of margin before the feed comes
+around to rewrite it.
 
 Verified under emulation: continuous coverage of lines 0..479 at every
 fine value, wrap across the ring boundary included.
 
-One consequence surfaced on screen: the strip loaders' availability
-watermarks (0xbf5f7c/0xbf5f78, 24 stores across the 12 loader variants)
-round the load cursor up, so a tile with only part of its 128 bytes read
-counts as loaded - invisible while fed rows sat below line 400, but drawn
-half-read once they enter at 480, which garbled the streamed name strips
-at the moment of entry.
+Making lines enter at 480 surfaced one consequence on screen. The strip
+loaders keep availability watermarks (0xbf5f7c/0xbf5f78, 24 stores
+across the 12 loader variants) that round the load cursor up, so a tile
+with only part of its 128 bytes read counted as loaded. Harmless while
+fed rows sat below line 400 - nothing drew them - but entering at 480
+they were drawn half-read, which garbled the streamed name strips at the
+moment of entry. The fix floors the rounding: a partial tile is culled
+for the one frame it takes to finish, and the strips are 128-aligned so
+no final tile is stranded.
 
-The rounding is floored; a partial tile is culled for the frame it takes
-to finish, and the strips are 128-aligned so no final tile is stranded.
+Second, the roll uses a second tile plane (rings 0x1cc3e00/0x1cc41ea,
+its own scroll word 0x34155c6, 60 rows). Its destination helpers
+(0x480a52, 0x480eb0 and kin) index the 2D row table with rows past
+either end - deliberately, in stock: a second table sat right behind
+this one in memory, so an out-of-range row landed in it and wrapped the
+plane vertically. Relocating the row table broke that arrangement. The
+new neighbour is the coverage mask, so the plane's over-the-edge rows
+sprayed writes at garbage offsets - the corruption seen over the top
+line once the top band was gone.
 
-Second, the roll uses a second tile plane (rings 0x1cc3e00/0x1cc41ea, its
-own scroll word 0x34155c6, 60 rows), whose destination helpers (0x480a52,
-0x480eb0 and kin) index the 2D row table with rows past either end -
-stock's deliberate vertical wrap into the second table right behind it,
-which relocating the table broke: the neighbours are the mask now, so the
-plane's over-the-edge rows sprayed at garbage offsets, the corruption
-seen over the top line once the top band was gone.
-
-The ten unbounded loads go through ui.asm rowsafe: in range it is the
-plain table load, out of range it wraps by the frame height as stock's
-adjacency did, and during the roll it parks the write on the canvas guard
-instead, since the wrapped sliver was only ever hidden by the bands.
+The ten unbounded loads now go through ui.asm rowsafe. In range it is
+the plain table load; out of range it wraps by the frame height, the way
+stock's table adjacency did; and during the roll it parks the write on
+the canvas guard instead, since the wrapped sliver was only ever hidden
+by the bands anyway.
 
 ## Queued work
 
