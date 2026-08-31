@@ -1,38 +1,49 @@
 #!/usr/bin/env python3
-"""Build the resolution patch's UI_CODE from ui.asm into vo_patch.py.
+"""Build the resolution patch's UI_CODE from asm/ui.asm into vo_patch.py.
 
     python3 tools/uibuild.py
 
-Preprocessing: NAME = value equates are substituted, comments stripped,
-and each .long becomes a unique 4-byte marker instruction pair that is
-overwritten with the value after assembly (keystone has no data
-directives). Label offsets are read back by assembling a second copy
-with a jmp to every wanted label appended at the end - appending shifts
-nothing - and decoding the rel32s. The blob and every offset constant
-derived from it (UI_CALLS, UI_STUBS, UI_WORLD, UI_SUBMIT, UI_HUD_ENTER,
-UI_INSERT_A/B, UI_HANGAR_DRAW, UI_FRAME, UI_FLUSH_A/B, UI_F4) are written into vo_patch.py. UI_REFS is
-regenerated from the new blob. tools/hiresport.py must be rerun after
-this for the non-retail tables.
+asm/ui.asm is nasm, like the rest of asm/, but position independent and
+carrying its own address list, so it is built here rather than by
+asm/build.py: label offsets are read out of a dd table appended in a
+temporary copy, and the blob and every offset constant derived from it
+(UI_CALLS, UI_STUBS, UI_WORLD, UI_SUBMIT, UI_HUD_ENTER, UI_INSERT_A/B,
+UI_HANGAR_DRAW, UI_FRAME, UI_FLUSH_A/B, UI_F4) are written into
+vo_patch.py. UI_REFS - every game-address dword in the blob, by position,
+from its own disassembly - is regenerated with capstone.
+tools/hiresport.py must be rerun after this for the non-retail tables.
+
+--check reassembles and compares against the committed blob; nasm is
+enough for that (CI has it). Without nasm it falls back to the recorded
+fingerprint of the source that built the committed blob.
 """
 import os
 import re
 import struct
+import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-UI = os.path.join(ROOT, 'ui.asm')
+UI = os.path.join(ROOT, 'asm', 'ui.asm')
 HIRES = os.path.join(ROOT, 'vo_patch.py')
 
 LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
+          'stub1_call', 'stub2_call', 'stub3_call', 'stub4_call',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
           'flush_b', 'f4_toggle', 'dlg_init', 'dlg_ok', 'dlg_done',
           'ini_load', 'ini_save', 'roll_blit', 'rowsafe']
 
+# Ends the label table a temporary copy of the source carries; the blob
+# is everything before it.
+MAGIC = 0x4c42414c
+
 
 def normalized(src):
-    """The source as the hash sees it: comments and blanks stripped."""
+    """The source as the fingerprint sees it: comments and blanks
+    stripped."""
     out = []
     for ln in src.split('\n'):
         code = ln.split(';')[0].rstrip()
@@ -41,77 +52,70 @@ def normalized(src):
     return '\n'.join(out)
 
 
-def preprocess(src):
-    consts, lines, longs = {}, [], []
-    for ln in src.split('\n'):
-        code = ln.split(';')[0].rstrip()
-        m = re.match(r'^([A-Za-z_][A-Za-z_0-9]*)\s*=\s*(.+)$', code)
-        if m:
-            consts[m.group(1)] = eval(m.group(2), {}, dict(consts))
-            continue
-        if not code.strip():
-            continue
-        m = re.match(r'^\s*\.long\s+(0x[0-9a-fA-F]+)', code)
-        if m:
-            lines.append('    test al, 0x5a')
-            lines.append('    test al, %d' % len(longs))
-            longs.append(int(m.group(1), 16))
-            continue
-        lines.append(code)
-
-    def subst(l):
-        return re.sub(r'\b([A-Za-z_][A-Za-z_0-9]*)\b',
-                      lambda m: hex(consts[m.group(1)])
-                      if m.group(1) in consts else m.group(1), l)
-    return [subst(l) for l in lines], longs
+def have_nasm():
+    try:
+        subprocess.run(['nasm', '-v'], capture_output=True, check=True)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
 
 
-def assemble(ks_mod, lines, longs):
-    ks = ks_mod.Ks(ks_mod.KS_ARCH_X86, ks_mod.KS_MODE_32)
-    enc, _ = ks.asm('\n'.join(lines), 0)
-    blob = bytearray(enc)
-    for k, v in enumerate(longs):
-        pat = bytes([0xa8, 0x5a, 0xa8, k])
-        i = blob.find(pat)
-        assert i >= 0 and blob.find(pat, i + 1) < 0, '.long marker %d' % k
-        struct.pack_into('<I', blob, i, v)
-    return bytes(blob)
+def assemble(src_asm):
+    """(blob, {label: offset}) through nasm, in a temporary directory."""
+    table = ('\ndd 0x%08x\n' % MAGIC
+             + ''.join('dd %s\n' % lb for lb in LABELS))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'ui.asm')
+        out = os.path.join(tmp, 'ui.bin')
+        with open(path, 'w') as f:
+            f.write(src_asm + table)
+        subprocess.run(['nasm', '-f', 'bin', '-o', out, path], check=True)
+        with open(out, 'rb') as f:
+            raw = f.read()
+    pos = len(raw) - 4 * (len(LABELS) + 1)
+    if struct.unpack_from('<I', raw, pos)[0] != MAGIC:
+        raise SystemExit('label table not where expected')
+    offs = dict(zip(LABELS, struct.unpack_from('<%dI' % len(LABELS),
+                                               raw, pos + 4)))
+    return raw[:pos], offs
+
+
+def fingerprint_check(src_asm):
+    import hashlib
+    import vo_patch_hires as hires
+    digest = hashlib.sha256(normalized(src_asm).encode()).hexdigest()
+    if digest == hires.UI_ASM_SHA:
+        print('asm/ui.asm matches the committed blob (by fingerprint; '
+              'install nasm to reassemble)')
+        return
+    print('asm/ui.asm changed but the committed UI_CODE was not rebuilt: '
+          'run tools/uibuild.py and tools/hiresport.py')
+    sys.exit(1)
 
 
 def main():
     check = '--check' in sys.argv
     src_asm = open(UI).read()
+    if not have_nasm():
+        if check:
+            fingerprint_check(src_asm)
+            return
+        sys.exit('building needs nasm: sudo apt install nasm')
+    blob, offs = assemble(src_asm)
+    if check:
+        sys.path.insert(0, HERE)
+        import vo_patch_hires as hires
+        if hires.UI_CODE == blob:
+            print('asm/ui.asm matches the committed blob')
+            return
+        print('asm/ui.asm and the committed UI_CODE differ: run '
+              'tools/uibuild.py and tools/hiresport.py')
+        sys.exit(1)
     try:
         import capstone
-        import keystone
     except ImportError:
-        if not check:
-            sys.exit('building needs keystone and capstone: '
-                     'pip install keystone-engine capstone')
-        # a fresh checkout with nothing installed still gets a real
-        # answer: the recorded fingerprint of the source that built the
-        # committed blob
-        import hashlib
-        import vo_patch_hires as hires
-        digest = hashlib.sha256(normalized(src_asm).encode()).hexdigest()
-        if digest == hires.UI_ASM_SHA:
-            print('ui.asm matches the committed blob (by fingerprint; '
-                  'install keystone-engine and capstone to reassemble)')
-            return
-        print('ui.asm changed but the committed UI_CODE was not rebuilt: '
-              'run tools/uibuild.py and tools/hiresport.py')
-        sys.exit(1)
-    lines, longs = preprocess(src_asm)
-    blob = assemble(keystone, lines, longs)
-    probed = assemble(keystone, lines + ['    jmp %s' % l for l in LABELS],
-                      longs)
-    assert probed[:len(blob)] == blob
-    offs = {}
-    p = len(blob)
-    for label in LABELS:
-        assert probed[p] == 0xe9
-        offs[label] = p + 5 + struct.unpack_from('<i', probed, p + 1)[0]
-        p += 5
+        sys.exit('regenerating UI_REFS needs capstone: '
+                 'pip install capstone')
 
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     md.detail = True
@@ -128,14 +132,6 @@ def main():
                     refs.append((i.address + o, v))
 
     src = open(HIRES).read()
-    if check:
-        import vo_patch_hires as hires
-        if hires.UI_CODE == blob:
-            print('ui.asm matches the committed blob')
-            return
-        print('ui.asm and the committed UI_CODE differ: run '
-              'tools/uibuild.py and tools/hiresport.py')
-        sys.exit(1)
 
     def setblock(begin, end, body):
         nonlocal src
@@ -172,9 +168,7 @@ def main():
     setconst('UI_FRAME, UI_FLUSH_A, UI_FLUSH_B',
              '%s, %s, %s' % (hex(offs['frame_setup']), hex(offs['flush_a']),
                              hex(offs['flush_b'])))
-    for tag, names in (('UI_CALLS', None),):
-        pass
-    calls = [(offs['stub%d' % n] + 10, t) for n, t in
+    calls = [(offs['stub%d_call' % n], t) for n, t in
              ((1, 0x4800d0), (2, 0x4804f0), (3, 0x5670c0), (4, 0x5674f0))]
     src = re.sub(
         r'UI_CALLS = \[.*?\]',
