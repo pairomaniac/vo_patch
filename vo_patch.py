@@ -1298,6 +1298,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'BTN': 0x0365cb48,             # wButtons in STATE; the cond table reads it
     'SCR1': 0x0365cb60,            # scratch the tick keeps per player
     'SCR2': 0x0365cb61,
+    'PADIDX': 0x0365cb64,          # XInput slot + 1 per side, 5 none, 0 unbuilt
+    'PADRETRY': 0x0365cb66,        # misses of a side without a pad
     'PSTATE': 0x0365cb70,          # the pump's own XINPUT_STATE, apart from
     'PBTN': 0x0365cb74,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x0365cb80,         # resolved Sleep: 0 not yet, 1 failed
@@ -1468,6 +1470,8 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'BTN': 0x036577a8,             # wButtons in STATE; the cond table reads it
     'SCR1': 0x036577c0,            # scratch the tick keeps per player
     'SCR2': 0x036577c1,
+    'PADIDX': 0x036577c4,          # XInput slot + 1 per side, 5 none, 0 unbuilt
+    'PADRETRY': 0x036577c6,        # misses of a side without a pad
     'PSTATE': 0x036577d0,          # the pump's own XINPUT_STATE, apart from
     'PBTN': 0x036577d4,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x036577e0,         # resolved Sleep: 0 not yet, 1 failed
@@ -1630,6 +1634,8 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'BTN': 0x0365cac8,             # wButtons in STATE; the cond table reads it
     'SCR1': 0x0365cae0,            # scratch the tick keeps per player
     'SCR2': 0x0365cae1,
+    'PADIDX': 0x0365cae4,          # XInput slot + 1 per side, 5 none, 0 unbuilt
+    'PADRETRY': 0x0365cae6,        # misses of a side without a pad
     'PSTATE': 0x0365caf0,          # the pump's own XINPUT_STATE, apart from
     'PBTN': 0x0365caf4,            # the tick's; wButtons in PSTATE
     'SLEEPFN': 0x0365cb00,
@@ -2241,8 +2247,8 @@ BLOBS = {
         'credits': 0xe6,
     }),
     'PADX': (bytes.fromhex(
-        '68de020000e81501000083c404e9fcffffff6806030000e80301000083c404e9'
-        'fcffffffe806000000ff2500000000609ce84602000083f8010f86d500000031'
+        '6877030000e81501000083c404e9fcffffff689f030000e80301000083c404e9'
+        'fcffffffe806000000ff2500000000609ce8df02000083f8010f86d500000031'
         'f683fe020f83ca000000680000000056ff150000000085c00f85b00000000fb7'
         '1d000000008d14b5000000000fb72a66891a89d825100300003d100300007548'
         '803d060000001e723f803d070000001e723689e825100300003d10030000746e'
@@ -2250,28 +2256,33 @@ BLOBS = {
         '0000ffffffffeb4631ff83ff02733f8d0cbd170100000fb70189da21c221e839'
         'c27428b80001000085d2750b807903007419b8010100006a000fb651025250ff'
         '3500000000ff150000000047ebbc46e92dffffff9d61c3100072000010200055'
-        '89e583ec045356578b5d08c745fc00000000e84501000083f801744168000000'
-        '00ff33ffd085c07534c745fc010000000fb70500000000a900100000740b8b53'
-        '18c60280e8fcffffff0fb70500000000a92000000074068b5324c602808b4320'
-        'ffd0837dfc000f843201000031f683fe0c0f83a1000000833d00000000047512'
-        '833d00000000087c09833d000000000c7e0f83fe04747b83fe05747683fe077f'
-        '778b53040fb604722de0000000726383f810735e8d3cc5000000000fb6070fb7'
-        '57028b4f0483f800741783f801741d83f802742c0fb6820000000039c8772eeb'
-        '310fbf8200000000f7d8eb070fbf82000000008b0b3b048d000000007f0feb12'
-        '0fb7050000000085c87502eb05e82100000046e956ffffff31f683fe04737f0f'
-        'b705000000000fa3f07305e80300000046ebe78b53100fb60c32f7d18b53080f'
-        'b70221c86689028b53140fb60c32f7d18b530c0fb70221c8668902c3a1000000'
-        '0085c075385631f683fe0373258b04b5c302000050ff150000000085c0750346'
-        'ebe668cf02000050ff150000000085c07505b801000000a3000000005ec35f5e'
-        '5bc9c32e0300003c0300004a03000058496e7075744765745374617465000000'
+        '89e583ec045356578b5d08c745fc00000000e8de01000083f80174448b03ba00'
+        '000000e83b01000085c07534c745fc010000000fb70500000000a90010000074'
+        '0b8b5318c60280e8fcffffff0fb70500000000a92000000074068b5324c60280'
+        '8b4320ffd0837dfc000f84c801000031f683fe0c0f83a1000000833d00000000'
+        '047512833d00000000087c09833d000000000c7e0f83fe04747b83fe05747683'
+        'fe077f778b53040fb604722de0000000726383f810735e8d3cc5000000000fb6'
+        '070fb757028b4f0483f800741783f801741d83f802742c0fb6820000000039c8'
+        '772eeb310fbf8200000000f7d8eb070fbf82000000008b0b3b048d000000007f'
+        '0feb120fb7050000000085c87502eb05e82500000046e956ffffff31f683fe04'
+        '0f83110100000fb705000000000fa3f07305e80300000046ebe38b53100fb60c'
+        '32f7d18b53080fb70221c86689028b53140fb60c32f7d18b530c0fb70221c866'
+        '8902c35389c366833d00000000007505e83b0000000fb683000000003c057318'
+        '485250ff150000000085c0742166c705000000000000eb11fe05000000007509'
+        '66c705000000000000b8010000005bc356575389d366c70500000000050531f6'
+        '31ff8b04bd000000004883f801771a83fe04731b5356ff15000000004685c075'
+        'ee89f08887000000004783ff0272d389da5b5f5ec3a10000000085c075385631'
+        'f683fe0373258b04b55c03000050ff150000000085c0750346ebe66868030000'
+        '50ff150000000085c07505b801000000a3000000005ec35f5e5bc9c3c7030000'
+        'd5030000e303000058496e707574476574537461746500000000000000000000'
+        '0000000000000000000000000000000000000000000000000000000000000001'
         '0000000000000000000000000000000000000000000000000000000000000000'
-        '0000000000000100000000000000000000000000000000000000000000000000'
-        '000000000000000000000000000078696e707574315f342e646c6c0078696e70'
-        '7574315f332e646c6c0078696e707574395f315f302e646c6c00'
+        '0000000000000078696e707574315f342e646c6c0078696e707574315f332e64'
+        '6c6c0078696e707574395f315f302e646c6c00'
     ), (
-        (0x1, 'abs', '.', 734),
+        (0x1, 'abs', '.', 887),
         (0xe, 'rel', 'EXIT1P', -4),
-        (0x13, 'abs', '.', 774),
+        (0x13, 'abs', '.', 927),
         (0x20, 'rel', 'EXIT2P', -4),
         (0x2b, 'abs', 'PEEKMSG', 0),
         (0x4b, 'abs', 'PSTATE', 0),
@@ -2287,47 +2298,57 @@ BLOBS = {
         (0xd2, 'abs', '.', 279),
         (0x101, 'abs', 'HWND', 0),
         (0x107, 'abs', 'POSTMSG', 0),
-        (0x13d, 'abs', 'STATE', 0),
-        (0x153, 'abs', 'BTN', 0),
-        (0x165, 'rel', 'CAMSKIP', -4),
-        (0x16c, 'abs', 'BTN', 0),
-        (0x199, 'abs', 'MODE', 0),
-        (0x1a2, 'abs', 'SUBMODE', 0),
-        (0x1ab, 'abs', 'SUBMODE', 0),
-        (0x1d7, 'abs', 'COND', 0),
-        (0x1f7, 'abs', 'BTN', 0),
-        (0x204, 'abs', 'BTN', 0),
-        (0x20f, 'abs', 'BTN', 0),
-        (0x218, 'abs', 'DZTHR1', 0),
-        (0x223, 'abs', 'BTN', 0),
-        (0x242, 'abs', 'BTN', 0),
-        (0x27d, 'abs', 'XIFN', 0),
-        (0x290, 'abs', '.', 707),
-        (0x297, 'abs', 'LOADLIB', 0),
-        (0x2a3, 'abs', '.', 719),
-        (0x2aa, 'abs', 'GETPROC', 0),
-        (0x2b8, 'abs', 'XIFN', 0),
-        (0x2c3, 'abs', '.', 814),
-        (0x2c7, 'abs', '.', 828),
-        (0x2cb, 'abs', '.', 842),
-        (0x2e2, 'abs', 'BINDS1', 0),
-        (0x2e6, 'abs', 'LEV1A', 0),
-        (0x2ea, 'abs', 'LEV1B', 0),
-        (0x2ee, 'abs', 'MASK1A', 0),
-        (0x2f2, 'abs', 'MASK1B', 0),
-        (0x2f6, 'abs', 'ACCEPT1', 0),
-        (0x2fa, 'abs', 'SCR1', 0),
-        (0x2fe, 'abs', 'KBD1P', 0),
-        (0x302, 'abs', 'CAMERA1', 0),
-        (0x30a, 'abs', 'BINDS2', 0),
-        (0x30e, 'abs', 'LEV2A', 0),
-        (0x312, 'abs', 'LEV2B', 0),
-        (0x316, 'abs', 'MASK2A', 0),
-        (0x31a, 'abs', 'MASK2B', 0),
-        (0x31e, 'abs', 'ACCEPT2', 0),
-        (0x322, 'abs', 'SCR2', 0),
-        (0x326, 'abs', 'KBD2P', 0),
-        (0x32a, 'abs', 'CAMERA2', 0),
+        (0x13f, 'abs', 'STATE', 0),
+        (0x156, 'abs', 'BTN', 0),
+        (0x168, 'rel', 'CAMSKIP', -4),
+        (0x16f, 'abs', 'BTN', 0),
+        (0x19c, 'abs', 'MODE', 0),
+        (0x1a5, 'abs', 'SUBMODE', 0),
+        (0x1ae, 'abs', 'SUBMODE', 0),
+        (0x1da, 'abs', 'COND', 0),
+        (0x1fa, 'abs', 'BTN', 0),
+        (0x207, 'abs', 'BTN', 0),
+        (0x212, 'abs', 'BTN', 0),
+        (0x21b, 'abs', 'DZTHR1', 0),
+        (0x226, 'abs', 'BTN', 0),
+        (0x249, 'abs', 'BTN', 0),
+        (0x289, 'abs', 'PADIDX', 0),
+        (0x298, 'abs', 'PADIDX', 0),
+        (0x2a5, 'abs', 'XIFN', 0),
+        (0x2b0, 'abs', 'PADIDX', 0),
+        (0x2ba, 'abs', 'PADRETRY', 0),
+        (0x2c3, 'abs', 'PADIDX', 0),
+        (0x2d8, 'abs', 'PADIDX', 0),
+        (0x2e5, 'abs', 'DEVICES', 0),
+        (0x2f8, 'abs', 'XIFN', 0),
+        (0x305, 'abs', 'PADIDX', 0),
+        (0x316, 'abs', 'XIFN', 0),
+        (0x329, 'abs', '.', 860),
+        (0x330, 'abs', 'LOADLIB', 0),
+        (0x33c, 'abs', '.', 872),
+        (0x343, 'abs', 'GETPROC', 0),
+        (0x351, 'abs', 'XIFN', 0),
+        (0x35c, 'abs', '.', 967),
+        (0x360, 'abs', '.', 981),
+        (0x364, 'abs', '.', 995),
+        (0x37b, 'abs', 'BINDS1', 0),
+        (0x37f, 'abs', 'LEV1A', 0),
+        (0x383, 'abs', 'LEV1B', 0),
+        (0x387, 'abs', 'MASK1A', 0),
+        (0x38b, 'abs', 'MASK1B', 0),
+        (0x38f, 'abs', 'ACCEPT1', 0),
+        (0x393, 'abs', 'SCR1', 0),
+        (0x397, 'abs', 'KBD1P', 0),
+        (0x39b, 'abs', 'CAMERA1', 0),
+        (0x3a3, 'abs', 'BINDS2', 0),
+        (0x3a7, 'abs', 'LEV2A', 0),
+        (0x3ab, 'abs', 'LEV2B', 0),
+        (0x3af, 'abs', 'MASK2A', 0),
+        (0x3b3, 'abs', 'MASK2B', 0),
+        (0x3b7, 'abs', 'ACCEPT2', 0),
+        (0x3bb, 'abs', 'SCR2', 0),
+        (0x3bf, 'abs', 'KBD2P', 0),
+        (0x3c3, 'abs', 'CAMERA2', 0),
     ), {
         'entry1p': 0x0,
         'entry2p': 0x12,
@@ -2336,16 +2357,17 @@ BLOBS = {
         'keytab': 0x117,
         'keytab_end': 0x11f,
         'tick': 0x11f,
-        'apply': 0x253,
-        'resolve': 0x27c,
-        'epilogue': 0x2be,
-        'dlltab': 0x2c3,
-        'procname': 0x2cf,
-        'block1': 0x2de,
-        'block2': 0x306,
-        'dll14': 0x32e,
-        'dll13': 0x33c,
-        'dll910': 0x34a,
+        'apply': 0x25a,
+        'padpoll': 0x283,
+        'resolve': 0x315,
+        'epilogue': 0x357,
+        'dlltab': 0x35c,
+        'procname': 0x368,
+        'block1': 0x377,
+        'block2': 0x39f,
+        'dll14': 0x3c7,
+        'dll13': 0x3d5,
+        'dll910': 0x3e3,
     }),
     'LEVERS': (bytes.fromhex(
         '837dfc0074288b53088b4b0cf60280750df601407508800a708009b0eb10f602'
@@ -2593,12 +2615,14 @@ BLOBS = {
         'dzseed': 0x31,
     }),
     'COMMITDEV': (bytes.fromhex(
-        '89048d0000000083f801740583f80375275657516bf1708db60800000083f803'
-        '750383c6306bf9188dbf00000000b906000000f3a5595f5ec3'
+        '89048d0000000066c70500000000000083f801740583f80375275657516bf170'
+        '8db60800000083f803750383c6306bf9188dbf00000000b906000000f3a5595f'
+        '5ec3'
     ), (
         (0x3, 'abs', 'DEVICES', 0),
-        (0x19, 'abs', 'BLOCKS', 8),
-        (0x2a, 'abs', 'BINDS1', 0),
+        (0xa, 'abs', 'PADIDX', 0),
+        (0x22, 'abs', 'BLOCKS', 8),
+        (0x33, 'abs', 'BINDS1', 0),
     ), {
         'commitdev': 0x0,
     }),
@@ -3792,7 +3816,8 @@ FEATURES = [
      'Simple and the gamepad share one bind page, but each sees only its\n'
      'own inputs, and both bind sets are saved.\n'
      '\n'
-     'Pad 1 drives 1P and pad 2 drives 2P. A accepts, Select is the\n'
+     'The players on a pad profile take the connected pads in order,\n'
+     '1P first. A accepts, Select is the\n'
      'camera, Start pauses, and the D-pad works the menus. A or Select\n'
      'skips the win and lose screens between rounds; A skips the intro\n'
      'movie. On-screen prompts name the button rather than a key.\n'
