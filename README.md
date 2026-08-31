@@ -181,7 +181,7 @@ during an internet match. Every other menu was already on a key:
     | --- | --- |
     | **F1** | Help |
     | **F3** | Pause |
-    | **F4** | High / low resolution (does nothing with Widescreen 1080p on) |
+    | **F4** | High / low resolution (1080p / 720p with Widescreen 1080p on) |
     | **F5** | Graphic Settings |
     | **F6** | Mode Settings |
     | **F7** | Device Settings |
@@ -446,8 +446,9 @@ rather than stretching the middle.
 
 What changes when it is on:
 
-- **F4** does nothing. Stock toggles a 320x240 mode; there is no
-  320x240 here, so the key and its menu entry are turned off.
+- **F4** switches between 1920x1080 and 1280x720, in place of stock's
+  640x480 / 320x240. The F5 menu entry that picked 320x240 outright is
+  turned off.
 - **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
   bottom); the third choice, which duplicated the first, is gone. In
   side by side the timer and health bars sit at the top of each half,

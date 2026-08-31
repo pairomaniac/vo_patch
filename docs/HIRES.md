@@ -85,9 +85,20 @@ Around 196 sites over the retail executable, in families:
 - GDI text: the draw at 0x5c991c centres on (x,y); the wrap routine
   0x5c8da6 and the loading-strip rects carry 640x480 bounds; the two
   24px LOGFONTs (.data 0x2c7370/0x2c73f0) scale by h/480.
-- F4 and the 320x240 mode are defused (0x5c74da falls through to its
-  exit, the direct menu command jumps there); no baked scale covers that
-  mode. The F5 Screen Split radio labels become "Ver"/"Hor" and the
+- F4: the handler (0x5c74ec, past the network-game guard) jumps to the
+  blob's f4_toggle. The sites are written for the first size; a table
+  in the section (UI_F4TAB_OFF, in the file) lists every site whose
+  bytes differ for the second size (HIRES_ALT, 1280x720) with both
+  byte sets, plus the size-derived data words and the idle-pass
+  recreate's pushes in asm/activate.asm. The toggle copies the other set
+  over the sites (.text is given the writable flag; the buffers are
+  sized for the larger of the two), reruns the coverage-mask table init
+  (0x5ce180) and the font build (0x5c8ca0, cache 0x6c866c cleared),
+  and calls the recreate (0x5c56a2) with the new size; on failure the
+  first set goes back and the idle pass recreates at that. The game's
+  own low-resolution flag stays clear, so none of its halving paths
+  run. The direct 320x240 menu command (0x5c79aa) jumps to the handler
+  exit. The F5 Screen Split radio labels become "Ver"/"Hor" and the
   redundant Type2 is hidden.
 - The machine-select hangar draw (0x59e4ea) is wrapped to widen the
   platform-mech angle window for the wider FOV, fading the outermost
@@ -108,8 +119,9 @@ check pipeline, by fingerprint when keystone is not installed, so ui.asm
 and the committed blob cannot drift.
 
 Section layout: code (under 0x1600), pass stubs at 0x1600, data block at
-0x1800 (D_*), split FOV factors at 0x1848, then the row table, the mask,
-the canvas and its copy (UI_OFF/UI_OFF_SIZE).
+0x1800 (D_*), split FOV factors at 0x1848, the F4 site table at 0x1b00,
+then the canvas and its copy (UI_OFF/UI_OFF_SIZE), the mask, the row
+table and the polygon pool.
 
 The blob stands down for a frame whose saved surface base is null
 (pre stores the flag, post honours it): the Japanese build runs its 2D
@@ -236,11 +248,6 @@ blit path (the 0x47f0c0 family) and the ring buffer above.
 
 ## Queued work
 
-- **F4 as a real 1080/720 toggle.** Every baked scale (2D, HUD,
-  projection, split geometry, row maths) becomes a pair selected at
-  runtime on the flag. A rework of its own; the game's own plumbing
-  only offers the exact half (960x540) for free, since every low-mode
-  path is a halving.
 - **Credits fade removal**, once the lead above lands.
 - **The JP and OEM port.** JP's table now generates clean and needs a
   boot; OEM's rasterizer fault is unexplained - see lesson 5.

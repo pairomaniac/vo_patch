@@ -82,7 +82,10 @@ import urllib.error
 #      split is drawn only in the sub-states that draw a round
 #      (HIRES_SPLIT_STATES); every other frame is one full-screen
 #      viewport, so the machine select is no longer the same grid twice.
-#   -  F4 and the 320x240 mode are defused; no baked scale covers them.
+#   -  F4 switches between 1920x1080 and 1280x720 (HIRES_ALT): the
+#      sites are written for the first, and a table in the section holds
+#      both sets for the blob to copy over them at runtime, then the
+#      surfaces are recreated. The 320x240 menu command is defused.
 #
 # The exe grows by one section: about 5 KB of code and data plus a
 # header; the buffers are zero-filled by the loader.
@@ -300,6 +303,11 @@ UI_REFS = (
     (0x1382, 0x345bd58),
     (0x1395, 0x345b2c8),
     (0x13f9, 0x059cb93),
+    (0x1453, 0x05c56a2),
+    (0x1467, 0x05c755a),
+    (0x149f, 0x05ce180),
+    (0x14a7, 0x06c866c),
+    (0x14b2, 0x05c8ca0),
 )
 # UI REFS END
 
@@ -339,7 +347,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = 'a6a81a8d9ffe103db88b930929d366401b3854b19ca6f4300e3667f428a65386'
+UI_ASM_SHA = '01043c92a9a4ea8d27fae03a6cf2edb905360d0b2a4e66e1abff65d27293decf'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
     '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
@@ -406,27 +414,27 @@ UI_CODE = bytes.fromhex(
     '0000a8f56b00740c8b0d908aef018b15b09eef0183f904754983fa1b741283fa14740d83'
     'fa15740883ea0983fa037732c783701a0000010000008b8bd0180000c1e110898b741a00'
     '0083bb381800000075100faf835c180000c1e8108983781a0000c7831818000000000000'
-    '8dbb001b0f008bab44180000c1e5108b8364180000c1e8100faf835c18000029c589ab84'
+    '8dbb003b0f008bab44180000c1e5108b8364180000c1e8100faf835c18000029c589ab84'
     '1a000083bb781a000000740231ed89e8c1f81078683b830c1800007d600faf8304180000'
     '03830018000089c68b9334180000c1e2108b8360180000c1e8100faf835c18000029c231'
     'c989d0c1f810780e3b83081800007d06668b0446eb0231c06689044f6689844f00001e00'
     '03935c180000413b8b281800007cceeb1e5731c08b8b28180000f366ab5f5781c700001e'
     '008b8b28180000f366ab5f81c70008000003ab5c180000ff83181800008b831818000083'
     'bb781a000000741d3b836c1a000075158bab841a00000faf835c18000001c58b83181800'
-    '003b832c1800000f8c29ffffff8d83001b0f008bb31c1800008906c705acf56b00000800'
+    '003b832c1800000f8c29ffffff8d83003b0f008bb31c1800008906c705acf56b00000800'
     '008b8328180000a3b8f56b008b832c180000a3bcf56b008bbb3c18000031c031c989048f'
     '05000800004181f9e00100007cef61c360e8000000005b81eb7e0a00008b8354180000a3'
     '48c96b008bb31c1800008b830018000085c0750261c389068b8304180000a3acf56b008b'
     '8308180000a3b8f56b008b830c180000a3bcf56b008bbb3c18000031c031c989048f0383'
     '04180000413b8b0c1800007cee8b83881a000085c0742081bb1c180000a8f56b00750b83'
     'f8020f848b030000eb0983f8010f848003000083bb381800000074678b832c180000c1e0'
-    '0231d2b903000000f7f13b83281800007d4d89c18db3001b0f0031d251668b044e663b84'
+    '0231d2b903000000f7f13b83281800007d4d89c18db3003b0f0031d251668b044e663b84'
     '4e00001e007533413b8b281800007ce95981c600080000423b932c1800007cd88b832c18'
     '0000c1e00231d2b903000000f7f1898328180000eb0159e852faffff8b83401800008983'
     '801a00008b834418000083bb781a000000740e8b83781a00008983801a000031c00faf83'
     '041800000383001800008bbb341800008d3c788b8364180000898358180000c783181800'
     '00000000008bb35818000089f025ffff0000c1e80889838c180000c1ee1089f0403b832c'
-    '1800007c014869c0000800008d8403001b0f0089838818000069f6000800008db433001b'
+    '1800007c014869c0000800008d8403003b0f0089838818000069f6000800008db433003b'
     '0f008b936018000031c989d5c1ed1083bb8418000000751b668b046e663b846e00001e00'
     '0f84610100006689044fe958010000668b046e663b846e00001e00753a668b446e02663b'
     '846e02001e00752b568bb388180000668b046e663b846e00001e007515668b446e02663b'
@@ -484,7 +492,11 @@ UI_CODE = bytes.fromhex(
     '7408ddd8d9832e140000d9e8d8d9dfe0f6c401750ed88ba8180000db9b641a0000eb0cdd'
     'd8c783641a0000000000005a58508b4424088983681a00008d83fe13000089442408585b'
     '6893cb5900c353e8000000005b81eb04140000c783641a000000000000ffb3681a00008b'
-    '5c240483c408ff6424f8a470e341abaaaa3d00008037')
+    '5c240483c408ff6424f8a470e341abaaaa3d0000803760e8000000005b81eb38140000e8'
+    '280000006a10ffb324180000ffb320180000b8a2565c00ffd083c40c85c07505e8070000'
+    '0061685a755c00c38b83c01a000083f0018983c01a00008bb3c41a00008b3e85ff74178b'
+    '4e0483c6085685c0740201ce89caf3a45e8d3456ebe3b880e15c00ffd0c7056c866c0000'
+    '0000006a01b8a08c5c00ffd083c404c3')
 # UI CODE END
 UI_CALLS = [(0x4c1, 0x4800d0), (0x4d6, 0x4804f0),   # rel32 at offset+1
             (0x4eb, 0x5670c0), (0x500, 0x5674f0)]
@@ -505,6 +517,7 @@ UI_INSERT_A, UI_INSERT_B = 0x104d, 0x1085
 UI_HUD_ENTER = 0x38c
 UI_HANGAR_DRAW = 0x1364
 UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12ec, 0x1328
+UI_F4 = 0x1432
 UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
 UI_ROWTAB = 0x183c                          # row table address, likewise
@@ -517,8 +530,12 @@ UI_SHIFT = 0x19b8                           # HUD polygon x shift per layout, y
 UI_PINTH = 0x1a6c                           # split HUD band threshold, 0 off
 UI_SPLITST = 0x1a90                         # sub-states drawn split
 UI_DEBUG = 0x1a98                           # 1: state readout on the frame
+UI_F4MODE = 0x1ac0                          # 0: first size in place, 1: second
+UI_F4TAB = 0x1ac4                           # the F4 site table's address
 assert len(UI_CODE) <= UI_PASS_STUBS        # data block starts at 0x1800
-UI_OFF = 0x1b00                             # offscreen: guard, canvas, guard
+UI_F4TAB_OFF = 0x1b00                       # the F4 site table, in the file
+UI_F4TAB_SIZE = 0x2000
+UI_OFF = 0x3b00                             # offscreen: guard, canvas, guard
 # Functions that draw HUD elements: everything they submit, directly or
 # through callees, is HUD (see hud_enter in ui.asm). They are the
 # functions that call the projection setup with the HUD focal lengths
@@ -689,11 +706,12 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                         0x1c8abe, 0x1c8b52, 0x1c4dd8], 640, w)
     sites += imm_sites([0x1b098b, 0x1c617a, 0x1c68fc, 0x1c6d3d, 0x1c898b,
                         0x1c8ab9, 0x1c8b4d, 0x1c4dd3], 480, h)
-    # The 320x240 mode has no place at this size: F4's toggle at 0x5c74da
-    # falls through to its exit, and the menu command that picked 320x240
-    # outright (0x5c79aa) jumps there too. Both would set a mode this
-    # patch's scales do not cover.
-    sites += [(0x1c68e1, bytes.fromhex('0f8505000000'), b'\x90' * 6),
+    # F4: past the network-game guard, the handler (0x5c74da) toggled
+    # 320x240. It goes to the section instead (ui.asm f4_toggle), which
+    # switches between the two sizes the patcher wrote. The menu command
+    # that picked 320x240 outright (0x5c79aa) jumps to the handler exit.
+    sites += [(0x1c68ec, bytes.fromhex('f60598f56b0004'),
+               b'\xe9' + u32(sec_va + UI_F4 - (0x5c74ec + 5)) + b'\x90\x90'),
               (0x1c6daa, bytes.fromhex('6a1068f0000000'),
                b'\xe9' + u32(A('F4EXIT') - (A('F4CASE') + 5)) + b'\x90\x90')]
     # 0x5c9404 returns failure for any mode but the two it knows. This is
@@ -943,13 +961,87 @@ HIRES_SPLIT_STATES = (9, 10, 11, 12, 0xd, 0xe, 0x14, 0x15, 0x1b)
 HIRES_DEBUG_STATES = False
 
 
-def hires_install(buf, width, height):
-    """Patch buf (a bytearray of v_on.exe, stock or vo_patch'd) in place
-    for width x height. Raises ValueError on a size or byte mismatch.
-    Returns the number of sites written."""
+# The size F4 switches to and back from. Both sizes are written: the
+# first into the code, the second into a table in the section that the
+# blob copies over the sites at runtime (ui.asm f4_toggle).
+HIRES_ALT = (1280, 720)
+
+
+def _ui_words(w, hh):
+    """The size-derived words of the data block, by section offset."""
+    # 3D scale: the height (vertical FOV kept, Hor+). Split viewports
+    # take a scale between the 4:3 that fits inside them and the one
+    # that fills them; the game's split block multiplies the 1P scale
+    # by K, and the compositor uses the same scale for the 2D layer.
+    full = hh / 480
+
+    def split_scale(vw, vh, mode):
+        fit, fill = min(vw / 640, vh / 480), max(vw / 640, vh / 480)
+        return {'fit': fit, 'fill': fill,
+                'mean': math.sqrt(fit * fill)}[mode]
+    s_sbs = split_scale(w / 2, hh, HIRES_SPLIT_FOV)
+    s_tb = split_scale(w, hh / 2, HIRES_SPLIT_FOV)
+    # HUD scale: the 4:3 frame that fits inside the viewport, for the
+    # HUD passes (through the compositor's float) and the 2D layer.
+    h_1p = min(w / 640, hh / 480)
+    h_sbs = min(w / 2 / 640, hh / 480)
+    h_tb = min(w / 640, hh / 2 / 480)
+    sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
+    return {
+        UI_MODEW: struct.pack('<II', w, hh),
+        UI_KSBS: struct.pack('<ff', s_sbs / full, s_tb / full),
+        UI_SCALE: struct.pack('<III', int(h_1p * 65536),
+                              int(h_sbs * 65536), int(h_tb * 65536)),
+        UI_HUD: struct.pack('<ffff', h_1p, h_sbs, h_tb, h_1p),
+        UI_SHIFT: struct.pack('<iiii', sx[0], sx[1], sx[2], 0),
+    }
+
+
+def _hires_check_size(width, height):
     if width % 32 or height % 8 or width > 2040:
         raise ValueError('width must be a multiple of 32 and at most 2040, '
                          'height a multiple of 8')
+
+
+def _va_at(pe, off):
+    """A file offset's virtual address."""
+    for x in pe.sections:
+        if x['raddr'] <= off < x['raddr'] + x['rsize']:
+            return pe.base + x['vaddr'] + off - x['raddr']
+    raise ValueError('offset 0x%x is outside every section' % off)
+
+
+def _make_writable(buf, pe, off):
+    """Set the writable flag on the section holding file offset off."""
+    tab = pe.opt + pe.optsz
+    for i, x in enumerate(pe.sections):
+        if x['raddr'] <= off < x['raddr'] + x['rsize']:
+            o = tab + 40 * i + 36
+            chars = struct.unpack_from('<I', buf, o)[0]
+            struct.pack_into('<I', buf, o, chars | 0x80000000)
+            return
+    raise ValueError('offset 0x%x is outside every section' % off)
+
+
+def _annex_pushes(buf, stamp):
+    """The (height, width) push immediates of the idle-pass recreate in
+    asm/activate.asm, as file offsets, when the annex is present."""
+    build = RETAIL if stamp == RETAIL_STAMP else None
+    if build is None or not build.annex or len(buf) <= build.annex[1]:
+        return None
+    off = build.annex[1] + annex_layout(build)[0]['ACTIVATE']
+    if buf[off + 0xae:off + 0xb8] != bytes.fromhex('68e00100006880020000'):
+        return None
+    return off + 0xae + 1, off + 0xb3 + 1
+
+
+def hires_install(buf, width, height, alt=HIRES_ALT):
+    """Patch buf (a bytearray of v_on.exe, stock or vo_patch'd) in place
+    for width x height, with alt as the size F4 switches to. Raises
+    ValueError on a size or byte mismatch. Returns the number of sites
+    written."""
+    _hires_check_size(width, height)
+    _hires_check_size(*alt)
     stamp = _pe_stamp(buf)
     port = None
     if stamp != RETAIL_STAMP:
@@ -961,9 +1053,10 @@ def hires_install(buf, width, height):
     else:
         A = lambda name: port['va'][ADDR[name]]     # noqa: E731
     w, hh = width, height
+    aw, ah = alt
     mask_off = UI_OFF + UI_OFF_SIZE
-    rowtab_off = mask_off + hh * (w // 8 + 4)
-    size = rowtab_off + 2 * hh * 4
+    rowtab_off = mask_off + max(hh * (w // 8 + 4), ah * (aw // 8 + 4))
+    size = rowtab_off + 2 * max(hh, ah) * 4
     pool_off = size
     size += HIRES_POLYS * 0x3c + 8     # pool records, side array, list
     code = UI_CODE
@@ -992,34 +1085,11 @@ def hires_install(buf, width, height):
                 + b'\xe9' + u32(site + ln - (va + 5 + ln + 5)))
         assert len(stub) <= 20 and o + 20 <= 0x1800
         buf[rawptr + o:rawptr + o + len(stub)] = stub
-    struct.pack_into('<II', buf, rawptr + UI_MODEW, w, hh)
+    words, alt_words = _ui_words(w, hh), _ui_words(aw, ah)
+    for off, val in words.items():
+        buf[rawptr + off:rawptr + off + len(val)] = val
     struct.pack_into('<I', buf, rawptr + UI_ROWTAB, sec_va + rowtab_off)
-    # 3D scale: the height (vertical FOV kept, Hor+). Split viewports
-    # take a scale between the 4:3 that fits inside them and the one
-    # that fills them; the game's split block multiplies the 1P scale
-    # by K, and the compositor uses the same scale for the 2D layer.
-    full = hh / 480
-    def split_scale(vw, vh, mode):
-        fit, fill = min(vw / 640, vh / 480), max(vw / 640, vh / 480)
-        return {'fit': fit, 'fill': fill,
-                'mean': math.sqrt(fit * fill)}[mode]
-    s_sbs = split_scale(w / 2, hh, HIRES_SPLIT_FOV)
-    s_tb = split_scale(w, hh / 2, HIRES_SPLIT_FOV)
-    struct.pack_into('<ff', buf, rawptr + UI_KSBS,
-                     s_sbs / full, s_tb / full)
-    # HUD scale: the 4:3 frame that fits inside the viewport, for the
-    # HUD passes (through the compositor's float) and the 2D layer.
-    h_1p = min(w / 640, hh / 480)
-    h_sbs = min(w / 2 / 640, hh / 480)
-    h_tb = min(w / 640, hh / 2 / 480)
-    struct.pack_into('<III', buf, rawptr + UI_SCALE,
-                     int(h_1p * 65536), int(h_sbs * 65536),
-                     int(h_tb * 65536))
-    struct.pack_into('<ffff', buf, rawptr + UI_HUD,
-                     h_1p, h_sbs, h_tb, h_1p)
     struct.pack_into('<I', buf, rawptr + UI_FILTER, 0)  # nearest
-    sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
-    struct.pack_into('<iiii', buf, rawptr + UI_SHIFT, sx[0], sx[1], sx[2], 0)
     struct.pack_into('<I', buf, rawptr + UI_PINTH, HIRES_HUD_BAND)
     struct.pack_into('<Q', buf, rawptr + UI_SPLITST,
                      sum(1 << n for n in HIRES_SPLIT_STATES))
@@ -1029,6 +1099,38 @@ def hires_install(buf, width, height):
     sites = build_sites(w, hh, sec_va, sec_va + mask_off,
                         sec_va + rowtab_off,
                         pool=(sec_va + pool_off, HIRES_POLYS), A=A)
+    alt_sites = build_sites(aw, ah, sec_va, sec_va + mask_off,
+                            sec_va + rowtab_off,
+                            pool=(sec_va + pool_off, HIRES_POLYS), A=A)
+    if port is not None:
+        raise ValueError('the F4 table is not ported')
+    # The idle-pass recreate in asm/activate.asm pushes its own size.
+    pushes = _annex_pushes(buf, stamp)
+    if pushes:
+        sites += [(pushes[0], u32(480), u32(hh)), (pushes[1], u32(640), u32(w))]
+        alt_sites += [(pushes[0], u32(480), u32(ah)),
+                      (pushes[1], u32(640), u32(aw))]
+    # The F4 table: every site whose bytes differ between the sizes, and
+    # the data words above.
+    pe = _PE(buf)
+    table = []
+    for (off, old_, new_), (aoff, aold, anew) in zip(sites, alt_sites):
+        assert off == aoff and old_ == aold and len(new_) == len(anew)
+        if new_ != anew:
+            table.append((_va_at(pe, off), new_, anew))
+    for off in sorted(words):
+        if words[off] != alt_words[off]:
+            table.append((sec_va + off, words[off], alt_words[off]))
+    for va, _a, _b in table:
+        if va < sec_va:
+            _make_writable(buf, pe, pe.off(va - pe.base))
+    blob = b''.join(u32(va) + u32(len(a)) + a + b for va, a, b in table)
+    blob += u32(0)
+    if len(blob) > UI_F4TAB_SIZE:
+        raise ValueError('F4 table too large: %d bytes' % len(blob))
+    buf[rawptr + UI_F4TAB_OFF:rawptr + UI_F4TAB_OFF + len(blob)] = blob
+    struct.pack_into('<II', buf, rawptr + UI_F4MODE, 0,
+                     sec_va + UI_F4TAB_OFF)
     if port is not None:
         moved = []
         lens = port.get('passlen', {})
@@ -3793,7 +3895,7 @@ FEATURES = [
      '\n'
      'F1\tHelp\n'
      'F3\tPause\n'
-     'F4\tHigh / low resolution\n'
+     'F4\tHigh / low resolution (1080p / 720p with Widescreen)\n'
      'F5\tGraphic Settings\n'
      'F6\tMode Settings\n'
      'F7\tDevice Settings\n'
@@ -4127,7 +4229,7 @@ BY_KEY['hires'] = (
     'Widescreen 1080p',
     'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
     'menus and the text are redrawn at the new size, and widescreen\n'
-    'shows more at the sides. F4 and the 320x240 mode are turned off.\n'
+    'shows more at the sides. F4 switches to 1280x720 and back.\n'
     'Retail build only for now.',
     None)
 

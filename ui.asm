@@ -155,6 +155,8 @@ D_SPLITST = 0x1a90            ; 64-bit mask of the sub-states drawn split
 D_DEBUG   = 0x1a98            ; 1: print both machines' states on the frame
                               ; (patcher, HIRES_DEBUG_STATES)
 D_DBGSTR  = 0x1aa0            ; the text, 32 bytes
+D_F4MODE  = 0x1ac0            ; 0: the first size is in place, 1: the second
+D_F4TAB   = 0x1ac4            ; the F4 site table (patcher); see f4_toggle
 PRIMARY   = 0x1ae5f40         ; the surface DRAW paints on, and the one
 BACK      = 0x1ae5f5c         ; about to be flipped over it
 DRAW      = 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
@@ -166,6 +168,13 @@ SKIP_B    = 0x6c84cc
 VIEWPORT  = 0x5c8317          ; per-frame viewport and projection setup
 FLUSH_A   = 0x5d1db0
 FLUSH_B   = 0x5dcc80
+RECREATE  = 0x5c56a2          ; release and create the surfaces (w, h,
+                              ; bpp) cdecl, nonzero on success
+MASKINIT  = 0x5ce180          ; fills the coverage mask row table; keeps
+                              ; every register
+FONTS     = 0x5c8ca0          ; builds the GDI fonts for a mode (1: 24px)
+FONTSET   = 0x6c866c          ; the mode they were last built for
+F4TAIL    = 0x5c755a          ; the F4 handler's tail, after the mode set
 MODE      = 0x1ae3594         ; 1P's game state, 4 in a match, and its
 SUBMODE   = 0x1ae3690         ; sub-state; 2P's own machine has a copy of
 MODE2     = 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
@@ -182,8 +191,8 @@ LIST_B    = 0x725f50
 CENTRE_A  = 0x6db534
 CENTRE_B  = 0x708874
 PIXFMT    = 0x33cd5f4         ; 0x22b when the surface is 555
-D_OFF     = 0xf1b00          ; canvas; 480 guard rows either side
-D_COPY    = 0x2d1b00         ; copy of the pre-fill, canvas rows only
+D_OFF     = 0xf3b00          ; canvas; 480 guard rows either side
+D_COPY    = 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
 
 ; Projection setup, replacing 0x51444d / 0x51448e / 0x5cc39d / 0x5cc3de
@@ -1665,3 +1674,62 @@ hd_slope:
     .long 0x3daaaaab                    ; 1/12
 hd_floor:
     .long 0x37800000                    ; 1/65536
+
+; f4_toggle: F4 (0x5c74ec, after the network-game guard) comes here.
+; Every site the patcher writes for the second size differently from
+; the first is in the table at D_F4TAB: dword address, dword length,
+; the first size's bytes, the second's, ended by a zero address. The
+; other set is copied over the sites (.text and .rdata are writable),
+; the coverage mask table and the fonts are rebuilt, and the surfaces
+; are recreated at the new size. If that fails the first set goes back
+; and the idle pass (asm/activate.asm) recreates at that size.
+f4_toggle:
+    pushad
+    call f4_here
+f4_here:
+    pop ebx
+    sub ebx, f4_here
+    call f4_apply
+    push 0x10
+    push dword ptr [ebx+D_MODEH]
+    push dword ptr [ebx+D_MODEW]
+    mov eax, RECREATE
+    call eax
+    add esp, 12
+    test eax, eax
+    jnz f4_done
+    call f4_apply
+f4_done:
+    popad
+    push F4TAIL
+    ret
+f4_apply:
+    mov eax, [ebx+D_F4MODE]
+    xor eax, 1
+    mov [ebx+D_F4MODE], eax
+    mov esi, [ebx+D_F4TAB]
+f4_next:
+    mov edi, [esi]
+    test edi, edi
+    jz f4_swapped
+    mov ecx, [esi+4]
+    add esi, 8
+    push esi
+    test eax, eax
+    jz f4_copy
+    add esi, ecx
+f4_copy:
+    mov edx, ecx
+    rep movsb
+    pop esi
+    lea esi, [esi+edx*2]
+    jmp f4_next
+f4_swapped:
+    mov eax, MASKINIT
+    call eax
+    mov dword ptr [FONTSET], 0
+    push 1
+    mov eax, FONTS
+    call eax
+    add esp, 4
+    ret

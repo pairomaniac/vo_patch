@@ -25,7 +25,7 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': 'a9d79dee2c366982b9505bdb0b03b0b9',
+    'a464b0ff32d5bab499f265e45658504e': '61796edb004513ff147c86dfca153f82',
     'd19320bdc3381a48228990907910a391': '2b2faa549780a74a290c7401b8a55749',
     '4c70f780a7f0d98d74be62304fb99021': 'c6c4ccee8a7afb88a5e463630378af5d',
 }
@@ -94,6 +94,41 @@ def apply(vp, original, keys, build):
     return buf
 
 
+def f4_check(vp, original, keys, build, result):
+    """The resolution patch's F4 table: its first byte set is what the
+    file holds at every site, and the file with the second set copied in
+    is a build made for the other size, outside the table itself."""
+    import struct
+    if not vp.hires_supported(bytearray(original)):
+        return 'no table for this build'
+    pe = vp._PE(result)
+    sec = [x for x in pe.sections if x['name'] == b'.vohr']
+    if not sec:
+        return 'no .vohr section'
+    sec_va, raw = pe.base + sec[0]['vaddr'], sec[0]['raddr']
+    tab = struct.unpack_from('<I', result, raw + vp.UI_F4TAB)[0]
+    swapped, o, n = bytearray(result), raw + (tab - sec_va), 0
+    while True:
+        va, ln = struct.unpack_from('<II', result, o)
+        if va == 0:
+            break
+        f = pe.off(va - pe.base)
+        if result[f:f + ln] != result[o + 8:o + 8 + ln]:
+            return 'first set differs from the file at 0x%x' % va
+        swapped[f:f + ln] = result[o + 8 + ln:o + 8 + 2 * ln]
+        o += 8 + 2 * ln
+        n += 1
+    w, hh = struct.unpack_from('<II', result, raw + vp.UI_MODEW)
+    other = apply(vp, original, keys - {'hires'}, build)
+    vp.hires_install(other, *vp.HIRES_ALT, alt=(w, hh))
+    lo, hi = raw + vp.UI_F4TAB_OFF, raw + vp.UI_OFF
+    if len(other) != len(swapped) or any(
+            swapped[i] != other[i] for i in range(len(other))
+            if not lo <= i < hi):
+        return 'second set is not a %dx%d build' % vp.HIRES_ALT
+    return '%d entries' % n
+
+
 def main(path):
     vp = load_patcher()
     original, read = pristine(path, vp)
@@ -159,6 +194,10 @@ def main(path):
         if sel == set(keys):
             digest = hashlib.md5(bytes(result)).hexdigest()
             print('all patches: %d bytes, MD5 %s' % (len(result), digest))
+            note = f4_check(vp, original, sel, build, result)
+            print('F4 table: %s' % note)
+            if not note.endswith('entries') and 'no table' not in note:
+                bad += 1
             if EXPECTED_ALL.get(build.md5) is None:
                 print('  not pinned for this build yet')
             elif digest != EXPECTED_ALL[build.md5]:

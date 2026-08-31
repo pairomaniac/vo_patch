@@ -10,7 +10,7 @@ directives). Label offsets are read back by assembling a second copy
 with a jmp to every wanted label appended at the end - appending shifts
 nothing - and decoding the rel32s. The blob and every offset constant
 derived from it (UI_CALLS, UI_STUBS, UI_WORLD, UI_SUBMIT, UI_HUD_ENTER,
-UI_INSERT_A/B, UI_HANGAR_DRAW, UI_FRAME, UI_FLUSH_A/B) are written into vo_patch.py. UI_REFS is
+UI_INSERT_A/B, UI_HANGAR_DRAW, UI_FRAME, UI_FLUSH_A/B, UI_F4) are written into vo_patch.py. UI_REFS is
 regenerated from the new blob. tools/hiresport.py must be rerun after
 this for the non-retail tables.
 """
@@ -27,7 +27,7 @@ HIRES = os.path.join(ROOT, 'vo_patch.py')
 LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
-          'flush_b']
+          'flush_b', 'f4_toggle']
 
 
 def normalized(src):
@@ -161,6 +161,7 @@ def main():
     setconst('UI_INSERT_A, UI_INSERT_B',
              '%s, %s' % (hex(offs['insert_a']), hex(offs['insert_b'])))
     setconst('UI_HANGAR_DRAW', hex(offs['hangar_draw']))
+    setconst('UI_F4', hex(offs['f4_toggle']))
     setconst('UI_FRAME, UI_FLUSH_A, UI_FLUSH_B',
              '%s, %s, %s' % (hex(offs['frame_setup']), hex(offs['flush_a']),
                              hex(offs['flush_b'])))
