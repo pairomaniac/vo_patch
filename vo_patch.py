@@ -4361,11 +4361,18 @@ BY_KEY = {key: (label, tip, sites)
 # FEATURES. Applied last, after nodisc, since it appends its own section.
 BY_KEY['hires'] = (
     'Native widescreen',
-    'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
-    'menus and the text are redrawn at the new size, and widescreen\n'
-    'shows more at the sides. F4, or Screen in the F5 dialog, switches\n'
-    'to 1280x720 and back; the choice is saved with the settings. The\n'
-    'ending credits scroll without their black bands.\n'
+    'The game renders at 1920x1080 itself, in place of 640x480, and the\n'
+    'wider view shows more of the arena at the sides.\n'
+    '\n'
+    'Picture\tThe 3D view at the new size; menus, HUD and text\n'
+    '\tredrawn to match, not stretched.\n'
+    'F4\tSwitches to 1280x720 and back. Also Screen on F5;\n'
+    '\tthe choice is saved with the settings.\n'
+    'Split screen\tVer or Hor on F5. The machine select is drawn once,\n'
+    '\tfull size.\n'
+    'Ending credits\tThe black bands are gone; the roll uses the whole\n'
+    '\tscreen.\n'
+    '\n'
     'Retail build only for now.',
     None)
 
