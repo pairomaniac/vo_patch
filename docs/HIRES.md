@@ -289,17 +289,22 @@ the walker's row count but its destination helper: 0x480930 rejects
 tile rows past 0x31, so the roll never reached below line ~392-400 -
 consistent with the writer feeding at the foot. Rather than stretch
 the window down into the writer's workspace, the patch moves the
-whole window down fourteen rows: plane A's walker starts fourteen
-ring rows earlier ((coarse - 14) mod 64 in place of the plain coarse
+whole window down thirteen rows: plane A's walker starts thirteen
+ring rows earlier ((coarse - 13) mod 64 in place of the plain coarse
 row), draws 60 rows, and the cap rises to 0x3d. The feed actually
 lands about two rows inside the old window, at its 0x31 cap
 (measured on video: a fed line arrives ~0.6 s after its ring row
 would have entered at ten rows of shift, showing the row's stale
-512-line-old content in the meantime), so the bottom row trails the
-feed by over a row and a line is complete before it slides in at
-line 480. The fourteen rows above the old window are the lines that
-scrolled past, still intact: a ring row is only rewritten sixteen
-rows after the feed point, two after it leaves this window. Verified under emulation: continuous coverage of lines 0..479
+512-line-old content in the meantime), so the bottom row (start+47)
+trails the feed (start+48) by a full row and a line is complete
+before it slides in at line 480. Thirteen exactly, not more: the
+writer composes an entering line over ring rows cursor..cursor+2,
+congruent to start-16..start-14 - at fourteen rows of shift the
+third compose row was the top display row, and its glyph bottoms
+flashed at the screen's top edge for a few frames per line (caught
+at 60 fps on video). At thirteen the window excludes all three
+scratch rows, and a history row keeps three rows of margin before
+the feed comes around to rewrite it. Verified under emulation: continuous coverage of lines 0..479
 at every fine value, wrap across the ring boundary included. One
 consequence surfaced on screen: the strip loaders' availability
 watermarks (0xbf5f7c/0xbf5f78, 24 stores across the 12 loader

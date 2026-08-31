@@ -854,20 +854,25 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     # two rows inside the old window (at its 0x31 draw cap, measured on
     # video: a fed line lands ~0.6s after its ring row would enter),
     # so instead of stretching the window down into the writer's
-    # workspace, the whole window moves down 14 rows - it begins 14
-    # ring rows earlier, showing the rows that scrolled past (still
-    # intact: a ring row is only rewritten 16 rows after the feed
-    # point, two after leaving this window), draws 60 rows, and the
-    # destination helper's cap rises from 0x31 to 0x3d. The bottom row
-    # then trails the feed by more than a row, so a line is complete
-    # before it slides in at line 480, and lines leave through line 0
-    # as before. Plane B is untouched: the roll's text is all on plane
-    # A (B's uncapped 60-row window never shows a line below 400 on
-    # screen).
+    # workspace, the whole window moves down 13 rows - it begins 13
+    # ring rows earlier, showing the rows that scrolled past, draws 60
+    # rows, and the destination helper's cap rises from 0x31 to 0x3d.
+    # The bottom row (start+47) then trails the feed (start+48) by a
+    # full row, so a line is complete before it slides in at line 480,
+    # and lines leave through line 0 as before. 13 exactly: the writer
+    # composes an entering line over ring rows cursor..cursor+2, which
+    # sit at start-16..start-14 mod 64 - at 14 rows of shift the third
+    # compose row was the top display row and its glyph bottoms
+    # flashed at the screen's top edge (seen at 60 fps on video). At
+    # 13 the window excludes all three scratch rows, and a history row
+    # still has 3 rows of margin before the feed comes around to
+    # rewrite it. Plane B is untouched: the roll's text is all on
+    # plane A (B's uncapped 60-row window never shows a line below 400
+    # on screen).
     sites += [(0x07f99b, bytes.fromhex('81e1ffff0000'),      # coarse row
-               bytes.fromhex('83e90e83e13f')),               # -14 mod 64
+               bytes.fromhex('83e90d83e13f')),               # -13 mod 64
               (0x16699b, bytes.fromhex('81e1ffff0000'),
-               bytes.fromhex('83e90e83e13f')),
+               bytes.fromhex('83e90d83e13f')),
               (0x07f96c, b'\x32', b'\x3c'),                  # 60 rows
               (0x16696c, b'\x32', b'\x3c'),
               (0x07fd37, b'\x31', b'\x3d'),                  # dest cap
