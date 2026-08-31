@@ -296,7 +296,15 @@ window are the lines that scrolled past, still intact - the writer
 only reuses a ring row 14 rows after it leaves the old window, four
 after the new one - and the fed row now slides in at exactly line
 480. Verified under emulation: continuous coverage of lines 0..479
-at every fine value, wrap across the ring boundary included. Second,
+at every fine value, wrap across the ring boundary included. One
+consequence surfaced on screen: the strip loaders' availability
+watermarks (0xbf5f7c/0xbf5f78, 24 stores across the 12 loader
+variants) round the load cursor up, so a tile with only part of its
+128 bytes read counts as loaded - invisible while fed rows sat below
+line 400, but drawn half-read once they enter at 480, which garbled
+the streamed name strips at the moment of entry. The rounding is
+floored; a partial tile is culled for the frame it takes to finish,
+and the strips are 128-aligned so no final tile is stranded. Second,
 the roll uses a second tile plane (rings 0x1cc3e00/0x1cc41ea, its own
 scroll word 0x34155c6, 60 rows), whose destination helpers (0x480a52,
 0x480eb0 and kin) index the 2D row table with rows past either end -

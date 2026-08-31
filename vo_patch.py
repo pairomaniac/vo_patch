@@ -869,6 +869,22 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
               (0x16696c, b'\x32', b'\x3c'),
               (0x07fd37, b'\x31', b'\x3d'),                  # dest cap
               (0x166d37, b'\x31', b'\x3d')]
+    # The strip loaders' availability watermarks round up: a tile with
+    # only part of its 128 bytes read counts as loaded, and the walkers
+    # draw it. Stock never saw that - the freshly fed rows sat below
+    # the 400-line window and finished loading before they appeared -
+    # but with the window reaching line 480 a half-read tile shows the
+    # moment it is fed (the streamed name strips; the heading strip is
+    # long since loaded). Floored, a partial tile stays culled for the
+    # frame it takes to complete. All 24 stores (12 loader variants,
+    # two banks, shared by both engines); the strips are 128-aligned,
+    # so no final tile is stranded.
+    for off in (0x0804e7, 0x0808f8, 0x080c74, 0x081046, 0x081498,
+                0x081bf6, 0x082174, 0x0827d4, 0x082c82, 0x082f07,
+                0x08325d, 0x0834f3, 0x080565, 0x080a0d, 0x080e17,
+                0x0811ec, 0x081611, 0x081ea6, 0x0823b3, 0x082944,
+                0x082d06, 0x082f8b, 0x0832ef, 0x083577):
+        sites.append((off, bytes.fromhex('83e27f'), bytes.fromhex('83e200')))
     sites += [(0x080074, bytes.fromhex('0f859e000000'),
                bytes.fromhex('e99f00000090')),
               (0x167084, bytes.fromhex('0f85a6000000'),
