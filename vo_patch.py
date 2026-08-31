@@ -321,6 +321,9 @@ UI_REFS = (
     (0x1579, 0x050bcc6),
     (0x158c, 0x06bf598),
     (0x1598, 0x050c0cb),
+    (0x15ab, 0x066c180),
+    (0x15d4, 0x047f2e0),
+    (0x15de, 0x06bf5ac),
 )
 # UI REFS END
 
@@ -360,7 +363,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '1be0c70f52c6e4c5bc60bdf84917650bb737e9422131385f64c3ddba504e9bf0'
+UI_ASM_SHA = '7d5138d2bc95fcb2f971d0f82d331899d8870a7df70d05945033c2b16c957c22'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
     '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
@@ -515,7 +518,9 @@ UI_CODE = bytes.fromhex(
     '000000005b81eb1c150000833d4cc96b000274138b83c81a00003b83c01a00007405e80c'
     'ffffff61680b685c00c360e8000000005b81eb4c150000a198f56b00a801741683e0fea3'
     '98f56b0083bbc01a0000007505e800ffffff616840026a0068c6bc5000c353e800000000'
-    '5b81eb84150000a198f56b000b83c01a00005b68cbc05000c3')
+    '5b81eb84150000a198f56b000b83c01a00005b68cbc05000c356575389ce8b7c241085ff'
+    '750ba180c1660085c07432eb1a83ff0876138d4ff8c1e10401cab81000000029f8741aeb'
+    '0289f889c389f1b8e0f24700ffd089c20335acf56b004b75ec5b5f5ec20400')
 # UI CODE END
 UI_CALLS = [(0x4c1, 0x4800d0), (0x4d6, 0x4804f0),   # rel32 at offset+1
             (0x4eb, 0x5670c0), (0x500, 0x5674f0)]
@@ -537,6 +542,7 @@ UI_HUD_ENTER = 0x38c
 UI_HANGAR_DRAW = 0x1364
 UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12ec, 0x1328
 UI_F4 = 0x1432
+UI_ROLLBLIT = 0x159d
 UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE = 0x14c2, 0x14ed, 0x1516, 0x1546, 0x157e
 UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
@@ -811,18 +817,32 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
         sites.append((site - 0x400c00, b'\xe8' + u32(target - (site + 5)),
                       b'\xe8' + u32(sec_va + routine - (site + 5))))
     # Credits roll: during the ending (sub-state 0x20) the tail of each
-    # engine's 2D post draw blacks rows 0..96 and 384..480 of the frame,
-    # one memset (0x47e580) per row - the letterbox the roll scrolled
-    # behind. The top band goes: the roll's window is top-aligned, so
-    # lines really do scroll off through row 0, and the je past the top
-    # loop becomes a jmp (0x480cd2 engine 1, 0x567cf0 engine 2). The
-    # bottom band stays: the roll's writer fills the tile ring just as a
-    # line reaches rows 384..400 (the window is 400 lines and the feed
-    # is a hand-timed schedule in 0x58ecd0), so there is no content
-    # below it to show - without the band the line's top slivers pop in
-    # mid-glyph over bare scenery. Behind black it reads as intended.
-    sites += [(0x0800d2, b'\x74', b'\xeb'),
-              (0x1670f0, b'\x74', b'\xeb')]
+    # engine's 2D post draw blacked rows 0..96 and 384..480 of the
+    # frame, one memset (0x47e580) per row - the letterbox. Both bands
+    # go (the jne past each block becomes a jmp: 0x480c74 engine 1,
+    # 0x567c84 engine 2), which works because the edge clipping the
+    # roll's tile walkers always asked for is wired up at the same
+    # time: the walkers push a visible row count for the window's top
+    # tile and the entering tile at its foot, but the shared blit
+    # (0x47fee0, both engines) discarded it and drew all 8 glyph rows -
+    # the top tile redrew unscrolled at row 0 and the entering line
+    # popped in whole, which the bands existed to hide. The blit's
+    # entry jumps to ui.asm roll_blit, which honours the count, and the
+    # top edge's push is re-encoded as fine+8 (was 8-fine) so the two
+    # edges are distinguishable. Lines now slide in at the window's
+    # foot (row 400: the writer feeds the ring on a hand-timed
+    # schedule, so nothing exists below - see docs/HIRES.md) and out
+    # through the real row 0, with the scenery clean behind both.
+    sites += [(0x080074, bytes.fromhex('0f859e000000'),
+               bytes.fromhex('e99f00000090')),
+              (0x167084, bytes.fromhex('0f85a6000000'),
+               bytes.fromhex('e9a700000090')),
+              (0x07f2e0, bytes.fromhex('56a180c16600'),
+               b'\xe9' + u32(sec_va + UI_ROLLBLIT - (0x47fee0 + 5)) + b'\x90'),
+              (0x07fa63, bytes.fromhex('b8080000002bc350'),
+               bytes.fromhex('8d430850') + b'\x90' * 4),
+              (0x166a63, bytes.fromhex('b8080000002bc350'),
+               bytes.fromhex('8d430850') + b'\x90' * 4)]
     # Machine-select hangar: a platform mech is drawn while its angle is
     # within a window of the camera's (0x59e3a1: 31.57 degrees to the
     # left, 28.43 to the right, .data doubles), sized for a 4:3 view;
@@ -4289,7 +4309,7 @@ BY_KEY['hires'] = (
     'menus and the text are redrawn at the new size, and widescreen\n'
     'shows more at the sides. F4, or Screen in the F5 dialog, switches\n'
     'to 1280x720 and back; the choice is saved with the settings. The\n'
-    'ending credits scroll off through the top of the screen.\n'
+    'ending credits scroll without their black bands.\n'
     'Retail build only for now.',
     None)
 

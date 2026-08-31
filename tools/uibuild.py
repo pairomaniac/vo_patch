@@ -28,7 +28,7 @@ LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
           'flush_b', 'f4_toggle', 'dlg_init', 'dlg_ok', 'dlg_done',
-          'ini_load', 'ini_save']
+          'ini_load', 'ini_save', 'roll_blit']
 
 
 def normalized(src):
@@ -167,6 +167,7 @@ def main():
              ', '.join(hex(offs[l]) for l in ('dlg_init', 'dlg_ok',
                                               'dlg_done', 'ini_load',
                                               'ini_save')))
+    setconst('UI_ROLLBLIT', hex(offs['roll_blit']))
     setconst('UI_FRAME, UI_FLUSH_A, UI_FLUSH_B',
              '%s, %s, %s' % (hex(offs['frame_setup']), hex(offs['flush_a']),
                              hex(offs['flush_b'])))

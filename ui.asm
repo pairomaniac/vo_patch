@@ -169,6 +169,9 @@ SKIP_B    = 0x6c84cc
 VIEWPORT  = 0x5c8317          ; per-frame viewport and projection setup
 FLUSH_A   = 0x5d1db0
 FLUSH_B   = 0x5dcc80
+ROWDRAW   = 0x47f2e0          ; one glyph row: ecx dest, edx src; next
+                              ; src in eax; esi kept
+ROWS      = 0x66c180          ; glyph rows per tile for the mode (8)
 RECREATE  = 0x5c56a2          ; release and create the surfaces (w, h,
                               ; bpp) cdecl, nonzero on success
 MASKINIT  = 0x5ce180          ; fills the coverage mask row table; keeps
@@ -1825,3 +1828,53 @@ ini_save_here:
     pop ebx
     push INI_SAVE
     ret
+
+; roll_blit: the tile blit 0x47fee0, with its rows argument honoured.
+; ecx dest, edx src, one stack arg. Stock's roll walkers push a visible
+; row count for the window's edge tiles and 0 elsewhere, but the blit
+; discarded it and always drew all 8 glyph rows: the top tile redrew
+; unscrolled at row 0 and the entering tile popped in whole. The
+; patcher re-encodes the top edge's push as fine+8 (it was 8-fine), so:
+; 0 draws [ROWS] rows as stock; 1..7 is the entering tile, its first n
+; rows; above 8 is the top tile, skipping fine = n-8 source rows (16
+; bytes each in the full mode, the only one left under this patch) and
+; drawing the rest at the frame top. esi and edi kept, ret 4.
+roll_blit:
+    push esi
+    push edi
+    push ebx
+    mov esi, ecx
+    mov edi, [esp+16]
+    test edi, edi
+    jne roll_clip
+    mov eax, [ROWS]
+    test eax, eax
+    je roll_done
+    jmp roll_rows
+roll_clip:
+    cmp edi, 8
+    jbe roll_rows_edi
+    lea ecx, [edi-8]
+    shl ecx, 4
+    add edx, ecx
+    mov eax, 16
+    sub eax, edi
+    je roll_done
+    jmp roll_rows
+roll_rows_edi:
+    mov eax, edi
+roll_rows:
+    mov ebx, eax
+roll_row:
+    mov ecx, esi
+    mov eax, ROWDRAW
+    call eax
+    mov edx, eax
+    add esi, [0x6bf5ac]
+    dec ebx
+    jne roll_row
+roll_done:
+    pop ebx
+    pop edi
+    pop esi
+    ret 4
