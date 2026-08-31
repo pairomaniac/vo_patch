@@ -673,10 +673,6 @@ that skipped the win screen does not carry through.
 Both stubs read 1P's slots and only 1P's, so 2P skips nothing and enters
 initials on RT alone.
 
-The roll's text fades near the top and bottom of the screen - inside the
-tile layer's draw, not an overlay; where is an open lead, see
-[HIRES.md](HIRES.md) under *The scenes*.
-
 `HOLD TO SKIP` appears while the button is down, drawn through GDI rather
 than the tile font because the roll scrolls the tilemap and anything printed
 into it would climb the screen. It goes on the frame about to be shown, so

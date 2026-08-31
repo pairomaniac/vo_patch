@@ -409,7 +409,6 @@ instead, since the wrapped sliver was only ever hidden by the bands.
 
 ## Queued work
 
-- **Credits fade removal**, once the lead above lands.
 - **The JP and OEM port.** JP's table now generates clean and needs a
   boot; OEM's rasterizer fault is unexplained - see lesson 5.
 
