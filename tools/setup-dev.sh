@@ -1,31 +1,33 @@
 #!/bin/sh
-# Set up the development tooling in a venv at .venv, once.
+# Reports what the development toolchain is missing; installs nothing.
 #
 #     sh tools/setup-dev.sh
-#     . .venv/bin/activate          # then python3 tools/check.py ...
 #
-# Python packages go in the venv: pyflakes (lint) and capstone
-# (UI_REFS regeneration in uibuild, and vomap/votrans/hiresport).
-# Nothing is vendored into the repository; the venv is ignored by git.
-# The system packages are printed, not installed: nasm rebuilds asm/
-# including asm/ui.asm, mingw rebuilds the netplay DLL, xvfb runs the
-# gui check headlessly.
+# Everything comes from the distribution, no venv: python3-pyflakes
+# lints, python3-capstone regenerates UI_REFS in uibuild and drives
+# vomap/votrans/hiresport (4.x and 5.x both work), tkinter is the
+# window and the gui check. nasm rebuilds asm/ including asm/ui.asm,
+# mingw the netplay DLL, xvfb runs the gui check headlessly. None of
+# them is needed to run the patcher itself - the blobs are baked into
+# vo_patch.py as text.
 set -e
 cd "$(dirname "$0")/.."
-
-if [ ! -x .venv/bin/python3 ]; then
-    python3 -m venv .venv
-fi
-.venv/bin/pip install --quiet --upgrade pip
-.venv/bin/pip install --quiet pyflakes capstone
 
 missing=""
 for tool in nasm i686-w64-mingw32-gcc xvfb-run; do
     command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
 done
-echo "venv ready: . .venv/bin/activate"
-if [ -n "$missing" ]; then
-    echo "system tools not found:$missing"
-    echo "  dnf: sudo dnf install nasm gcc-mingw64-i686 xorg-x11-server-Xvfb"
-    echo "  apt: sudo apt install nasm gcc-mingw-w64-i686 xvfb"
+for mod in pyflakes capstone tkinter; do
+    python3 -c "import $mod" >/dev/null 2>&1 || missing="$missing $mod"
+done
+
+if [ -z "$missing" ]; then
+    echo "toolchain complete"
+else
+    echo "not found:$missing"
+    echo "  apt: sudo apt install nasm gcc-mingw-w64-i686 xvfb" \
+         "python3-tk python3-pyflakes python3-capstone"
+    echo "  dnf: sudo dnf install nasm gcc-mingw64-i686" \
+         "xorg-x11-server-Xvfb python3-tkinter python3-pyflakes" \
+         "python3-capstone"
 fi

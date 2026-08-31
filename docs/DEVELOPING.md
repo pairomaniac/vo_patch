@@ -28,22 +28,21 @@ either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 ## Setup, once
 
 ```bash
-sudo dnf install nasm gcc-mingw64-i686 xorg-x11-server-Xvfb
-                                           # or apt: nasm gcc-mingw-w64-i686 xvfb
-sh tools/setup-dev.sh                      # venv at .venv with the Python tools
-. .venv/bin/activate
+sh tools/setup-dev.sh          # says what is missing and the install line
 ```
 
-`nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
-DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo_patch.py` as text. The venv holds pyflakes (the `lint` check)
-and capstone, which regenerates `UI_REFS` in `tools/uibuild.py` and
-drives the build-mapping tools (`vomap`, `votrans`, `hiresport`);
-`asm/ui.asm` itself assembles with the same nasm as the rest of `asm/`,
-and the `ui` check compares a fingerprint only where nasm is absent. xvfb is the
-display the `gui` check needs; without it that check skips itself and says
-so. Run the checks with the venv active so `tools/check.py` finds the
-packages.
+Everything comes from the distribution - there is no venv, and nothing
+here needs pip. The script checks and prints; the actual install is one
+`apt` or `dnf` line it gives you. `nasm` is needed only to rebuild
+`asm/`, `asm/ui.asm` included, mingw only to rebuild the netplay DLL.
+Neither is needed to run the patcher or to build the exe - both are
+baked into `vo_patch.py` as text. `python3-pyflakes` is the `lint`
+check; `python3-capstone` (4.x or 5.x) regenerates `UI_REFS` in
+`tools/uibuild.py` and drives the build-mapping tools (`vomap`,
+`votrans`, `hiresport`); the `ui` check compares a fingerprint only
+where nasm is absent. xvfb is the display the `gui` check needs;
+without it that check skips itself and says so. If you used the venv
+this repository set up before, `rm -rf .venv` - nothing reads it now.
 
 A pre-push hook catches a forgotten build before CI does:
 

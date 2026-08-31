@@ -17,8 +17,6 @@ asm/*.bin
 net/dpctrl.dll
 vo-net.log
 
-# tools/setup-dev.sh makes the venv; the tooling lives there, never in git.
-.venv/
 
 # tools/maps.sh writes the vomap maps and port tables here, from the game
 # executables, which are not in the repository either.

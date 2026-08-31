@@ -7,7 +7,7 @@
 # Writes maps/jp.pkl and maps/oem.pkl (vomap.py, about a minute each) and
 # maps/jp_port.txt, maps/oem_port.txt (hiresport.py). A port table that
 # fails generation is kept as its FAIL list: that list is the work left
-# for that build. Needs the venv from tools/setup-dev.sh (capstone).
+# for that build. Needs python3-capstone (tools/setup-dev.sh checks).
 # maps/ is ignored by git; the executables are not in the repository and
 # neither is anything derived from them.
 set -e
