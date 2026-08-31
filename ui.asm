@@ -39,11 +39,13 @@
 ; draw the in-game HUD, so the machine-select hangar, a 3D scene inside
 ; a HUD pass, is not cut.
 ;
-; Single viewport in a split game: the machine select is the same
-; portrait grid in both halves, so while either player is in a sub-state
-; listed in D_SINGLE the frame is drawn as one full-screen viewport from
-; that player's engine (P1 first); outside a match (MODE not 4: the boot
-; splash, the title) it is viewport 1 whatever the sub-state. frame_setup runs the game's viewport
+; Single viewport in a split game: the split only has a use in the
+; sub-states that draw a round (D_SPLITST, the patcher's list). In every
+; other frame - the machine select, the waiting card, the wipe, the
+; encounter screen, and outside a match (MODE not 4: the boot splash, the
+; title) - the frame is one full-screen viewport from one player's
+; engine: the player whose sub-state is lower, P1 on a tie, which is the
+; one still doing something while the other waits on a card. frame_setup runs the game's viewport
 ; setup with the split flag cleared, which gives both renderers the 1P
 ; geometry, then points viewport 2 at the same surface; the other
 ; renderer's flush runs with its draw-skip flag set (the list is still
@@ -52,7 +54,7 @@
 ; 2 top/bottom.
 ;
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y, D_PINTH, D_SINGLE
+; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y, D_PINTH, D_SPLITST
 ; are written by the patcher.
 FB_PTR    = 0x6bf5a8            ; locked surface pointer
 FB_PITCH  = 0x6bf5ac
@@ -148,7 +150,7 @@ D_YSAVE   = 0x1a84            ; pre-fill: the centred frame's row start
 D_SHOW    = 0x1a88            ; 0 split as set, 1 viewport 1 full screen, 2
                               ; viewport 2 (frame_setup)
 D_LAYOUT  = 0x1a8c            ; 0 1P or single, 1 side by side, 2 top/bottom
-D_SINGLE  = 0x1a90            ; 64-bit mask of the sub-states drawn single
+D_SPLITST = 0x1a90            ; 64-bit mask of the sub-states drawn split
                               ; (patcher)
 D_DEBUG   = 0x1a98            ; 1: print both machines' states on the frame
                               ; (patcher, HIRES_DEBUG_STATES)
@@ -1487,15 +1489,16 @@ frame_here:
     cmp dword ptr [MODE], 4         ; not a match (boot, title): one view
     jne frame_single
     mov edx, [SUBMODE]
-    call single_state
-    jne frame_single
-frame_p2:
-    mov ecx, 2
+    call split_state
+    jne frame_go                    ; a round on P1's side
     cmp dword ptr [MODE2], 4
-    jne frame_go
+    jne frame_single
     mov edx, [SUBMODE2]
-    call single_state
-    je frame_go
+    call split_state
+    jne frame_go                    ; or on P2's
+    cmp edx, [SUBMODE]              ; neither: the lower sub-state's player
+    jae frame_single
+    mov ecx, 2
 frame_single:
     mov [ebx+D_SHOW], ecx
     push dword ptr [SPLIT]
@@ -1519,10 +1522,10 @@ frame_out:
     pop ecx
     pop ebx
     ret
-; single_state: ZF clear when sub-state edx is in D_SINGLE
-single_state:
+; split_state: ZF clear when sub-state edx is in D_SPLITST; edx kept
+split_state:
     cmp edx, 64
-    jae single_no
+    jae split_no
     push ecx
     mov ecx, edx
     and ecx, 31
@@ -1530,10 +1533,10 @@ single_state:
     shl eax, cl
     mov ecx, edx
     shr ecx, 5
-    test [ebx+ecx*4+D_SINGLE], eax
+    test [ebx+ecx*4+D_SPLITST], eax
     pop ecx
     ret
-single_no:
+split_no:
     xor eax, eax
     ret
 

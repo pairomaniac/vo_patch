@@ -79,8 +79,9 @@ import urllib.error
 #      centred in a taller viewport, the timer and health bars (frame
 #      rows above HIRES_HUD_BAND) are pinned to the viewport top during
 #      a match; the 2D layer and the HUD polygons move together. The
-#      machine select (HIRES_SINGLE_STATES) is one full-screen viewport
-#      instead of the same grid in both halves.
+#      split is drawn only in the sub-states that draw a round
+#      (HIRES_SPLIT_STATES); every other frame is one full-screen
+#      viewport, so the machine select is no longer the same grid twice.
 #   -  F4 and the 320x240 mode are defused; no baked scale covers them.
 #
 # The exe grows by one section: about 5 KB of code and data plus a
@@ -277,27 +278,28 @@ UI_REFS = (
     (0x1232, 0x06bc948),
     (0x1240, 0x1ae3594),
     (0x1249, 0x1ae3690),
-    (0x125b, 0x1ef8a90),
-    (0x1264, 0x1ef9eb0),
-    (0x1277, 0x06bc948),
-    (0x127d, 0x06bc948),
-    (0x128a, 0x05c8317),
-    (0x1295, 0x06bc948),
-    (0x129a, 0x06bf5a8),
-    (0x129f, 0x06bf5b0),
-    (0x12a5, 0x07087a0),
-    (0x12b4, 0x05c8317),
-    (0x12f3, 0x05d1db0),
-    (0x1302, 0x06c84c8),
-    (0x1308, 0x06c84c8),
-    (0x1314, 0x06c84c8),
-    (0x132f, 0x05dcc80),
-    (0x133e, 0x06c84cc),
-    (0x1344, 0x06c84cc),
-    (0x1350, 0x06c84cc),
-    (0x137a, 0x345bd58),
-    (0x138d, 0x345b2c8),
-    (0x13f1, 0x059cb93),
+    (0x1256, 0x1ef8a90),
+    (0x125f, 0x1ef9eb0),
+    (0x126c, 0x1ae3690),
+    (0x127f, 0x06bc948),
+    (0x1285, 0x06bc948),
+    (0x1292, 0x05c8317),
+    (0x129d, 0x06bc948),
+    (0x12a2, 0x06bf5a8),
+    (0x12a7, 0x06bf5b0),
+    (0x12ad, 0x07087a0),
+    (0x12bc, 0x05c8317),
+    (0x12fb, 0x05d1db0),
+    (0x130a, 0x06c84c8),
+    (0x1310, 0x06c84c8),
+    (0x131c, 0x06c84c8),
+    (0x1337, 0x05dcc80),
+    (0x1346, 0x06c84cc),
+    (0x134c, 0x06c84cc),
+    (0x1358, 0x06c84cc),
+    (0x1382, 0x345bd58),
+    (0x1395, 0x345b2c8),
+    (0x13f9, 0x059cb93),
 )
 # UI REFS END
 
@@ -337,7 +339,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = 'c7d99877c099ee7372c9ba624c89c44afa995f73ea5f6e530fe68d48117a8f1c'
+UI_ASM_SHA = 'a6a81a8d9ffe103db88b930929d366401b3854b19ca6f4300e3667f428a65386'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
     '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
@@ -468,21 +470,21 @@ UI_CODE = bytes.fromhex(
     '00003b83d8180000587524508d41ff83f80258731a470fafbbc818000003bb7c1a000081'
     'c700800000c1ff104feb160fafbbc818000003bb7c1a000081c700800000c1ff1025ffff'
     '0000c1e71009f8890683c6044183f9040f8c42ffffffc3535152e8000000005b81eb1f12'
-    '0000c783881a000000000000833d48c96b00007476b901000000833d9435ae010475288b'
-    '159036ae01e86f000000751bb902000000833d908aef0104754d8b15b09eef01e8540000'
-    '007440898b881a0000ff3548c96b00c70548c96b0000000000ff742414b817835c00ffd0'
-    '83c4048f0548c96b00a1a8f56b00a3b0f56b00c705a087700000000000eb0eff742410b8'
-    '17835c00ffd083c4045a595bc383fa40731b5189d183e11fb801000000d3e089d1c1e905'
-    '85848b901a000059c331c0c35350e8000000005b81ebeb120000b8b01d5d0083bb881a00'
-    '0002751bff35c8846c00c705c8846c0001000000ffd08f05c8846c00585bc3ffd0585bc3'
-    '5350e8000000005b81eb27130000b880cc5d0083bb881a000001751bff35cc846c00c705'
-    'cc846c0001000000ffd08f05cc846c00585bc3ffd0585bc353e8000000005b81eb621300'
-    '0050528b45088d04808b55088d0482d9048558bd45038b450c8d04808b550c8d0482d824'
-    '85c8b24503d8831e140000d88b22140000d89326140000dfe0f6c4017408ddd8d9832614'
-    '0000d9e8d8d9dfe0f6c401750ed88ba8180000db9b641a0000eb0cddd8c783641a000000'
-    '0000005a58508b4424088983681a00008d83f613000089442408585b6893cb5900c353e8'
-    '000000005b81ebfc130000c783641a000000000000ffb3681a00008b5c240483c408ff64'
-    '24f8a470e341abaaaa3d00008037')
+    '0000c783881a000000000000833d48c96b0000747eb901000000833d9435ae010475308b'
+    '159036ae01e8770000007563833d908aef0104751a8b15b09eef01e861000000754d3b15'
+    '9036ae017305b902000000898b881a0000ff3548c96b00c70548c96b0000000000ff7424'
+    '14b817835c00ffd083c4048f0548c96b00a1a8f56b00a3b0f56b00c705a0877000000000'
+    '00eb0eff742410b817835c00ffd083c4045a595bc383fa40731b5189d183e11fb8010000'
+    '00d3e089d1c1e90585848b901a000059c331c0c35350e8000000005b81ebf3120000b8b0'
+    '1d5d0083bb881a000002751bff35c8846c00c705c8846c0001000000ffd08f05c8846c00'
+    '585bc3ffd0585bc35350e8000000005b81eb2f130000b880cc5d0083bb881a000001751b'
+    'ff35cc846c00c705cc846c0001000000ffd08f05cc846c00585bc3ffd0585bc353e80000'
+    '00005b81eb6a13000050528b45088d04808b55088d0482d9048558bd45038b450c8d0480'
+    '8b550c8d0482d82485c8b24503d88326140000d88b2a140000d8932e140000dfe0f6c401'
+    '7408ddd8d9832e140000d9e8d8d9dfe0f6c401750ed88ba8180000db9b641a0000eb0cdd'
+    'd8c783641a0000000000005a58508b4424088983681a00008d83fe13000089442408585b'
+    '6893cb5900c353e8000000005b81eb04140000c783641a000000000000ffb3681a00008b'
+    '5c240483c408ff6424f8a470e341abaaaa3d00008037')
 # UI CODE END
 UI_CALLS = [(0x4c1, 0x4800d0), (0x4d6, 0x4804f0),   # rel32 at offset+1
             (0x4eb, 0x5670c0), (0x500, 0x5674f0)]
@@ -501,8 +503,8 @@ UI_SUBMIT = ((0x514576, 0x113976, 0x212),
 (0x5cc4c6, 0x1cb8c6, 0x2cf))
 UI_INSERT_A, UI_INSERT_B = 0x104d, 0x1085
 UI_HUD_ENTER = 0x38c
-UI_HANGAR_DRAW = 0x135c
-UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12e4, 0x1320
+UI_HANGAR_DRAW = 0x1364
+UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12ec, 0x1328
 UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
 UI_ROWTAB = 0x183c                          # row table address, likewise
@@ -513,7 +515,7 @@ UI_FILTER = 0x1884                          # 1: bilinear composite
 UI_CONST = 0x18a8                           # 65536, 640, 480, 0.5
 UI_SHIFT = 0x19b8                           # HUD polygon x shift per layout, y
 UI_PINTH = 0x1a6c                           # split HUD band threshold, 0 off
-UI_SINGLE = 0x1a90                          # sub-states drawn as one viewport
+UI_SPLITST = 0x1a90                         # sub-states drawn split
 UI_DEBUG = 0x1a98                           # 1: state readout on the frame
 assert len(UI_CODE) <= UI_PASS_STUBS        # data block starts at 0x1800
 UI_OFF = 0x1b00                             # offscreen: guard, canvas, guard
@@ -748,7 +750,7 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                             else '8b349d505f7200')
         sites.append((off, old, b'\xe8' + u32(sec_va + routine - (site + 5))
                       + b'\x90\x90'))
-    # Single viewport for the machine select in a split game: the
+    # Single viewport outside the rounds of a split game: the
     # viewport setup call and the two flush calls in the frame loop go
     # through the section (ui.asm frame_setup, flush_a, flush_b).
     for site, routine, target in ((0x5c811b, UI_FRAME, 0x5c8317),
@@ -929,12 +931,13 @@ HIRES_POLYS = 8000
 # top of the viewport instead of the centred frame. The timer and the
 # health bars end by 95; the weapon strips start near 300. 0 turns it off.
 HIRES_HUD_BAND = 110
-# In a split game these sub-states of either player's machine are drawn as
-# one full-screen viewport from that player's engine (P1 first): 3 and 4
-# are the machine select, the same portrait grid in both halves; 7 and 8
-# the transition into and the encounter screen before a round, where only
-# P1's card is shown. Outside a match (MODE not 4) it is always one.
-HIRES_SINGLE_STATES = tuple(range(9))
+# In a split game the split is drawn only while either player's machine is
+# in one of these sub-states: the rounds (9..0x0c), the result and continue
+# screens (0xd, 0xe), the win and lose screens (0x14, 0x15) and 0x1b. Every
+# other frame - the machine select, the waiting card, the wipe, the encounter
+# screen - is one full-screen viewport from the player whose sub-state is
+# lower (P1 on a tie), and so is everything outside a match (MODE not 4).
+HIRES_SPLIT_STATES = (9, 10, 11, 12, 0xd, 0xe, 0x14, 0x15, 0x1b)
 # Diagnostic: print "MODE SUBMODE  MODE2 SUBMODE2  SHOW" in hex at the top
 # of every frame. For reading the sub-state numbers off a screen.
 HIRES_DEBUG_STATES = False
@@ -1018,8 +1021,8 @@ def hires_install(buf, width, height):
     sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
     struct.pack_into('<iiii', buf, rawptr + UI_SHIFT, sx[0], sx[1], sx[2], 0)
     struct.pack_into('<I', buf, rawptr + UI_PINTH, HIRES_HUD_BAND)
-    struct.pack_into('<Q', buf, rawptr + UI_SINGLE,
-                     sum(1 << n for n in HIRES_SINGLE_STATES))
+    struct.pack_into('<Q', buf, rawptr + UI_SPLITST,
+                     sum(1 << n for n in HIRES_SPLIT_STATES))
     struct.pack_into('<I', buf, rawptr + UI_DEBUG, int(HIRES_DEBUG_STATES))
     struct.pack_into('<ffff', buf, rawptr + UI_CONST, 65536.0, 640.0,
                      480.0, 0.5)
