@@ -343,8 +343,9 @@ top edge's push is re-encoded fine+8 (was 8-fine, ambiguous against the
 foot's) so the blit can tell the edges apart. One glyph source row is 16
 bytes in the full mode, the only mode left under this patch.
 
-The window itself is 50 tile rows tall - 400 lines, per 0x480556, plus
-the partial entering row - top-aligned in a 64-row ring. The writer (the
+The window itself is 50 tile rows tall - 400 lines, the 0x32 stored at
+0x480568 (its branch twin at 0x480556 is the 44-row low-resolution
+window), plus the partial entering row - top-aligned in a 64-row ring. The writer (the
 command interpreter at 0x4cdab4, cursors 0xbf7758/0xbf775c, driven by
 the hand-timed schedule in 0x58ecd0) fills each ring row just as it
 scrolls up to the window's foot; below that the ring holds stale content
