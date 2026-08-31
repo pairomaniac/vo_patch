@@ -17,6 +17,9 @@ extern PSTATE                   ; the pump's own XINPUT_STATE, so the two
 extern PBTN                     ; pollers cannot tread on each other
 extern PADPREV                  ; last polled buttons, one word per pad,
                                 ; stride 4
+extern PADIDX                   ; the slot map, see padpoll; commitdev.asm
+extern PADRETRY                 ; clears it. And its miss counter.
+extern DEVICES                  ; committed device per player, + player * 4
 extern DZTHR1                   ; stick thresholds out of 32767, 1P then
                                 ; 2P, indexed by the block's player. Written
                                 ; by asm/iniall.asm at launch and the F11
@@ -201,11 +204,11 @@ tick:
     call    resolve
     cmp     eax, 1
     je      .keyboard
-    push    STATE
-    push    dword [ebx]
-    call    eax
+    mov     eax, [ebx]
+    mov     edx, STATE
+    call    padpoll
     test    eax, eax
-    jnz     .keyboard           ; pad not connected: keyboard only
+    jnz     .keyboard           ; no pad for this side: keyboard only
     mov     dword [ebp - 4], 1
 
     ; A and Back are keys the game reads directly rather than actions that
@@ -335,6 +338,77 @@ apply:
     movzx   eax, word [edx]
     and     eax, ecx
     mov     [edx], ax
+    ret
+
+; ---------------------------------------------------------------------------
+; Which XInput slot a side reads. Slots are not player numbers: the sides
+; on a pad profile, 1P first, take the connected slots in ascending order,
+; so one pad on slot 0 serves 2P alone when 1P is on the keyboard. PADIDX
+; holds slot + 1 per side, 5 for none, 0 while the map is unbuilt. It is
+; rebuilt on the next poll after a cached slot stops answering, after a
+; side without a pad has missed 256 polls (a pad plugged in later), and
+; after a device change, which commitdev.asm clears it for.
+padpoll:                        ; in: eax = side, edx = an XINPUT_STATE
+    push    ebx                 ; out: eax = 0 polled, else no pad
+    mov     ebx, eax
+    cmp     word [PADIDX], 0
+    jne     .have
+    call    .scan
+.have:
+    movzx   eax, byte [PADIDX + ebx]
+    cmp     al, 5
+    jae     .none
+    dec     eax
+    push    edx
+    push    eax
+    call    [XIFN]
+    test    eax, eax
+    jz      .out
+    mov     word [PADIDX], 0    ; gone: the next poll rescans
+    jmp     .fail
+.none:
+    inc     byte [PADRETRY]
+    jnz     .fail
+    mov     word [PADIDX], 0    ; every 256th miss: look again
+.fail:
+    mov     eax, 1
+.out:
+    pop     ebx
+    ret
+
+.scan:
+    push    esi
+    push    edi
+    push    ebx
+    mov     ebx, edx            ; the caller's buffer, for the probes
+    mov     word [PADIDX], 0x0505
+    xor     esi, esi            ; slot
+    xor     edi, edi            ; side
+.side:
+    mov     eax, [edi*4 + DEVICES]
+    dec     eax
+    cmp     eax, 1              ; 1 gamepad, 2 twin-stick; a keyboard
+    ja      .nextside           ; side takes no slot
+.slot:
+    cmp     esi, 4
+    jae     .done
+    push    ebx
+    push    esi
+    call    [XIFN]
+    inc     esi
+    test    eax, eax
+    jnz     .slot
+    mov     eax, esi            ; slot + 1
+    mov     [PADIDX + edi], al
+.nextside:
+    inc     edi
+    cmp     edi, 2
+    jb      .side
+.done:
+    mov     edx, ebx            ; the probes clobbered edx; the caller's
+    pop     ebx                 ; poll needs its buffer back
+    pop     edi
+    pop     esi
     ret
 
 ; ---------------------------------------------------------------------------

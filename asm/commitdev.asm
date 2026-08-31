@@ -13,9 +13,11 @@ extern BLOCKS
 SIMPLE      equ 3
 extern DEVICES
 extern BINDS1                     ; + player * 0x18
+extern PADIDX                     ; the tick's slot map, see padxinput.asm
 
 commitdev:
     mov     [ecx*4 + DEVICES], eax
+    mov     word [PADIDX], 0      ; the sides on a pad may have changed
     cmp     eax, 1
     je      .keyboard_page
     cmp     eax, SIMPLE

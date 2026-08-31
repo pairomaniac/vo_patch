@@ -329,8 +329,10 @@ report.
 ## Gamepad
 
 **XInput gamepad support** rebuilds the F7 device list. The legacy joystick
-profiles are hidden and four remain, for both players - pad 1 drives 1P, pad
-2 drives 2P.
+profiles are hidden and four remain, for both players. The players on a pad
+profile take the connected pads in order, 1P first: with two pads the first
+drives 1P and the second 2P, and with one pad and 1P on the keyboard it
+drives 2P.
 
 <img width="350" alt="F7 device list with the profiles" src="https://github.com/user-attachments/assets/457643b7-f42b-49b2-993f-50b56733c59d" />
 &nbsp;

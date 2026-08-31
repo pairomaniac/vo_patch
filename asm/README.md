@@ -399,11 +399,22 @@ the per-player input tick, and a parameter block per player. Everything else
 in the patch is tables.
 
 The **tick** runs through the F7 profile dispatch, once per player per frame.
-It resolves `XInputGetState`, polls the pad, writes Space and the camera key
+It resolves `XInputGetState`, polls the side's pad through **padpoll**, writes
+Space and the camera key
 into that player's key buffer if A or Back is held - before calling the game's
 keyboard handler, because that is the code which reads them - and then walks
 twelve bind slots, testing each against the condition table and clearing the
 lever bits its mask names.
+
+**padpoll** decides which XInput slot a side reads, since slots are not
+player numbers: the sides on a pad profile, 1P first, take the connected
+slots in ascending order. So two pads on 0 and 1 serve 1P and 2P, and one
+pad on slot 0 serves 2P alone when 1P is on the keyboard - which the fixed
+0/1 of earlier versions could not do. The map (`PADIDX`, slot + 1 per side,
+5 for none) is built on the first poll and rebuilt on the next poll after a
+cached slot stops answering, after a side without a pad has missed 256
+polls, so a pad plugged in later is found within a few seconds, and after a
+device change, which `commitdev.asm` clears it for.
 
 Not every slot is live in every game state. The stock keyboard handler at
 `0x443074` runs all twelve only when `[0x1ae3594]` is 4 and `[0x1ae3690]` is
