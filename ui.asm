@@ -39,8 +39,19 @@
 ; draw the in-game HUD, so the machine-select hangar, a 3D scene inside
 ; a HUD pass, is not cut.
 ;
+; Single viewport in a split game: the machine select is the same
+; portrait grid in both halves, so while either player is in a sub-state
+; listed in D_SINGLE the frame is drawn as one full-screen viewport from
+; that player's engine (P1 first). frame_setup runs the game's viewport
+; setup with the split flag cleared, which gives both renderers the 1P
+; geometry, then points viewport 2 at the same surface; the other
+; renderer's flush runs with its draw-skip flag set (the list is still
+; sorted and emptied) and its 2D layer is not composited. D_LAYOUT is
+; what the rest of this file keys on: 0 1P or single, 1 side by side,
+; 2 top/bottom.
+;
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y, D_PINTH
+; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y, D_PINTH, D_SINGLE
 ; are written by the patcher.
 FB_PTR    = 0x6bf5a8            ; locked surface pointer
 FB_PITCH  = 0x6bf5ac
@@ -133,6 +144,19 @@ D_PINROWS = 0x1a78            ; viewport rows the band covers; 0 outside
 D_OFFY    = 0x1a7c            ; y rescale offset for the polygon in hand
 D_YEND    = 0x1a80            ; composite loop bound
 D_YSAVE   = 0x1a84            ; pre-fill: the centred frame's row start
+D_SHOW    = 0x1a88            ; 0 split as set, 1 viewport 1 full screen, 2
+                              ; viewport 2 (frame_setup)
+D_LAYOUT  = 0x1a8c            ; 0 1P or single, 1 side by side, 2 top/bottom
+D_SINGLE  = 0x1a90            ; 64-bit mask of the sub-states drawn single
+                              ; (patcher)
+LOOPMODE  = 0x6bc94c          ; 1 two players, 2 network
+FB_ROW2   = 0x6bf5b4
+MASKOFF   = 0x7087a0          ; renderer B's coverage mask offset
+SKIP_A    = 0x6c84c8          ; flush draws nothing while set, per renderer
+SKIP_B    = 0x6c84cc
+VIEWPORT  = 0x5c8317          ; per-frame viewport and projection setup
+FLUSH_A   = 0x5d1db0
+FLUSH_B   = 0x5dcc80
 MODE      = 0x1ae3594         ; 1P's game state, 4 in a match, and its
 SUBMODE   = 0x1ae3690         ; sub-state; 2P's own machine has a copy of
 MODE2     = 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
@@ -565,14 +589,8 @@ s2q_here:
 ; viewport, clipped. Sets D_S, D_XSTEP/D_YSTEP (canvas px per viewport
 ; px), D_XOFF/D_YOFF, D_DW/D_DH, D_CX/D_CY.
 fit:
-    mov eax, [ebx+D_SCALE]
-    cmp dword ptr [ebx+D_SPLIT], 0
-    je fit_s
-    mov eax, [ebx+D_SCALE+4]
-    test byte ptr [FLAGS], 3
-    je fit_s
-    mov eax, [ebx+D_SCALE+8]
-fit_s:
+    mov eax, [ebx+D_LAYOUT]
+    mov eax, [ebx+eax*4+D_SCALE]
     mov [ebx+D_S], eax
     mov eax, 0x10000
     shl eax, 8
@@ -658,15 +676,19 @@ pre_live:
     mov eax, [SPLIT]
     mov [ebx+D_SPLIT], eax
     mov dword ptr [SPLIT], 0
-    ; HUD projection factor for this layout, for the game's 0x51444d
-    mov ecx, [ebx+D_HUD]
+    xor ecx, ecx
     test eax, eax
-    je pre_hud
-    mov ecx, [ebx+D_HUD+4]
+    je pre_layout
+    cmp dword ptr [ebx+D_SHOW], 0
+    jne pre_layout                  ; single: 1P geometry
+    inc ecx
     test byte ptr [FLAGS], 3
-    je pre_hud
-    mov ecx, [ebx+D_HUD+8]
-pre_hud:
+    je pre_layout
+    inc ecx
+pre_layout:
+    mov [ebx+D_LAYOUT], ecx
+    ; HUD projection factor for this layout, for the game's 0x51444d
+    mov ecx, [ebx+ecx*4+D_HUD]
     mov [ebx+D_HUDF], ecx
     fld dword ptr [ebx+D_HUDF]
     fmul dword ptr [ebx+D_C65536]
@@ -677,14 +699,8 @@ pre_hud:
     fsubp st(1), st(0)
     fmul dword ptr [ebx+D_CHALF]
     fistp dword ptr [ebx+D_OXH]
-    mov eax, [ebx+D_SHIFTX]
-    cmp dword ptr [ebx+D_SPLIT], 0
-    je pre_shift
-    mov eax, [ebx+D_SHIFTX+4]
-    test byte ptr [FLAGS], 3
-    je pre_shift
-    mov eax, [ebx+D_SHIFTX+8]
-pre_shift:
+    mov eax, [ebx+D_LAYOUT]
+    mov eax, [ebx+eax*4+D_SHIFTX]
     add [ebx+D_OXH], eax
     fild dword ptr [ebx+D_H]
     fld dword ptr [ebx+D_HUDF]
@@ -722,7 +738,7 @@ pre_shift:
     mov eax, 480
     cmp dword ptr [ebx+D_PHASE], 0
     je pre_43
-    cmp dword ptr [ebx+D_SPLIT], 0
+    cmp dword ptr [ebx+D_LAYOUT], 0
     jne pre_43
     imul eax, [ebx+D_W]
     xor edx, edx
@@ -745,7 +761,7 @@ pre_lw:
     mov eax, [ebx+D_PINTH]
     test eax, eax
     je pre_pin
-    cmp dword ptr [ebx+D_SPLIT], 0
+    cmp dword ptr [ebx+D_LAYOUT], 0
     je pre_pin
     cmp dword ptr [ebx+D_OYH], 0
     jle pre_pin
@@ -905,6 +921,19 @@ post_rows:
     inc ecx
     cmp ecx, [ebx+D_H]
     jl post_rows
+    ; single viewport: the other engine's layer stays in the canvas
+    mov eax, [ebx+D_SHOW]
+    test eax, eax
+    je post_shown
+    cmp dword ptr [ebx+D_BASEPTR], FB_PTR
+    jne post_engine_b
+    cmp eax, 2
+    je post_done
+    jmp post_shown
+post_engine_b:
+    cmp eax, 1
+    je post_done
+post_shown:
     ; pre phase: anything painted beyond the 4:3 width?
     cmp dword ptr [ebx+D_PHASE], 0
     je post_fit
@@ -1370,6 +1399,120 @@ rescale_pack:
     jl rescale_loop
     ret
 
+
+; frame_setup: the call to the viewport setup at 0x5c811b comes here,
+; with its argument. Decides D_SHOW for the frame; see the header.
+frame_setup:
+    push ebx
+    push ecx
+    push edx
+    call frame_here
+frame_here:
+    pop ebx
+    sub ebx, frame_here
+    mov dword ptr [ebx+D_SHOW], 0
+    cmp dword ptr [SPLIT], 0
+    je frame_go
+    mov ecx, 1
+    cmp dword ptr [MODE], 4
+    jne frame_p2
+    mov edx, [SUBMODE]
+    call single_state
+    jne frame_single
+frame_p2:
+    mov ecx, 2
+    cmp dword ptr [MODE2], 4
+    jne frame_go
+    mov edx, [SUBMODE2]
+    call single_state
+    je frame_go
+frame_single:
+    mov [ebx+D_SHOW], ecx
+    push dword ptr [SPLIT]
+    mov dword ptr [SPLIT], 0
+    push dword ptr [esp+20]
+    mov eax, VIEWPORT
+    call eax
+    add esp, 4
+    pop dword ptr [SPLIT]
+    mov eax, [FB_PTR]               ; viewport 2 on the same surface
+    mov [FB_ROW], eax
+    mov dword ptr [MASKOFF], 0
+    jmp frame_out
+frame_go:
+    push dword ptr [esp+16]
+    mov eax, VIEWPORT
+    call eax
+    add esp, 4
+frame_out:
+    pop edx
+    pop ecx
+    pop ebx
+    ret
+; single_state: ZF clear when sub-state edx is in D_SINGLE
+single_state:
+    cmp edx, 64
+    jae single_no
+    push ecx
+    mov ecx, edx
+    and ecx, 31
+    mov eax, 1
+    shl eax, cl
+    mov ecx, edx
+    shr ecx, 5
+    test [ebx+ecx*4+D_SINGLE], eax
+    pop ecx
+    ret
+single_no:
+    xor eax, eax
+    ret
+
+; flush_a / flush_b: the flush calls at 0x5c8166 / 0x5c8178 come here.
+; The renderer not shown flushes with its draw-skip flag set.
+flush_a:
+    push ebx
+    push eax
+    call flush_a_here
+flush_a_here:
+    pop ebx
+    sub ebx, flush_a_here
+    mov eax, FLUSH_A
+    cmp dword ptr [ebx+D_SHOW], 2
+    jne flush_a_go
+    push dword ptr [SKIP_A]
+    mov dword ptr [SKIP_A], 1
+    call eax
+    pop dword ptr [SKIP_A]
+    pop eax
+    pop ebx
+    ret
+flush_a_go:
+    call eax
+    pop eax
+    pop ebx
+    ret
+flush_b:
+    push ebx
+    push eax
+    call flush_b_here
+flush_b_here:
+    pop ebx
+    sub ebx, flush_b_here
+    mov eax, FLUSH_B
+    cmp dword ptr [ebx+D_SHOW], 1
+    jne flush_b_go
+    push dword ptr [SKIP_B]
+    mov dword ptr [SKIP_B], 1
+    call eax
+    pop dword ptr [SKIP_B]
+    pop eax
+    pop ebx
+    ret
+flush_b_go:
+    call eax
+    pop eax
+    pop ebx
+    ret
 
 ; Machine-select hangar: the idle platform draw of a mech (0x59e4ea,
 ; "call 0x59cb93") comes here. The game keeps palettes for the selection

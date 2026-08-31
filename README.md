@@ -449,7 +449,8 @@ What changes when it is on:
 - **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
   bottom); the third choice, which duplicated the first, is gone. In
   side by side the timer and health bars sit at the top of each half,
-  with the rest of the HUD centred below.
+  with the rest of the HUD centred below. The machine select, which
+  showed the same grid in both halves, is drawn once at full size.
 - The pause, loading and credits text scales with the picture.
 
 It works with every other patch and with cnc-ddraw, which is what gives

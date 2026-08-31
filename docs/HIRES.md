@@ -64,6 +64,20 @@ Around 196 sites over the retail executable, in families:
   precision the original geometry was placed at; the remaining top/bottom
   asymmetry is a 0.7 px offset in the frame position, tunable if it ever
   shows.
+- Single viewport in a split game: the call to the viewport setup
+  (0x5c811b) and the two flush calls (0x5c8166, 0x5c8178) go through
+  the section. While either player's machine is in a sub-state listed
+  in HIRES_SINGLE_STATES (3 and 4, the machine select, whose portrait
+  grid is the same in both halves) the frame is one full-screen
+  viewport from that player's engine, P1 first: the setup runs with
+  the split flag cleared, so both renderers get the 1P geometry, then
+  viewport 2's base (0x6bf5b0) and mask offset (0x7087a0) are pointed
+  at the whole surface; the other renderer's flush runs with its
+  draw-skip flag (0x6c84c8 / 0x6c84cc) set, which sorts and empties
+  the list without drawing, and its 2D layer is not composited. The
+  blob keys its layouts on D_LAYOUT (1P or single, Ver, Hor) rather
+  than the split flag. The polygons submitted in the frame a transition
+  happens in still carry the previous frame's HUD placement.
 - GDI text: the draw at 0x5c991c centres on (x,y); the wrap routine
   0x5c8da6 and the loading-strip rects carry 640x480 bounds; the two
   24px LOGFONTs (.data 0x2c7370/0x2c73f0) scale by h/480.
