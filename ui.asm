@@ -28,8 +28,19 @@
 ; and the insert hooks scale every polygon to the HUD frame on the
 ; viewport. Outside a pass everything is left alone.
 ;
+; Split-screen HUD band: in side by side the 4:3 HUD frame sits centred
+; in a taller viewport. In a match the rows of the frame above D_PINTH
+; (timer, health bars) go to the viewport top instead: the insert hooks
+; give a polygon whose lowest vertex is above the threshold the
+; top-aligned offset, and the compositor places the canvas rows above it
+; from the viewport top, the pre-fill sampling from the same rows. The
+; band the slice leaves in the centred frame is not composited at all.
+; Gated on split, a centred frame (D_OYH > 0) and the sub-states that
+; draw the in-game HUD, so the machine-select hangar, a 3D scene inside
+; a HUD pass, is not cut.
+;
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y
+; split factors, D_SCALE/D_HUD, D_FILTER, D_SHIFTX/Y, D_PINTH
 ; are written by the patcher.
 FB_PTR    = 0x6bf5a8            ; locked surface pointer
 FB_PITCH  = 0x6bf5ac
@@ -113,6 +124,21 @@ D_SP      = 0x19d8            ; how many are saved
 D_DIM     = 0x1a64            ; hangar: shade factor 16.16 for the mech being
                               ; drawn, 0 when none (see hangar_draw)
 D_HDRET   = 0x1a68            ; hangar_draw's return address
+D_PINTH   = 0x1a6c            ; HUD band: frame rows pinned to the top, 0 off
+                              ; (patcher)
+D_PINON   = 0x1a70            ; 1 while the band applies (set in pre)
+D_PINSUB  = 0x1a74            ; D_OYH 16.16: centred less this is pinned
+D_PINROWS = 0x1a78            ; viewport rows the band covers; 0 outside
+                              ; the HUD phase
+D_OFFY    = 0x1a7c            ; y rescale offset for the polygon in hand
+D_YEND    = 0x1a80            ; composite loop bound
+D_YSAVE   = 0x1a84            ; pre-fill: the centred frame's row start
+MODE      = 0x1ae3594         ; 1P's game state, 4 in a match, and its
+SUBMODE   = 0x1ae3690         ; sub-state; 2P's own machine has a copy of
+MODE2     = 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
+SUBMODE2  = 0x1ef9eb0         ; The in-game HUD is drawn from sub-states
+                              ; 9..0x0c, 0x14, 0x15 and 0x1b; 3 and 4 are
+                              ; the machine select.
 D_RETD    = 0x19dc            ; and the depth to come back to for each
 SCALE_A   = 0x6bc1e4          ; the game's 3D scale, per renderer
 SCALE_B   = 0x6c8b24
@@ -713,6 +739,45 @@ pre_43:
 pre_lw:
     mov [ebx+D_LW], eax
     call fit
+    ; the HUD band, for the insert hooks and for this composite
+    mov dword ptr [ebx+D_PINON], 0
+    mov dword ptr [ebx+D_PINROWS], 0
+    mov eax, [ebx+D_PINTH]
+    test eax, eax
+    je pre_pin
+    cmp dword ptr [ebx+D_SPLIT], 0
+    je pre_pin
+    cmp dword ptr [ebx+D_OYH], 0
+    jle pre_pin
+    mov ecx, [MODE]                 ; the viewport's own player's state
+    mov edx, [SUBMODE]
+    cmp dword ptr [ebx+D_BASEPTR], FB_PTR
+    je pre_pin_1p
+    mov ecx, [MODE2]
+    mov edx, [SUBMODE2]
+pre_pin_1p:
+    cmp ecx, 4
+    jne pre_pin
+    cmp edx, 0x1b
+    je pre_pin_on
+    cmp edx, 0x14
+    je pre_pin_on
+    cmp edx, 0x15
+    je pre_pin_on
+    sub edx, 9
+    cmp edx, 3
+    ja pre_pin
+pre_pin_on:
+    mov dword ptr [ebx+D_PINON], 1
+    mov ecx, [ebx+D_OYH]
+    shl ecx, 16
+    mov [ebx+D_PINSUB], ecx
+    cmp dword ptr [ebx+D_PHASE], 0
+    jne pre_pin
+    imul eax, [ebx+D_S]
+    shr eax, 16
+    mov [ebx+D_PINROWS], eax
+pre_pin:
     ; pre-fill: canvas (cx, cy) from frame (fx0 + cx*s, fy0 + cy*s),
     ; fx0 = xoff - cx0*s; outside the viewport reads as 0.
     mov dword ptr [ebx+D_Y], 0
@@ -723,6 +788,10 @@ pre_lw:
     shr eax, 16
     imul eax, [ebx+D_S]
     sub ebp, eax
+    mov [ebx+D_YSAVE], ebp
+    cmp dword ptr [ebx+D_PINROWS], 0
+    je pre_fill_row
+    xor ebp, ebp                    ; the band, from the viewport top
 pre_fill_row:
     mov eax, ebp
     sar eax, 16
@@ -773,6 +842,15 @@ pre_fill_next:
     add ebp, [ebx+D_S]
     inc dword ptr [ebx+D_Y]
     mov eax, [ebx+D_Y]
+    cmp dword ptr [ebx+D_PINROWS], 0
+    je pre_fill_more
+    cmp eax, [ebx+D_PINTH]
+    jne pre_fill_more
+    mov ebp, [ebx+D_YSAVE]          ; below the band: the centred frame
+    imul eax, [ebx+D_S]
+    add ebp, eax
+    mov eax, [ebx+D_Y]
+pre_fill_more:
     cmp eax, [ebx+D_LH]
     jl pre_fill_row
     ; globals for the 2D code
@@ -865,7 +943,15 @@ post_scan_painted:
     pop ecx
 post_fit:
     call fit
+    mov eax, [ebx+D_DH]
+    mov [ebx+D_YEND], eax
     mov eax, [ebx+D_YOFF]
+    cmp dword ptr [ebx+D_PINROWS], 0
+    je post_start
+    mov eax, [ebx+D_PINROWS]        ; the band first, at the viewport top
+    mov [ebx+D_YEND], eax
+    xor eax, eax
+post_start:
     imul eax, [ebx+D_PITCH]
     add eax, [ebx+D_BASE]
     mov edi, [ebx+D_XOFF]
@@ -1005,8 +1091,20 @@ post_skip:
     add [ebx+D_YF], eax
     inc dword ptr [ebx+D_Y]
     mov eax, [ebx+D_Y]
-    cmp eax, [ebx+D_DH]
+    cmp eax, [ebx+D_YEND]
     jl post_yloop
+    cmp eax, [ebx+D_DH]
+    jge post_margins
+    mov eax, [ebx+D_DH]             ; the rest of the frame, centred; the
+    mov [ebx+D_YEND], eax           ; rows the band left are not touched
+    mov eax, [ebx+D_Y]
+    add eax, [ebx+D_YOFF]
+    imul eax, [ebx+D_PITCH]
+    add eax, [ebx+D_BASE]
+    mov edi, [ebx+D_XOFF]
+    lea edi, [eax+edi*2]
+    jmp post_yloop
+post_margins:
     cmp dword ptr [ebx+D_PHASE], 0
     je post_done
     cmp dword ptr [ebx+D_3D], 0
@@ -1194,6 +1292,18 @@ rescale_min_next:
     add esi, 4
     dec ecx
     jnz rescale_min
+    ; y offset: the top-aligned one for a polygon wholly inside the band
+    mov eax, [ebx+D_OFFY16]
+    cmp dword ptr [ebx+D_PINON], 0
+    je rescale_offy
+    mov edi, [ebx+D_YMAX]
+    sub edi, [ebx+D_CYH]
+    add edi, 240                    ; HUD frame row of the lowest vertex
+    cmp edi, [ebx+D_PINTH]
+    jge rescale_offy
+    sub eax, [ebx+D_PINSUB]
+rescale_offy:
+    mov [ebx+D_OFFY], eax
     lea esi, [edx+0x10]
     xor ecx, ecx                    ; vertex index
 rescale_loop:
@@ -1238,14 +1348,14 @@ rescale_x_done:
 rescale_y_high:
     inc edi
     imul edi, [ebx+D_S16]
-    add edi, [ebx+D_OFFY16]
+    add edi, [ebx+D_OFFY]
     add edi, 0x8000
     sar edi, 16
     dec edi
     jmp rescale_y_done
 rescale_y_low:
     imul edi, [ebx+D_S16]
-    add edi, [ebx+D_OFFY16]
+    add edi, [ebx+D_OFFY]
     add edi, 0x8000
     sar edi, 16
 rescale_y_done:

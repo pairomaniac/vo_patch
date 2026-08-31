@@ -447,7 +447,9 @@ What changes when it is on:
 - **F4** does nothing. Stock toggles a 320x240 mode; there is no
   320x240 here, so the key and its menu entry are turned off.
 - **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
-  bottom); the third choice, which duplicated the first, is gone.
+  bottom); the third choice, which duplicated the first, is gone. In
+  side by side the timer and health bars sit at the top of each half,
+  with the rest of the HUD centred below.
 - The pause, loading and credits text scales with the picture.
 
 It works with every other patch and with cnc-ddraw, which is what gives

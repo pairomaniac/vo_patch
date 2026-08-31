@@ -49,7 +49,17 @@ Around 196 sites over the retail executable, in families:
 - HUD passes: twenty pass prologues (UI_PASS_FUNCS) are wrapped by
   20-byte stubs that count pass depth in and out; submissions inside a
   pass get the HUD projection, and the insert hooks rescale their
-  vertices to the HUD frame. Measured against stock, the health bars sit
+  vertices to the HUD frame. In side-by-side split the 4:3 frame is
+  centred in a taller viewport; in the sub-states that draw the in-game HUD
+  (MODE 4, SUBMODE 9..0x0c, 0x14, 0x15, 0x1b; 2P's own machine for the
+  second viewport) frame rows above HIRES_HUD_BAND (110) are pinned to the
+  viewport top instead: a polygon whose lowest vertex is above the
+  threshold gets the top-aligned y offset, and the 2D canvas is
+  composited in two slices, the pre-fill sampling each from where it
+  will land. The band the slice leaves in the centred frame is not
+  composited. The state gate keeps the machine-select hangar, a 3D
+  scene inside a HUD pass, in one piece; top/bottom split and 1P have
+  no centred frame and are unaffected. Measured against stock, the health bars sit
   inside their frames to within a pixel in 640x480 terms, which is the
   precision the original geometry was placed at; the remaining top/bottom
   asymmetry is a 0.7 px offset in the frame position, tunable if it ever
@@ -208,11 +218,6 @@ blit path (the 0x47f0c0 family) and the ring buffer above.
 
 ## Queued work
 
-- **Split-screen HUD band.** In side-by-side split, pin only the top
-  HUD elements (timer and health bars, HUD-space y below about 110 of
-  480) to the viewport top: a per-polygon top-aligned offset in the
-  insert hooks, and the 2D canvas composited in slices so the pre-fill
-  samples the moved rows. Gated on split only.
 - **F4 as a real 1080/720 toggle.** Every baked scale (2D, HUD,
   projection, split geometry, row maths) becomes a pair selected at
   runtime on the flag. A rework of its own; the game's own plumbing
