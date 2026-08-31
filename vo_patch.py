@@ -810,6 +810,19 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                                   (0x5c8178, UI_FLUSH_B, 0x5dcc80)):
         sites.append((site - 0x400c00, b'\xe8' + u32(target - (site + 5)),
                       b'\xe8' + u32(sec_va + routine - (site + 5))))
+    # Credits roll: during the ending (sub-state 0x20) the tail of each
+    # engine's 2D post draw blacks rows 0..96 and 384..480 of the frame,
+    # one memset (0x47e580) per row - the letterbox the roll scrolled
+    # behind. The top band goes: the roll's window is top-aligned, so
+    # lines really do scroll off through row 0, and the je past the top
+    # loop becomes a jmp (0x480cd2 engine 1, 0x567cf0 engine 2). The
+    # bottom band stays: the roll's writer fills the tile ring just as a
+    # line reaches rows 384..400 (the window is 400 lines and the feed
+    # is a hand-timed schedule in 0x58ecd0), so there is no content
+    # below it to show - without the band the line's top slivers pop in
+    # mid-glyph over bare scenery. Behind black it reads as intended.
+    sites += [(0x0800d2, b'\x74', b'\xeb'),
+              (0x1670f0, b'\x74', b'\xeb')]
     # Machine-select hangar: a platform mech is drawn while its angle is
     # within a window of the camera's (0x59e3a1: 31.57 degrees to the
     # left, 28.43 to the right, .data doubles), sized for a 4:3 view;
@@ -4275,7 +4288,8 @@ BY_KEY['hires'] = (
     'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
     'menus and the text are redrawn at the new size, and widescreen\n'
     'shows more at the sides. F4, or Screen in the F5 dialog, switches\n'
-    'to 1280x720 and back; the choice is saved with the settings.\n'
+    'to 1280x720 and back; the choice is saved with the settings. The\n'
+    'ending credits scroll off through the top of the screen.\n'
     'Retail build only for now.',
     None)
 

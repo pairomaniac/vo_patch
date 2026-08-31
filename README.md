@@ -457,7 +457,11 @@ What changes when it is on:
   side by side the timer and health bars sit at the top of each half,
   with the rest of the HUD centred below. The machine select, which
   showed the same grid in both halves, is drawn once at full size.
-- The pause, loading and credits text scales with the picture.
+- The pause, loading and credits text scales with the picture. The
+  ending credits scroll off through the top of the screen: the black
+  band there is gone. The bottom band stays - the game writes each
+  line into the roll only as it reaches that edge, so there is
+  nothing below it to show.
 
 It works with every other patch and with cnc-ddraw, which is what gives
 you windowed or borderless play at that size - see

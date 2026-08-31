@@ -247,15 +247,33 @@ the tail that stops the music and moves to name entry, which is what
 the skip writes. The in-game machine's analogue is 0x44a523/0x4489d6.
 The roll's tile ring buffer is 0x1cc18ea.
 
-**Credits letterboxing, an open lead.** The roll's text fades out near
-the top and bottom edges (visible band about rows 90..385 of 480), the
-3D scenery behind it unaffected, so the fade is applied inside the
-tile/scroll-layer draw rather than as a screen overlay; the source has
-not been found. The arcade's letterbox and shade call
-(0x4a70c6/0x4ff496 into 0x514629/0x5cc579, alpha 0x80 arguments) is a
-stubbed no-op on PC - it lands in bare sort flushes at
-0x5d1a70/0x5dc940 - so it is not that. Next place to look: the scroll
-blit path (the 0x47f0c0 family) and the ring buffer above.
+**Credits letterboxing, found; the top band removed.** During the
+ending (SUBMODE 0x20, the roll flag 0x66c190 set) the tail of each
+engine's 2D post draw clears frame rows 0..0x60 and 0x180..0x1e0 to
+black, one row-memset (0x47e580, value 0) per row - 0x480c6c in engine
+1 (via FB base 0x6bf5a8), 0x567c7c in engine 2 (via 0x6bf5b0), halved
+under the low-resolution flag, 0x30/0x150 under Screen=Normal. That is
+the letterbox, and its bounds are the band read off the screen. The
+top clear is skipped (the je past its loop becomes a jmp, 0x480cd2 /
+0x567cf0): the roll's tile window is top-aligned, so lines scroll off
+through the real row 0. The bottom clear stays, because there is
+nothing below it to reveal: the window is 50 tile rows (400 lines,
+0x480556), and the roll's writer - the command interpreter at
+0x4cdab4 driven by the hand-timed schedule in 0x58ecd0, cursors
+0xbf7758/0xbf775c - fills a tile ring row just as it reaches the
+window's foot, with the 64-row ring holding history above and stale
+text below. Without the band, a line's top slivers pop in mid-glyph
+around row 392 over bare scenery (seen on video); extending the
+window downward shows 512-line-old ring content until the writer
+arrives. A roll that truly enters at row 480 means re-timing that
+schedule, which is authored per line - left alone. The roll's pixels
+are strips loaded incrementally into two banks (0x66c1a0/0x66c1a8,
+565->555 converted at 0x480f30), scrolled by rewriting the ring with
+char = offset - scroll/128 (0x4cdb06 family) and blitted as plain
+copies (0x47f2e0); there is no per-pixel fade anywhere in the path.
+The arcade's letterbox and shade call (0x4a70c6/0x4ff496 into
+0x514629/0x5cc579, alpha 0x80 arguments) remains a stubbed no-op on
+PC - it lands in bare sort flushes at 0x5d1a70/0x5dc940.
 
 ## Queued work
 
