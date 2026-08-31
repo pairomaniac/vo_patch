@@ -126,10 +126,6 @@ def build_resolvers(votrans, retail, other):
             ends = set()
             for ins in _md.disasm(retail[s:off + 16], 0):
                 ends.add(ins.address + ins.size)
-            if back in ends or any(e > back for e in ends
-                                   if e - back <= 6 and back in
-                                   {e2 for e2 in ends if e2 <= back} | {back}):
-                pass
             if back in ends or back == 24:
                 pat = wildcard_pat(retail[s:off + 16], loose=loose)
                 return pat, back
@@ -208,15 +204,6 @@ def main():
         pe = struct.unpack_from('<I', data, 0x3c)[0]
         return struct.unpack_from('<I', data, pe + 8)[0]
 
-    def by_signature(off, why):
-        pat = wildcard_pat(retail[off:off + 24])
-        hits = [m.start() for m in pat.finditer(other)]
-        if len(hits) != 1:
-            fails.append(('site 0x%06x: %s; signature hits %d'
-                          % (off, why, len(hits))))
-            return None
-        return hits[0]
-
     fails = []
 
     def pool_sites():
@@ -263,22 +250,20 @@ def main():
             out.update(dict(zip(left_r, left_o)))
         # the coverage-mask advances: the span's own bytes with the mask
         # pointer swapped for the build's, paired in order
-        import vo_patch_hires as _h
-        mp_r = struct.pack('<I', _h.ADDR['MASKPTR'])
-        mp_o = struct.pack('<I', va_map[_h.ADDR['MASKPTR']])
+        mp_r = struct.pack('<I', hires.ADDR['MASKPTR'])
+        mp_o = struct.pack('<I', va_map[hires.ADDR['MASKPTR']])
         done = set()
-        for off, n, _between in _h.MASK_ADVANCE:
+        for off, n, _between in hires.MASK_ADVANCE:
             span = retail[off:off + n]
             if mp_r not in span or n in done:
                 continue
             done.add(n)
-            pr = re.compile(re.escape(span).replace(re.escape(mp_r),
-                                                    re.escape(mp_r)), re.S)
+            pr = re.compile(re.escape(span), re.S)
             po = re.compile(re.escape(span).replace(re.escape(mp_r),
                                                     re.escape(mp_o)), re.S)
             rh = [m.start() for m in pr.finditer(retail)]
             oh = [m.start() for m in po.finditer(other)]
-            same = [o2 for o2, n2, _b in _h.MASK_ADVANCE
+            same = [o2 for o2, n2, _b in hires.MASK_ADVANCE
                     if retail[o2:o2 + n2] == span]
             if sorted(same) == rh and len(rh) == len(oh):
                 for r2, o2 in zip(rh, oh):
@@ -421,6 +406,25 @@ def main():
             fails.append('sites 0x%06x and 0x%06x both map to 0x%06x'
                          % (seen[jo], off, jo))
         seen[jo] = off
+
+    # Pass prologue lengths, before the gate below: a function with no
+    # clean 5-byte boundary must fail the run, not print a table.
+    lens = {}
+    for n, (site, ln) in enumerate(hires.UI_PASS_FUNCS):
+        bva = va_map.get(site)
+        if bva is None:
+            continue
+        take = 0
+        for ins in _md.disasm(other[bva - 0x400c00:bva - 0x400c00 + 20],
+                              0):
+            take = ins.address + ins.size
+            if take >= 5:
+                break
+        if take < 5:
+            fails.append('PASS%d 0x%x: no 5-byte boundary' % (n, site))
+        elif take != ln:
+            lens[site] = take
+
     if fails:
         for f in fails:
             print('FAIL', f)
@@ -437,22 +441,6 @@ def main():
         print("            0x%06x: (0x%06x, '%s')," %
               (off, off_map[off], old_map[off]))
     print("        },")
-    lens = {}
-    import vo_patch_hires as _h2
-    for n, (site, ln) in enumerate(_h2.UI_PASS_FUNCS):
-        bva = va_map.get(site)
-        if bva is None:
-            continue
-        take = 0
-        for ins in _md.disasm(other[bva - 0x400c00:bva - 0x400c00 + 20],
-                              0):
-            take = ins.address + ins.size
-            if take >= 5:
-                break
-        if take < 5:
-            fails.append('PASS%d 0x%x: no 5-byte boundary' % (n, site))
-        elif take != ln:
-            lens[site] = take
     if lens:
         print("        'passlen': {")
         for site in sorted(lens):

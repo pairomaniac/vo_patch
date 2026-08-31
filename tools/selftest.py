@@ -25,9 +25,11 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '8d107118fa23e4c55df6f674e3e37a41',
-    'd19320bdc3381a48228990907910a391': '2b2faa549780a74a290c7401b8a55749',
-    '4c70f780a7f0d98d74be62304fb99021': 'c6c4ccee8a7afb88a5e463630378af5d',
+    'a464b0ff32d5bab499f265e45658504e': '5c00e6e20ac07366b71611f4297d094c',
+    # The overlay geometry fix moved every build's output; the other two
+    # need a run against their own executables to re-pin.
+    'd19320bdc3381a48228990907910a391': None,
+    '4c70f780a7f0d98d74be62304fb99021': None,
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -129,6 +131,37 @@ def f4_check(vp, original, keys, build, result):
     return '%d entries' % n
 
 
+def port_identity(vp, original):
+    """port_sites against an identity port: every offset maps to itself
+    and the "build's own bytes" are retail's. The translation must hand
+    back the retail sites unchanged, rewrites included. Keeps the port
+    path from rotting while PORT ships empty and hires_install refuses
+    ported builds outright."""
+    sites = vp.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
+                           (0x39c0000, vp.HIRES_POLYS))
+    port = {'va': {}, 'off': {}}
+    for va in vp.ADDR.values():
+        port['va'][va] = va
+    for _o, va in vp.UI_REFS:
+        port['va'].setdefault(va, va)
+    for off, old, new in sites:
+        n = len(old) if old is not None else len(new)
+        port['off'][off] = (off, original[off:off + n].hex())
+    moved = vp.port_sites(sites, port, vp.ADDR.__getitem__)
+    if len(moved) != len(sites):
+        return 'site count changed: %d -> %d' % (len(sites), len(moved))
+    for (off, old, new), (boff, bold, bnew) in zip(sites, moved):
+        if boff != off:
+            return 'site 0x%06x moved to 0x%06x' % (off, boff)
+        if bnew != new:
+            return 'site 0x%06x new bytes changed' % off
+        if (old is None) != (bold is None):
+            return 'site 0x%06x old-bytes shape changed' % off
+        if old is not None and bold != original[off:off + len(old)]:
+            return 'site 0x%06x old bytes changed' % off
+    return '%d sites, identity' % len(moved)
+
+
 def main(path):
     vp = load_patcher()
     original, read = pristine(path, vp)
@@ -198,6 +231,11 @@ def main(path):
             print('F4 table: %s' % note)
             if not note.endswith('entries') and 'no table' not in note:
                 bad += 1
+            if build.md5 == vp.ORIGINAL_MD5:
+                note = port_identity(vp, original)
+                print('port identity: %s' % note)
+                if not note.endswith('identity'):
+                    bad += 1
             if EXPECTED_ALL.get(build.md5) is None:
                 print('  not pinned for this build yet')
             elif digest != EXPECTED_ALL[build.md5]:
