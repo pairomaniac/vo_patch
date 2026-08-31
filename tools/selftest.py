@@ -28,8 +28,8 @@ EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '485b189fd2b3cf1ffb9ba26550526df1',
     # The marker-arrow fix moved every build's output; the other two
     # need a run against their own executables to re-pin.
-    'd19320bdc3381a48228990907910a391': None,
-    '4c70f780a7f0d98d74be62304fb99021': None,
+    'd19320bdc3381a48228990907910a391': '94d395ee9a9702520c2685b371177f8f',
+    '4c70f780a7f0d98d74be62304fb99021': '9e1e22a87c05ed7a346a6ac34c73e398',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))
