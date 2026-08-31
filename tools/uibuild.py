@@ -27,7 +27,8 @@ HIRES = os.path.join(ROOT, 'vo_patch.py')
 LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'submit_b', 'hud_enter', 'stub1', 'stub2', 'stub3', 'stub4',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
-          'flush_b', 'f4_toggle']
+          'flush_b', 'f4_toggle', 'dlg_init', 'dlg_ok', 'dlg_done',
+          'ini_load', 'ini_save']
 
 
 def normalized(src):
@@ -162,6 +163,10 @@ def main():
              '%s, %s' % (hex(offs['insert_a']), hex(offs['insert_b'])))
     setconst('UI_HANGAR_DRAW', hex(offs['hangar_draw']))
     setconst('UI_F4', hex(offs['f4_toggle']))
+    setconst('UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE',
+             ', '.join(hex(offs[l]) for l in ('dlg_init', 'dlg_ok',
+                                              'dlg_done', 'ini_load',
+                                              'ini_save')))
     setconst('UI_FRAME, UI_FLUSH_A, UI_FLUSH_B',
              '%s, %s, %s' % (hex(offs['frame_setup']), hex(offs['flush_a']),
                              hex(offs['flush_b'])))

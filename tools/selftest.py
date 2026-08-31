@@ -25,7 +25,7 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '61796edb004513ff147c86dfca153f82',
+    'a464b0ff32d5bab499f265e45658504e': '530bda0e50270e144157519b2e4b3cc7',
     'd19320bdc3381a48228990907910a391': '2b2faa549780a74a290c7401b8a55749',
     '4c70f780a7f0d98d74be62304fb99021': 'c6c4ccee8a7afb88a5e463630378af5d',
 }

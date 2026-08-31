@@ -447,8 +447,11 @@ rather than stretching the middle.
 What changes when it is on:
 
 - **F4** switches between 1920x1080 and 1280x720, in place of stock's
-  640x480 / 320x240. The F5 menu entry that picked 320x240 outright is
-  turned off.
+  640x480 / 320x240. **F5 Screen** offers the same choice as **1080p** /
+  **720p** (Normal, a small window centred in the picture, is gone) and
+  the choice is saved to `v_on.ini` as `ScrSize` bit 0, so the game
+  starts at the size it was left in. The menu entry that picked 320x240
+  outright is turned off.
 - **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
   bottom); the third choice, which duplicated the first, is gone. In
   side by side the timer and health bars sit at the top of each half,

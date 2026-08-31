@@ -157,6 +157,7 @@ D_DEBUG   = 0x1a98            ; 1: print both machines' states on the frame
 D_DBGSTR  = 0x1aa0            ; the text, 32 bytes
 D_F4MODE  = 0x1ac0            ; 0: the first size is in place, 1: the second
 D_F4TAB   = 0x1ac4            ; the F4 site table (patcher); see f4_toggle
+D_F4WANT  = 0x1ac8            ; the F5 Screen choice: 1 for the second size
 PRIMARY   = 0x1ae5f40         ; the surface DRAW paints on, and the one
 BACK      = 0x1ae5f5c         ; about to be flipped over it
 DRAW      = 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
@@ -175,6 +176,13 @@ MASKINIT  = 0x5ce180          ; fills the coverage mask row table; keeps
 FONTS     = 0x5c8ca0          ; builds the GDI fonts for a mode (1: 24px)
 FONTSET   = 0x6c866c          ; the mode they were last built for
 F4TAIL    = 0x5c755a          ; the F4 handler's tail, after the mode set
+GRESUME   = 0x5c680b          ; the resume after a dialog
+STAGE     = 0xbe4300          ; the F5 dialog's copy of FLAGS
+DLG_INIT  = 0x427ec9          ; after the dialog stages FLAGS
+DLG_OK    = 0x428241          ; after OK writes FLAGS back
+INI_LOAD  = 0x50bcc6          ; after the ini load has set FLAGS
+INI_SAVE  = 0x50c0cb          ; after the ini save has read FLAGS
+INI_NEXT  = 0x6a0240          ; the push the ini-load hook displaces
 MODE      = 0x1ae3594         ; 1P's game state, 4 in a match, and its
 SUBMODE   = 0x1ae3690         ; sub-state; 2P's own machine has a copy of
 MODE2     = 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
@@ -1689,6 +1697,12 @@ f4_toggle:
 f4_here:
     pop ebx
     sub ebx, f4_here
+    call f4_switch
+    popad
+    push F4TAIL
+    ret
+; f4_switch: the other size, in place and on the screen; ebx set
+f4_switch:
     call f4_apply
     push 0x10
     push dword ptr [ebx+D_MODEH]
@@ -1700,8 +1714,6 @@ f4_here:
     jnz f4_done
     call f4_apply
 f4_done:
-    popad
-    push F4TAIL
     ret
 f4_apply:
     mov eax, [ebx+D_F4MODE]
@@ -1732,4 +1744,84 @@ f4_swapped:
     mov eax, FONTS
     call eax
     add esp, 4
+    ret
+
+; The F5 Screen row, relabelled 720p / 1080p by the patcher, drives the
+; same switch. Its bit (FLAGS bit 0, stock's Screen=Normal window) is
+; kept out of FLAGS: the dialog stages FLAGS with the bit set for the
+; second size, OK strips it into D_F4WANT, and the switch runs once
+; the dialog has closed, before the resume. The ini keeps the bit, so
+; the load applies the size before the mode is set, and the save
+; writes it.
+dlg_init:
+    push ebx
+    call dlg_init_here
+dlg_init_here:
+    pop ebx
+    sub ebx, dlg_init_here
+    or eax, [ebx+D_F4MODE]
+    mov [STAGE], eax
+    push dword ptr [ebx+D_F4MODE]
+    pop dword ptr [ebx+D_F4WANT]
+    pop ebx
+    push DLG_INIT
+    ret
+dlg_ok:
+    push ebx
+    call dlg_ok_here
+dlg_ok_here:
+    pop ebx
+    sub ebx, dlg_ok_here
+    mov [ebx+D_F4WANT], eax
+    and dword ptr [ebx+D_F4WANT], 1
+    and eax, 0xfffffffe
+    mov [FLAGS], eax
+    pop ebx
+    push DLG_OK
+    ret
+dlg_done:
+    pushad
+    call dlg_done_here
+dlg_done_here:
+    pop ebx
+    sub ebx, dlg_done_here
+    cmp dword ptr [LOOPMODE], 2         ; not in a network game
+    je dlg_resume
+    mov eax, [ebx+D_F4WANT]
+    cmp eax, [ebx+D_F4MODE]
+    je dlg_resume
+    call f4_switch
+dlg_resume:
+    popad
+    push GRESUME
+    ret
+ini_load:
+    pushad
+    call ini_load_here
+ini_load_here:
+    pop ebx
+    sub ebx, ini_load_here
+    mov eax, [FLAGS]
+    test al, 1
+    jz ini_load_out
+    and eax, 0xfffffffe
+    mov [FLAGS], eax
+    cmp dword ptr [ebx+D_F4MODE], 0
+    jne ini_load_out
+    call f4_apply
+ini_load_out:
+    popad
+    push INI_NEXT
+    push INI_LOAD
+    ret
+ini_save:
+    push ebx
+    call ini_save_here
+ini_save_here:
+    pop ebx
+    sub ebx, ini_save_here
+    mov eax, [FLAGS]
+    or eax, [ebx+D_F4MODE]
+    pop ebx
+    push INI_SAVE
     ret

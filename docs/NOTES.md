@@ -325,9 +325,9 @@ does the middle one. So that branch is replaced with a jump into the Rich
 block and the fifteen bytes padded out.
 
 `ScrSize` is a bit field rather than a size: bit 0 is Screen Normal, bit 2 is
-low resolution, the 320x240 mode F4 toggles - under **Widescreen 1080p**
-F4 toggles 1280x720 instead, without this bit. A default of 0 is Screen
-Large at 640x480.
+low resolution, the 320x240 mode F4 toggles. Under **Widescreen 1080p**
+bit 0 means 1280x720 instead (F4 or F5 Screen), and bit 2 is unused. A
+default of 0 is Screen Large at 640x480.
 
 ### Lose-a-round crash
 

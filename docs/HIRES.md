@@ -98,8 +98,19 @@ Around 196 sites over the retail executable, in families:
   first set goes back and the idle pass recreates at that. The game's
   own low-resolution flag stays clear, so none of its halving paths
   run. The direct 320x240 menu command (0x5c79aa) jumps to the handler
-  exit. The F5 Screen Split radio labels become "Ver"/"Hor" and the
-  redundant Type2 is hidden.
+  exit. The F5 Screen radios (ids 0x420/0x421) become "720p"/"1080p"
+  and drive the same switch: the dialog stages FLAGS into 0xbe4300 at
+  0x427ec4 (hook: bit 0 set from the mode word, so the radio shows the
+  size in place), OK writes it back at 0x42823c (hook: bit 0 stripped
+  into D_F4WANT), and the resume after DialogBoxParamA at 0x5c7494
+  (hook: switch if D_F4WANT differs, not in a network game, then
+  GRESUME). The ini keeps the choice as ScrSize bit 0: the load's join
+  at 0x50bcc1 (hook: strip it from FLAGS and apply the second size's
+  sites before the mode is set - the load runs in WM_CREATE) and the
+  save's read at 0x50c0c6 (hook: bit 0 from the mode word). FLAGS bit 0
+  itself - stock's Screen=Normal window - is never set at runtime. The
+  Screen Split radio labels become "Ver"/"Hor" and the redundant Type2
+  is hidden.
 - The machine-select hangar draw (0x59e4ea) is wrapped to widen the
   platform-mech angle window for the wider FOV, fading the outermost
   mech to a silhouette where the game stops guaranteeing palettes.

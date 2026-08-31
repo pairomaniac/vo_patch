@@ -82,10 +82,11 @@ import urllib.error
 #      split is drawn only in the sub-states that draw a round
 #      (HIRES_SPLIT_STATES); every other frame is one full-screen
 #      viewport, so the machine select is no longer the same grid twice.
-#   -  F4 switches between 1920x1080 and 1280x720 (HIRES_ALT): the
-#      sites are written for the first, and a table in the section holds
-#      both sets for the blob to copy over them at runtime, then the
-#      surfaces are recreated. The 320x240 menu command is defused.
+#   -  F4 and the F5 Screen row (720p / 1080p) switch between 1920x1080
+#      and 1280x720 (HIRES_ALT): the sites are written for the first, and
+#      a table in the section holds both sets for the blob to copy over
+#      them at runtime, then the surfaces are recreated. The choice is
+#      saved as bit 0 of ScrSize. The 320x240 menu command is defused.
 #
 # The exe grows by one section: about 5 KB of code and data plus a
 # header; the buffers are zero-filled by the loader.
@@ -303,11 +304,23 @@ UI_REFS = (
     (0x1382, 0x345bd58),
     (0x1395, 0x345b2c8),
     (0x13f9, 0x059cb93),
-    (0x1453, 0x05c56a2),
-    (0x1467, 0x05c755a),
-    (0x149f, 0x05ce180),
-    (0x14a7, 0x06c866c),
-    (0x14b2, 0x05c8ca0),
+    (0x1446, 0x05c755a),
+    (0x145f, 0x05c56a2),
+    (0x14a5, 0x05ce180),
+    (0x14ad, 0x06c866c),
+    (0x14b8, 0x05c8ca0),
+    (0x14d6, 0x0be4300),
+    (0x14e8, 0x0427ec9),
+    (0x150b, 0x06bf598),
+    (0x1511, 0x0428241),
+    (0x1525, 0x06bc94c),
+    (0x1541, 0x05c680b),
+    (0x1554, 0x06bf598),
+    (0x1560, 0x06bf598),
+    (0x1574, 0x06a0240),
+    (0x1579, 0x050bcc6),
+    (0x158c, 0x06bf598),
+    (0x1598, 0x050c0cb),
 )
 # UI REFS END
 
@@ -347,7 +360,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '01043c92a9a4ea8d27fae03a6cf2edb905360d0b2a4e66e1abff65d27293decf'
+UI_ASM_SHA = '1be0c70f52c6e4c5bc60bdf84917650bb737e9422131385f64c3ddba504e9bf0'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
     '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
@@ -493,10 +506,16 @@ UI_CODE = bytes.fromhex(
     'd8c783641a0000000000005a58508b4424088983681a00008d83fe13000089442408585b'
     '6893cb5900c353e8000000005b81eb04140000c783641a000000000000ffb3681a00008b'
     '5c240483c408ff6424f8a470e341abaaaa3d0000803760e8000000005b81eb38140000e8'
-    '280000006a10ffb324180000ffb320180000b8a2565c00ffd083c40c85c07505e8070000'
-    '0061685a755c00c38b83c01a000083f0018983c01a00008bb3c41a00008b3e85ff74178b'
-    '4e0483c6085685c0740201ce89caf3a45e8d3456ebe3b880e15c00ffd0c7056c866c0000'
-    '0000006a01b8a08c5c00ffd083c404c3')
+    '0700000061685a755c00c3e8220000006a10ffb324180000ffb320180000b8a2565c00ff'
+    'd083c40c85c07505e801000000c38b83c01a000083f0018983c01a00008bb3c41a00008b'
+    '3e85ff74178b4e0483c6085685c0740201ce89caf3a45e8d3456ebe3b880e15c00ffd0c7'
+    '056c866c00000000006a01b8a08c5c00ffd083c404c353e8000000005b81ebc81400000b'
+    '83c01a0000a30043be00ffb3c01a00008f83c81a00005b68c97e4200c353e8000000005b'
+    '81ebf31400008983c81a000083a3c81a00000183e0fea398f56b005b6841824200c360e8'
+    '000000005b81eb1c150000833d4cc96b000274138b83c81a00003b83c01a00007405e80c'
+    'ffffff61680b685c00c360e8000000005b81eb4c150000a198f56b00a801741683e0fea3'
+    '98f56b0083bbc01a0000007505e800ffffff616840026a0068c6bc5000c353e800000000'
+    '5b81eb84150000a198f56b000b83c01a00005b68cbc05000c3')
 # UI CODE END
 UI_CALLS = [(0x4c1, 0x4800d0), (0x4d6, 0x4804f0),   # rel32 at offset+1
             (0x4eb, 0x5670c0), (0x500, 0x5674f0)]
@@ -518,6 +537,7 @@ UI_HUD_ENTER = 0x38c
 UI_HANGAR_DRAW = 0x1364
 UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12ec, 0x1328
 UI_F4 = 0x1432
+UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE = 0x14c2, 0x14ed, 0x1516, 0x1546, 0x157e
 UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
 UI_ROWTAB = 0x183c                          # row table address, likewise
@@ -714,6 +734,20 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                b'\xe9' + u32(sec_va + UI_F4 - (0x5c74ec + 5)) + b'\x90\x90'),
               (0x1c6daa, bytes.fromhex('6a1068f0000000'),
                b'\xe9' + u32(A('F4EXIT') - (A('F4CASE') + 5)) + b'\x90\x90')]
+    # The F5 Screen row (720p / 1080p, see _split_dialog) drives the
+    # same switch through four hooks in the section, and the ini load
+    # and save carry the choice as bit 0 of ScrSize: the dialog staging
+    # FLAGS (0x427ec4), OK writing it back (0x42823c), the resume after
+    # the dialog (0x5c7494), the ini load's join (0x50bcc1) and the ini
+    # save's read (0x50c0c6).
+    for site, old, routine, op in (
+            (0x427ec4, 'a30043be00', UI_DLG_INIT, b'\xe9'),
+            (0x42823c, 'a398f56b00', UI_DLG_OK, b'\xe9'),
+            (0x5c7494, 'e872f3ffff', UI_DLG_DONE, b'\xe8'),
+            (0x50bcc1, '6840026a00', UI_INI_LOAD, b'\xe9'),
+            (0x50c0c6, 'a198f56b00', UI_INI_SAVE, b'\xe9')):
+        sites.append((site - 0x400c00, bytes.fromhex(old),
+                      op + u32(sec_va + routine - (site + 5))))
     # 0x5c9404 returns failure for any mode but the two it knows. This is
     # the crash: the caller then runs on without a surface.
     sites += imm_sites([0x1c8810], 640, w)
@@ -910,18 +944,29 @@ def _split_dialog(buf):
     """Relabel the F5 Screen Split radios for the two layouts this patch
     keeps: Type1 -> Ver (side by side), Type3 -> Hor (top/bottom). Type2
     differed from Type1 only by a stagger the new layouts do not have, so
-    it is hidden. Located by string: the framerate patch grows this
-    template, so fixed offsets would miss."""
+    it is hidden. The Screen radios become 720p (was Normal) and 1080p
+    (was Large). Located by string and control id: the framerate patch
+    grows this template, so fixed offsets would miss."""
     lo, hi = 0x602c00, min(len(buf), 0x60e000)
-    for old, new, hide in (('Type1', 'Ver  ', False),
-                           ('Type2', None, True),
-                           ('Type3', 'Hor  ', False)):
-        pat = old.encode('utf-16-le')
+    for old, new, hide, ident in (('Type1', 'Ver  ', False, 0x42e),
+                                  ('Type2', None, True, 0x42f),
+                                  ('Type3', 'Hor  ', False, 0x431),
+                                  ('Normal', '720p  ', False, 0x420),
+                                  ('Large', '1080p', False, 0x421)):
+        pat = old.encode('utf-16-le') + b'\0\0'
+        hits = []
         i = buf.find(pat, lo, hi)
-        if i < 0 or buf.find(pat, i + 1, hi) >= 0:
-            raise ValueError('Screen Split radio %s not found once' % old)
+        while i >= 0:
+            if struct.unpack_from('<H', buf, i - 6)[0] == ident:
+                hits.append(i)
+            i = buf.find(pat, i + 1, hi)
+        if len(hits) != 1:
+            raise ValueError('F5 radio %s not found once' % old)
+        i = hits[0]
         if new:
-            buf[i:i + 10] = new.encode('utf-16-le')
+            enc = new.encode('utf-16-le')
+            assert len(enc) == len(pat) - 2
+            buf[i:i + len(enc)] = enc
         if hide:
             so = i - 22                     # the item's style dword
             style = struct.unpack_from('<I', buf, so)[0]
@@ -4229,7 +4274,8 @@ BY_KEY['hires'] = (
     'Widescreen 1080p',
     'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
     'menus and the text are redrawn at the new size, and widescreen\n'
-    'shows more at the sides. F4 switches to 1280x720 and back.\n'
+    'shows more at the sides. F4, or Screen in the F5 dialog, switches\n'
+    'to 1280x720 and back; the choice is saved with the settings.\n'
     'Retail build only for now.',
     None)
 
