@@ -27,7 +27,7 @@ else
     echo "not found:$missing"
     echo "  apt: sudo apt install nasm gcc-mingw-w64-i686 xvfb" \
          "python3-tk python3-pyflakes python3-capstone"
-    echo "  dnf: sudo dnf install nasm gcc-mingw64-i686" \
+    echo "  dnf: sudo dnf install nasm mingw32-gcc" \
          "xorg-x11-server-Xvfb python3-tkinter python3-pyflakes" \
          "python3-capstone"
 fi
