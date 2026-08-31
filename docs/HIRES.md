@@ -284,7 +284,8 @@ two modes and fails on any other.
 ### GDI text, at runtime
 
 0x5c991c draws centred on (x, y) through GetTextExtentPoint32, halving
-under FSFLAGS bit 4 in low resolution. Fonts are HFONTs at 0x6c8568/6c
+in low resolution under FSFLAGS bit 2 - the test byte, 4 at 0x5c9a98,
+the same bit the docs call low resolution everywhere else. Fonts are HFONTs at 0x6c8568/6c
 built at 0x5c8ca0 from the LOGFONTs at 0x6c8570/0x6c85f0 (24px) and
 0x6c85b0/0x6c8630 (16px, low resolution); the 24px pair is what the patch
 scales, in .data at file 0x2c7370/0x2c73f0. The wrap routine is 0x5c8da6.

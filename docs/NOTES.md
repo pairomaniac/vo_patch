@@ -250,8 +250,11 @@ DirectDraw surfaces released (`0x5b1320`) so the player can have the screen
 and recreated when the movie ends (`0x5b1510`).
 
 Switching away during the movie stops it: `0x54ea39` stops the movie and
-sets `0x6bead4`, "stopped by deactivation", and coming back `0x54e516`
-resumes it and clears the flag.
+sets `0x6bead4`, "stopped by deactivation"; coming back, `0x54e516`
+resumes it. The flag is cleared only where it is read - the exit
+routine's test (`0x5b1519`, clear at `0x5b1526`, an unconditional clear
+at `0x5b14c4` earlier in the same path) and the activation handler's
+recreate (`0x5c6d14`) - not by the resume.
 
 Between those two the intro state polls the movie, finds it stopped and
 takes that for the end, so it calls the exit routine - whose first test is
