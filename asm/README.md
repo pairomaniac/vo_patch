@@ -93,14 +93,18 @@ it points at.
 ## Addresses
 
 No `.asm` file names an address in the game. Every place it touches is an
-`extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles the
-file as an ELF object, whose relocations say which bytes want which symbol.
+`extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles
+the file as an ELF object, whose relocations say which bytes want which
+symbol.
+
 `build.py` reads those out and writes them into `vo_patch.py` beside the
-code as the fixup list. The addresses themselves live in one place per
-build, the `symbols` table of its `Build` in `vo_patch.py`: a virtual
-address for a place in the game, or `(blob, label)` for a place in one of
-ours. Where a blob goes is the build's `annex` list, or for the two
-places the game itself reaches, its `caves` table.
+code as the fixup list.
+
+The addresses themselves live in one place per build, the `symbols` table
+of its `Build` in `vo_patch.py`: a virtual address for a place in the game,
+or `(blob, label)` for a place in one of ours. Where a blob goes is the
+build's `annex` list, or for the two places the game itself reaches, its
+`caves` table.
 
 The locals of the game's own functions that a stub reads - a loop counter
 at `[ebp-8]` - are the frame-offset symbols, plain constants from
@@ -458,11 +462,13 @@ The **soft reset** is in the poll, because that is where both pads are
 read. LB, RB and Start held together with both triggers past XInput's
 threshold, on the press, writes `-1` to the game's mode word - and to the
 second player's, which is a separate state machine, when two are playing.
+
 The game's own tick sees the negative value and reboots to the title along
-a path it already has; see [NOTES.md](../docs/NOTES.md). While the
-combination is down no key is posted for that pad, since Start alone is
-F3 and a paused game never runs the tick, and nothing happens at all
-during a network match, which is what the game's F-key handlers do.
+a path it already has; see [NOTES.md](../docs/NOTES.md).
+
+While the combination is down no key is posted for that pad, since Start
+alone is F3 and a paused game never runs the tick, and nothing happens at
+all during a network match, which is what the game's F-key handlers do.
 
 ## levers.asm
 
@@ -517,12 +523,15 @@ block per player, mostly tables.
 Two unrelated repairs to the keyboard bind page, sharing a blob.
 
 The first is the duplicate-key test. The page refuses a key for 2P if 1P
-already holds it, which is right when both are on the keyboard and needlessly
-strict when 1P is on a pad and its keys are dormant. The stub runs the test
-only when 1P is actually on the keyboard profile. It governs what may be
-entered and nothing more: if 1P later switches back, both sides can hold the
-same key and one press drives both mechs. Catching that means validating on
-the device switch as well, which is a separate job.
+already holds it, which is right when both are on the keyboard and
+needlessly strict when 1P is on a pad and its keys are dormant.
+
+The stub runs the test only when 1P is actually on the keyboard profile.
+
+It governs what may be entered and nothing more: if 1P later switches back,
+both sides can hold the same key and one press drives both mechs. Catching
+that means validating on the device switch as well, which is a separate
+job.
 
 The second is the **Default** button, which passed a hardcoded player 0. On
 the 2P side it reset 1P's binds and left 2P's alone. The gamepad and joystick
@@ -698,14 +707,17 @@ the 320x240 one, which `0x5c88ac` halves those globals for itself -
 places it the same way; unlike the pause text's 640-terms constants,
 nothing here halves again at `0x5c9a98`.
 
-Two things about when and where it paints. It paints at the moment it is
-called, so it has to run after the frame is drawn: the hook is the call at
-`0x5c64e7`, five bytes before the surface is flipped at `0x5c650d`, and the
-stub makes that call first with its argument untouched. And it paints on
-`0x1ae5f40`, the primary surface, which suits the pause screen because that
-is not flipping - here the back buffer is flipped over it the same frame, so
-that global is pointed at the back buffer, `0x1ae5f5c`, across the call and
-put back after.
+Two things about when and where it paints.
+
+It paints at the moment it is called, so it has to run after the frame is
+drawn: the hook is the call at `0x5c64e7`, five bytes before the surface is
+flipped at `0x5c650d`, and the stub makes that call first with its argument
+untouched.
+
+And it paints on `0x1ae5f40`, the primary surface, which suits the pause
+screen because that is not flipping - here the back buffer is flipped over
+it the same frame, so that global is pointed at the back buffer,
+`0x1ae5f5c`, across the call and put back after.
 
 The gate is `MODE` 4, `SUBMODE` `0x20` and phase 2, and only then the hold
 count. `HELD` only means anything while the roll is running, where
@@ -726,12 +738,16 @@ caller goes through it. The **recreate** swaps its caller's return address
 for the stub's, so the stub sees the result: a failure sets the game's
 inactive flag, which its main loop already idles on, and the "surfaces
 exist" flag the activation handler tests before recreating, so the next
-switch tries again. **setactive** refuses a resume while the back buffer
-is null, since the movie player and the F-key dialogs resume through it
-and either would start the loop on nothing. The **idle pass** the loop
-makes each iteration while inactive retries the recreate, choosing the
-resolution from the same two flags the handler does and skipping while
-the window is minimised, and lets the resume through once it works.
+switch tries again.
+
+**setactive** refuses a resume while the back buffer is null, since the
+movie player and the F-key dialogs resume through it and either would start
+the loop on nothing.
+
+The **idle pass** the loop makes each iteration while inactive retries the
+recreate, choosing the resolution from the same two flags the handler does
+and skipping while the window is minimised, and lets the resume through
+once it works.
 
 The rerelease reports each failure inside its recreate with a message
 box, which the retry turns into one box per attempt; those three calls
