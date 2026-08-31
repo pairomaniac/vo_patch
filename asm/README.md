@@ -39,7 +39,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
-| `ui.asm` | Widescreen 1080p: the resolution blob, built by `tools/uibuild.py` (see below) |
+| `ui.asm` | Native widescreen: the resolution blob, built by `tools/uibuild.py` (see below) |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -203,7 +203,7 @@ zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 
 Three patches append a section of their own rather than use the annex,
 because what they carry is too big for it and only exists once the patch
-is applied. The third, `.vohr`, is **Widescreen 1080p**'s: its code is
+is applied. The third, `.vohr`, is **Native widescreen**'s: its code is
 `ui.asm` here, the same nasm as everything else, but built by
 `tools/uibuild.py` rather than `build.py` - it is position independent
 (no `org`) and carries its own address list, so the blob and its offset

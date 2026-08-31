@@ -26,7 +26,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
 | **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
 | **Intro, loading and ending screens** | `0x14dc42`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x0d60c8`, `0x1c58e7` | placement routine calls a stub in the annex, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
-| **Widescreen 1080p** | about 240 sites across `.text`, `.data` and `.rsrc`, appended `.vohr` section | every 640x480 assumption rewritten for the new size - mode setting, the viewport globals and row maths, the rasterizers' row tables and coverage mask, the projection scale, the polygon pool, the GDI text bounds and fonts, the F5 split labels; the 2D layer redirected through a canvas in the new section and composited back at scale; F4 switches to 1280x720 and back through a site table the blob copies at runtime; the ending letterbox skipped, the roll's edge clipping wired up and the tile planes' row-table overruns bounded, the roll window shifted to enter at the bottom and the strip watermarks floored. Retail only for now |
+| **Native widescreen** | about 240 sites across `.text`, `.data` and `.rsrc`, appended `.vohr` section | every 640x480 assumption rewritten for the new size - mode setting, the viewport globals and row maths, the rasterizers' row tables and coverage mask, the projection scale, the polygon pool, the GDI text bounds and fonts, the F5 split labels; the 2D layer redirected through a canvas in the new section and composited back at scale; F4 switches to 1280x720 and back through a site table the blob copies at runtime; the ending letterbox skipped, the roll's edge clipping wired up and the tile planes' row-table overruns bounded, the roll window shifted to enter at the bottom and the strip watermarks floored. Retail only for now |
 
 Bold entries are not part of original VO_Patch. Offsets are the English
 retail build's, the ones the site table is keyed on; the other builds map
@@ -325,7 +325,7 @@ does the middle one. So that branch is replaced with a jump into the Rich
 block and the fifteen bytes padded out.
 
 `ScrSize` is a bit field rather than a size: bit 0 is Screen Normal, bit 2 is
-low resolution, the 320x240 mode F4 toggles. Under **Widescreen 1080p**
+low resolution, the 320x240 mode F4 toggles. Under **Native widescreen**
 bit 0 means 1280x720 instead (F4 or F5 Screen), and bit 2 is unused. A
 default of 0 is Screen Large at 640x480.
 
@@ -692,7 +692,7 @@ The mech select screen's *PRESS  BUTTON* and *MACHINE SELECT* are
 pre-rendered word sprites rather than text, and appear in no file as a
 string, so they are left as they are.
 
-### Widescreen 1080p
+### Native widescreen
 
 Lives in vo_patch.py (the section headed "The resolution patch"), blob
 source in asm/ui.asm, built by tools/uibuild.py. Design, the game structures

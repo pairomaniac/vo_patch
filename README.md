@@ -16,7 +16,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
-  <a href="#widescreen-1080p">Widescreen</a> &nbsp;·&nbsp;
+  <a href="#native-widescreen">Widescreen</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
   <a href="#builds">Builds</a>
@@ -55,7 +55,7 @@ The sections are numbered in the order to work through them.
    is refused see [Builds](#builds).
 3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
-4. **EXTRA PATCHES** - starts ticked, except **Widescreen 1080p**, and is
+4. **EXTRA PATCHES** - starts ticked, except **Native widescreen**, and is
    yours to change. Click the ⓘ beside a patch to read what it does.
    Then **Apply patches**.
 5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
@@ -165,9 +165,9 @@ rebuilt now, and the game waits until that has worked before carrying on.
 - **XInput gamepad support** - a modern controller for both players: twelve
 bindable actions, plus the arcade twin-stick scheme. See
 [Gamepad](#gamepad).
-- **Widescreen 1080p** - runs the game at 1920x1080 instead of 640x480,
+- **Native widescreen** - runs the game at 1920x1080 instead of 640x480,
 menus and text redrawn to match, more of the arena at the sides. Retail
-build only for now. See [Widescreen 1080p](#widescreen-1080p).
+build only for now. See [Native widescreen](#native-widescreen).
 - **No disc required** - removes the disc check and plays the soundtrack from
 `music\trackNN.wav` beside the game. See [Music](#music).
 - **Disable menu bar (Extras menu on F11)** - hides the menu bar and moves
@@ -182,7 +182,7 @@ during an internet match. Every other menu was already on a key:
     | --- | --- |
     | **F1** | Help |
     | **F3** | Pause |
-    | **F4** | High / low resolution (1080p / 720p with Widescreen 1080p on) |
+    | **F4** | High / low resolution (1080p / 720p with Native widescreen on) |
     | **F5** | Graphic Settings |
     | **F6** | Mode Settings |
     | **F7** | Device Settings |
@@ -437,7 +437,7 @@ Closing the dialog saves each to its own `v_on.ini` line, editable by hand:
 Two digits, `05` to `95` - lower is more sensitive, higher rides out a worn
 stick's drift.
 
-## Widescreen 1080p
+## Native widescreen
 
 The game draws everything at 640x480 and assumes it everywhere, so scaling
 the picture up only makes it bigger. This patch makes the game render at
@@ -529,7 +529,7 @@ used, disc or no disc. Under Wine they play through `mciwave` - no
 ## Resolution and windowing (cnc-ddraw)
 
 The game asks for exclusive fullscreen at its render size - 640x480 stock,
-1920x1080 with **Widescreen 1080p** on - and leaves the rest to the display,
+1920x1080 with **Native widescreen** on - and leaves the rest to the display,
 which on a modern panel can mean a stretched picture or no windowed mode.
 That part is between the game and the graphics driver, and it is what
 cnc-ddraw is for.
@@ -603,7 +603,7 @@ Four builds of the game exist. Three of them patch:
 
 The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
-above except **Widescreen 1080p**, which is retail only for now and greyed
+above except **Native widescreen**, which is retail only for now and greyed
 out on the others; the window names the build it is looking at.
 
 **[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
@@ -628,7 +628,7 @@ unpatched game do not fit the new device list. The title artwork -
 `escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
 with the new title prompt, after a copy is kept as `.bak`.
 
-**Widescreen 1080p** adds a section to `v_on.exe` for its own code and
+**Native widescreen** adds a section to `v_on.exe` for its own code and
 its off-screen canvas; nothing else on disk changes.
 
 **Restore original** puts every backed-up file back - those three and the

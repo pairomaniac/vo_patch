@@ -4360,7 +4360,7 @@ BY_KEY = {key: (label, tip, sites)
 # Sites computed at apply time from the chosen size, so it cannot live in
 # FEATURES. Applied last, after nodisc, since it appends its own section.
 BY_KEY['hires'] = (
-    'Widescreen 1080p',
+    'Native widescreen',
     'Runs the game at 1920x1080 instead of 640x480. The picture, the\n'
     'menus and the text are redrawn at the new size, and widescreen\n'
     'shows more at the sides. F4, or Screen in the F5 dialog, switches\n'
