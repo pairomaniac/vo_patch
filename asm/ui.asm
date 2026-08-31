@@ -879,12 +879,15 @@ pre_fill_skiprow:
     push edi
     xor eax, eax
     mov ecx, [ebx+D_LW]
-    rep stosw
+    db 0xf3                         ; rep, by hand: nasm 3.x writes the
+    stosw                           ; 66 before the f3, 2.x after, and
+                                    ; the blob must not depend on which
     pop edi
     push edi
     add edi, D_COPY-D_OFF
     mov ecx, [ebx+D_LW]
-    rep stosw
+    db 0xf3                         ; rep, pinned; see above
+    stosw
     pop edi
 pre_fill_next:
     add edi, OFF_PITCH
@@ -1071,13 +1074,15 @@ post_margins:
 post_mloop:
     push edi
     mov ecx, [ebx+D_XOFF]
-    rep stosw
+    db 0xf3                         ; rep, pinned; see above
+    stosw
     mov ecx, [ebx+D_DW]
     lea edi, [edi+ecx*2]
     mov ecx, [ebx+D_W]
     sub ecx, [ebx+D_DW]
     sub ecx, [ebx+D_XOFF]
-    rep stosw
+    db 0xf3                         ; rep, pinned; see above
+    stosw
     pop edi
     add edi, [ebx+D_PITCH]
     inc dword [ebx+D_Y]
