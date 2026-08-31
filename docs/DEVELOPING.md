@@ -31,17 +31,21 @@ either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 sh tools/setup-dev.sh          # says what is missing and the install line
 ```
 
-Everything comes from the distribution - there is no venv, and nothing
-here needs pip. The script checks and prints; the actual install is one
-`apt` or `dnf` line it gives you. `nasm` is needed only to rebuild
-`asm/`, `asm/ui.asm` included, mingw only to rebuild the netplay DLL.
-Neither is needed to run the patcher or to build the exe - both are
-baked into `vo_patch.py` as text. `python3-pyflakes` is the `lint`
-check; `python3-capstone` (4.x or 5.x) regenerates `UI_REFS` in
-`tools/uibuild.py` and drives the build-mapping tools (`vomap`,
-`votrans`, `hiresport`); the `ui` check compares a fingerprint only
-where nasm is absent. xvfb is the display the `gui` check needs;
-without it that check skips itself and says so.
+Everything comes from the distribution - there is no venv, and nothing here
+needs pip. The script checks and prints; the actual install is one `apt` or
+`dnf` line it gives you.
+
+`nasm` is needed only to rebuild `asm/`, `asm/ui.asm` included, mingw only
+to rebuild the netplay DLL. Neither is needed to run the patcher or to
+build the exe - both are baked into `vo_patch.py` as text.
+
+`python3-pyflakes` is the `lint` check; `python3-capstone` (4.x or 5.x)
+regenerates `UI_REFS` in `tools/uibuild.py` and drives the build-mapping
+tools (`vomap`, `votrans`, `hiresport`); the `ui` check compares a
+fingerprint only where nasm is absent.
+
+xvfb is the display the `gui` check needs; without it that check skips
+itself and says so.
 
 Versions, as measured rather than promised: nasm 2.14.02, 2.15.05,
 2.16.01 through 2.16.03 and 3.02 all assemble `asm/ui.asm` to the
@@ -218,13 +222,14 @@ committed:
    Then someone has to play it.
 
 Two things to check by eye before anyone runs it. A site the matcher has
-placed by its bytes may be in the wrong function - ten bytes of
-`cmp [ebp-8], 0x1a; jge` occur in more than one place, and only the
-disassembly says which copy has the recompiled frame. And anything the
-apply code writes outside the site table - the annex code in `.voxt` -
-must be linked for the build being patched, not taken from a module-level
-constant, which is retail's. `tools/whereis.py` turns a crash address into
-a blob and label.
+placed by its bytes may be in the wrong function - ten bytes of `cmp
+[ebp-8], 0x1a; jge` occur in more than one place, and only the disassembly
+says which copy has the recompiled frame.
+
+And anything the apply code writes outside the site table - the annex code
+in `.voxt` - must be linked for the build being patched, not taken from a
+module-level constant, which is retail's. `tools/whereis.py` turns a crash
+address into a blob and label.
 
 ## Netplay
 
@@ -243,10 +248,13 @@ physics value, anything that alters what the game computes from a given
 input - it needs two entries: one in `fp_builds` in `dpctrl.c`, per build,
 and one in `SYNC_SITES` in `vo_patch.py`, which is what warns when the
 netplay add-on is installed beside an executable an older release patched
-without it. Miss either and two copies, one with the patch and one without,
-desync mid-match instead of refusing to connect. A patch that only changes
-what a machine shows, or how it reads its own controls, stays out: those are
-each player's own business.
+without it.
+
+Miss either and two copies, one with the patch and one without, desync
+mid-match instead of refusing to connect.
+
+A patch that only changes what a machine shows, or how it reads its own
+controls, stays out: those are each player's own business.
 
 Two scripts under `tools/` build the DLL and put it in a game folder. Both
 read `~/.vo-test`, which is yours and is not in the repository:

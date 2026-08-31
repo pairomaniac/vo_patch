@@ -44,20 +44,25 @@ Two sequences draw it - `0x4489d6` for the roll a finished game reaches and
 same three files, so an edit lands in either.
 
 Not text at all. `scrstfcg.bin` is 1129 tiles, 8x8 and 16bpp, holding two
-values only - `0x0000` and `0xffbf` - because the whole roll is pre-rendered
-white lettering chopped into cells. `scrstfmp.bin` gives one 16-bit index per
-cell, bit 15 set where a cell has a tile, and the loader adds the tile base
-to every non-zero entry at `0x483d9d`. It reads both files to hardcoded byte
-counts at `0x5fdac8` and `0x5fdacc`, not to their size on disk - grow a file
-without growing its constant and the tail silently never loads.
+values only - `0x0000` and `0xffbf` - because the whole roll is
+pre-rendered white lettering chopped into cells. `scrstfmp.bin` gives one
+16-bit index per cell, bit 15 set where a cell has a tile, and the loader
+adds the tile base to every non-zero entry at `0x483d9d`.
+
+It reads both files to hardcoded byte counts at `0x5fdac8` and `0x5fdacc`,
+not to their size on disk - grow a file without growing its constant and
+the tail silently never loads.
 
 The layout is not a grid. `0x6bcd48` in the executable holds 12 bytes per
 block - flag, width, height, in cells - and the map is those blocks end to
 end. The roll's own text blocks are three cells tall, though the height is
 read per block; a block of width 0 is a blank spacer.
+
 The flag picks the placement: `0x448e5c` sends anything below zero to
 `0x448e86`, which centres the block on the 51 cells, and `0x63` to
-`0x448f54`, which pushes it flush right. The roll's own text carries `0x63`.
+`0x448f54`, which pushes it flush right. The roll's own text carries
+`0x63`.
+
 `0x44908e` reveals the next block every eight ticks per row, so the roll's
 length is the sum of the heights.
 
@@ -67,12 +72,15 @@ counts above. `tools/vocredits.py` does it, cutting glyphs out of the
 existing artwork so a new line matches the rest.
 
 There are two faces. The 24px body face covers everything the roll says, so
-a line set in it is harvested whole. The 11px capitals the title sets CYBER
-TROOPERS in are a real face rather than a reduction, but they exist only in
-that phrase, so anything outside `CYBERTOPS` is drawn: it is monoline 1px,
-and reducing a 2px stem lands on one or two pixels unevenly and reads as
-bold. Drawn widths come from the 24px capital at 11/17 - 13px wide there is
-8 here, 15 is 9 or 10, 17 is 11 - and edges step a column every three rows.
+a line set in it is harvested whole.
+
+The 11px capitals the title sets CYBER TROOPERS in are a real face rather
+than a reduction, but they exist only in that phrase, so anything outside
+`CYBERTOPS` is drawn: it is monoline 1px, and reducing a 2px stem lands on
+one or two pixels unevenly and reads as bold.
+
+Drawn widths come from the 24px capital at 11/17 - 13px wide there is 8
+here, 15 is 9 or 10, 17 is 11 - and edges step a column every three rows.
 
 Drawing routines: `0x5c991c` takes `(string, x, y, colour, flag)` and draws
 through GDI. `0x4cd8c3(col, row)` sets the tile cursor and two printers draw
