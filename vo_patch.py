@@ -58,8 +58,8 @@ import urllib.error
 #      changes everywhere the renderer has it.
 #   -  The 2D layer (HUD, fonts, backdrops, menus) is drawn at its designed
 #      size into an offscreen buffer and scaled onto its viewport each time
-#      the game calls it, so it keeps its layout and art (nearest, or
-#      bilinear if UI_FILTER is set). In a wide mode backdrops cover the
+#      the game calls it, so it keeps its layout and art
+#      (nearest-neighbour). In a wide mode backdrops cover the
 #      full width and the HUD stays 4:3, centred.
 #   -  HUD polygons (bars, frames, timer box, reticle, weapon strips,
 #      machine select, cursors) are projected at 640x480 and scaled at
@@ -88,8 +88,9 @@ import urllib.error
 #      them at runtime, then the surfaces are recreated. The choice is
 #      saved as bit 0 of ScrSize. The 320x240 menu command is defused.
 #
-# The exe grows by one section: about 5 KB of code and data plus a
-# header; the buffers are zero-filled by the loader.
+# The exe grows by one section: 15 KB on disk - 5 KB of code, the data
+# block and the 8 KB F4 site table - plus a header; the canvas, mask,
+# row-table and pool buffers are zero-filled by the loader.
 #
 # Width must be a multiple of 32 and at most 2040 (the coverage-mask
 # stride is an 8-bit immediate in ten places). Nothing else is tied to a
@@ -142,8 +143,9 @@ def imm_sites(offsets, old, new):
 # split it is always 4:3. The post phase (HUD) is 4:3. Margins are
 # blacked only when the last 3D flush drew nothing. The canvas has 480
 # guard rows above and below, since the 2D code draws outside the
-# viewport in split screen. Source: ui.asm; assembled with keystone,
-# position independent apart from the four calls fixed up here.
+# viewport in split screen. Source: asm/ui.asm; nasm like the rest of
+# asm/, but built by tools/uibuild.py since it is position independent
+# apart from the four calls fixed up here.
 
 def _pe_stamp(buf):
     pe = struct.unpack_from('<I', buf, 0x3c)[0]
@@ -534,7 +536,6 @@ UI_ROWTAB = 0x183c                          # row table address, likewise
 UI_KSBS = 0x1848                            # split FOV factors, likewise
 UI_SCALE = 0x1868                           # 2D scale per layout, likewise
 UI_HUD = 0x1874                             # same as floats
-UI_FILTER = 0x1884                          # 1: bilinear composite
 UI_CONST = 0x18a8                           # 65536, 640, 480, 0.5
 UI_SHIFT = 0x19b8                           # HUD polygon x shift per layout, y
 UI_PINTH = 0x1a6c                           # split HUD band threshold, 0 off
@@ -1103,6 +1104,11 @@ def _ui_words(w, hh):
     h_1p = min(w / 640, hh / 480)
     h_sbs = min(w / 2 / 640, hh / 480)
     h_tb = min(w / 640, hh / 2 / 480)
+    # HUD polygon x shift per layout: ceil of the HUD scale, in pixels.
+    # Empirical alignment of the polygon grid against the 2D canvas -
+    # the sub-pixel residue of the rescale grows with the scale, and one
+    # scale's worth of pixels rightward is what lined the bars up with
+    # their frames on video (the 0.7 px note in docs/HIRES.md).
     sx = [math.ceil(v) for v in (h_1p, h_sbs, h_tb)]
     return {
         UI_MODEW: struct.pack('<II', w, hh),
@@ -1129,7 +1135,11 @@ def _va_at(pe, off):
 
 
 def _make_writable(buf, pe, off):
-    """Set the writable flag on the section holding file offset off."""
+    """Set the writable flag on the section holding file offset off.
+
+    For the F4 switch: f4_toggle copies the other size's bytes over live
+    code and data at runtime, so every section the table touches - .text
+    and .rdata included - stays writable for the life of the process."""
     tab = pe.opt + pe.optsz
     for i, x in enumerate(pe.sections):
         if x['raddr'] <= off < x['raddr'] + x['rsize']:
@@ -1152,6 +1162,52 @@ def _annex_pushes(buf, stamp):
     return off + 0xae + 1, off + 0xb3 + 1
 
 
+def port_sites(sites, port, A):
+    """Retail sites translated onto another build: each moved to the
+    build's own offset, its old bytes replaced by the build's, and the
+    handful of shape-dependent rewrites redone from those bytes. Split
+    out so tools/selftest.py can exercise it with an identity port while
+    no real PORT table ships."""
+    moved = []
+    lens = port.get('passlen', {})
+    pass_offs = {s - 0x400c00: n for n, (s, _l)
+                 in enumerate(UI_PASS_FUNCS)}
+    for off, old_, new_ in sites:
+        if off in port.get('absent', ()):
+            continue
+        boff, bold = port['off'][off]
+        if off in pass_offs and 0x400c00 + off in lens:
+            # the build's shorter prologue: fewer displaced bytes
+            new_ = new_[:5] + b'\x90' * (lens[0x400c00 + off] - 5)
+        bold = None if old_ is None else bytes.fromhex(bold)
+        if new_ and new_[0] in (0xe8, 0xe9):
+            # a jump into the section: same target, moved site
+            tgt = (0x400c00 + off + 5
+                   + struct.unpack_from('<i', new_, 1)[0])
+            new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
+                    + new_[5:])
+        if off in (0x1c799b, 0x1c7ad2, 0x1c7bb1, 0x1c7c36):
+            # row maths rewritten as imul: use the register the
+            # build's own lea/shl chain uses
+            reg = None
+            for i2 in range(len(bold) - 1):
+                if bold[i2] == 0xc1 and 0xe0 <= bold[i2 + 1] <= 0xe7:
+                    reg = bold[i2 + 1] & 7
+                    break
+            assert reg is not None, hex(off)
+            new_ = (b'\x69' + bytes([0xc0 | reg << 3 | reg])
+                    + new_[2:6] + b'\x90' * (len(bold) - 6))
+        if off == 0x7e504:
+            # cmp [mode], 8 / je: the je keeps the build's own
+            # distance, one byte further in
+            rel = struct.unpack_from('<i', bold, 10)[0]
+            new_ = (b'\x83\x3d' + u32(A('SPRITEMODE')) + b'\x08'
+                    + b'\x0f\x84' + u32(rel + 1) + b'\x90')
+            assert len(new_) == len(bold)
+        moved.append((boff, bold, new_))
+    return moved
+
+
 def hires_install(buf, width, height, alt=HIRES_ALT):
     """Patch buf (a bytearray of v_on.exe, stock or vo_patch'd) in place
     for width x height, with alt as the size F4 switches to. Raises
@@ -1165,6 +1221,10 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
         port = PORT.get('%08x' % stamp)
         if port is None:
             raise ValueError('not a build this tool knows')
+        # The F4 site table is built from retail offsets and not yet
+        # translated, so a ported build cannot take the patch. Raised
+        # here, before anything touches buf.
+        raise ValueError('the F4 table is not ported')
     if port is None:
         A = ADDR.__getitem__
     else:
@@ -1206,7 +1266,6 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
     for off, val in words.items():
         buf[rawptr + off:rawptr + off + len(val)] = val
     struct.pack_into('<I', buf, rawptr + UI_ROWTAB, sec_va + rowtab_off)
-    struct.pack_into('<I', buf, rawptr + UI_FILTER, 0)  # nearest
     struct.pack_into('<I', buf, rawptr + UI_PINTH, HIRES_HUD_BAND)
     struct.pack_into('<Q', buf, rawptr + UI_SPLITST,
                      sum(1 << n for n in HIRES_SPLIT_STATES))
@@ -1219,8 +1278,6 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
     alt_sites = build_sites(aw, ah, sec_va, sec_va + mask_off,
                             sec_va + rowtab_off,
                             pool=(sec_va + pool_off, HIRES_POLYS), A=A)
-    if port is not None:
-        raise ValueError('the F4 table is not ported')
     # The idle-pass recreate in asm/activate.asm pushes its own size.
     pushes = _annex_pushes(buf, stamp)
     if pushes:
@@ -1249,44 +1306,7 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
     struct.pack_into('<II', buf, rawptr + UI_F4MODE, 0,
                      sec_va + UI_F4TAB_OFF)
     if port is not None:
-        moved = []
-        lens = port.get('passlen', {})
-        pass_offs = {s - 0x400c00: n for n, (s, _l)
-                     in enumerate(UI_PASS_FUNCS)}
-        for off, old_, new_ in sites:
-            if off in port.get('absent', ()):
-                continue
-            boff, bold = port['off'][off]
-            if off in pass_offs and 0x400c00 + off in lens:
-                # the build's shorter prologue: fewer displaced bytes
-                new_ = new_[:5] + b'\x90' * (lens[0x400c00 + off] - 5)
-            bold = None if old_ is None else bytes.fromhex(bold)
-            if new_ and new_[0] in (0xe8, 0xe9):
-                # a jump into the section: same target, moved site
-                tgt = (0x400c00 + off + 5
-                       + struct.unpack_from('<i', new_, 1)[0])
-                new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
-                        + new_[5:])
-            if off in (0x1c799b, 0x1c7ad2, 0x1c7bb1, 0x1c7c36):
-                # row maths rewritten as imul: use the register the
-                # build's own lea/shl chain uses
-                reg = None
-                for i2 in range(len(bold) - 1):
-                    if bold[i2] == 0xc1 and 0xe0 <= bold[i2 + 1] <= 0xe7:
-                        reg = bold[i2 + 1] & 7
-                        break
-                assert reg is not None, hex(off)
-                new_ = (b'\x69' + bytes([0xc0 | reg << 3 | reg])
-                        + new_[2:6] + b'\x90' * (len(bold) - 6))
-            if off == 0x7e504:
-                # cmp [mode], 8 / je: the je keeps the build's own
-                # distance, one byte further in
-                rel = struct.unpack_from('<i', bold, 10)[0]
-                new_ = (b'\x83\x3d' + u32(A('SPRITEMODE')) + b'\x08'
-                        + b'\x0f\x84' + u32(rel + 1) + b'\x90')
-                assert len(new_) == len(bold)
-            moved.append((boff, bold, new_))
-        sites = moved
+        sites = port_sites(sites, port, A)
         masks = tuple(struct.pack('<I', A('MASKPTR')).join(
             m.split(struct.pack('<I', ADDR['MASKPTR'])))
             for m in (MASK_LOAD, MASK_STORE))
@@ -6724,8 +6744,6 @@ def apply_selected(buf, wanted, build=RETAIL):
                 continue
             try:
                 hires_install(buf, w, hh)
-            except ValueError as exc:
-                raise PatchFailed(key, exc) from exc
             except Exception as exc:
                 raise PatchFailed(key, exc) from exc
             applied.append(key)
