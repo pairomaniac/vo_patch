@@ -41,8 +41,7 @@ check; `python3-capstone` (4.x or 5.x) regenerates `UI_REFS` in
 `tools/uibuild.py` and drives the build-mapping tools (`vomap`,
 `votrans`, `hiresport`); the `ui` check compares a fingerprint only
 where nasm is absent. xvfb is the display the `gui` check needs;
-without it that check skips itself and says so. If you used the venv
-this repository set up before, `rm -rf .venv` - nothing reads it now.
+without it that check skips itself and says so.
 
 Versions, as measured rather than promised: nasm 2.14.02, 2.15.05,
 2.16.01 through 2.16.03 and 3.02 all assemble `asm/ui.asm` to the
