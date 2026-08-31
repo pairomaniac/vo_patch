@@ -7367,7 +7367,7 @@ ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
 
 # Not a patch and not bundled: a separate download that does the things a
 # byte edit cannot, so it sits under ADD-ONS with the netplay DLL.
-DDRAW_LINK = ('Resolution and windowing', 'cnc-ddraw',
+DDRAW_LINK = ('Windowing and scaling', 'cnc-ddraw',
               'https://github.com/FunkyFr3sh/cnc-ddraw',
               'Windowed and borderless modes, and the game scaled to your '
               'monitor without stretching, whatever size it runs at. '

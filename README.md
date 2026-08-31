@@ -18,7 +18,7 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#native-widescreen">Widescreen</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
-  <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
+  <a href="#windowing-and-scaling-cnc-ddraw">Windowing</a> &nbsp;·&nbsp;
   <a href="#builds">Builds</a>
 </h4>
 
@@ -61,8 +61,8 @@ The sections are numbered in the order to work through them.
 5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
-    - **Resolution and windowing** - installs cnc-ddraw. See
-      [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
+    - **Windowing and scaling** - installs cnc-ddraw. See
+      [Windowing and scaling](#windowing-and-scaling-cnc-ddraw).
 
 Then play. **Restore original** puts the game back if you change your mind.
 Add-ons write files beside the game rather than editing it, so Apply and
@@ -226,7 +226,7 @@ same button reads **Remove** once installed.
 | Row | What it is |
 | --- | --- |
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
-| **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
+| **Windowing and scaling** | downloads and installs cnc-ddraw beside the game. See [Windowing and scaling](#windowing-and-scaling-cnc-ddraw) |
 
 The soundtrack rip lives in **INSTALL** at the top of the window, beside
 the game copy. See [Music](#music).
@@ -465,7 +465,7 @@ What changes when it is on:
 
 It works with every other patch and with cnc-ddraw, which is what gives
 you windowed or borderless play at that size - see
-[Resolution and windowing](#resolution-and-windowing-cnc-ddraw). The
+[Windowing and scaling](#windowing-and-scaling-cnc-ddraw). The
 game itself still asks the display for exclusive fullscreen at
 1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
 your monitor without stretching.
@@ -526,7 +526,7 @@ or empty, the game reads the drive as before; with tracks there, they are
 used, disc or no disc. Under Wine they play through `mciwave` - no
 `dosdevices` entry, raw device link or cdemu instance.
 
-## Resolution and windowing (cnc-ddraw)
+## Windowing and scaling (cnc-ddraw)
 
 The game asks for exclusive fullscreen at its render size - 640x480 stock,
 1920x1080 with **Native widescreen** on - and leaves the rest to the display,
