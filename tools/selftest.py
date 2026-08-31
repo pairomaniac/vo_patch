@@ -25,8 +25,8 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '5c00e6e20ac07366b71611f4297d094c',
-    # The overlay geometry fix moved every build's output; the other two
+    'a464b0ff32d5bab499f265e45658504e': '485b189fd2b3cf1ffb9ba26550526df1',
+    # The marker-arrow fix moved every build's output; the other two
     # need a run against their own executables to re-pin.
     'd19320bdc3381a48228990907910a391': None,
     '4c70f780a7f0d98d74be62304fb99021': None,

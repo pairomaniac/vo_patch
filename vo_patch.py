@@ -908,6 +908,27 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                    struct.pack('<d', 28.43 + margin + 8)),
                   (0x59e4ea - 0x400c00, b'\xe8' + u32(0x59cb93 - (0x59e4ea + 5)),
                    b'\xe8' + u32(sec_va + UI_HANGAR_DRAW - (0x59e4ea + 5)))]
+    # Enemy marker and its off-screen arrow. 0x5485c0 (renderer A) and
+    # 0x475930 (B) draw the lock brackets while the enemy's projected
+    # position is inside a 4:3 window (x within 256 in focal-600 space)
+    # and switch to the edge arrow once the bearing is more than 0x1500
+    # (29.5 degrees) off the camera. Both are sized for the stock view:
+    # in a wider one the arrow points at an enemy still on screen. The
+    # x bounds grow with the visible width and the bearing window by
+    # the extra half field of view; the y bounds stay, since the
+    # vertical view is unchanged. Both renderers keep their own copy of
+    # the float pool; the compare immediates are in the code.
+    wide = w / (h / 480) / 640           # visible width over 4:3's
+    win = 0x1500 + round(math.degrees(math.atan(320 * wide / f)
+                                      - math.atan(320 / f)) * 65536 / 360)
+    sites += [(0x205d38, f32(-256.0), f32(-256.0 * wide)),
+              (0x205d3c, f32(256.0), f32(256.0 * wide)),
+              (0x1fb4a0, f32(-256.0), f32(-256.0 * wide)),
+              (0x1fb4a4, f32(256.0), f32(256.0 * wide))]
+    sites += [(off, u32(0x1500), u32(win))
+              for off in (0x147b60, 0x147cc8, 0x074ed0, 0x075038)]
+    sites += [(off, u32(0xffffeb00), u32(-win & 0xffffffff))
+              for off in (0x147b6f, 0x147cd7, 0x074edf, 0x075047)]
     # Renderer A's polygon record pool: 2500 records of 0x30 bytes at
     # 0x6db7e0, a side array of 8 per record at 0x6f8ca0 and the flush
     # list at 0x6fdabc, with the cap in the two insert paths and the

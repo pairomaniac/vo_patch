@@ -163,6 +163,17 @@ FLAGS bit 0 itself - stock's Screen=Normal window - is never set at
 runtime. The Screen Split radio labels become "Ver"/"Hor" and the
 redundant Type2 is hidden.
 
+### The enemy marker
+
+The lock brackets and their off-screen arrow (0x5485c0 renderer A,
+0x475930 B) share a 4:3 on-screen test: the enemy's projected x within
+256 in focal-600 space, and the bearing within 0x1500 of the camera
+before the edge arrow takes over. The x bounds are scaled by the
+visible width and the bearing window widened by the extra half field of
+view, both computed from the size; the y bounds stay with the vertical
+view. Sized for the 1P view, as the hangar window is: in a split
+viewport the arrow comes a few degrees late.
+
 ### The hangar draw
 
 The machine-select hangar draw (0x59e4ea) is wrapped to widen the
