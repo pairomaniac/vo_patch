@@ -129,7 +129,7 @@ rel32s (those are fixed per site). `tools/uibuild.py --check` is in the
 check pipeline, by fingerprint when keystone is not installed, so ui.asm
 and the committed blob cannot drift.
 
-Section layout: code (under 0x1600), pass stubs at 0x1600, data block at
+Section layout: code (under 0x1660), pass stubs at 0x1660, data block at
 0x1800 (D_*), split FOV factors at 0x1848, the F4 site table at 0x1b00,
 then the canvas and its copy (UI_OFF/UI_OFF_SIZE), the mask, the row
 table and the polygon pool.
@@ -281,6 +281,34 @@ per-pixel fade anywhere in the path. The arcade's letterbox and shade
 call (0x4a70c6/0x4ff496 into 0x514629/0x5cc579, alpha 0x80 arguments)
 remains a stubbed no-op on PC - it lands in bare sort flushes at
 0x5d1a70/0x5dc940.
+
+Two engine facts came out of chasing the residue the bands' removal
+exposed, both verified by running the patched walkers under Unicorn
+against a synthetic ring and canvas. First, the window's foot is not
+the walker's row count but its destination helper: 0x480930 rejects
+tile rows past 0x31, so the roll never reached below line ~392-400 -
+consistent with the writer feeding at the foot. Rather than stretch
+the window down into the writer's workspace, the patch moves the
+whole window down ten rows: plane A's walker starts ten ring rows
+earlier ((coarse - 10) mod 64 in place of the plain coarse row),
+draws 60 rows, and the cap rises to 0x3d. The ten rows above the old
+window are the lines that scrolled past, still intact - the writer
+only reuses a ring row 14 rows after it leaves the old window, four
+after the new one - and the fed row now slides in at exactly line
+480. Verified under emulation: continuous coverage of lines 0..479
+at every fine value, wrap across the ring boundary included. Second,
+the roll uses a second tile plane (rings 0x1cc3e00/0x1cc41ea, its own
+scroll word 0x34155c6, 60 rows), whose destination helpers (0x480a52,
+0x480eb0 and kin) index the 2D row table with rows past either end -
+stock's deliberate vertical wrap into the second table right behind
+it, which relocating the table broke: the neighbours are the mask
+now, so the plane's over-the-edge rows sprayed at garbage offsets,
+the corruption seen over the top line once the top band was gone. The
+ten unbounded loads go through ui.asm rowsafe: in range it is the
+plain table load, out of range it wraps by the frame height as
+stock's adjacency did, and during the roll it parks the write on the
+canvas guard instead, since the wrapped sliver was only ever hidden
+by the bands.
 
 ## Queued work
 

@@ -458,10 +458,9 @@ What changes when it is on:
   with the rest of the HUD centred below. The machine select, which
   showed the same grid in both halves, is drawn once at full size.
 - The pause, loading and credits text scales with the picture. The
-  ending credits lose their black bands: lines slide in near the
-  bottom (where the game writes them - it composes each line only as
-  it reaches that edge) and scroll off through the very top, with the
-  scenery clean behind both.
+  ending credits lose their black bands and roll the whole screen:
+  lines slide in at the very bottom and out through the very top,
+  with the scenery clean behind both.
 
 It works with every other patch and with cnc-ddraw, which is what gives
 you windowed or borderless play at that size - see

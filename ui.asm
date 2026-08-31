@@ -1878,3 +1878,43 @@ roll_done:
     pop edi
     pop esi
     ret 4
+
+; rowsafe: the 2D row table, indexed with the row bounded. The tile
+; planes' destination helpers index the table with rows past either
+; end - stock landed in the second table right behind it, a deliberate
+; vertical wrap, but the patch relocated the table and the neighbours
+; are the coverage mask. Out-of-range rows wrap by the frame height as
+; stock's adjacency did; during the credits roll (the second plane's
+; window pokes past both edges every frame) they park on the canvas
+; guard instead, where the write lands invisibly. edx row in, offset
+; out; everything else kept.
+rowsafe:
+    push ebx
+    push eax
+    call rowsafe_here
+rowsafe_here:
+    pop ebx
+    sub ebx, rowsafe_here
+    mov eax, [FB_H]
+rowsafe_wrap:
+    cmp edx, eax
+    jb rowsafe_ok
+    cmp dword ptr [0x66c190], 0
+    jne rowsafe_park
+    test edx, edx
+    js rowsafe_neg
+    sub edx, eax
+    jmp rowsafe_wrap
+rowsafe_neg:
+    add edx, eax
+    jmp rowsafe_wrap
+rowsafe_park:
+    mov edx, 0xf0000
+    jmp rowsafe_out
+rowsafe_ok:
+    mov eax, [ebx+D_ROWTAB]
+    mov edx, [eax+edx*4]
+rowsafe_out:
+    pop eax
+    pop ebx
+    ret

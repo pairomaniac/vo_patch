@@ -324,6 +324,8 @@ UI_REFS = (
     (0x15ab, 0x066c180),
     (0x15d4, 0x047f2e0),
     (0x15de, 0x06bf5ac),
+    (0x15fa, 0x06bf5bc),
+    (0x1604, 0x066c190),
 )
 # UI REFS END
 
@@ -363,7 +365,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '7d5138d2bc95fcb2f971d0f82d331899d8870a7df70d05945033c2b16c957c22'
+UI_ASM_SHA = 'c96f2dd4579dab6e7bbff578f7aaca8b40101e2028c75871a376b1deb58c210f'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088b4424088983e8180000c783ec180000000000'
     '00d905e4c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d9'
@@ -520,7 +522,9 @@ UI_CODE = bytes.fromhex(
     '98f56b0083bbc01a0000007505e800ffffff616840026a0068c6bc5000c353e800000000'
     '5b81eb84150000a198f56b000b83c01a00005b68cbc05000c356575389ce8b7c241085ff'
     '750ba180c1660085c07432eb1a83ff0876138d4ff8c1e10401cab81000000029f8741aeb'
-    '0289f889c389f1b8e0f24700ffd089c20335acf56b004b75ec5b5f5ec20400')
+    '0289f889c389f1b8e0f24700ffd089c20335acf56b004b75ec5b5f5ec204005350e80000'
+    '00005b81ebf2150000a1bcf56b0039c2721c833d90c1660000750c85d2780429c2ebeb01'
+    'c2ebe7ba00000f00eb098b833c1800008b1490585bc3')
 # UI CODE END
 UI_CALLS = [(0x4c1, 0x4800d0), (0x4d6, 0x4804f0),   # rel32 at offset+1
             (0x4eb, 0x5670c0), (0x500, 0x5674f0)]
@@ -543,8 +547,9 @@ UI_HANGAR_DRAW = 0x1364
 UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x1217, 0x12ec, 0x1328
 UI_F4 = 0x1432
 UI_ROLLBLIT = 0x159d
+UI_ROWSAFE = 0x15eb
 UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE = 0x14c2, 0x14ed, 0x1516, 0x1546, 0x157e
-UI_PASS_STUBS = 0x1600                      # 20 bytes per wrapped function
+UI_PASS_STUBS = 0x1660                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
 UI_ROWTAB = 0x183c                          # row table address, likewise
 UI_KSBS = 0x1848                            # split FOV factors, likewise
@@ -715,10 +720,22 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     sites += imm_sites([0x1c8491, 0x1c84d6], 432, 432 * h // 480)
     # 2D row table: 480+480 entries in .data with the frame divisor right
     # behind them; a tall split viewport overflows it. Both tables move to
-    # the new section, H entries each.
-    sites += imm_sites([0x07f890, 0x07f8e0, 0x07fd71, 0x07fe3c, 0x07fea1,
-                        0x0802fc, 0x166888, 0x1668e0, 0x166d79, 0x166e44,
-                        0x166eb1, 0x167324, 0x1c4f73, 0x1c90b8, 0x1c90e9],
+    # the new section, H entries each. The tile planes' destination
+    # helpers index the first table with rows past either end - stock's
+    # deliberate vertical wrap into the second table, which relocation
+    # breaks (the neighbours are the mask now) - so those ten loads go
+    # through ui.asm rowsafe, which wraps by the frame height, or parks
+    # on the canvas guard during the credits roll, where the second
+    # plane's window pokes past both edges every frame (the top-of-roll
+    # corruption). The two loads with their own bounds and the three
+    # outside the tile planes keep the plain rebased reference.
+    for off in (0x07f88d, 0x07f8dd, 0x07fe39, 0x07fe9e, 0x0802f9,
+                0x166885, 0x1668dd, 0x166e41, 0x166eae, 0x167321):
+        site = 0x400c00 + off
+        sites.append((off, bytes.fromhex('8b1495c8756c00'),
+                      b'\xe8' + u32(sec_va + UI_ROWSAFE - (site + 5))
+                      + b'\x90\x90'))
+    sites += imm_sites([0x07fd71, 0x166d79, 0x1c4f73, 0x1c90b8, 0x1c90e9],
                        0x6c75c8, rowtab_va)
     sites += imm_sites([0x1c4fc9], 0x6c7d48, rowtab_va + h * 4)
     # 2D layer: the four calls in 0x5c80df go to the stubs.
@@ -833,6 +850,25 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     # foot (row 400: the writer feeds the ring on a hand-timed
     # schedule, so nothing exists below - see docs/HIRES.md) and out
     # through the real row 0, with the scenery clean behind both.
+    # The roll starts from the bottom: the writer feeds the ring at the
+    # 50-row window's foot (line ~400), so instead of stretching the
+    # window down into the writer's workspace, the whole window moves
+    # down 10 rows - it begins 10 ring rows earlier, showing the rows
+    # that scrolled past (still intact: a row is only reused 14 rows
+    # after it leaves the old window, 4 after the new one), draws 60
+    # rows, and the destination helper's cap rises from 0x31 to 0x3d.
+    # The fed row then slides in at exactly line 480, and lines leave
+    # through line 0 as before. Plane B is untouched: the roll's text
+    # is all on plane A (B's uncapped 60-row window never shows a line
+    # below 400 on screen).
+    sites += [(0x07f99b, bytes.fromhex('81e1ffff0000'),      # coarse row
+               bytes.fromhex('83e90a83e13f')),               # -10 mod 64
+              (0x16699b, bytes.fromhex('81e1ffff0000'),
+               bytes.fromhex('83e90a83e13f')),
+              (0x07f96c, b'\x32', b'\x3c'),                  # 60 rows
+              (0x16696c, b'\x32', b'\x3c'),
+              (0x07fd37, b'\x31', b'\x3d'),                  # dest cap
+              (0x166d37, b'\x31', b'\x3d')]
     sites += [(0x080074, bytes.fromhex('0f859e000000'),
                bytes.fromhex('e99f00000090')),
               (0x167084, bytes.fromhex('0f85a6000000'),
