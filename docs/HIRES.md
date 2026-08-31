@@ -9,7 +9,7 @@ currently withheld.
 
 ## What is patched
 
-Around 196 sites over the retail executable, in families:
+Around 240 sites over the retail executable, in families:
 
 - Mode and window: SetDisplayMode pushes (0x5c56a2), the mode selector
   0x5c9404 (which returns failure for modes it does not know - the
@@ -117,17 +117,18 @@ Around 196 sites over the retail executable, in families:
 
 ## The blob
 
-ui.asm, assembled to UI_CODE by tools/uibuild.py: keystone, with equates
-substituted, comments stripped, and each .long emitted as a unique
-4-byte marker overwritten with the value afterwards (keystone has no
-data directives). Label offsets are read back by appending a jmp to
-every wanted label - appending shifts nothing - and decoding the rel32s;
-uibuild splices the blob and every derived offset constant into
-vo_patch.py, and regenerates UI_REFS: every game-address dword in the
-blob by exact position, from its own disassembly, excluding call/jmp
-rel32s (those are fixed per site). `tools/uibuild.py --check` is in the
-check pipeline, by fingerprint when keystone is not installed, so ui.asm
-and the committed blob cannot drift.
+asm/ui.asm, assembled to UI_CODE by tools/uibuild.py: nasm, the same
+assembler as the rest of asm/, but run here rather than by asm/build.py
+because the blob is position independent (no org; every routine finds
+its data by call/pop) and carries its own address list. Label offsets
+come out of a dd table appended in a temporary copy of the source -
+appending shifts nothing. uibuild splices the blob and every derived
+offset constant into vo_patch.py, and regenerates UI_REFS: every
+game-address dword in the blob by exact position, from its own
+disassembly (capstone), excluding call/jmp rel32s (those are fixed per
+site). `tools/uibuild.py --check` is in the check pipeline; it
+reassembles when nasm is present - always, on CI - and falls back to a
+recorded fingerprint of the source only where nasm is missing.
 
 Section layout: code (under 0x1660), pass stubs at 0x1660, data block at
 0x1800 (D_*), split FOV factors at 0x1848, the F4 site table at 0x1b00,
@@ -357,7 +358,7 @@ landing spot.
 
 ## Rebuilding
 
-    python3 tools/uibuild.py            # ui.asm -> UI_CODE + constants
+    python3 tools/uibuild.py            # asm/ui.asm -> UI_CODE + constants
     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe
                                         # maps/*.pkl and maps/*_port.txt
     # splice a clean table between the PORT TABLES markers in vo_patch.py

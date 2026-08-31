@@ -21,7 +21,7 @@ Where something lives, by question:
   routines, TEXT.md for strings and artwork, HIRES.md for the resolution
   patch's sites and the other builds' addresses.
 - *How do I rebuild after editing assembly?* asm/README.md for `asm/`,
-  HIRES.md's *Rebuilding* for `ui.asm`.
+  HIRES.md's *Rebuilding* for `asm/ui.asm`.
 - *Why is the widescreen box greyed out on my build?* HIRES.md, *What
   porting actually taught*.
 - *How do I cut a release?* DEVELOPING.md, *Releasing*.

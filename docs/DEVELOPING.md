@@ -36,10 +36,11 @@ sh tools/setup-dev.sh                      # venv at .venv with the Python tools
 
 `nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
 DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo_patch.py` as text. The venv holds pyflakes (the `lint` check) and
-capstone with keystone-engine, which rebuild `ui.asm` (`tools/uibuild.py`)
-and drive the build-mapping tools (`vomap`, `votrans`, `hiresport`); the
-`ui` check compares a fingerprint instead when they are absent. xvfb is the
+into `vo_patch.py` as text. The venv holds pyflakes (the `lint` check)
+and capstone, which regenerates `UI_REFS` in `tools/uibuild.py` and
+drives the build-mapping tools (`vomap`, `votrans`, `hiresport`);
+`asm/ui.asm` itself assembles with the same nasm as the rest of `asm/`,
+and the `ui` check compares a fingerprint only where nasm is absent. xvfb is the
 display the `gui` check needs; without it that check skips itself and says
 so. Run the checks with the venv active so `tools/check.py` finds the
 packages.
@@ -59,7 +60,7 @@ chmod +x .git/hooks/pre-push
 ```bash
 python3 asm/build.py              # only if you touched asm/ - regenerates the hex
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
-python3 tools/uibuild.py          # only if you touched ui.asm - the resolution blob
+python3 tools/uibuild.py          # only if you touched asm/ui.asm - the resolution blob
 
 python3 tools/check.py            # the checks CI runs, in two seconds
 python3 vo_patch.py               # does the window still open?
@@ -94,7 +95,7 @@ wrong on the build it is for; before tagging, give all three.
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
-| `ui` | `ui.asm` matches the committed resolution blob: reassembled with keystone when it is installed, by the recorded fingerprint of the source when it is not |
+| `ui` | `asm/ui.asm` matches the committed resolution blob: reassembled with nasm when it is installed (always, on CI), by the recorded fingerprint of the source when it is not |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |

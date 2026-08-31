@@ -4,11 +4,12 @@
 #     sh tools/setup-dev.sh
 #     . .venv/bin/activate          # then python3 tools/check.py ...
 #
-# Python packages go in the venv: pyflakes (lint), capstone and
-# keystone-engine (ui.asm rebuilds, vomap/votrans/hiresport). Nothing is
-# vendored into the repository; the venv is ignored by git. The system
-# packages are printed, not installed: nasm rebuilds asm/, mingw rebuilds
-# the netplay DLL, xvfb runs the gui check headlessly.
+# Python packages go in the venv: pyflakes (lint) and capstone
+# (UI_REFS regeneration in uibuild, and vomap/votrans/hiresport).
+# Nothing is vendored into the repository; the venv is ignored by git.
+# The system packages are printed, not installed: nasm rebuilds asm/
+# including asm/ui.asm, mingw rebuilds the netplay DLL, xvfb runs the
+# gui check headlessly.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -16,7 +17,7 @@ if [ ! -x .venv/bin/python3 ]; then
     python3 -m venv .venv
 fi
 .venv/bin/pip install --quiet --upgrade pip
-.venv/bin/pip install --quiet pyflakes capstone keystone-engine
+.venv/bin/pip install --quiet pyflakes capstone
 
 missing=""
 for tool in nasm i686-w64-mingw32-gcc xvfb-run; do

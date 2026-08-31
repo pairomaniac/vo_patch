@@ -55,8 +55,9 @@ The sections are numbered in the order to work through them.
    is refused see [Builds](#builds).
 3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
-4. **EXTRA PATCHES** - starts ticked and is yours to change. Click the ⓘ
-   beside a patch to read what it does. Then **Apply patches**.
+4. **EXTRA PATCHES** - starts ticked, except **Widescreen 1080p**, and is
+   yours to change. Click the ⓘ beside a patch to read what it does.
+   Then **Apply patches**.
 5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
@@ -468,6 +469,10 @@ you windowed or borderless play at that size - see
 game itself still asks the display for exclusive fullscreen at
 1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
 your monitor without stretching.
+
+**Off by default.** It is the one patch that changes how the game looks
+rather than fixing something broken, so the box starts unticked - tick it
+and Apply.
 
 **Retail build only for now.** On the USA OEM and Japanese builds the box
 is greyed out and every other patch applies as usual. Both crash inside

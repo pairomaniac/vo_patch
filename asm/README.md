@@ -39,6 +39,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
+| `ui.asm` | Widescreen 1080p: the resolution blob, built by `tools/uibuild.py` (see below) |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -152,7 +153,7 @@ will not start until it passes. It installs nasm and runs
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
 | `asm` | a source edited without the blobs being regenerated; a blob that fails to link for one of the builds; a placeholder the apply-time sections fill gone missing or duplicated |
-| `ui` | `ui.asm` edited without the resolution blob being rebuilt |
+| `ui` | `ui.asm` edited without the resolution blob being rebuilt (`tools/uibuild.py`) |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -203,9 +204,11 @@ zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 Three patches append a section of their own rather than use the annex,
 because what they carry is too big for it and only exists once the patch
 is applied. The third, `.vohr`, is **Widescreen 1080p**'s: its code is
-`ui.asm` at the repository root, built by `tools/uibuild.py` rather than
-`build.py`, since it is position independent and carries its own
-address list - see [HIRES.md](../docs/HIRES.md).
+`ui.asm` here, the same nasm as everything else, but built by
+`tools/uibuild.py` rather than `build.py` - it is position independent
+(no `org`) and carries its own address list, so the blob and its offset
+constants go between their own markers. See
+[HIRES.md](../docs/HIRES.md).
 
 **`vocd.asm`** is the CD audio routine, in a new `.vocd` section that
 `apply_cdaudio` appends to the executable. The code starts with two thunks:
@@ -689,9 +692,11 @@ Draws `HOLD TO SKIP` over the credits while the button is down.
 The tile font was the obvious way and the wrong one: that layer is what the
 roll scrolls, so anything printed into it climbs the screen with the
 credits. `0x5c991c` takes screen pixels instead, the same call the pause
-text uses, including the halving at `0x5c9a98` for low resolution. The
-point is 320, 440 of the picture, computed from the origin and size
-globals at `0x6bf578`/`0x6bf5b8` so a resized mode places it the same way.
+text uses. The point is 320, 440 of the picture, computed from the
+origin and size globals at `0x6bf578`/`0x6bf5b8`, so a resized mode - or
+the 320x240 one, which `0x5c88ac` halves those globals for itself -
+places it the same way; unlike the pause text's 640-terms constants,
+nothing here halves again at `0x5c9a98`.
 
 Two things about when and where it paints. It paints at the moment it is
 called, so it has to run after the frame is drawn: the hook is the call at
