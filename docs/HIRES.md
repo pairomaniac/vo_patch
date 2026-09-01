@@ -4,8 +4,7 @@ The game renders at 640x480 and assumes it everywhere. The patch moves it
 to any size (the window applies 1920x1080), by rewriting every place the
 assumption is baked and adding a blob of new code (ui.asm) in an appended
 section, .vohr. This is its design, the game structures it stands on, and
-the record of porting it to the other builds - including why that port is
-currently withheld.
+the record of porting it to the other builds.
 
 ## What is patched
 
@@ -273,9 +272,37 @@ runtime, which is the lesson in itself.
    renderer B, twice. The generator now derives the mask pointer from
    the build's own spans, and any site whose surroundings occur more
    than once in retail is paired by order of occurrence rather than by
-   the map. JP generates clean with that; OEM's table did not change,
-   so its rasterizer fault has another cause, still to be found. Both
-   stay withheld until they boot.
+   the map. JP generated clean with that; OEM's table did not change,
+   so its rasterizer fault had another cause.
+6. Bytes the patch writes can carry retail addresses of their own. The
+   rasterizer fault on both builds was four of the MMX mask spans: their
+   interleaved instruction is `mov ecx, [FB_PITCH]` (or the row
+   pointer), and build_sites wrote retail's `between` bytes verbatim, so
+   the ported span loaded ecx - the next span's row pointer - from a
+   retail address. apply() only checked that the build's load, add and
+   store were in the span, so it passed. port_sites now rebuilds every
+   mask span from the build's own bytes, and the port record above is
+   a reminder that a site's new bytes need reading for addresses as
+   well as its old ones.
+7. A shorter block is not a matching block. JP dropped the 0.95
+   projection case, so its FOV block is 54 bytes to retail's 82; the
+   82-byte replacement ran 28 bytes into the viewport function's
+   pointer stores, which is why JP's surface pointer was always null
+   and the blob stood down every frame. The old-bytes check passed
+   because the table's old bytes are read from the build. port_sites
+   now cuts the block at the build's last fstp [ASPECT_B] and, when the
+   replacement does not fit, writes a call to a copy in the section
+   (UI_FOV). tools/portaudit.py compares the instruction shapes covering
+   every site between retail and the build, and tools/portdump.py runs
+   the generator without its gate for that.
+8. A jump's new bytes are retail's until proven otherwise. The credits
+   jne-to-jmp sites (0x080074, 0x167084) carry retail's displacement,
+   and port_sites rebased every e8/e9 from the retail site, so the
+   ported jmp landed on retail's target inside JP's engine - mid
+   instruction, three bytes into a mov. port_sites now takes the
+   displacement from the build's own jcc, and only rebases jumps whose
+   target is in the appended sections; the F4 exit is built from A()
+   and already right.
 
 ## The scenes, as read off the game
 
@@ -481,8 +508,8 @@ by the bands anyway.
   are baked for the 1P view; split viewports want their own, keyed on
   D_LAYOUT like the split FOV factors. Needs the two compare pairs to
   read section data instead of immediates.
-- **The JP and OEM port.** JP's table now generates clean and needs a
-  boot; OEM's rasterizer fault is unexplained - see lesson 5.
+- **JP and OEM on video.** Both tables ship after lessons 6 and 7;
+  neither has had the retail build's hours of play yet.
 
 ## Per-build facts worth keeping
 
@@ -499,6 +526,8 @@ Japanese rerelease (stamp 345107fa):
 - 2D targets pre1 0x47ec80, post1 0x47f0a0, pre2 0x562400, post2
   0x562830
 - the GDI wrap function stores its 480 with an ebp-disp32 form (c785)
+- the FOV block is 54 bytes; the replacement goes through UI_FOV
+- engine B's roll keeps its count in edi (0x161da3), engine A's in ebx
 
 USA OEM (stamp 3317246a):
 

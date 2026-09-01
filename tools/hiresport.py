@@ -60,6 +60,9 @@ MANUAL = {
         # its 1.0 default, at a different spot
         0x1c7775: None,
         0x1c7726: 0x1c1ff5,
+        # engine B's roll keeps its count in edi, so the pattern that
+        # finds engine A's site finds nothing here
+        0x166a63: 0x161da3,
     },
     '3317246a': {                          # USA OEM
         # renderer A's row maths uses eax where retail uses ecx
@@ -301,6 +304,23 @@ def main():
         rh = [m.start() + 10 for m in fb.finditer(retail)]
         oh = [m.start() + 10 for m in fb.finditer(other)]
         if len(rh) == len(oh):
+            out.update(dict(zip(rh, oh)))
+        # the strip loaders' watermark stores: cdq; and edx,0x7f;
+        # add eax,edx; sar eax,7; mov [watermark],eax. 48 per build,
+        # 24 to each engine's pair of globals; the first engine's,
+        # in order
+        wm = re.compile(re.escape(b'\x99\x83\xe2\x7f\x03\xc2\xc1\xf8'
+                                  b'\x07\xa3') + b'(....)', re.S)
+
+        def first_engine(data):
+            hits = [(m.start() + 1, m.group(1)) for m in wm.finditer(data)]
+            globs = set()
+            for _o, g in hits:
+                if len(globs) < 2:
+                    globs.add(g)
+            return [o for o, g in hits if g in globs]
+        rh, oh = first_engine(retail), first_engine(other)
+        if len(rh) == len(oh) == 24:
             out.update(dict(zip(rh, oh)))
         # pool freelist walk: mov edx,[eax+4]; mov eax,[eax];
         # mov [ebx*4+pool],edx; dec ebx; test eax,eax

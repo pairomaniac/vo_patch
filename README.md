@@ -603,8 +603,9 @@ Four builds of the game exist. Three of them patch:
 
 The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
-above except **Native widescreen**, which is retail only for now and greyed
-out on the others; the window names the build it is looking at.
+above; **Native widescreen** on the OEM and Japanese builds is new and has
+had less testing than on retail. The window names the build it is looking
+at.
 
 **[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
 tables against and the patcher treats it as an unknown file. If you have a
