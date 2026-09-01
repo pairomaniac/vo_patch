@@ -630,6 +630,23 @@ makes. cnc-ddraw exports `DDGetProcAddress` for this, which forwards to the
 real `GetProcAddress`, and asking it for user32's `GetClientRect` gives the
 unhooked one.
 
+The size the game passes is its window for the movie - 640x400, 320x200
+or 640x440 - not the movie's: `von.avi` is 320x240, with the picture
+letterboxed inside it (rows 30..209, 16:9 exactly, with a dim edge row
+either side that reads as a thin bar if included). mciavi stretches the frame
+to whatever the window is, so the fitted rectangle has to take the shape
+from the file, through `MCI_WHERE` with `MCI_ANIM_WHERE_SOURCE`, and only
+fall back to the game's numbers if that fails. The letterbox is in the
+frames themselves, so with the frame size known the stub fits the band
+rather than the frame and sends the band as an `MCI_ANIM_PUT_SOURCE`
+rect: 1878x1080 on a 1080p screen. The size query carries
+`MCI_DGV_WHERE_MAX`: the placement runs more than once, and a plain
+`WHERE_SOURCE` answers with the source rect the previous run set, so
+each run would crop the crop (seen: 320x141 after two). The band is measured on the retail
+file (MD5 `1ba89e5aa2098b87208225b8cd698aa8`) and applied as a fraction
+of the frame height; the fallback path, without a frame size, crops
+nothing.
+
 That is more than an edit, so it is a stub in the annex - see
 [asm/](../asm/). Without cnc-ddraw the import is already the real function and
 the result is what the game did before. mciavi does not follow the window, so

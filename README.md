@@ -197,7 +197,9 @@ output goes from 22050 to 44100 Hz, and an enemy Fei-Yen gets back the
 hypermode sound a bug left silent.
 - **Intro, loading and ending screens** - four fixes to the screens either
 side of the fighting:
-    - the intro movie is fitted to the window instead of sitting in a corner
+    - the intro movie is fitted to the window instead of sitting in a
+      corner, and the black bars inside its frames are cropped off, so on
+      a widescreen display it fills the height
     - "Now Loading . . ." is hidden
     - the ending credits can be skipped - hold **A**, **Select** or Space for
       a second. Stock has no way past them
@@ -368,11 +370,9 @@ your monitor without stretching.
 rather than fixing something broken, so the box starts unticked - tick it
 and Apply.
 
-**All three builds.** The sites are written for the retail executable and
-translated onto the USA OEM and Japanese builds; those two came later and
-have had less play. If something looks wrong on one of them, say which
-build in the report - the window names it. How the translation works,
-and what went wrong on the way, is in [docs/HIRES.md](docs/HIRES.md).
+**All three builds.** On the USA OEM and Japanese builds it is newer and
+has had less play; if something looks wrong there, say which build in the
+report - the window names it.
 
 ## Gamepad
 
@@ -604,9 +604,7 @@ Four builds of the game exist. Three of them patch:
 
 The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
-above; **Native widescreen** on the OEM and Japanese builds is new and has
-had less testing than on retail. The window names the build it is looking
-at.
+above; the window names the build it is looking at.
 
 **[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
 tables against and the patcher treats it as an unknown file. If you have a

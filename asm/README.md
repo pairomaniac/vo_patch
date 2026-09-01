@@ -614,13 +614,21 @@ cnc-ddraw exports `DDGetProcAddress` for this, forwarding to the real
 imported one, which without cnc-ddraw is the real function anyway and gives
 what the game did before.
 
-From the real client rect it takes the biggest rectangle of the movie's own
-shape that fits, centres it, and writes the result back into the caller's
-frame - so the game's own `MoveWindow` a few instructions later does the
-work, with the values it was going to use replaced. mciavi does not follow
-the window, so the last thing the stub does is send `MCI_PUT` with a
-destination rect. The game sends no `MCI_PUT` of its own, and this is the
-only one.
+The movie's shape comes from the file, not the game: the size the game
+passes is its window for the movie, 640x400 or 320x200, while `von.avi`
+is 320x240 with the picture letterboxed inside it (rows 30..209). So the
+stub asks mciavi for the frame size with `MCI_WHERE` - `WHERE_SOURCE`
+plus `WHERE_MAX`, since without MAX the answer is the source rect this
+stub set on its last run, and the placement runs more than once - and
+fits the picture band rather than the frame. From the real client rect it
+takes the biggest rectangle of that shape that fits, centres it, and
+writes the result back into the caller's frame, so the game's own
+`MoveWindow` a few instructions later does the work with the values it
+was going to use replaced. mciavi does not follow the window, so the stub
+then sends two `MCI_PUT`s: the band as the source rect and the fitted
+rectangle as the destination. If the size query fails it fits the game's
+16:10 numbers and sends no source rect, which is what the stub did
+before. The game sends no `MCI_PUT` of its own.
 
 It reaches `mciSendCommandA` through a register rather than the six-byte
 indirect call, because `apply_cdaudio` counts those and aborts on anything

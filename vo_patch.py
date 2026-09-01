@@ -3772,46 +3772,54 @@ BLOBS = {
         'annex': 0x0,
     }),
     'MOVIE': (bytes.fromhex(
-        '5589e583ec405356578b7d08a1000000008947f4a1000000008947f031f66858'
-        '010000ff150000000085c0742b686201000050ff150000000085c0741b89c368'
-        '73010000ff150000000085c0740a687e01000050ffd389c685f675068b350000'
-        '00008d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
-        'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
-        'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
-        'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
-        '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
-        '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff3500000000ff15000000'
-        '0031c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
-        '006842080000ff3500000000a100000000ffd05f5e5bc9c364647261772e646c'
-        '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
-        '74436c69656e745265637400'
+        '5589e583ec445356578b7d0831c08945bca1000000008947f4a1000000008947'
+        'f031f668ea010000ff150000000085c0742b68f401000050ff150000000085c0'
+        '741b89c36805020000ff150000000085c0740a681002000050ffd389c685f675'
+        '068b35000000008d45f050ff7708ffd685c00f846d0100008b45f82b45f08945'
+        'd885c00f8e5c0100008b45fc2b45f48945d485c00f8e4b0100000fbf47108945'
+        'd085c00f8e3c0100000fbf47148945cc85c00f8e2d0100008d45dc5068000043'
+        '006843080000ff3500000000a100000000ffd085c075328b45e885c07e2b8b4d'
+        'ec85c97e248945d089c86bc01e99bbf0000000f7fb8945c089c869c0b4000000'
+        '99f7fb8945bc8945cc8b45d8f76dcc89c38b45d4f76dd039c37f118b45d88945'
+        'c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f77dcc8945c88b45d82b45'
+        'c8d1f88947f48b45d42b45c4d1f88947f08b45c88947108b45c48947146a01ff'
+        '75c4ff75c8ff77f0ff77f4ff3500000000ff15000000008b45bc85c0743531c0'
+        '8945dc8945e08b45c08945e48b45d08945e88b45bc8945ec8d45dc5068000003'
+        '006842080000ff3500000000a100000000ffd031c08945dc8945e08945e48b45'
+        'c88945e88b45c48945ec8d45dc5068000005006842080000ff3500000000a100'
+        '000000ffd05f5e5bc9c364647261772e646c6c00444447657450726f63416464'
+        '72657373007573657233322e646c6c00476574436c69656e745265637400'
     ), (
-        (0xd, 'abs', 'MOVIEX', 0),
-        (0x13, 'abs8', 'F_X', 0),
-        (0x15, 'abs', 'MOVIEY', 0),
-        (0x1b, 'abs8', 'F_Y', 0),
-        (0x1f, 'abs', '.', 344),
-        (0x25, 'abs', 'GETMODULE', 0),
-        (0x2e, 'abs', '.', 354),
-        (0x35, 'abs', 'GETPROC', 0),
-        (0x40, 'abs', '.', 371),
-        (0x46, 'abs', 'GETMODULE', 0),
-        (0x4f, 'abs', '.', 382),
-        (0x5e, 'abs', 'GETCLIENT', 0),
-        (0xef, 'abs8', 'F_X', 0),
-        (0xfa, 'abs8', 'F_Y', 0),
-        (0x111, 'abs8', 'F_Y', 0),
-        (0x114, 'abs8', 'F_X', 0),
-        (0x117, 'abs', 'MOVIEHWND', 0),
-        (0x11d, 'abs', 'MOVEWINDOW', 0),
-        (0x148, 'abs', 'MOVIEDEV', 0),
-        (0x14d, 'abs', 'MCISEND', 0),
+        (0x12, 'abs', 'MOVIEX', 0),
+        (0x18, 'abs8', 'F_X', 0),
+        (0x1a, 'abs', 'MOVIEY', 0),
+        (0x20, 'abs8', 'F_Y', 0),
+        (0x24, 'abs', '.', 490),
+        (0x2a, 'abs', 'GETMODULE', 0),
+        (0x33, 'abs', '.', 500),
+        (0x3a, 'abs', 'GETPROC', 0),
+        (0x45, 'abs', '.', 517),
+        (0x4b, 'abs', 'GETMODULE', 0),
+        (0x54, 'abs', '.', 528),
+        (0x63, 'abs', 'GETCLIENT', 0),
+        (0xc8, 'abs', 'MOVIEDEV', 0),
+        (0xcd, 'abs', 'MCISEND', 0),
+        (0x145, 'abs8', 'F_X', 0),
+        (0x150, 'abs8', 'F_Y', 0),
+        (0x167, 'abs8', 'F_Y', 0),
+        (0x16a, 'abs8', 'F_X', 0),
+        (0x16d, 'abs', 'MOVIEHWND', 0),
+        (0x173, 'abs', 'MOVEWINDOW', 0),
+        (0x1a8, 'abs', 'MOVIEDEV', 0),
+        (0x1ad, 'abs', 'MCISEND', 0),
+        (0x1da, 'abs', 'MOVIEDEV', 0),
+        (0x1df, 'abs', 'MCISEND', 0),
     ), {
         'movie_place': 0x0,
-        's_ddraw': 0x158,
-        's_ddgpa': 0x162,
-        's_user32': 0x173,
-        's_getclient': 0x17e,
+        's_ddraw': 0x1ea,
+        's_ddgpa': 0x1f4,
+        's_user32': 0x205,
+        's_getclient': 0x210,
     }),
     'CREDITS': (bytes.fromhex(
         'a0000000000a05000000008a1500000000a200000000803d0000000002753284'
@@ -4676,8 +4684,10 @@ FEATURES = [
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens either side of the fighting.\n'
      '\n'
-     'Intro movie\tFitted to the window. The game sizes it for 640x480,\n'
-     '\tso scaled up it sat small in a corner.\n'
+     'Intro movie\tFitted to the window. The film is letterboxed\n'
+     '\tinside its frames; the black bars stay off screen and\n'
+     '\tthe picture fills the height. The game sized it for\n'
+     '\t640x480, so scaled up it sat small in a corner.\n'
      'Loading text\t"Now Loading . . ." is hidden. The load is over\n'
      '\tbefore you read it.\n'
      'Ending credits\tSkippable - hold A, Select or Space for a second.\n'
