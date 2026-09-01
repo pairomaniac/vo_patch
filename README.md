@@ -366,9 +366,7 @@ game itself still asks the display for exclusive fullscreen at
 1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
 your monitor without stretching.
 
-**Off by default.** It is the one patch that changes how the game looks
-rather than fixing something broken, so the box starts unticked - tick it
-and Apply.
+**On by default**, like the rest; untick it for the original 640x480.
 
 **All three builds.** On the USA OEM and Japanese builds it is newer and
 has had less play; if something looks wrong there, say which build in the

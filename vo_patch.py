@@ -5381,7 +5381,7 @@ for _build in BUILDS.values():
 
 
 def default_state():
-    return {key: key != 'hires' for key in BY_KEY}
+    return {key: True for key in BY_KEY}
 
 
 def apply_feature(buf, sites):
