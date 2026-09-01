@@ -18,10 +18,11 @@ bits 32
 ; the canvas has the viewport's own aspect, but if nothing was painted
 ; beyond the 4:3 width (logos, title, menus are fixed-width) it is
 ; treated as 4:3 after all; in split it is always 4:3. The post phase
-; (HUD) is 4:3. Margins are blacked in the pre-3D phase when the last 3D
-; flush drew nothing (2D-only screens). The canvas has 480 guard rows
-; above and below: the 2D code draws outside the viewport in split
-; screen and expects frame memory there.
+; (HUD) is 4:3. On 2D-only screens (the last 3D flush drew nothing)
+; the margins take the picture's top-row colour when that row is all
+; one colour, else black. The canvas has 480 guard rows above and
+; below: the 2D code draws outside the viewport in split screen and
+; expects frame memory there.
 ;
 ; HUD polygons: the functions that own the HUD projection setups are
 ; wrapped (hud_enter) so the pass depth is known; inside a pass the
@@ -1068,9 +1069,24 @@ post_margins:
     jne post_done
     cmp dword [ebx+D_XOFF], 0
     je post_done
+    ; the top row's colour if it is all one colour, else black
+    mov esi, [ebx+D_BASE]
+    mov eax, [ebx+D_XOFF]
+    lea esi, [esi+eax*2]
+    movzx eax, word [esi]
+    mov ecx, [ebx+D_DW]
+post_mrow:
+    cmp ax, [esi]
+    jne post_mblack
+    add esi, 2
+    dec ecx
+    jnz post_mrow
+    jmp post_mfill
+post_mblack:
+    xor eax, eax
+post_mfill:
     mov edi, [ebx+D_BASE]
     mov dword [ebx+D_Y], 0
-    xor eax, eax
 post_mloop:
     push edi
     mov ecx, [ebx+D_XOFF]

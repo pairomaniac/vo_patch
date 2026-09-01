@@ -25,11 +25,11 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '4c7b408cb31b52fe03f3b2013d77c53e',
+    'a464b0ff32d5bab499f265e45658504e': 'dcb24f936a59ebc3963303974218ff55',
     # The marker-arrow fix moved every build's output; the other two
     # need a run against their own executables to re-pin.
-    'd19320bdc3381a48228990907910a391': '640b3b12205cbf4cf5c129c3cbb465bd',
-    '4c70f780a7f0d98d74be62304fb99021': 'cdb4d0d146a1738fbdbe59a54b41ac3f',
+    'd19320bdc3381a48228990907910a391': '1f2eef517f9bfedd3719dada27f0f861',
+    '4c70f780a7f0d98d74be62304fb99021': '4459190da8d001919f362d5a9c848adf',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))

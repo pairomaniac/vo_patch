@@ -33,8 +33,11 @@ the refs are rebased to a table in the section, filled by the blob.
 
 The renderers track drawn spans through a pointer at 0x6c8ce8, advancing
 by the row stride (0x50 packed into or/add immediates); every advance,
-pack and stride site moves to the new stride. The blob blacks margins
-only when the last 3D flush drew nothing (DRAWN 0x6d0dc4).
+pack and stride site moves to the new stride. On 2D-only screens
+(the last 3D flush drew nothing, DRAWN 0x6d0dc4) the blob fills the
+margins with the picture's top-row colour when that row is all one
+colour - the splash and title reach the screen edges in white - and
+with black otherwise. With 3D behind, the margins are the 3D.
 
 ### Projection
 
