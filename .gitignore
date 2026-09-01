@@ -16,3 +16,9 @@ asm/*.bin
 # net/build.py bakes the DLL into vo_patch.py; the file itself is scratch.
 net/dpctrl.dll
 vo-net.log
+
+
+# tools/maps.sh writes the vomap maps and port tables here, from the game
+# executables, which are not in the repository either.
+maps/*
+!maps/README.md

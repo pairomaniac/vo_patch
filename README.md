@@ -15,9 +15,10 @@ In a nutshell - the patch makes the game <i>just work ™️</i>
   <a href="#virus-warnings">Virus warnings</a> &nbsp;·&nbsp;
   <a href="#what-the-patches-do">Patches</a> &nbsp;·&nbsp;
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
+  <a href="#native-widescreen">Widescreen</a> &nbsp;·&nbsp;
   <a href="#gamepad">Gamepad</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
-  <a href="#resolution-and-windowing-cnc-ddraw">Resolution</a> &nbsp;·&nbsp;
+  <a href="#windowing-and-scaling-cnc-ddraw">Windowing</a> &nbsp;·&nbsp;
   <a href="#builds">Builds</a>
 </h4>
 
@@ -54,13 +55,14 @@ The sections are numbered in the order to work through them.
    is refused see [Builds](#builds).
 3. **ESSENTIAL PATCHES** - applied whole, no tick boxes. See
    [What the patches do](#what-the-patches-do).
-4. **EXTRA PATCHES** - starts ticked and is yours to change. Click the ⓘ
-   beside a patch to read what it does. Then **Apply patches**.
+4. **EXTRA PATCHES** - starts ticked, except **Native widescreen**, and is
+   yours to change. Click the ⓘ beside a patch to read what it does.
+   Then **Apply patches**.
 5. **ADD-ONS** - starts collapsed. Press **Install** on the row you want:
     - **Internet play** - two-player versus over the internet. Both players
       need it. See [Internet play](#internet-play).
-    - **Resolution and windowing** - installs cnc-ddraw. See
-      [Resolution and windowing](#resolution-and-windowing-cnc-ddraw).
+    - **Windowing and scaling** - installs cnc-ddraw. See
+      [Windowing and scaling](#windowing-and-scaling-cnc-ddraw).
 
 Then play. **Restore original** puts the game back if you change your mind.
 Add-ons write files beside the game rather than editing it, so Apply and
@@ -160,6 +162,9 @@ rebuilt now, and the game waits until that has worked before carrying on.
 
 ### Extra
 
+- **Native widescreen** - runs the game at 1920x1080 instead of 640x480,
+menus and text redrawn to match, more of the arena at the sides. Retail
+build only for now. See [Native widescreen](#native-widescreen).
 - **XInput gamepad support** - a modern controller for both players: twelve
 bindable actions, plus the arcade twin-stick scheme. See
 [Gamepad](#gamepad).
@@ -177,7 +182,7 @@ during an internet match. Every other menu was already on a key:
     | --- | --- |
     | **F1** | Help |
     | **F3** | Pause |
-    | **F4** | High / low resolution |
+    | **F4** | High / low resolution (1080p / 720p with Native widescreen on) |
     | **F5** | Graphic Settings |
     | **F6** | Mode Settings |
     | **F7** | Device Settings |
@@ -221,7 +226,7 @@ same button reads **Remove** once installed.
 | Row | What it is |
 | --- | --- |
 | **Internet play** | two-player versus over the internet. Both players need it. See [Internet play](#internet-play) |
-| **Resolution and windowing** | downloads and installs cnc-ddraw beside the game. See [Resolution and windowing](#resolution-and-windowing-cnc-ddraw) |
+| **Windowing and scaling** | downloads and installs cnc-ddraw beside the game. See [Windowing and scaling](#windowing-and-scaling-cnc-ddraw) |
 
 The soundtrack rip lives in **INSTALL** at the top of the window, beside
 the game copy. See [Music](#music).
@@ -325,6 +330,48 @@ opponent - direct is faster when it works. Matchcode games only.
 Create an empty file called `vo-net.log` beside `v_on.exe` and try again. The
 DLL writes what it did into it, and that file is what to send with a bug
 report.
+
+## Native widescreen
+
+The game draws everything at 640x480 and assumes it everywhere, so scaling
+the picture up only makes it bigger. This patch makes the game render at
+1920x1080 itself: the 3D view, the menus, the HUD and the text are drawn
+at that size, and a widescreen view shows more of the arena at the sides
+rather than stretching the middle.
+
+What changes when it is on:
+
+- **F4** switches between 1920x1080 and 1280x720, in place of stock's
+  640x480 / 320x240. **F5 Screen** offers the same choice as **1080p** /
+  **720p** (Normal, a small window centred in the picture, is gone) and
+  the choice is saved to `v_on.ini` as `ScrSize` bit 0, so the game
+  starts at the size it was left in. The menu entry that picked 320x240
+  outright is turned off.
+- **F5 Screen Split** offers **Ver** (side by side) and **Hor** (top and
+  bottom); the third choice, which duplicated the first, is gone. In
+  side by side the timer and health bars sit at the top of each half,
+  with the rest of the HUD centred below. The machine select, which
+  showed the same grid in both halves, is drawn once at full size.
+- The pause, loading and credits text scales with the picture. The
+  ending credits lose their black bands and roll the whole screen:
+  lines slide in at the very bottom and out through the very top,
+  with the scenery clean behind both.
+
+It works with every other patch and with cnc-ddraw, which is what gives
+you windowed or borderless play at that size - see
+[Windowing and scaling](#windowing-and-scaling-cnc-ddraw). The
+game itself still asks the display for exclusive fullscreen at
+1920x1080, as it always asked for 640x480, and cnc-ddraw fits that to
+your monitor without stretching.
+
+**Off by default.** It is the one patch that changes how the game looks
+rather than fixing something broken, so the box starts unticked - tick it
+and Apply.
+
+**Retail build only for now.** On the USA OEM and Japanese builds the box
+is greyed out and every other patch applies as usual. Both crash inside
+the renderer with the current tables; the work left is written up in
+[docs/HIRES.md](docs/HIRES.md).
 
 ## Gamepad
 
@@ -479,12 +526,13 @@ or empty, the game reads the drive as before; with tracks there, they are
 used, disc or no disc. Under Wine they play through `mciwave` - no
 `dosdevices` entry, raw device link or cdemu instance.
 
-## Resolution and windowing (cnc-ddraw)
+## Windowing and scaling (cnc-ddraw)
 
-The game asks for 640x480 exclusive fullscreen and leaves the rest to the
-display, which on a modern panel usually means a stretched picture. The 4:3
-framebuffer is baked into the rasteriser, so no byte edit fixes it - it takes
-something between the game and the graphics driver.
+The game asks for exclusive fullscreen at its render size - 640x480 stock,
+1920x1080 with **Native widescreen** on - and leaves the rest to the display,
+which on a modern panel can mean a stretched picture or no windowed mode.
+That part is between the game and the graphics driver, and it is what
+cnc-ddraw is for.
 
 <img height="360" alt="cnc-ddraw row under ADD-ONS" src="https://github.com/user-attachments/assets/ee0e5c12-2db3-4a85-bc23-8ba4d859c6ce" />
 <br /><br />
@@ -555,7 +603,8 @@ Four builds of the game exist. Three of them patch:
 
 The USA, USA Alt and European discs all carry the same English retail
 `v_on.exe`, so any of them will do. Every patch works on all three builds
-above, and the window names the one it is looking at.
+above except **Native widescreen**, which is retail only for now and greyed
+out on the others; the window names the build it is looking at.
 
 **[The Japanese original](https://redump.info/disc/133978)** has not been sourced, so there is nothing to write
 tables against and the patcher treats it as an unknown file. If you have a
@@ -579,6 +628,9 @@ unpatched game do not fit the new device list. The title artwork -
 `escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
 with the new title prompt, after a copy is kept as `.bak`.
 
+**Native widescreen** adds a section to `v_on.exe` for its own code and
+its off-screen canvas; nothing else on disk changes.
+
 **Restore original** puts every backed-up file back - those three and the
 two roll files the credit line rewrites - keeping whatever the patched game
 wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
@@ -586,6 +638,9 @@ hand: the artwork and `v_on.exe` have to match, and restoring one alone
 draws the title prompt as scrambled letters.
 
 ## Running from source
+
+Working on the patcher rather than running it? [docs/README.md](docs/README.md)
+maps the developer documentation.
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 

@@ -25,7 +25,9 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': 'ea4a3b0a4f08e6b4a493040c76639bd8',
+    'a464b0ff32d5bab499f265e45658504e': '485b189fd2b3cf1ffb9ba26550526df1',
+    # The marker-arrow fix moved every build's output; the other two
+    # need a run against their own executables to re-pin.
     'd19320bdc3381a48228990907910a391': '94d395ee9a9702520c2685b371177f8f',
     '4c70f780a7f0d98d74be62304fb99021': '9e1e22a87c05ed7a346a6ac34c73e398',
 }
@@ -87,9 +89,77 @@ def apply(vp, original, keys, build):
     buf, _applied, skipped = vp.apply_selected(bytearray(original),
                                                dict.fromkeys(keys, True),
                                                build)
+    skipped = [s for s in skipped
+               if s != ('hires', 'not ready for this build yet')]
     if skipped:
         raise AssertionError('skipped %s: %s' % (skipped[0][0], skipped[0][1]))
     return buf
+
+
+def f4_check(vp, original, keys, build, result):
+    """The resolution patch's F4 table: its first byte set is what the
+    file holds at every site, and the file with the second set copied in
+    is a build made for the other size, outside the table itself."""
+    import struct
+    if not vp.hires_supported(bytearray(original)):
+        return 'no table for this build'
+    pe = vp._PE(result)
+    sec = [x for x in pe.sections if x['name'] == b'.vohr']
+    if not sec:
+        return 'no .vohr section'
+    sec_va, raw = pe.base + sec[0]['vaddr'], sec[0]['raddr']
+    tab = struct.unpack_from('<I', result, raw + vp.UI_F4TAB)[0]
+    swapped, o, n = bytearray(result), raw + (tab - sec_va), 0
+    while True:
+        va, ln = struct.unpack_from('<II', result, o)
+        if va == 0:
+            break
+        f = pe.off(va - pe.base)
+        if result[f:f + ln] != result[o + 8:o + 8 + ln]:
+            return 'first set differs from the file at 0x%x' % va
+        swapped[f:f + ln] = result[o + 8 + ln:o + 8 + 2 * ln]
+        o += 8 + 2 * ln
+        n += 1
+    w, hh = struct.unpack_from('<II', result, raw + vp.UI_MODEW)
+    other = apply(vp, original, keys - {'hires'}, build)
+    vp.hires_install(other, *vp.HIRES_ALT, alt=(w, hh))
+    lo, hi = raw + vp.UI_F4TAB_OFF, raw + vp.UI_OFF
+    if len(other) != len(swapped) or any(
+            swapped[i] != other[i] for i in range(len(other))
+            if not lo <= i < hi):
+        return 'second set is not a %dx%d build' % vp.HIRES_ALT
+    return '%d entries' % n
+
+
+def port_identity(vp, original):
+    """port_sites against an identity port: every offset maps to itself
+    and the "build's own bytes" are retail's. The translation must hand
+    back the retail sites unchanged, rewrites included. Keeps the port
+    path from rotting while PORT ships empty and hires_install refuses
+    ported builds outright."""
+    sites = vp.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
+                           (0x39c0000, vp.HIRES_POLYS))
+    port = {'va': {}, 'off': {}}
+    for va in vp.ADDR.values():
+        port['va'][va] = va
+    for _o, va in vp.UI_REFS:
+        port['va'].setdefault(va, va)
+    for off, old, new in sites:
+        n = len(old) if old is not None else len(new)
+        port['off'][off] = (off, original[off:off + n].hex())
+    moved = vp.port_sites(sites, port, vp.ADDR.__getitem__)
+    if len(moved) != len(sites):
+        return 'site count changed: %d -> %d' % (len(sites), len(moved))
+    for (off, old, new), (boff, bold, bnew) in zip(sites, moved):
+        if boff != off:
+            return 'site 0x%06x moved to 0x%06x' % (off, boff)
+        if bnew != new:
+            return 'site 0x%06x new bytes changed' % off
+        if (old is None) != (bold is None):
+            return 'site 0x%06x old-bytes shape changed' % off
+        if old is not None and bold != original[off:off + len(old)]:
+            return 'site 0x%06x old bytes changed' % off
+    return '%d sites, identity' % len(moved)
 
 
 def main(path):
@@ -157,6 +227,15 @@ def main(path):
         if sel == set(keys):
             digest = hashlib.md5(bytes(result)).hexdigest()
             print('all patches: %d bytes, MD5 %s' % (len(result), digest))
+            note = f4_check(vp, original, sel, build, result)
+            print('F4 table: %s' % note)
+            if not note.endswith('entries') and 'no table' not in note:
+                bad += 1
+            if build.md5 == vp.ORIGINAL_MD5:
+                note = port_identity(vp, original)
+                print('port identity: %s' % note)
+                if not note.endswith('identity'):
+                    bad += 1
             if EXPECTED_ALL.get(build.md5) is None:
                 print('  not pinned for this build yet')
             elif digest != EXPECTED_ALL[build.md5]:
