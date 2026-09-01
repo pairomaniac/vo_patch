@@ -433,6 +433,20 @@ would mean re-timing the authored schedule, which is not attempted.
 With the clip wired, a line slides in at the foot a glyph row at a time
 and out through the real row 0, the scenery clean behind both edges.
 
+The roll's end is timed for the band too: the ending driver (0x58ecd0,
+frame counter 0x1ad09f0) scrolls plane A one line a frame from frame
+0x116 and, at 0x10e2, zeroes the scroll word and hides the plane
+(0x4d4504) - with the last line still 72 lines short of row 0, under
+the band in stock. The schedule (0x6bcd48, 188 entries of strip,
+width, rows; feed frame 0x116 + 8 * rows so far) has the last text
+entry, 155, fed at 0x0f2e into ring rows 51..53, followed by blank
+entries through 0x1136. Row 53 is off the top at 0x112e; rows 51..53
+come round to the foot from 0x1136, and a blank entry clears only
+columns 9..59 of a row (51 words at +0x12, 0x58f12a), so a line's
+right-hand tiles survive it - the flash of white at the bottom right
+seen with a 96-frame extension. Both thresholds therefore move 80
+frames, to 0x1132; the scene change at 0x1490 is untouched.
+
 The roll's pixels are strips loaded incrementally into two banks
 (0x66c1a0/0x66c1a8, 565->555 converted at 0x480f30) and blitted as plain
 copies (0x47f2e0); there is no per-pixel fade anywhere in the path. The

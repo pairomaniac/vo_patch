@@ -63,6 +63,9 @@ MANUAL = {
         # engine B's roll keeps its count in edi, so the pattern that
         # finds engine A's site finds nothing here
         0x166a63: 0x161da3,
+        # the ending driver's roll cut, 0x10e3 in a function the map
+        # does not match; its twin at 0x10e2 resolves on its own
+        0x18e7b9: 0x189893,
     },
     '3317246a': {                          # USA OEM
         # renderer A's row maths uses eax where retail uses ecx

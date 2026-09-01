@@ -340,6 +340,8 @@ PORT = {
             0x181dc3: (0x17cf65, '558bec83ec34'),
             0x187c1e: (0x182d0a, '558bec83ec0c'),
             0x188185: (0x183271, '558bec83ec0c'),
+            0x18e341: (0x1894ee, 'e2100000'),
+            0x18e7b9: (0x189893, 'e3100000'),
             0x19d8ea: (0x1986ea, 'e8a4e6ffff'),
             0x1a133c: (0x19c0d4, '558bec83ec0c'),
             0x1a191b: (0x19c6b3, '558bec83ec0c'),
@@ -699,6 +701,8 @@ PORT = {
             0x181dc3: (0x181893, '558bec83ec34'),
             0x187c1e: (0x1876ee, '558bec83ec0c'),
             0x188185: (0x187c55, '558bec83ec0c'),
+            0x18e341: (0x18de11, 'e2100000'),
+            0x18e7b9: (0x18e289, 'e3100000'),
             0x19d8ea: (0x19d3ba, 'e8a4e6ffff'),
             0x1a133c: (0x1a0e0c, '558bec83ec0c'),
             0x1a191b: (0x1a13eb, '558bec83ec0c'),
@@ -1596,6 +1600,14 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
                bytes.fromhex('8d430850') + b'\x90' * 4),
               (0x166a63, bytes.fromhex('b8080000002bc350'),
                bytes.fromhex('8d430850') + b'\x90' * 4)]
+    # The ending driver (0x58ecd0) scrolls the roll one line a frame
+    # from frame 0x116 and cuts it at 0x10e2, timed for the last line
+    # to be under the top band. Its last ring row (53, fed at 0x0f2e)
+    # is off the top at 0x112e; the same rows come round to the foot
+    # at 0x1136, and the blank feed only clears columns 9..59, so
+    # their right-hand tiles would show. The cut moves to 0x1132.
+    sites += imm_sites([0x18e341], 0x10e2, 0x10e2 + 80)
+    sites += imm_sites([0x18e7b9], 0x10e3, 0x10e3 + 80)
     # Machine-select hangar: a platform mech is drawn while its angle is
     # within a window of the camera's (0x59e3a1: 31.57 degrees to the
     # left, 28.43 to the right, .data doubles), sized for a 4:3 view;
