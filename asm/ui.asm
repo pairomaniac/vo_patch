@@ -174,6 +174,7 @@ D_MSX     equ 0x1af4            ; colour, fine scroll
 D_MSY     equ 0x1af8
 D_MCOL    equ 0x1afc
 D_MFY     equ 0x1a5c
+D_MSPLIT  equ 0x1a60            ; margins: the split flag, cleared while it runs
 PRIMARY   equ 0x1ae5f40         ; the surface DRAW paints on, and the one
 BACK      equ 0x1ae5f5c         ; about to be flipped over it
 DRAW      equ 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
@@ -1121,6 +1122,9 @@ margins_show2:
     cmp eax, 1
     je margins_ret
 margins_engine:
+    mov eax, [SPLIT]                ; the destination helper halves under
+    mov [ebx+D_MSPLIT], eax         ; split; pre hides the flag from the
+    mov dword [SPLIT], 0            ; walker, and so does this
     mov dword [ebx+D_ERING], RING1
     mov dword [ebx+D_ESCRX], SCRX1
     mov dword [ebx+D_ESCRY], SCRY1
@@ -1288,6 +1292,8 @@ margins_rownext:
     inc dword [ebx+D_MR]
     cmp dword [ebx+D_MR], 60
     jl margins_row
+    mov eax, [ebx+D_MSPLIT]
+    mov [SPLIT], eax
 margins_ret:
     popad
     ret
