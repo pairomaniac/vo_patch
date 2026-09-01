@@ -217,12 +217,13 @@ def resolve(pkl):
     fails = []
 
     def pool_sites():
-        """The three cmp eax,2500 copies and their two pool leas, plus the
-        render-list insert loads, paired by order of appearance."""
+        """The insert caps (cmp eax,2500 in renderer A, 2000 in B) and
+        their two pool leas, the two flush caps, plus the render-list
+        insert loads, paired by order of appearance."""
         out = {}
-        cmp_pat = b'\x3d\xc4\x09\x00\x00\x0f\x8d'
-        r_hits = [m.start() for m in re.finditer(re.escape(cmp_pat), retail)]
-        o_hits = [m.start() for m in re.finditer(re.escape(cmp_pat), other)]
+        cmp_pat = re.compile(rb'\x3d(?:\xc4\x09|\xd0\x07)\x00\x00\x0f\x8d')
+        r_hits = [m.start() for m in cmp_pat.finditer(retail)]
+        o_hits = [m.start() for m in cmp_pat.finditer(other)]
         if len(r_hits) == len(o_hits):
             for r, o in zip(r_hits, o_hits):
                 out[r + 1] = o + 1                       # the 2500 itself
@@ -231,6 +232,11 @@ def resolve(pkl):
                     if retail[r + delta:r + delta + len(opc)] == opc \
                             and other[o + delta:o + delta + len(opc)] == opc:
                         out[r + delta + len(opc)] = o + delta + len(opc)
+        flush_pat = re.escape(b'\x81\xff\xc4\x09\x00\x00\x7f')
+        r_hits = [m.start() + 2 for m in re.finditer(flush_pat, retail)]
+        o_hits = [m.start() + 2 for m in re.finditer(flush_pat, other)]
+        if len(r_hits) == len(o_hits):
+            out.update(dict(zip(r_hits, o_hits)))
         for pat_r in (re.compile(re.escape(b'\x8b\x34\x9d') + b'....'
                                  + re.escape(b'\x89\x0c\x9d'), re.S),):
             r_hits = [m.start() for m in pat_r.finditer(retail)]

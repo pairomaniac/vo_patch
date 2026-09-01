@@ -47,10 +47,13 @@ replaced with a per-layout factor from section data.
 
 ### Render lists and pool
 
-The polygon cap (cmp eax, 2500) and the pool tables 0x6db7e0/0x6f8ca0 are
-raised and rebased (--polys); the flush walks bucket heads (0x6fdac0
-family) which move with them; the list-insert loads (LIST_A 0x7001d0,
-LIST_B 0x725f50) are hooked for HUD-pass vertex scaling.
+Each renderer's polygon record pool, side array and flush list move to
+the section and grow to HIRES_POLYS records: renderer A's (2500 at
+0x6db7e0/0x6f8ca0/0x6fdabc, cap in two insert paths and the flush) and
+renderer B's (2000 at 0x708a90/0x720190/0x72400c, the same three caps,
+the flush's at 2500). The bucket heads (LIST_A 0x7001d0, LIST_B
+0x725f50) stay where they are; the list-insert loads are hooked for
+HUD-pass vertex scaling.
 
 ### The 2D layer
 

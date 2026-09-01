@@ -508,6 +508,9 @@ PORT = {
             0x1dacae: (0x1d553e, 'a1784a6c0083c05046a3784a6c00'),
             0x1dad02: (0x1d5592, '50000000'),
             0x1dad60: (0x1d55f0, '50000000'),
+            0x1dbd7c: (0x1d660c, 'c4090000'),
+            0x1dbda0: (0x1d6630, '9cfd7100'),
+            0x1dc0a8: (0x1d6938, 'a0fd7100'),
             0x1dc4f8: (0x1d6d88, '70da6c00'),
             0x1dc502: (0x1d6d92, '83c850'),
             0x1dc919: (0x1d71a9, '70da6c00'),
@@ -516,7 +519,13 @@ PORT = {
             0x1dcd02: (0x1d7592, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
             0x1dcff1: (0x1d7881, 'a1784a6c000ffefe83c0505ea3784a6c00'),
             0x1dd032: (0x1d78c2, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
+            0x1de86b: (0x1d90fb, 'd0070000'),
+            0x1de877: (0x1d9107, '20487000'),
+            0x1de880: (0x1d9110, '20bf7100'),
             0x1de938: (0x1d91c8, '8b349de01c7200'),
+            0x1df5fe: (0x1d9e8e, 'd0070000'),
+            0x1df60a: (0x1d9e9a, '20487000'),
+            0x1df613: (0x1d9ea3, '20bf7100'),
             0x1df6b0: (0x1d9f40, '8b349de01c7200'),
             0x1fb4a0: (0x1f5ca0, '000080c3'),
             0x1fb4a4: (0x1f5ca4, '00008043'),
@@ -884,6 +893,9 @@ PORT = {
             0x1dacae: (0x1da7ee, 'a1a88c6c0083c05046a3a88c6c00'),
             0x1dad02: (0x1da842, '50000000'),
             0x1dad60: (0x1da8a0, '50000000'),
+            0x1dbd7c: (0x1db8bc, 'c4090000'),
+            0x1dbda0: (0x1db8e0, 'cc3f7200'),
+            0x1dc0a8: (0x1dbbe8, 'd03f7200'),
             0x1dc4f8: (0x1dc038, 'a01c6d00'),
             0x1dc502: (0x1dc042, '83c850'),
             0x1dc919: (0x1dc459, 'a01c6d00'),
@@ -892,7 +904,13 @@ PORT = {
             0x1dcd02: (0x1dc842, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
             0x1dcff1: (0x1dcb31, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
             0x1dd032: (0x1dcb72, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
+            0x1de86b: (0x1de3ab, 'd0070000'),
+            0x1de877: (0x1de3b7, '508a7000'),
+            0x1de880: (0x1de3c0, '50017200'),
             0x1de938: (0x1de478, '8b349d105f7200'),
+            0x1df5fe: (0x1df13e, 'd0070000'),
+            0x1df60a: (0x1df14a, '508a7000'),
+            0x1df613: (0x1df153, '50017200'),
             0x1df6b0: (0x1df1f0, '8b349d105f7200'),
             0x1fb4a0: (0x1faea0, '000080c3'),
             0x1fb4a4: (0x1faea4, '00008043'),
@@ -1743,6 +1761,15 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     sites += imm_sites([0x1d0ed0], 0x6fdabc, pool_va + n * 0x38)
     sites += imm_sites([0x1d11d8], 0x6fdac0, pool_va + n * 0x38 + 4)
     sites += imm_sites([0x1d395b, 0x1d46ae, 0x1d0eac], 2500, n)
+    # Renderer B's, the same shape behind it: 2000 records at 0x708a90,
+    # sides at 0x720190, list at 0x72400c; its flush cap is 2500.
+    pool_b = pool_va + n * 0x3c + 8
+    sites += imm_sites([0x1de877, 0x1df60a], 0x708a90, pool_b)
+    sites += imm_sites([0x1de880, 0x1df613], 0x720190, pool_b + n * 0x30)
+    sites += imm_sites([0x1dbda0], 0x72400c, pool_b + n * 0x38)
+    sites += imm_sites([0x1dc0a8], 0x724010, pool_b + n * 0x38 + 4)
+    sites += imm_sites([0x1de86b, 0x1df5fe], 2000, n)
+    sites += imm_sites([0x1dbd7c], 2500, n)
     # Perspective subdivision. 0x5d3430 splits a polygon while any edge is
     # longer than a threshold, squared, in pixels, with a fixed recursion
     # budget per polygon. Twice the pixels per edge means four times the
@@ -1883,7 +1910,7 @@ def hires_supported(buf):
 
 # What the CLI-era knobs settled on: the split FOV between the 4:3 that
 # fits a viewport and the one that fills it, nearest-neighbour compositing,
-# the widened hangar window, and a polygon pool of 8000.
+# the widened hangar window, and a polygon pool of 8000 per renderer.
 HIRES_SPLIT_FOV = 'mean'
 HIRES_POLYS = 8000
 # Side-by-side split: rows of the 640x480 HUD frame above this go to the
@@ -2110,7 +2137,7 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
     rowtab_off = mask_off + max(hh * (w // 8 + 4), ah * (aw // 8 + 4))
     size = rowtab_off + 2 * max(hh, ah) * 4
     pool_off = size
-    size += HIRES_POLYS * 0x3c + 8     # pool records, side array, list
+    size += 2 * (HIRES_POLYS * 0x3c + 8)   # pool, sides, list; both renderers
     code = UI_CODE
     if port is not None:
         code = bytearray(code)
