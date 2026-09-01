@@ -147,8 +147,7 @@ unaffected.
 The rescale and the 2D composite agree to the pixel: a HUD vertex at
 frame x lands at round(x * s + offset), and a canvas column at
 floor(X / s). They did not until the compositor's reciprocal was fixed
-(below); the 3 px polygon shift (D_SHIFTX) that used to compensate is
-now zero.
+(below); the 3 px polygon shift that used to compensate is gone.
 
 ### Single viewport in a split game
 

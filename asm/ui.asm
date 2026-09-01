@@ -59,7 +59,7 @@ bits 32
 ; 2 top/bottom.
 ;
 ; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_SHIFTX/Y, D_PINTH, D_SPLITST
+; split factors, D_SCALE/D_HUD, D_PINTH, D_SPLITST
 ; are written by the patcher.
 FB_PTR    equ 0x6bf5a8            ; locked surface pointer
 FB_PITCH  equ 0x6bf5ac
@@ -122,9 +122,6 @@ D_OFFY16  equ 0x19d4            ; centre already contributes
 D_XMIN    equ 0x18d4            ; scratch for the rescale
 D_XMAX    equ 0x19b0
 D_YMAX    equ 0x19b4
-D_SHIFTX  equ 0x19b8            ; HUD polygon x shift on the viewport, pixels,
-                              ; per layout (patcher)
-D_SHIFTY  equ 0x19c4
 D_YMIN    equ 0x18d8
 D_SAVE_A  equ 0x18dc            ; last world projection, renderer A (3)
 D_SAVE_FA equ 0x18e8            ; its focal length
@@ -772,17 +769,12 @@ pre_layout:
     fsubp st1, st0
     fmul dword [ebx+D_CHALF]
     fistp dword [ebx+D_OXH]
-    mov eax, [ebx+D_LAYOUT]
-    mov eax, [ebx+eax*4+D_SHIFTX]
-    add [ebx+D_OXH], eax
     fild dword [ebx+D_H]
     fld dword [ebx+D_HUDF]
     fmul dword [ebx+D_C480]
     fsubp st1, st0
     fmul dword [ebx+D_CHALF]
     fistp dword [ebx+D_OYH]
-    mov eax, [ebx+D_SHIFTY]
-    add [ebx+D_OYH], eax
     ; centre of the viewport in HUD units, and the rescale offsets that
     ; put the HUD frame's 320,240 back on OXH/OYH exactly
     fild dword [ebx+D_W]
