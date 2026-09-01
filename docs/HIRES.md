@@ -87,6 +87,19 @@ own ring, scroll words, watermarks and helpers (RING1.. / RING2.. in
 ui.asm); the port tool reads them off the build's own walker rather
 than the map, which pairs the twin engines.
 
+The destination helper halves its coordinates whenever the split flag
+0x6bc948 is set (the `test al, 2` before its two `sar`s is dead code,
+so any two-player game halves), which is why pre hides the flag from
+the game's walker; margins hides it the same way, since post has
+restored it by then. Seen on video first: every margin tile at half
+scale, the right-hand ones over the picture.
+
+Limits of the canvas: OFF_PITCH is 2048 bytes, so the pre-3D canvas is
+capped at 1024 px wide (2.13:1; a wider viewport gets a centred canvas
+and its outer columns untouched), and the patcher refuses widths over
+2040 because the coverage-mask stride is an 8-bit immediate. Neither
+has been exercised past 16:9; see *Queued work*.
+
 Rules tried at pixel level before the map was read, on record: per-row
 edge pixels streaked the SEGA wipe, the static and the grid; the first
 canvas column past 4:3 assumed the game clears the wide canvas, which
@@ -595,6 +608,12 @@ by the bands anyway.
   read section data instead of immediates.
 - **JP and OEM on video.** Both tables ship after lessons 6 and 7;
   neither has had the retail build's hours of play yet.
+- **Wider than 16:9.** Untested and partly blocked: the width limit of
+  2040 (the mask stride immediates), the 1024-px canvas (OFF_PITCH and
+  the cap in pre; the guard/copy layout in UI_OFF_SIZE follows it), the
+  1440p-and-up sizes generally, and on the game's side the sky dome
+  (built for 4:3), the enemy marker window and the hangar's angle
+  window, all sized from the width but only checked at 16:9.
 
 ## Per-build facts worth keeping
 
