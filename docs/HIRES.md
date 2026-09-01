@@ -107,7 +107,15 @@ the title and splash do not, and gave black; a margin-wide mirrored
 corner block reached the title logo and the splash panel, and
 mirroring broke the grid's spacing at the seams; fixed tiles and a
 per-frame period search drifted against what was measured on video as
-a 48.33-px period, which the map shows to be 48: the grid is tiles.
+a 48.33-px period. That period was real and was the compositor's:
+fit computed 1/s as (2^24 / s) << 8, which drops the low byte of the
+16.16 reciprocal - 0.68% short at s = 2.25 - so the 2D layer was
+stretched by that much, its last four columns and three rows never
+shown, and every 2D element drifted right and down with its position
+(1.7 px at the health labels, 2 at the weapon names). The reciprocal
+is now 2^32 / s rounded up, and the composite is verified against an
+exact nearest-neighbour model at 1080p and 720p, every canvas pixel
+shown once.
 
 The ending roll is the 2D layer's too: its bands, window, edge clipping
 and cut are under *Credits letterboxing, found and removed* below.
@@ -133,10 +141,11 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
-Measured against stock, the health bars sit inside their frames to within
-a pixel in 640x480 terms, which is the precision the original geometry
-was placed at; the remaining top/bottom asymmetry is a 0.7 px offset in
-the frame position, tunable if it ever shows.
+The rescale and the 2D composite agree to the pixel: a HUD vertex at
+frame x lands at round(x * s + offset), and a canvas column at
+floor(X / s). They did not until the compositor's reciprocal was fixed
+(below); the 3 px polygon shift (D_SHIFTX) that used to compensate is
+now zero.
 
 ### Single viewport in a split game
 

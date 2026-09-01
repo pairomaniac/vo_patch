@@ -666,15 +666,14 @@ fit:
     mov eax, [ebx+D_LAYOUT]
     mov eax, [ebx+eax*4+D_SCALE]
     mov [ebx+D_S], eax
-    mov eax, 0x10000
-    shl eax, 8
-    xor edx, edx
-    div dword [ebx+D_S]
-    shl eax, 8                      ; 1/s, 16.16
-    test edx, edx                   ; rounded up, so that a source
-    jz fit_step                     ; column boundary that lands exactly
-    inc eax                         ; on a destination column is not
-fit_step:                           ; undershot by the accumulated error
+    xor eax, eax                    ; 1/s, 16.16: 2^32 / s, rounded up,
+    mov edx, 1                      ; so that a source column boundary
+    div dword [ebx+D_S]             ; that lands exactly on a destination
+    test edx, edx                   ; column is not undershot by the
+    jz fit_step                     ; accumulated error. (2^24 / s << 8
+    inc eax                         ; lost the low byte: 0.68% at 2.25,
+fit_step:                           ; a stretch that showed as the
+                                    ; "48.33 px" grid and 4 columns lost)
     mov [ebx+D_XSTEP], eax
     mov [ebx+D_YSTEP], eax
     ; x
