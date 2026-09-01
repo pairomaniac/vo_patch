@@ -15,14 +15,17 @@ bits 32
 ; left alone. The composite is nearest, copying the surface's own
 ; pixels whatever their format. The scaled canvas is centred on
 ; the viewport and clipped if larger. In the pre-3D phase (backdrops)
-; the canvas has the viewport's own aspect, but if nothing was painted
-; beyond the 4:3 width (logos, title, menus are fixed-width) it is
-; treated as 4:3 after all; in split it is always 4:3. The post phase
-; (HUD) is 4:3. On 2D-only screens (the last 3D flush drew nothing)
-; the margins take the picture's top-row colour when that row is all
-; one colour, else black. The canvas has 480 guard rows above and
-; below: the 2D code draws outside the viewport in split screen and
-; expects frame memory there.
+; the canvas has the viewport's own aspect and the game draws its
+; 640-wide picture centred in it (D_XO); in split it is 4:3. The post
+; phase (HUD) is 4:3. The margins either side of the picture are drawn
+; from the game's own plane B tile map (margins below): a tile row with
+; no empty tile is a field - the encounter grid, the noise transition -
+; and continues into the margins at its 80-tile period; any other row
+; takes the picture's top-row colour when that row is all one colour,
+; else black, and only on 2D-only screens (the last 3D flush drew
+; nothing), the 3D showing otherwise. The canvas has 480 guard rows
+; above and below: the 2D code draws outside the viewport in split
+; screen and expects frame memory there.
 ;
 ; HUD polygons: the functions that own the HUD projection setups are
 ; wrapped (hud_enter) so the pass depth is known; inside a pass the
@@ -156,6 +159,21 @@ D_DBGSTR  equ 0x1aa0            ; the text, 32 bytes
 D_F4MODE  equ 0x1ac0            ; 0: the first size is in place, 1: the second
 D_F4TAB   equ 0x1ac4            ; the F4 site table (patcher); see f4_toggle
 D_F4WANT  equ 0x1ac8            ; the F5 Screen choice: 1 for the second size
+D_XO      equ 0x1acc            ; canvas x of the game's 640-wide picture in
+                              ; the pre phase, 0 when the canvas is 4:3
+D_MXT     equ 0x1ad0            ; margin tile columns each side
+D_ERING   equ 0x1ad4            ; the engine's plane B, set per call (margins):
+D_ESCRX   equ 0x1ad8            ; ring, scroll x/y, tile destination, tile
+D_ESCRY   equ 0x1adc            ; blit, bank watermarks
+D_EDEST   equ 0x1ae0
+D_EBLIT   equ 0x1ae4
+D_EWMA    equ 0x1ae8
+D_EWMB    equ 0x1aec
+D_MR      equ 0x1af0            ; margins: tile row, scroll column/row, flat
+D_MSX     equ 0x1af4            ; colour, fine scroll
+D_MSY     equ 0x1af8
+D_MCOL    equ 0x1afc
+D_MFY     equ 0x1a5c
 PRIMARY   equ 0x1ae5f40         ; the surface DRAW paints on, and the one
 BACK      equ 0x1ae5f5c         ; about to be flipped over it
 DRAW      equ 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
@@ -199,6 +217,27 @@ LIST_A    equ 0x7001d0          ; render list bucket heads
 LIST_B    equ 0x725f50
 CENTRE_A  equ 0x6db534
 CENTRE_B  equ 0x708874
+; Plane B of each 2D engine: the backdrop tile map the pre-3D call
+; draws (0x4800d0 / 0x5670c0), an 82x62-word ring of which 80x60 show,
+; scrolled by whole tiles through the two scroll words (bits 3..9; y bit
+; 15 hides the plane); the tile destination helper (ecx column, edx
+; row; eax the frame address or 0 to skip) and the tile blit (ecx tile,
+; edx destination, a pushed row count after which the tile wraps to the
+; frame top); and the loaded-tile watermarks of the two banks.
+RING1     equ 0x1cc6700
+SCRX1     equ 0x34155c8
+SCRY1     equ 0x34155d0
+DEST1     equ 0x480410
+BLIT1     equ 0x4803d0
+WMA1      equ 0xbf5f7c
+WMB1      equ 0xbf5f78
+RING2     equ 0x1ef1140
+SCRX2     equ 0x1efb728
+SCRY2     equ 0x1efb730
+DEST2     equ 0x567400
+BLIT2     equ 0x5673c0
+WMA2      equ 0x1ad0034
+WMB2      equ 0x1ad0030
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
 D_COPY    equ 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
@@ -777,6 +816,8 @@ pre_layout:
     imul eax, [ebx+D_W]
     xor edx, edx
     div dword [ebx+D_H]
+    inc eax                         ; even, so the picture centres on a
+    and eax, -2                     ; whole canvas column
     cmp eax, 1024
     jle pre_lw
     mov eax, 1024
@@ -788,6 +829,12 @@ pre_43:
     div ecx
 pre_lw:
     mov [ebx+D_LW], eax
+    sub eax, 640
+    sar eax, 1
+    mov [ebx+D_XO], eax
+    add eax, 7
+    sar eax, 3
+    mov [ebx+D_MXT], eax
     call fit
     ; the HUD band, for the insert hooks and for this composite
     mov dword [ebx+D_PINON], 0
@@ -906,8 +953,9 @@ pre_fill_next:
 pre_fill_more:
     cmp eax, [ebx+D_LH]
     jl pre_fill_row
-    ; globals for the 2D code
-    lea eax, [ebx+D_OFF]
+    ; globals for the 2D code; the picture centred on the canvas
+    mov eax, [ebx+D_XO]
+    lea eax, [ebx+eax*2+D_OFF]
     mov esi, [ebx+D_BASEPTR]
     mov [esi], eax
     mov dword [FB_PITCH], OFF_PITCH
@@ -942,6 +990,7 @@ post_here:
     popad
     ret
 post_live:
+    call margins
     mov [esi], eax
     mov eax, [ebx+D_PITCH]
     mov [FB_PITCH], eax
@@ -971,42 +1020,6 @@ post_engine_b:
     cmp eax, 1
     je post_done
 post_shown:
-    ; pre phase: anything painted beyond the 4:3 width?
-    cmp dword [ebx+D_PHASE], 0
-    je post_fit
-    mov eax, [ebx+D_LH]
-    shl eax, 2
-    xor edx, edx
-    mov ecx, 3
-    div ecx
-    cmp eax, [ebx+D_LW]
-    jge post_fit
-    mov ecx, eax
-    lea esi, [ebx+D_OFF]
-    xor edx, edx
-post_scan_row:
-    push ecx
-post_scan_px:
-    mov ax, [esi+ecx*2]
-    cmp ax, [esi+ecx*2+D_COPY-D_OFF]
-    jne post_scan_painted
-    inc ecx
-    cmp ecx, [ebx+D_LW]
-    jl post_scan_px
-    pop ecx
-    add esi, OFF_PITCH
-    inc edx
-    cmp edx, [ebx+D_LH]
-    jl post_scan_row
-    mov eax, [ebx+D_LH]
-    shl eax, 2
-    xor edx, edx
-    mov ecx, 3
-    div ecx
-    mov [ebx+D_LW], eax
-    jmp post_fit
-post_scan_painted:
-    pop ecx
 post_fit:
     call fit
     mov eax, [ebx+D_DH]
@@ -1052,7 +1065,7 @@ post_skip:
     cmp eax, [ebx+D_YEND]
     jl post_yloop
     cmp eax, [ebx+D_DH]
-    jge post_margins
+    jge post_done
     mov eax, [ebx+D_DH]             ; the rest of the frame, centred; the
     mov [ebx+D_YEND], eax           ; rows the band left are not touched
     mov eax, [ebx+D_Y]
@@ -1062,49 +1075,6 @@ post_skip:
     mov edi, [ebx+D_XOFF]
     lea edi, [eax+edi*2]
     jmp post_yloop
-post_margins:
-    cmp dword [ebx+D_PHASE], 0
-    je post_done
-    cmp dword [ebx+D_3D], 0
-    jne post_done
-    cmp dword [ebx+D_XOFF], 0
-    je post_done
-    ; the top row's colour if it is all one colour, else black
-    mov esi, [ebx+D_BASE]
-    mov eax, [ebx+D_XOFF]
-    lea esi, [esi+eax*2]
-    movzx eax, word [esi]
-    mov ecx, [ebx+D_DW]
-post_mrow:
-    cmp ax, [esi]
-    jne post_mblack
-    add esi, 2
-    dec ecx
-    jnz post_mrow
-    jmp post_mfill
-post_mblack:
-    xor eax, eax
-post_mfill:
-    mov edi, [ebx+D_BASE]
-    mov dword [ebx+D_Y], 0
-post_mloop:
-    push edi
-    mov ecx, [ebx+D_XOFF]
-    db 0xf3                         ; rep, pinned; see above
-    stosw
-    mov ecx, [ebx+D_DW]
-    lea edi, [edi+ecx*2]
-    mov ecx, [ebx+D_W]
-    sub ecx, [ebx+D_DW]
-    sub ecx, [ebx+D_XOFF]
-    db 0xf3                         ; rep, pinned; see above
-    stosw
-    pop edi
-    add edi, [ebx+D_PITCH]
-    inc dword [ebx+D_Y]
-    mov ecx, [ebx+D_Y]
-    cmp ecx, [ebx+D_H]
-    jl post_mloop
 post_done:
     cmp dword [ebx+D_DEBUG], 0
     je post_out
@@ -1114,6 +1084,211 @@ post_done:
     jne post_out
     call dbg_draw
 post_out:
+    popad
+    ret
+
+; margins: the pre phase of a 1P or single-viewport frame, called before
+; post restores the game's globals, so the 2D code's destination and
+; blit helpers still address the canvas. The game's plane B walker has
+; drawn tile columns 0..79 at canvas x D_XO; this draws columns
+; -D_MXT..-1 and 80..79+D_MXT from the same ring through the same
+; helpers, column c showing what the picture shows at c mod 80 (the
+; scroll and the ring's 82-word wrap as the walker applies them, so the
+; seams are the walker's own), for ring rows with no empty tile: the
+; encounter grid and the noise transition are 80 tiles of pattern and
+; continue in step; the picture's holes continue as holes. Any other
+; row - art placed on a backdrop, the plane hidden - gets the flat
+; colour on the rows its tiles would cover (the last tile row wraps to
+; the frame top, as the blit does) when no 3D is behind. Rules tried
+; and dropped are on record in docs/HIRES.md.
+margins:
+    pushad
+    cmp dword [ebx+D_XO], 0
+    je margins_ret
+    cmp dword [ebx+D_PHASE], 0
+    je margins_ret
+    cmp dword [ebx+D_LAYOUT], 0
+    jne margins_ret
+    mov eax, [ebx+D_SHOW]           ; not this engine's frame
+    test eax, eax
+    je margins_engine
+    cmp dword [ebx+D_BASEPTR], FB_PTR
+    jne margins_show2
+    cmp eax, 2
+    je margins_ret
+    jmp margins_engine
+margins_show2:
+    cmp eax, 1
+    je margins_ret
+margins_engine:
+    mov dword [ebx+D_ERING], RING1
+    mov dword [ebx+D_ESCRX], SCRX1
+    mov dword [ebx+D_ESCRY], SCRY1
+    mov dword [ebx+D_EDEST], DEST1
+    mov dword [ebx+D_EBLIT], BLIT1
+    mov dword [ebx+D_EWMA], WMA1
+    mov dword [ebx+D_EWMB], WMB1
+    cmp dword [ebx+D_BASEPTR], FB_PTR
+    je margins_colour
+    mov dword [ebx+D_ERING], RING2
+    mov dword [ebx+D_ESCRX], SCRX2
+    mov dword [ebx+D_ESCRY], SCRY2
+    mov dword [ebx+D_EDEST], DEST2
+    mov dword [ebx+D_EBLIT], BLIT2
+    mov dword [ebx+D_EWMA], WMA2
+    mov dword [ebx+D_EWMB], WMB2
+margins_colour:
+    ; the flat colour: the picture's top row if all one colour, else black
+    mov eax, [ebx+D_XO]
+    lea esi, [ebx+eax*2+D_OFF]
+    movzx eax, word [esi]
+    mov ecx, 640
+margins_crow:
+    cmp ax, [esi]
+    jne margins_cblack
+    add esi, 2
+    dec ecx
+    jnz margins_crow
+    jmp margins_ccol
+margins_cblack:
+    xor eax, eax
+margins_ccol:
+    mov [ebx+D_MCOL], eax
+    ; the scroll, as the walker reads it
+    mov eax, [ebx+D_ESCRY]
+    movzx eax, word [eax]
+    mov ecx, eax
+    and ecx, 7
+    mov [ebx+D_MFY], ecx
+    shr eax, 3
+    and eax, 0x7f
+    cmp eax, 62
+    jb margins_sy
+    sub eax, 62
+margins_sy:
+    mov [ebx+D_MSY], eax
+    mov eax, [ebx+D_ESCRX]
+    movzx eax, word [eax]
+    shr eax, 3
+    and eax, 0x7f
+    mov [ebx+D_MSX], eax
+    mov dword [ebx+D_MR], 0
+margins_row:
+    mov eax, [ebx+D_MR]             ; the ring row shown on this tile row
+    sub eax, [ebx+D_MSY]
+    jns margins_ring
+    add eax, 62
+margins_ring:
+    imul eax, eax, 164
+    add eax, [ebx+D_ERING]
+    mov esi, eax
+    xor edi, edi                    ; rows before the last tile row wraps
+    cmp dword [ebx+D_MR], 59
+    jne margins_full
+    mov edi, [ebx+D_MFY]
+    test edi, edi
+    je margins_full
+    neg edi
+    add edi, 8
+margins_full:
+    mov eax, [ebx+D_ESCRY]          ; shown, and no empty tile in the row
+    test byte [eax+1], 0x80
+    jne margins_flat
+    mov ecx, 80
+    mov edx, esi
+margins_fullcol:
+    test word [edx], 0x3fff
+    je margins_flat
+    add edx, 2
+    dec ecx
+    jnz margins_fullcol
+    mov ebp, [ebx+D_MXT]
+    neg ebp
+margins_tile:
+    mov ecx, ebp                    ; the picture column this one repeats
+    test ecx, ecx
+    jns margins_right
+    add ecx, 80
+    jmp margins_index
+margins_right:
+    sub ecx, 80
+margins_index:
+    mov eax, [ebx+D_MSX]            ; its ring word: 82-sx+c before the
+    cmp ecx, eax                    ; walker's reset to the row start,
+    jae margins_unwrapped           ; c-sx after
+    add ecx, 82
+margins_unwrapped:
+    sub ecx, eax
+    movzx ecx, word [esi+ecx*2]
+    test ecx, 0x3fff
+    je margins_next
+    mov eax, ecx
+    and eax, 0x3fff
+    mov edx, [ebx+D_EWMA]
+    test ecx, 0x4000
+    je margins_loaded
+    mov edx, [ebx+D_EWMB]
+margins_loaded:
+    cmp eax, [edx]
+    jae margins_next
+    push ecx
+    mov ecx, ebp
+    mov edx, [ebx+D_MR]
+    call [ebx+D_EDEST]
+    pop ecx
+    test eax, eax
+    je margins_next
+    mov edx, eax
+    push edi
+    call [ebx+D_EBLIT]
+margins_next:
+    inc ebp
+    jnz margins_more
+    mov ebp, 80
+margins_more:
+    mov eax, [ebx+D_MXT]
+    add eax, 80
+    cmp ebp, eax
+    jl margins_tile
+    jmp margins_rownext
+margins_flat:
+    cmp dword [ebx+D_3D], 0
+    jne margins_rownext
+    mov eax, [ebx+D_MR]             ; the canvas rows this tile row covers
+    shl eax, 3
+    add eax, [ebx+D_MFY]
+    mov ecx, 8
+margins_frow:
+    cmp eax, 480
+    jl margins_fin
+    sub eax, 480
+margins_fin:
+    push eax
+    push ecx
+    imul eax, eax, OFF_PITCH
+    lea edx, [ebx+eax+D_OFF]
+    mov eax, [ebx+D_MCOL]
+    mov edi, edx
+    mov ecx, [ebx+D_XO]
+    db 0xf3                         ; rep, pinned; see above
+    stosw
+    mov ecx, [ebx+D_XO]
+    lea edi, [edx+ecx*2+1280]
+    mov ecx, [ebx+D_LW]
+    sub ecx, [ebx+D_XO]
+    sub ecx, 640
+    db 0xf3                         ; rep, pinned; see above
+    stosw
+    pop ecx
+    pop eax
+    inc eax
+    dec ecx
+    jnz margins_frow
+margins_rownext:
+    inc dword [ebx+D_MR]
+    cmp dword [ebx+D_MR], 60
+    jl margins_row
+margins_ret:
     popad
     ret
 

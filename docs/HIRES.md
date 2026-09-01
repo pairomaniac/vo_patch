@@ -33,11 +33,8 @@ the refs are rebased to a table in the section, filled by the blob.
 
 The renderers track drawn spans through a pointer at 0x6c8ce8, advancing
 by the row stride (0x50 packed into or/add immediates); every advance,
-pack and stride site moves to the new stride. On 2D-only screens
-(the last 3D flush drew nothing, DRAWN 0x6d0dc4) the blob fills the
-margins with the picture's top-row colour when that row is all one
-colour - the splash and title reach the screen edges in white - and
-with black otherwise. With 3D behind, the margins are the 3D.
+pack and stride site moves to the new stride. The margins either side
+of the 640-wide picture are under *The 2D layer* below.
 
 ### Projection
 
@@ -67,6 +64,37 @@ either side, since split draws outside the viewport) and post composites
 every pixel that differs from a copy back onto the viewport,
 nearest-neighbour, centred, so translucency blends against the real
 background.
+
+In the pre-3D call of a 1P or single-viewport frame the canvas has the
+viewport's aspect (rounded to an even width) and the game's surface
+pointer is set 640 short of centred, so its 80-tile picture lands in
+the middle and the margins either side are the blob's to draw (ui.asm
+margins, run at the start of post while the game's globals still
+address the canvas). They are drawn from the game's own plane B - the
+82x62-word tile ring the pre-3D call walks, 80x60 shown, scrolled by
+whole tiles - through the game's own destination and blit helpers:
+margin tile column c shows what the picture shows at c mod 80, with
+the scroll and the ring's wrap applied the way the walker applies
+them, so the seams are the walker's own. A ring row is continued only
+when none of its 80 tiles is empty: the encounter grid (a 2-by-4-tile
+pattern) and the static (a 40-by-8-tile block, jittered by random
+whole-tile scrolls) are fields and continue in step, holes included;
+any other row - art on a backdrop, the plane hidden - takes the
+picture's top-row colour when that row is all one colour and black
+otherwise, on 2D-only screens (the last 3D flush drew nothing, DRAWN
+0x6d0dc4). With 3D behind, the margins are the 3D. Each engine has its
+own ring, scroll words, watermarks and helpers (RING1.. / RING2.. in
+ui.asm); the port tool reads them off the build's own walker rather
+than the map, which pairs the twin engines.
+
+Rules tried at pixel level before the map was read, on record: per-row
+edge pixels streaked the SEGA wipe, the static and the grid; the first
+canvas column past 4:3 assumed the game clears the wide canvas, which
+the title and splash do not, and gave black; a margin-wide mirrored
+corner block reached the title logo and the splash panel, and
+mirroring broke the grid's spacing at the seams; fixed tiles and a
+per-frame period search drifted against what was measured on video as
+a 48.33-px period, which the map shows to be 48: the grid is tiles.
 
 The ending roll is the 2D layer's too: its bands, window, edge clipping
 and cut are under *Credits letterboxing, found and removed* below.
@@ -348,6 +376,36 @@ strings because the frame rate patch grows the template before it. Screen
 Split radios are ids 0x42e/0x42f/0x431 (Type1/2/3), handler 0x427fa0;
 Type2 duplicated Type1 under the new layouts, so it is hidden (style
 0x50010009 -> 0x40010009).
+
+### The encounter screen
+
+A frame-scripted 2D sequence at 0x4d1fa8 (counter 0x34155e4, run
+every frame from 0x4cd2bc), on plane B of engine 1 unless said:
+
+- frames 1..8 (and 0x9d..0xa4 on the way out): a 40x8-tile block
+  (0x9390c0, tiles 0x3680..0x36cf) written twice across, 8 rows a
+  frame, through 0x4cf430 at the cursor 0x4cd8c3 sets (column -9 is
+  ring column 0);
+- frames 9..0x20 and 0x9e..0xba: the scroll words 0x34155c8 (x, snapped
+  to whole tiles) and 0x34155d0 set from 0x540454 each frame - that is
+  the static;
+- frame 0x21 zeroes the scrolls; 0x22 writes 60 rows of a 40-tile strip
+  from 0x93ac30 + (row & 3) * 128, twice across: the grid, period 2
+  tiles by 4 rows;
+- 0x23 and 0x31: 0x4d30f3 prints the machine's data (plane A, names
+  from 0x600fd8); 0x25..0x32: 0x4d1e06; 0x23..0x9b: 21 sprite entries
+  at 0x345d270 (tile data 0x6083e0, colours 0x1df / 0x7fe0 by frame
+  bit) are the wireframe mech; 0x38 plays the machine's name (0x601608).
+
+Plane B's ring is 0x1cc6700, 82 words a row, the low-resolution window
+at ring (9, 6) = 0x1cc6aea, which the cursor's (0, 0) is; the walker
+reads the tile column (scroll x bits 3..9) as the number of columns
+drawn from ring word 82 - sx before it resets to the row start, the
+tile row likewise against 62. Title (0x4d1408, a 62x34 block from
+0x66ae60 at ring (9, 6)) and splash (0x4d053b, 64x48 from 0x93e968) are
+plane B blocks narrower than the picture; tile 0 is skipped by the
+blit, so their outer columns are untouched frame. The same static
+block is used at 0x482353, 0x533cdc and 0x53440b.
 
 ### Machine select (the hangar)
 

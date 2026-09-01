@@ -397,6 +397,47 @@ def resolve(pkl):
                      % {hex(k): hex(v) for k, v in calls.items()})
     va_map.update(calls)
 
+    # Plane B of each engine, read off the build's own pre-3D walker
+    # (the CALL_PRE targets just found): the ring, the scroll words, the
+    # bank watermarks and the two helpers the walker calls. Named
+    # RING1.. and RING2.. in ui.asm; the twin engines are byte-twins, so
+    # the map cannot be trusted to keep them apart.
+    engine = {}
+    for suffix, pre_name in (('1', 'CALL_PRE1'), ('2', 'CALL_PRE2')):
+        pre = calls.get(hires.ADDR[pre_name])
+        if pre is None:
+            continue
+        body = other[pre - 0x400c00:pre - 0x400c00 + 0x400]
+        m = re.search(rb'\x25\x00\x40\x00\x00\x75\x0a\x8b\x15(....)'
+                      rb'\x3b.[\x72\x77]\x0d\x85\xc0\x74\x35\xa1(....)'
+                      rb'\x3b.[\x73\x76]\x2c\x8b\x54\x24\x10\x8b\xcb\xe8(....)',
+                      body, re.S)
+        blit = re.search(rb'\x6a\x00\x8b\xcd\xe8(....)', body, re.S)
+        rings = [struct.unpack('<I', x)[0]
+                 for x in re.findall(rb'\xbe(....)', body, re.S)]
+        scrx = re.search(rb'\x66\xa1(....)', body, re.S)
+        scry = re.search(rb'\x66\x8b\x15(....)', body, re.S)
+        if not (m and blit and len(rings) == 2 and scrx and scry):
+            fails.append('engine %s plane B: walker at 0x%x not read'
+                         % (suffix, pre))
+            continue
+        u32 = lambda g: struct.unpack('<I', g)[0]       # noqa: E731
+        rel = lambda g, end: pre + end + struct.unpack('<i', g)[0]   # noqa
+        engine.update({
+            'RING' + suffix: min(rings),
+            'SCRX' + suffix: u32(scrx.group(1)),
+            'SCRY' + suffix: u32(scry.group(1)),
+            'WMA' + suffix: u32(m.group(1)),
+            'WMB' + suffix: u32(m.group(2)),
+            'DEST' + suffix: rel(m.group(3), m.end()),
+            'BLIT' + suffix: rel(blit.group(1), blit.end()),
+        })
+    for name, va in engine.items():
+        va_map[hires.ADDR[name]] = va
+    fails = [f for f in fails
+             if not any(f.startswith('address ADDR:' + n + ' ')
+                        for n in engine)]
+
 
     off_map = {}                        # off -> (build off, bytes, how)
     manual = MANUAL.get('%08x' % stamp(other), {})
