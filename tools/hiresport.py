@@ -198,8 +198,12 @@ def build_resolvers(votrans, retail, other):
     return place, resolve_va
 
 
-def main():
-    sys.argv = ['votrans', 'one'] + sys.argv[1:]
+def resolve(pkl):
+    """Every placement for the build in MAP.pkl: a dict of va (address
+    map), off (site -> (build offset, original bytes, how placed)),
+    passlen, absent, fails (strings; empty when the table is good),
+    stamp and other (the build's executable path)."""
+    sys.argv = ['votrans', 'one', pkl]
     import votrans                                       # noqa: E402
     import vo_patch_hires as hires                       # noqa: E402
     other = open(votrans.M['other'], 'rb').read()
@@ -394,19 +398,17 @@ def main():
     va_map.update(calls)
 
 
-    off_map, old_map = {}, {}
+    off_map = {}                        # off -> (build off, bytes, how)
     manual = MANUAL.get('%08x' % stamp(other), {})
     absent = []
     for off, old, new in sites:
+        n = len(old) if old is not None else len(new)
         if off in manual:
             if manual[off] is None:
                 absent.append(off)
                 continue
-            off_map[off] = manual[off]
-            n = len(old) if old is not None else len(new)
-            old_map[off] = other[manual[off]:manual[off] + n].hex()
-            continue
-        if 0x400c00 + off in va_map:      # a named address: keep them equal
+            jo, how = manual[off], 'manual'
+        elif 0x400c00 + off in va_map:    # a named address: keep them equal
             jo, how = va_map[0x400c00 + off] - 0x400c00, 'named'
         elif off in ORDERED:
             # anchored on the build's own bytes, so it outranks the map,
@@ -419,12 +421,11 @@ def main():
             if jo is None:
                 fails.append('site 0x%06x: %s; %s' % (off, how, why))
                 continue
-        n = len(old) if old is not None else len(new)
-        off_map[off] = jo
-        old_map[off] = other[jo:jo + n].hex()
+            how = why
+        off_map[off] = (jo, other[jo:jo + n].hex(), how)
 
     seen = {}
-    for off, jo in off_map.items():
+    for off, (jo, _b, _h) in off_map.items():
         if jo in seen:
             fails.append('sites 0x%06x and 0x%06x both map to 0x%06x'
                          % (seen[jo], off, jo))
@@ -448,13 +449,21 @@ def main():
         elif take != ln:
             lens[site] = take
 
-    if fails:
-        for f in fails:
+    return {'va': va_map, 'off': off_map, 'passlen': lens,
+            'absent': absent, 'fails': fails, 'stamp': stamp(other),
+            'other': votrans.M['other'], 'retail': votrans.M['retail']}
+
+
+def main():
+    r = resolve(sys.argv[1])
+    if r['fails']:
+        for f in r['fails']:
             print('FAIL', f)
         sys.exit(1)
-
+    va_map, off_map, lens, absent = (r[k] for k in
+                                     ('va', 'off', 'passlen', 'absent'))
     print("    '%08x': {                       # %s" %
-          (stamp(other), os.path.basename(votrans.M['other'])))
+          (r['stamp'], os.path.basename(r['other'])))
     print("        'va': {")
     for va in sorted(va_map):
         print("            0x%08x: 0x%08x," % (va, va_map[va]))
@@ -462,7 +471,7 @@ def main():
     print("        'off': {")
     for off in sorted(off_map):
         print("            0x%06x: (0x%06x, '%s')," %
-              (off, off_map[off], old_map[off]))
+              (off, off_map[off][0], off_map[off][1]))
     print("        },")
     if lens:
         print("        'passlen': {")

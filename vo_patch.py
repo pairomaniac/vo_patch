@@ -69,8 +69,13 @@ import urllib.error
 #      projection setups (UI_PASS_FUNCS) are wrapped, and everything
 #      submitted while one of them is running is HUD.
 #   -  The machine-select hangar draws a platform mech while it is within
-#      an angle window sized for 4:3; the window is widened to the view.
-#      The renderer's polygon cap is raised to HIRES_POLYS.
+#      an angle window sized for 4:3; the window is widened to the view,
+#      as is the enemy marker's on-screen test, which decides when the
+#      edge arrow takes over. The renderer's polygon cap is raised to
+#      HIRES_POLYS.
+#   -  The ending roll loses its black bands: the tile window enters at
+#      the bottom and leaves through the top, and the driver's cut moves
+#      so the last line leaves too.
 #   -  Split screen: side by side is two W/2 x H viewports, top/bottom two
 #      W x H/2 (instead of the game's staggered 320x240 boxes). Each gets
 #      a field of view between the 4:3 frame that fits inside it and the
@@ -89,7 +94,7 @@ import urllib.error
 #      saved as bit 0 of ScrSize. The 320x240 menu command is defused.
 #
 # The exe grows by one section: 15 KB on disk - 5 KB of code, the data
-# block and the 8 KB F4 site table - plus a header; the canvas, mask,
+# block and the F4 site table - plus a header; the canvas, mask,
 # row-table and pool buffers are zero-filled by the loader.
 #
 # Width must be a multiple of 32 and at most 2040 (the coverage-mask
@@ -100,8 +105,10 @@ import urllib.error
 # vertical field of view, more at the sides); the sky dome was built for
 # 4:3 and may not reach the edges.
 #
-# The PORT table below carries the other builds; hires_supported says
-# which builds apply.
+# The PORT table below carries the other builds: every site and address
+# translated by tools/hiresport.py from a vomap map of each, and
+# port_sites redoes the handful of rewrites that depend on the build's
+# own bytes. docs/HIRES.md, Porting to other builds.
 # ==========================================================================
 
 
@@ -1644,15 +1651,14 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     # vertical view is unchanged. Both renderers keep their own copy of
     # the float pool; the compare immediates are in the code.
     wide = w / (h / 480) / 640           # visible width over 4:3's
-    win = 0x1500 + round(math.degrees(math.atan(320 * wide / f)
-                                      - math.atan(320 / f)) * 65536 / 360)
+    win = 0x1500 + round(margin * 65536 / 360)
     sites += [(0x205d38, f32(-256.0), f32(-256.0 * wide)),
               (0x205d3c, f32(256.0), f32(256.0 * wide)),
               (0x1fb4a0, f32(-256.0), f32(-256.0 * wide)),
               (0x1fb4a4, f32(256.0), f32(256.0 * wide))]
     sites += [(off, u32(0x1500), u32(win))
               for off in (0x147b60, 0x147cc8, 0x074ed0, 0x075038)]
-    sites += [(off, u32(0xffffeb00), u32(-win & 0xffffffff))
+    sites += [(off, u32(0xffffeb00), u32(-win))
               for off in (0x147b6f, 0x147cd7, 0x074edf, 0x075047)]
     # Renderer A's polygon record pool: 2500 records of 0x30 bytes at
     # 0x6db7e0, a side array of 8 per record at 0x6f8ca0 and the flush
@@ -1908,20 +1914,21 @@ def _annex_pushes(buf, stamp):
     return off + 0xae + 1, off + 0xb3 + 1
 
 
-def port_sites(sites, port, A, fov_va=None, extra=None):
+def port_sites(sites, port, A, sec_va=None):
     """Retail sites translated onto another build: each moved to the
     build's own offset, its old bytes replaced by the build's, and the
     handful of shape-dependent rewrites redone from those bytes. Split
     out so tools/selftest.py can exercise it with an identity port.
 
-    A build whose FOV block is shorter than the replacement gets a call
-    to fov_va instead, and the block itself is appended to extra as
-    (section offset, bytes) for the caller to write."""
-    moved = []
+    Returns (sites, fov): fov is the FOV block to write at UI_FOV when
+    the build's own block is too short to hold it and the site calls
+    it there instead, else None. sec_va is the section's address; the
+    identity port needs none."""
+    moved, fov = [], None
     lens = port.get('passlen', {})
     pass_offs = {s - 0x400c00: n for n, (s, _l)
                  in enumerate(UI_PASS_FUNCS)}
-    mask_offs = {o for o, _n, _b in MASK_ADVANCE}
+    mask_offs = {o: len(b) // 2 for o, _n, b in MASK_ADVANCE}
     masks = [struct.pack('<I', A('MASKPTR')).join(
         m.split(struct.pack('<I', ADDR['MASKPTR'])))
         for m in (MASK_LOAD, MASK_STORE)]
@@ -1943,7 +1950,7 @@ def port_sites(sites, port, A, fov_va=None, extra=None):
                     raise ValueError('mask span at 0x%06x: %s'
                                      % (boff, span.hex()))
                 between = between[:i] + between[i + len(part):]
-            i = new_.index(b'\x81\x05')
+            i = mask_offs[off]
             new_ = (between + new_[i:i + 10]).ljust(len(span), b'\x90')
             moved.append((boff, None, new_))
             continue
@@ -1959,11 +1966,11 @@ def port_sites(sites, port, A, fov_va=None, extra=None):
             bold = bold[:n]
             if len(block) <= n:
                 new_ = block.ljust(n, b'\x90')
-            elif fov_va is None:
+            elif sec_va is None:
                 raise ValueError('FOV block does not fit at 0x%06x' % boff)
             else:
-                extra.append((fov_va, block + b'\xc3'))
-                new_ = (b'\xe8' + u32(fov_va - (0x400c00 + boff + 5))
+                fov = block + b'\xc3'
+                new_ = (b'\xe8' + u32(sec_va + UI_FOV - (0x400c00 + boff + 5))
                         ).ljust(n, b'\x90')
             moved.append((boff, bold, new_))
             continue
@@ -1979,13 +1986,13 @@ def port_sites(sites, port, A, fov_va=None, extra=None):
             # byte nearer (six bytes of jcc to five of jmp)
             rel = struct.unpack_from('<i', bold, 2)[0]
             new_ = b'\xe9' + u32(rel + 1) + new_[5:]
-        elif new_ and new_[0] in (0xe8, 0xe9):
+        elif new_ and new_[0] in (0xe8, 0xe9) and sec_va is not None:
             # a jump into the section: same target, moved site. One
             # inside the image was built from A() and is already
             # relative to the build's site (the F4 exit).
             tgt = (0x400c00 + off + 5
                    + struct.unpack_from('<i', new_, 1)[0])
-            if tgt >= 0x3400000:
+            if tgt >= sec_va:
                 new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
                         + new_[5:])
         if off in (0x1c799b, 0x1c7ad2, 0x1c7bb1, 0x1c7c36):
@@ -2007,7 +2014,7 @@ def port_sites(sites, port, A, fov_va=None, extra=None):
                     + b'\x0f\x84' + u32(rel + 1) + b'\x90')
             assert len(new_) == len(bold)
         moved.append((boff, bold, new_))
-    return moved
+    return moved, fov
 
 
 def hires_install(buf, width, height, alt=HIRES_ALT):
@@ -2076,14 +2083,12 @@ def hires_install(buf, width, height, alt=HIRES_ALT):
     alt_sites = build_sites(aw, ah, sec_va, sec_va + mask_off,
                             sec_va + rowtab_off,
                             pool=(sec_va + pool_off, HIRES_POLYS), A=A)
-    extra = []
     if port is not None:
-        sites = port_sites(sites, port, A, sec_va + UI_FOV, extra)
-        alt_sites = port_sites(alt_sites, port, A, sec_va + UI_FOV, extra)
-        for o, data in extra:
-            o -= sec_va
-            assert UI_FOV <= o and o + len(data) <= UI_OFF
-            buf[rawptr + o:rawptr + o + len(data)] = data
+        sites, fov = port_sites(sites, port, A, sec_va)
+        alt_sites, _fov = port_sites(alt_sites, port, A, sec_va)
+        if fov:                          # the same at either size
+            assert UI_FOV + len(fov) <= UI_OFF
+            buf[rawptr + UI_FOV:rawptr + UI_FOV + len(fov)] = fov
     # The idle-pass recreate in asm/activate.asm pushes its own size.
     pushes = _annex_pushes(buf, stamp)
     if pushes:
@@ -2167,11 +2172,12 @@ DISC_IMAGES = {
 # a place inside one of ours.
 
 class Build(object):
-    def __init__(self, name, short, md5, size, sections, caves, symbols, art,
-                 sites=None, annex=None):
+    def __init__(self, name, short, md5, size, stamp, sections, caves,
+                 symbols, art, sites=None, annex=None):
         # the name on screen, and a word for a label or a log line
         self.name, self.short = name, short
         self.md5, self.size = md5, size
+        self.stamp = stamp                  # PE timestamp; keys PORT
         # (file offset, virtual address) of each section, in file order
         self.sections = sections
         self.caves, self.symbols = caves, symbols
@@ -2227,7 +2233,8 @@ ANNEX_BLOBS = (
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
     'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
 
-RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
+RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE,
+               RETAIL_STAMP, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f4400, 0x005f5000),       # .rdata
     (0x0023de00, 0x0063f000),       # .data
@@ -2398,7 +2405,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
 # for how the addresses were found.
 JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
 JAPAN_SIZE = 6621696
-JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
+JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, 0x345107fa,
+              sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001eec00, 0x005f0000),       # .rdata
     (0x00239200, 0x0063b000),       # .data
@@ -2570,7 +2578,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
 # to remove: its processor check is an MMX test through cpuid32.dll.
 OEM_MD5 = '4c70f780a7f0d98d74be62304fb99021'
 OEM_SIZE = 6649344
-OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
+OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, 0x3317246a, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f3e00, 0x005f5000),       # .rdata
     (0x0023d800, 0x0063f000),       # .data
@@ -2728,7 +2736,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
 }, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art
 
 BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN, OEM.md5: OEM}
-BY_STAMP = {RETAIL_STAMP: RETAIL, 0x345107fa: JAPAN, 0x3317246a: OEM}
+BY_STAMP = {b.stamp: b for b in BUILDS.values()}
 
 # GENERATED by tools/buildsites.py - do not edit by hand.
 #
@@ -5177,9 +5185,7 @@ BY_KEY['hires'] = (
     'Split screen\tVer or Hor on F5. The machine select is drawn once,\n'
     '\tfull size.\n'
     'Ending credits\tThe black bands are gone; the roll uses the whole\n'
-    '\tscreen.\n'
-    '\n'
-    'Retail build only for now.',
+    '\tscreen.',
     None)
 
 # The patches a lockstep match cannot differ on are the frame rate and the
@@ -7553,7 +7559,7 @@ def apply_selected(buf, wanted, build=RETAIL):
             size = wanted[key]
             w, hh = size if isinstance(size, tuple) else (1920, 1080)
             if not hires_supported(buf):
-                skipped.append((key, 'not ready for this build yet'))
+                skipped.append((key, 'no resolution table for this build'))
                 continue
             try:
                 hires_install(buf, w, hh)

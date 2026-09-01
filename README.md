@@ -163,8 +163,8 @@ rebuilt now, and the game waits until that has worked before carrying on.
 ### Extra
 
 - **Native widescreen** - runs the game at 1920x1080 instead of 640x480,
-menus and text redrawn to match, more of the arena at the sides. Retail
-build only for now. See [Native widescreen](#native-widescreen).
+menus and text redrawn to match, more of the arena at the sides. See
+[Native widescreen](#native-widescreen).
 - **XInput gamepad support** - a modern controller for both players: twelve
 bindable actions, plus the arcade twin-stick scheme. See
 [Gamepad](#gamepad).
@@ -368,10 +368,11 @@ your monitor without stretching.
 rather than fixing something broken, so the box starts unticked - tick it
 and Apply.
 
-**Retail build only for now.** On the USA OEM and Japanese builds the box
-is greyed out and every other patch applies as usual. Both crash inside
-the renderer with the current tables; the work left is written up in
-[docs/HIRES.md](docs/HIRES.md).
+**All three builds.** The sites are written for the retail executable and
+translated onto the USA OEM and Japanese builds; those two came later and
+have had less play. If something looks wrong on one of them, say which
+build in the report - the window names it. How the translation works,
+and what went wrong on the way, is in [docs/HIRES.md](docs/HIRES.md).
 
 ## Gamepad
 

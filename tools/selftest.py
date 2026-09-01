@@ -89,8 +89,6 @@ def apply(vp, original, keys, build):
     buf, _applied, skipped = vp.apply_selected(bytearray(original),
                                                dict.fromkeys(keys, True),
                                                build)
-    skipped = [s for s in skipped
-               if s != ('hires', 'not ready for this build yet')]
     if skipped:
         raise AssertionError('skipped %s: %s' % (skipped[0][0], skipped[0][1]))
     return buf
@@ -134,9 +132,10 @@ def f4_check(vp, original, keys, build, result):
 def port_identity(vp, original):
     """port_sites against an identity port: every offset maps to itself
     and the "build's own bytes" are retail's. The translation must hand
-    back the retail sites unchanged, rewrites included. Keeps the port
-    path from rotting while PORT ships empty and hires_install refuses
-    ported builds outright."""
+    back the retail sites unchanged, rewrites included. The real tables
+    exercise the same path on their own builds; this run covers it on
+    retail, where every build-dependent rewrite must come out as retail
+    wrote it."""
     sites = vp.build_sites(1920, 1080, 0x36c0000, 0x37c0000, 0x38c0000,
                            (0x39c0000, vp.HIRES_POLYS))
     port = {'va': {}, 'off': {}}
@@ -147,7 +146,9 @@ def port_identity(vp, original):
     for off, old, new in sites:
         n = len(old) if old is not None else len(new)
         port['off'][off] = (off, original[off:off + n].hex())
-    moved = vp.port_sites(sites, port, vp.ADDR.__getitem__)
+    moved, fov = vp.port_sites(sites, port, vp.ADDR.__getitem__)
+    if fov is not None:
+        return 'FOV block moved out of line'
     if len(moved) != len(sites):
         return 'site count changed: %d -> %d' % (len(sites), len(moved))
     for (off, old, new), (boff, bold, bnew) in zip(sites, moved):

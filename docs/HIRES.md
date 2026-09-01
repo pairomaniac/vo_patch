@@ -8,7 +8,7 @@ the record of porting it to the other builds.
 
 ## What is patched
 
-Around 240 sites over the retail executable, in families:
+Around 250 sites over the retail executable, in families:
 
 ### Mode and window
 
@@ -64,6 +64,9 @@ either side, since split draws outside the viewport) and post composites
 every pixel that differs from a copy back onto the viewport,
 nearest-neighbour, centred, so translucency blends against the real
 background.
+
+The ending roll is the 2D layer's too: its bands, window, edge clipping
+and cut are under *Credits letterboxing, found and removed* below.
 
 ### HUD passes
 
@@ -213,9 +216,14 @@ level; tools/votrans.py translates addresses through it;
 tools/hiresport.py generates a per-build PORT table - every site offset,
 the build's own original bytes, every named address (ADDR) and every blob
 reference (UI_REFS), plus per-build pass prologue lengths - keyed by PE
-timestamp. hires_install translates sites, retargets jumps into the
-section from the moved sites, swaps the blob's addresses by position, and
-checks everything against the build's own bytes.
+timestamp. hires_install translates sites through port_sites, which
+retargets jumps into the section from the moved sites and redoes the
+rewrites that depend on the build's own bytes - the mask spans'
+interleaved instructions, the imul register, the roll's lea register,
+the credits jne-to-jmp displacements, and the FOV block, which goes out
+of line to UI_FOV when the build's is shorter - swaps the blob's
+addresses by position, builds the F4 table from the translated sites,
+and checks everything against the build's own bytes.
 
 Resolution tiers, strictest first:
 
@@ -293,8 +301,10 @@ runtime, which is the lesson in itself.
    now cuts the block at the build's last fstp [ASPECT_B] and, when the
    replacement does not fit, writes a call to a copy in the section
    (UI_FOV). tools/portaudit.py compares the instruction shapes covering
-   every site between retail and the build, and tools/portdump.py runs
-   the generator without its gate for that.
+   every site between retail and the build, gate or no gate; read its
+   list rather than counting it - a function vomap does not know
+   decodes as nothing, and the imul and roll sites differ by register
+   on purpose.
 8. A jump's new bytes are retail's until proven otherwise. The credits
    jne-to-jmp sites (0x080074, 0x167084) carry retail's displacement,
    and port_sites rebased every e8/e9 from the retail site, so the
@@ -561,6 +571,8 @@ spot.
     python3 tools/uibuild.py            # asm/ui.asm -> UI_CODE + constants
     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe
                                         # maps/*.pkl and maps/*_port.txt
+    python3 tools/portaudit.py maps/jp.pkl
+                                        # instruction shapes at every site
     # splice a clean table between the PORT TABLES markers in vo_patch.py
 
 tools/vo_patch_hires.py is the import shim the tools use to read the
