@@ -236,6 +236,10 @@ DEST2     equ 0x567400
 BLIT2     equ 0x5673c0
 WMA2      equ 0x1ad0034
 WMB2      equ 0x1ad0030
+MATSCALE  equ 0x408790          ; scales the current matrix by (x, y, z), cdecl
+COMMIT    equ 0x514430          ; copies the current matrix for the next submit
+D_CMOON   equ 0x1ac8            ; credits moon card scale, float, written by
+                                ; the patcher
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
 D_COPY    equ 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
@@ -1921,3 +1925,25 @@ rowsafe_out:
     pop eax
     pop ebx
     ret
+
+; Credits: the moon. 0x58f4ce draws it as a 26x52 card at z=80, sized for
+; the 640x288 band the stock roll sits behind; with the band gone
+; (roll_blit above) the card ends 100 px short of the top and bottom at
+; 1080p. Runs in place of the `call COMMIT` before the card's submit and
+; scales the matrix by D_CMOON first. The card is not fixed up for the
+; width: it sits behind the moon's own edge.
+credits_moon:
+    push ebx
+    call moon_here
+moon_here:
+    pop ebx
+    sub ebx, moon_here
+    push dword [ebx+D_CMOON]
+    push dword [ebx+D_CMOON]
+    push dword [ebx+D_CMOON]
+    mov eax, MATSCALE
+    call eax
+    add esp, 12
+    pop ebx
+    mov eax, COMMIT
+    jmp eax

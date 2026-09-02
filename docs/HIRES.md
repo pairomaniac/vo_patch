@@ -611,6 +611,31 @@ stock's table adjacency did; and during the roll it parks the write on
 the canvas guard instead, since the wrapped sliver was only ever hidden
 by the bands anyway.
 
+### Credits assets sized for the band
+
+With the bands gone, two things the roll draws show their edges. The
+star field is not a backdrop: 0x58f59c tiles one star quad from the
+ending's asset file (heap slot 0xa, fld_bosn.bin) in 1800-unit columns
+from -9000 up to a limit that steps up through the roll, and drifts the
+grid 0.9 units a frame; at 4:3 the first column reaches the edge just
+as the roll ends, at 16:9 it runs out 36 s early. The start column
+moves left by the extra width in columns plus one (imm32 at file
+0x18ea14; the limit side ends behind the moon and is left alone). The
+moon is a 26x52 card at z=80 (0x58f4ce) whose projected half height is
+0.325 focal lengths against the frame's 0.399, so the disc stopped 100
+px short of the top and bottom at 1080p; its commit (0x58f549) goes
+through credits_moon, which scales the matrix by UI_CMOON (1.25) first.
+Neither depends on the size, only on the aspect and the missing band,
+so the F4 table has no entries for them.
+
+Left as is: the star texture is undersampled at 640x480 - about 2.5
+texels a pixel - so stock shows a sparser field of single pixels that
+twinkle as the grid drifts under the sampling; at 1080p every texel
+shows and nothing pops. Reproducing that would mean rasterising those
+tiles at the 640 step, which is not attempted. Also open: in the SEGA
+card phase after the roll both the stars and the moon are cut at about
+row 950 of 1080, under a band in stock.
+
 ## Queued work
 
 - **A per-layout marker window.** The x bounds and the bearing window
@@ -622,9 +647,10 @@ by the bands anyway.
 - **Wider than 16:9.** Untested and partly blocked: the width limit of
   2040 (the mask stride immediates), the 1024-px canvas (OFF_PITCH and
   the cap in pre; the guard/copy layout in UI_OFF_SIZE follows it), the
-  1440p-and-up sizes generally, and on the game's side the sky dome
-  (built for 4:3), the enemy marker window and the hangar's angle
-  window, all sized from the width but only checked at 16:9.
+  1440p-and-up sizes generally, and on the game's side the enemy
+  marker window and the hangar's angle window, sized from the width
+  but only checked at 16:9. The credits star grid takes its column
+  count from the aspect and is untested past 16:9.
 
 ## Per-build facts worth keeping
 
