@@ -14,6 +14,11 @@
 #                                             blue reports only writes of
 #                                             that colour, any (default)
 #                                             each new writer once
+#     tools/vo-dbg.sh frame x y [N]           every write to viewport pixel
+#                                             x,y in order with its polygon
+#                                             record - the paint order at
+#                                             that spot - N writes (default
+#                                             40), frame breaks marked
 #     tools/vo-dbg.sh watch ADDR [SIZE]       writers of a game address
 #                                             (1/2/4 bytes; default 4):
 #                                             each new writer with its
@@ -131,6 +136,27 @@ def pixel(x, y, want):
         print('interrupted')
     print('done; writers: ' + ' '.join('%x' % k for k in seen))
 
+def frame(x, y, n):
+    """Every write to viewport pixel (x, y), in order, with its polygon
+    record: the paint order at one spot. A gap of over 20 ms between
+    writes is marked as a frame break. Stops after n writes or 30 s."""
+    b, p, w, h = fb()
+    if not b: raise SystemExit('surface not locked at this instant; run again')
+    ad = b + y * p + 2 * x
+    print('surface %x pitch %d size %dx%d; pixel (%d,%d) at %x holds %04x' % (b, p, w, h, x, y, ad, u16(ad)))
+    print('logging every write; play until it shows there (Ctrl-C ends)')
+    gdb.execute('watch -l *(unsigned short*)%d' % ad); bp = silent_last()
+    i, t0, tl = 0, time.time(), None
+    try:
+        while i < n and time.time() - t0 < 30:
+            if not go(bp): continue
+            t = time.time()
+            if tl is not None and t - tl > 0.02: print('--- frame break (%d ms) ---' % int((t - tl) * 1000))
+            tl = t; i += 1
+            print('%2d: %04x from %x' % (i, u16(ad), pc())); record(brief=True)
+    except KeyboardInterrupt:
+        print('interrupted')
+
 def watch(addr, size):
     t = {1: 'char', 2: 'short', 4: 'int'}[size]
     print('watching %d bytes at %x (now %x)' % (size, addr, int(gdb.parse_and_eval('*(unsigned %s*)%d' % (t, addr))) & 0xffffffff))
@@ -164,6 +190,7 @@ hexarg() { printf '%d' "0x${1#0x}"; }
 case $mode in
     gdb)   exec gdb -q -p "$pid" -x "$py" ;;
     pixel) x=${1:-150}; y=${2:-300}; tail="pixel($x, $y, '${3:-any}')" ;;
+    frame) [ -n "$2" ] || die "frame X Y [N]"; tail="frame($1, $2, ${3:-40})" ;;
     watch) [ -n "$1" ] || die "watch ADDR [SIZE]"; tail="watch($(hexarg "$1"), ${2:-4})" ;;
     break) [ -n "$1" ] || die "break ADDR [N] [COND]"; tail="brk($(hexarg "$1"), ${2:-3}, '${3:-}')" ;;
     read)  [ -n "$1" ] || die "read ADDR [LEN]"; tail="read($(hexarg "$1"), ${2:-64})" ;;
