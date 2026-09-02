@@ -595,6 +595,16 @@ around to rewrite it.
 Verified under emulation: continuous coverage of lines 0..479 at every
 fine value, wrap across the ring boundary included.
 
+The shift moves everything on plane A, not only the roll: the SEGA card
+that follows it (0x58a570 at frame 0x1490, seven rows of 17 tiles
+written through the writer at cursor row 22 = ring row 28, which the
+walker shows at line 224 once the cut has zeroed the scroll) came out
+104 lines low, at 328 - 13 rows, measured on a 1080p capture as 234
+px. It is written at cursor row 9 instead (the `push 0x16` at
+0x58a576), so it lands at line 224 as in stock. The in-game copy of
+the driver (0x4489d6, card writer 0x4443b0) is left alone, as its cut
+is.
+
 Making lines enter at 480 surfaced one consequence on screen. The strip
 loaders keep availability watermarks (0xbf5f7c/0xbf5f78, 24 stores
 across the 12 loader variants) that round the load cursor up, so a tile

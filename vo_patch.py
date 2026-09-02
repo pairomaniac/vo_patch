@@ -365,6 +365,7 @@ PORT = {
             0x181dc3: (0x17cf65, '558bec83ec34'),
             0x187c1e: (0x182d0a, '558bec83ec0c'),
             0x188185: (0x183271, '558bec83ec0c'),
+            0x189977: (0x184d87, '16'),
             0x18e341: (0x1894ee, 'e2100000'),
             0x18e7b9: (0x189893, 'e3100000'),
             0x18e949: (0x189a23, 'e83863f8ff'),
@@ -754,6 +755,7 @@ PORT = {
             0x181dc3: (0x181893, '558bec83ec34'),
             0x187c1e: (0x1876ee, '558bec83ec0c'),
             0x188185: (0x187c55, '558bec83ec0c'),
+            0x189977: (0x189447, '16'),
             0x18e341: (0x18de11, 'e2100000'),
             0x18e7b9: (0x18e289, 'e3100000'),
             0x18e949: (0x18e419, 'e8824ff8ff'),
@@ -1722,6 +1724,12 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
     # their right-hand tiles would show. The cut moves to 0x1132.
     sites += imm_sites([0x18e341], 0x10e2, 0x10e2 + 80)
     sites += imm_sites([0x18e7b9], 0x10e3, 0x10e3 + 80)
+    # The SEGA card after the roll (0x58a570 at frame 0x1490) is 7 rows
+    # of plane A tiles written at cursor row 22, ring row 28, which the
+    # stock walker (scroll zeroed at the cut) shows at line 224. The
+    # 13-row window shift above moved it to line 328, so it is written
+    # 13 rows earlier - cursor row 9 - and lands where stock had it.
+    sites += [(0x189977, b'\x16', b'\x09')]
     # Machine-select hangar: a platform mech is drawn while its angle is
     # within a window of the camera's (0x59e3a1: 31.57 degrees to the
     # left, 28.43 to the right, .data doubles), sized for a 4:3 view;
