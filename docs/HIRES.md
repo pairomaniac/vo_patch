@@ -152,7 +152,11 @@ tile is wide, and from the pixel watch until tools/vo-dbg.sh recovered the
 record from the flush frame. ui.asm fill, run by both insert hooks after
 the pass rescale, pushes the edge vertices of a polygon of that attribute
 block to x = 0 and x = W-1 in a round (D_ROUND: MODE 4 and a sub-state
-in HIRES_SPLIT_STATES, per viewport). Nothing else is touched.
+in HIRES_SPLIT_STATES, per viewport). 0x791ad0 is the game's flat red,
+used from forty-odd sites, among them the enemy marker's arrow and
+triangle (56 units, below), whose slide ends with the arrow's tip on the
+inset; a polygon narrower than 120 HUD units (a tile is about 195) is
+left alone. Nothing else is touched.
 
 The rescale and the 2D composite agree to the pixel: a HUD vertex at
 frame x lands at round(x * s + offset), and a canvas column at
