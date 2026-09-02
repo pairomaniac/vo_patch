@@ -276,6 +276,10 @@ tools/vo-dll.sh install               # or install /other/folder
 tools/vo-dll.sh restore
 ```
 
+`tools/vo-dbg.sh` is gdb on the running game: interactive, or one of
+pixel / watch / break / read / cmd for a question answered in one go (who
+draws this pixel, who writes this address). Its header lists them.
+
 `tools/vo-loopback.sh` puts two local instances against each other. It needs
 two installs with two prefixes - both write `v_on.ini` and save state, and
 sharing either produces failures that look like netcode bugs and are not.
