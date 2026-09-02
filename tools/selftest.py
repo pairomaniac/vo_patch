@@ -25,9 +25,9 @@ import sys
 # when a patch actually changed.
 # Everything ticked, per build: retail, the Japanese rerelease, the OEM.
 EXPECTED_ALL = {
-    'a464b0ff32d5bab499f265e45658504e': '5524e21bc0fee23df665923e2f3e367f',
-    'd19320bdc3381a48228990907910a391': 'c711d8c3bc6e87374c7f4c99de9985d3',
-    '4c70f780a7f0d98d74be62304fb99021': '865dc3bcdc9ef9006cb874ce95e0d417',
+    'a464b0ff32d5bab499f265e45658504e': '94ad1478e7295007213e1a987da27913',
+    'd19320bdc3381a48228990907910a391': '5751be72a4c4a7d4afcae54885d6178b',
+    '4c70f780a7f0d98d74be62304fb99021': '21f9812c9961634d71cf5de794c4d155',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))

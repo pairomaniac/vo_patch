@@ -74,7 +74,7 @@ ASPECT_A  equ 0x6bc1e8
 PROJ_B    equ 0x708818          ; renderer B projection: 3D, aspect, HUD
 ASPECT_B  equ 0x6c8b28
 OFF_PITCH equ 2048              ; canvas up to 1024 px wide
-D_BASE    equ 0x1800            ; data block; code below, stubs at 0x1600
+D_BASE    equ 0x1800            ; data block; code below, stubs at 0x1670
 D_PITCH   equ 0x1804
 D_W       equ 0x1808
 D_H       equ 0x180c
@@ -238,8 +238,10 @@ WMA2      equ 0x1ad0034
 WMB2      equ 0x1ad0030
 MATSCALE  equ 0x408790          ; scales the current matrix by (x, y, z), cdecl
 COMMIT    equ 0x514430          ; copies the current matrix for the next submit
-D_CMOON   equ 0x1ac8            ; credits moon card scale, float, written by
+D_CMOON   equ 0x1884            ; credits moon card scale, float, written by
                                 ; the patcher
+D_ROUND   equ 0x1888            ; 1 while this viewport's player is in a round
+                                ; (set in pre); gates the fill in rescale
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
 D_COPY    equ 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
@@ -832,6 +834,23 @@ pre_lw:
     sar eax, 3
     mov [ebx+D_MXT], eax
     call fit
+    ; in a round: MODE 4 and a sub-state that draws one, for the
+    ; viewport's own player. The HUD band and the fill in rescale key
+    ; on it.
+    mov dword [ebx+D_ROUND], 0
+    mov ecx, [MODE]
+    mov edx, [SUBMODE]
+    cmp dword [ebx+D_BASEPTR], FB_PTR
+    je pre_round_1p
+    mov ecx, [MODE2]
+    mov edx, [SUBMODE2]
+pre_round_1p:
+    cmp ecx, 4
+    jne pre_round
+    call split_state                ; the patcher's list; edx kept
+    jz pre_round
+    mov dword [ebx+D_ROUND], 1
+pre_round:
     ; the HUD band, for the insert hooks and for this composite
     mov dword [ebx+D_PINON], 0
     mov dword [ebx+D_PINROWS], 0
@@ -842,25 +861,12 @@ pre_lw:
     je pre_pin
     cmp dword [ebx+D_OYH], 0
     jle pre_pin
-    mov ecx, [MODE]                 ; the viewport's own player's state
-    mov edx, [SUBMODE]
-    cmp dword [ebx+D_BASEPTR], FB_PTR
-    je pre_pin_1p
-    mov ecx, [MODE2]
-    mov edx, [SUBMODE2]
-pre_pin_1p:
-    cmp ecx, 4
-    jne pre_pin
-    cmp edx, 0x1b
-    je pre_pin_on
-    cmp edx, 0x14
-    je pre_pin_on
-    cmp edx, 0x15
-    je pre_pin_on
-    sub edx, 9
-    cmp edx, 3
-    ja pre_pin
-pre_pin_on:
+    cmp dword [ebx+D_ROUND], 0
+    je pre_pin
+    cmp edx, 0xd                    ; the band's own list stops short of
+    je pre_pin                      ; these two
+    cmp edx, 0xe
+    je pre_pin
     mov dword [ebx+D_PINON], 1
     mov ecx, [ebx+D_OYH]
     shl ecx, 16
@@ -1374,6 +1380,7 @@ ins_a_nodim:
     je ins_a_done
     call rescale
 ins_a_done:
+    call fill
     popad
     mov esi, [ebx*4+LIST_A]
     ret
@@ -1387,11 +1394,60 @@ ins_b_here:
     je ins_b_done
     call rescale
 ins_b_done:
+    call fill
     popad
     mov esi, [ebx*4+LIST_B]
     ret
-rescale:
-    ; minima and maxima over the four vertices
+; fill: in a round, a polygon that covers the whole 4:3 frame of the
+; viewport - the damage flash, a quad about a fifth wider than the frame
+; and inset 80 px at 1080p - is a screen fill and gets the viewport's
+; width. Viewport pixels, so it reads the same for a world polygon and a
+; rescaled HUD one; the frame is D_OXH/D_OYH in from the edges. The
+; hangar is not a round, so its scene is left alone.
+fill:
+    cmp dword [ebx+D_ROUND], 0
+    je fill_ret
+    call extents
+    mov eax, [ebx+D_OXH]
+    add eax, 8
+    cmp [ebx+D_XMIN], eax
+    jg fill_ret
+    mov eax, [ebx+D_W]
+    sub eax, [ebx+D_OXH]
+    sub eax, 9
+    cmp [ebx+D_XMAX], eax
+    jl fill_ret
+    mov eax, [ebx+D_OYH]
+    add eax, 8
+    cmp [ebx+D_YMIN], eax
+    jg fill_ret
+    mov eax, [ebx+D_H]
+    sub eax, [ebx+D_OYH]
+    sub eax, 9
+    cmp [ebx+D_YMAX], eax
+    jl fill_ret
+    mov ecx, [ebx+D_W]
+    mov eax, ecx
+    shr eax, 1
+    dec ecx
+    lea esi, [edx+0x10]
+    mov edi, 4
+fill_v:
+    cmp [esi], ax
+    jl fill_left
+    mov [esi], cx
+    jmp fill_next
+fill_left:
+    mov word [esi], 0
+fill_next:
+    add esi, 4
+    dec edi
+    jnz fill_v
+fill_ret:
+    ret
+
+; extents: D_XMIN/XMAX/YMIN/YMAX over the record's four vertices (edx)
+extents:
     mov dword [ebx+D_XMIN], 0x7fffffff
     mov dword [ebx+D_YMIN], 0x7fffffff
     mov dword [ebx+D_XMAX], -0x7fffffff
@@ -1420,6 +1476,9 @@ rescale_min_next:
     add esi, 4
     dec ecx
     jnz rescale_min
+    ret
+rescale:
+    call extents
     ; y offset: the top-aligned one for a polygon wholly inside the band
     mov eax, [ebx+D_OFFY16]
     cmp dword [ebx+D_PINON], 0
