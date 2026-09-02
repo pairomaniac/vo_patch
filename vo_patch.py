@@ -2409,7 +2409,7 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE', 'LOCKLINE')
 
 RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE,
                RETAIL_STAMP, sections=(
@@ -2531,6 +2531,10 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE,
     'ACCEPT2': 0x01ad0db1,         # and 2P
     'FLAG': 0x01ae1c1c,            # the displaced write
     'MODE': 0x01ae3594,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006db4c8,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006db4d0,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x00708818,           # renderer B, the same
+    'PROJB2D': 0x0070881c,
     'SUBMODE': 0x01ae3690,         # game sub-state
     'MOVIEX': 0x01ae5f34,          # the offsets the replaced code read
     'MOVIEY': 0x01ae5f38,
@@ -2703,6 +2707,10 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, 0x345107fa,
     'ACCEPT2': 0x01acba31,         # and 2P
     'FLAG': 0x01adcdf8,            # the displaced write
     'MODE': 0x01adcdf0,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006d7258,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006d7260,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x007045a8,           # renderer B, the same
+    'PROJB2D': 0x007045ac,
     'SUBMODE': 0x01addc40,         # game sub-state
     'MOVIEX': 0x01ae0c1c,          # the offsets the replaced code read
     'MOVIEY': 0x01ae0c20,
@@ -2868,6 +2876,10 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, 0x3317246a, sections=(
     'ACCEPT2': 0x01ad0d49,   # data 1 votes
     'FLAG': 0x01ae1bac,
     'MODE': 0x01ae3524,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006db488,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006db490,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x007087d8,           # renderer B, the same
+    'PROJB2D': 0x007087dc,
     'SUBMODE': 0x01ae3620,         # game sub-state
     'MOVIEX': 0x01ae5ec4,
     'MOVIEY': 0x01ae5ec8,
@@ -3179,6 +3191,34 @@ JAPAN.sites = {
         '53005400550056005700580059005a005b005c005d005e005f00600061006200'
         '63004d004e004f006400650066006700680069006a006b006c004a00'
     ),
+    # lockline: the 2D quad submits, the mesh walkers and the clippers'
+    # fdivr sites
+    0x001d23cc: (0x001ccc5c, 'd83d58726d00'),
+    0x001d240d: (0x001ccc9d, 'd83d58726d00'),
+    0x001d2472: (0x001ccd02, 'd83d58726d00'),
+    0x001d24e9: (0x001ccd79, 'd83d58726d00'),
+    0x001d2539: (0x001ccdc9, 'd83d58726d00'),
+    0x001d25dc: (0x001cce6c, 'd83d58726d00'),
+    0x001d261d: (0x001ccead, 'd83d58726d00'),
+    0x001d2682: (0x001ccf12, 'd83d58726d00'),
+    0x001d26d2: (0x001ccf62, 'd83d58726d00'),
+    0x001d274a: (0x001ccfda, 'd83d58726d00'),
+    0x001d279a: (0x001cd02a, 'd83d58726d00'),
+    0x001d4850: (0x001cf0e0, '558bec50535152'),
+    0x001d6da0: (0x001d1630, '558bec50535152'),
+    0x001dd2ac: (0x001d7b3c, 'd83da8457000'),
+    0x001dd2ed: (0x001d7b7d, 'd83da8457000'),
+    0x001dd352: (0x001d7be2, 'd83da8457000'),
+    0x001dd3c9: (0x001d7c59, 'd83da8457000'),
+    0x001dd419: (0x001d7ca9, 'd83da8457000'),
+    0x001dd4bc: (0x001d7d4c, 'd83da8457000'),
+    0x001dd4fd: (0x001d7d8d, 'd83da8457000'),
+    0x001dd562: (0x001d7df2, 'd83da8457000'),
+    0x001dd5b2: (0x001d7e42, 'd83da8457000'),
+    0x001dd62a: (0x001d7eba, 'd83da8457000'),
+    0x001dd67a: (0x001d7f0a, 'd83da8457000'),
+    0x001df7a0: (0x001da030, '558bec50535152'),
+    0x001e1e80: (0x001dc710, '558bec50535152'),
 }
 # SITES JAPAN END
 
@@ -3438,6 +3478,34 @@ OEM.sites = {
         '53005400550056005700580059005a005b005c005d005e005f00600061006200'
         '63004d004e004f006400650066006700680069006a006b006c004a00'
     ),
+    # lockline: the 2D quad submits, the mesh walkers and the clippers'
+    # fdivr sites
+    0x001d23cc: (0x001d1f0c, 'd83d88b46d00'),
+    0x001d240d: (0x001d1f4d, 'd83d88b46d00'),
+    0x001d2472: (0x001d1fb2, 'd83d88b46d00'),
+    0x001d24e9: (0x001d2029, 'd83d88b46d00'),
+    0x001d2539: (0x001d2079, 'd83d88b46d00'),
+    0x001d25dc: (0x001d211c, 'd83d88b46d00'),
+    0x001d261d: (0x001d215d, 'd83d88b46d00'),
+    0x001d2682: (0x001d21c2, 'd83d88b46d00'),
+    0x001d26d2: (0x001d2212, 'd83d88b46d00'),
+    0x001d274a: (0x001d228a, 'd83d88b46d00'),
+    0x001d279a: (0x001d22da, 'd83d88b46d00'),
+    0x001d4850: (0x001d4390, '558bec50535152'),
+    0x001d6da0: (0x001d68e0, '558bec50535152'),
+    0x001dd2ac: (0x001dcdec, 'd83dd8877000'),
+    0x001dd2ed: (0x001dce2d, 'd83dd8877000'),
+    0x001dd352: (0x001dce92, 'd83dd8877000'),
+    0x001dd3c9: (0x001dcf09, 'd83dd8877000'),
+    0x001dd419: (0x001dcf59, 'd83dd8877000'),
+    0x001dd4bc: (0x001dcffc, 'd83dd8877000'),
+    0x001dd4fd: (0x001dd03d, 'd83dd8877000'),
+    0x001dd562: (0x001dd0a2, 'd83dd8877000'),
+    0x001dd5b2: (0x001dd0f2, 'd83dd8877000'),
+    0x001dd62a: (0x001dd16a, 'd83dd8877000'),
+    0x001dd67a: (0x001dd1ba, 'd83dd8877000'),
+    0x001df7a0: (0x001df2e0, '558bec50535152'),
+    0x001e1e80: (0x001e19c0, '558bec50535152'),
 }
 # SITES OEM END
 
@@ -4120,6 +4188,34 @@ BLOBS = {
         'made': 0x19,
         'resume': 0x41,
         'idle': 0x70,
+    }),
+    'LOCKLINE': (bytes.fromhex(
+        '872c2450535152c705aa000000010000008d450289e583c510508b442410c387'
+        '2c2450535152c705ae000000010000008d450289e583c510508b442410c3872c'
+        '2450535152c705aa000000000000008d450289e583c510508b442410c3872c24'
+        '50535152c705ae000000000000008d450289e583c510508b442410c3833daa00'
+        '0000007507d83d00000000c3d83d00000000c3833dae000000007507d83d0000'
+        '0000c3d83d00000000c30000000000000000'
+    ), (
+        (0x9, 'abs', '.', 170),
+        (0x28, 'abs', '.', 174),
+        (0x47, 'abs', '.', 170),
+        (0x66, 'abs', '.', 174),
+        (0x7e, 'abs', '.', 170),
+        (0x87, 'abs', 'PROJA', 0),
+        (0x8e, 'abs', 'PROJA2D', 0),
+        (0x95, 'abs', '.', 174),
+        (0x9e, 'abs', 'PROJB', 0),
+        (0xa5, 'abs', 'PROJB2D', 0),
+    ), {
+        'quad2d_a': 0x0,
+        'quad2d_b': 0x1f,
+        'walk_a': 0x3e,
+        'walk_b': 0x5d,
+        'clipproj_a': 0x7c,
+        'clipproj_b': 0x93,
+        'flag_a': 0xaa,
+        'flag_b': 0xae,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
@@ -5045,6 +5141,41 @@ FEATURES = [
          # matching the built-in F-key dialogs; see asm/f11pause.asm
          (site('F11PAUSE'), zeros('F11PAUSE'), blob('F11PAUSE')),
          (site('EXTRAS_DATA'), zeros('EXTRAS_DATA'), blob('EXTRAS_DATA'))]),
+    ('lockline', 'Fix the lock-on line',
+     'The line from the enemy to the distance readout flashed across the\n'
+     'screen as a grey band whenever the enemy was far off to one side.\n'
+     'It is drawn right now.', [
+         (site('LOCKLINE'), zeros('LOCKLINE'), blob('LOCKLINE')),
+         # The 2D quad submits and the mesh walkers: the prologue
+         # (push ebp; mov ebp,esp; push eax; push ebx; push ecx; push edx)
+         # becomes a call that replays it and sets or clears the flag.
+         (0x001d6da0, '558bec50535152', call(0x001d6da0, ('LOCKLINE', 'quad2d_a'), 2)),
+         (0x001e1e80, '558bec50535152', call(0x001e1e80, ('LOCKLINE', 'quad2d_b'), 2)),
+         (0x001d4850, '558bec50535152', call(0x001d4850, ('LOCKLINE', 'walk_a'), 2)),
+         (0x001df7a0, '558bec50535152', call(0x001df7a0, ('LOCKLINE', 'walk_b'), 2)),
+         # The clippers' re-projection, fdivr dword [PROJ], per renderer
+         (0x001d23cc, 'd83dc8b46d00', call(0x001d23cc, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d240d, 'd83dc8b46d00', call(0x001d240d, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2472, 'd83dc8b46d00', call(0x001d2472, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d24e9, 'd83dc8b46d00', call(0x001d24e9, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2539, 'd83dc8b46d00', call(0x001d2539, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d25dc, 'd83dc8b46d00', call(0x001d25dc, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d261d, 'd83dc8b46d00', call(0x001d261d, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2682, 'd83dc8b46d00', call(0x001d2682, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d26d2, 'd83dc8b46d00', call(0x001d26d2, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d274a, 'd83dc8b46d00', call(0x001d274a, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d279a, 'd83dc8b46d00', call(0x001d279a, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001dd2ac, 'd83d18887000', call(0x001dd2ac, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd2ed, 'd83d18887000', call(0x001dd2ed, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd352, 'd83d18887000', call(0x001dd352, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd3c9, 'd83d18887000', call(0x001dd3c9, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd419, 'd83d18887000', call(0x001dd419, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd4bc, 'd83d18887000', call(0x001dd4bc, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd4fd, 'd83d18887000', call(0x001dd4fd, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd562, 'd83d18887000', call(0x001dd562, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd5b2, 'd83d18887000', call(0x001dd5b2, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd62a, 'd83d18887000', call(0x001dd62a, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd67a, 'd83d18887000', call(0x001dd67a, ('LOCKLINE', 'clipproj_b'), 1))]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
@@ -5389,7 +5520,8 @@ BY_KEY['dinput'] = (
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
-ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'lockline', 'dinput',
+             'activate')
 # Essential is shown without tick boxes and always applied. Unticking any
 # of them produced a game broken in a way nobody chose: no start on a modern
 # CPU, a crash on a lost round, a third of the frame rate, dead keys after
