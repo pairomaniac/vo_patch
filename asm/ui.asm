@@ -237,6 +237,7 @@ BLIT2     equ 0x5673c0
 WMA2      equ 0x1ad0034
 WMB2      equ 0x1ad0030
 MATSCALE  equ 0x408790          ; scales the current matrix by (x, y, z), cdecl
+FLASHATTR equ 0x791ad0          ; the damage flash tiles' attribute block
 COMMIT    equ 0x514430          ; copies the current matrix for the next submit
 D_CMOON   equ 0x1884            ; credits moon card scale, float, written by
                                 ; the patcher
@@ -1398,47 +1399,37 @@ ins_b_done:
     popad
     mov esi, [ebx*4+LIST_B]
     ret
-; fill: in a round, a polygon that covers the whole 4:3 frame of the
-; viewport - the damage flash, a quad about a fifth wider than the frame
-; and inset 80 px at 1080p - is a screen fill and gets the viewport's
-; width. Viewport pixels, so it reads the same for a world polygon and a
-; rescaled HUD one; the frame is D_OXH/D_OYH in from the edges. The
-; hangar is not a round, so its scene is left alone.
+; fill: the damage flash. It is the unit quad drawn as a grid of tiles
+; (4 by 3 at 16:9) through attribute block FLASHATTR, sized a fifth over
+; the 4:3 frame, so the outer tiles stopped 80 px short of each edge at
+; 1080p. In a round, a polygon of that attribute block has every vertex
+; on the frame's left inset pushed to x = 0 and every one on its right
+; inset to x = W-1; the inner tiles and the middle of the outer ones are
+; untouched. Viewport pixels, after any pass rescale. edx is the record.
 fill:
     cmp dword [ebx+D_ROUND], 0
     je fill_ret
-    call extents
+    cmp dword [edx+4], FLASHATTR
+    jne fill_ret
     mov eax, [ebx+D_OXH]
-    add eax, 8
-    cmp [ebx+D_XMIN], eax
-    jg fill_ret
-    mov eax, [ebx+D_W]
-    sub eax, [ebx+D_OXH]
-    sub eax, 9
-    cmp [ebx+D_XMAX], eax
-    jl fill_ret
-    mov eax, [ebx+D_OYH]
-    add eax, 8
-    cmp [ebx+D_YMIN], eax
-    jg fill_ret
-    mov eax, [ebx+D_H]
-    sub eax, [ebx+D_OYH]
-    sub eax, 9
-    cmp [ebx+D_YMAX], eax
-    jl fill_ret
+    add eax, 8                      ; at or left of this: the left edge
     mov ecx, [ebx+D_W]
-    mov eax, ecx
-    shr eax, 1
-    dec ecx
+    sub ecx, [ebx+D_OXH]
+    sub ecx, 9                      ; at or right of this: the right edge
     lea esi, [edx+0x10]
     mov edi, 4
 fill_v:
-    cmp [esi], ax
-    jl fill_left
-    mov [esi], cx
-    jmp fill_next
-fill_left:
+    movsx ebp, word [esi]
+    cmp ebp, eax
+    jg fill_notleft
     mov word [esi], 0
+    jmp fill_next
+fill_notleft:
+    cmp ebp, ecx
+    jl fill_next
+    mov ebp, [ebx+D_W]
+    dec ebp
+    mov [esi], bp
 fill_next:
     add esi, 4
     dec edi

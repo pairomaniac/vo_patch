@@ -144,16 +144,15 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
-The damage flash is a quad about a fifth wider than the 4:3 frame that
-stopped 80 px short of each edge at 1080p. Which renderer and pass it
-comes through was never pinned down, so the insert hooks of both
-renderers run ui.asm fill after the pass handling, in viewport pixels
-where a world polygon and a rescaled HUD one read the same: in a round
-(MODE 4 and a sub-state in HIRES_SPLIT_STATES, per viewport, D_ROUND) a
-polygon whose extents cover the whole 4:3 frame (D_OXH/D_OYH in from the
-viewport's edges) has its vertices moved to x = 0 and x = W-1. The
-hangar is not a round, so its scene is exempt; a large wall or floor
-quad filling the frame in a round would stretch for that frame.
+The damage flash is the unit quad drawn as a grid of tiles (4 by 3 at
+16:9) through attribute block 0x791ad0, sized a fifth over the 4:3 frame,
+so the outer tiles stopped 80 px short of each edge at 1080p. It is an
+ordinary list-A polygon set; it hid from the insert log because no single
+tile is wide, and from the pixel watch until tools/vo-dbg.sh recovered the
+record from the flush frame. ui.asm fill, run by both insert hooks after
+the pass rescale, pushes the edge vertices of a polygon of that attribute
+block to x = 0 and x = W-1 in a round (D_ROUND: MODE 4 and a sub-state
+in HIRES_SPLIT_STATES, per viewport). Nothing else is touched.
 
 The rescale and the 2D composite agree to the pixel: a HUD vertex at
 frame x lands at round(x * s + offset), and a canvas column at
