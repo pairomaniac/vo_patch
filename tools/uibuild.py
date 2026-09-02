@@ -34,7 +34,7 @@ LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'stub1_call', 'stub2_call', 'stub3_call', 'stub4_call',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
           'flush_b', 'f4_toggle', 'dlg_init', 'dlg_ok', 'dlg_done',
-          'ini_load', 'ini_save', 'roll_blit', 'rowsafe']
+          'ini_load', 'ini_save', 'roll_blit', 'rowsafe', 'credits_moon']
 
 # Ends the label table a temporary copy of the source carries; the blob
 # is everything before it.
@@ -165,6 +165,7 @@ def main():
                                               'ini_save')))
     setconst('UI_ROLLBLIT', hex(offs['roll_blit']))
     setconst('UI_ROWSAFE', hex(offs['rowsafe']))
+    setconst('UI_CREDITS_MOON', hex(offs['credits_moon']))
     setconst('UI_FRAME, UI_FLUSH_A, UI_FLUSH_B',
              '%s, %s, %s' % (hex(offs['frame_setup']), hex(offs['flush_a']),
                              hex(offs['flush_b'])))

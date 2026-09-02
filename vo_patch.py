@@ -168,6 +168,7 @@ RETAIL_STAMP = 0x334d33fc
 PORT = {
     '345107fa': {                       # jp.exe
         'va': {
+            0x00408790: 0x00408700,
             0x00427ec9: 0x00427b29,
             0x00428241: 0x00427ea1,
             0x0042cda6: 0x0042cac8,
@@ -187,6 +188,7 @@ PORT = {
             0x004d9c3d: 0x004d715b,
             0x0050bcc6: 0x0050844c,
             0x0050c0cb: 0x00508851,
+            0x00514430: 0x00510960,
             0x0051444d: 0x0051097d,
             0x0051448e: 0x005109be,
             0x00514576: 0x00510aa6,
@@ -364,6 +366,8 @@ PORT = {
             0x188185: (0x183271, '558bec83ec0c'),
             0x18e341: (0x1894ee, 'e2100000'),
             0x18e7b9: (0x189893, 'e3100000'),
+            0x18e949: (0x189a23, 'e83863f8ff'),
+            0x18ea14: (0x189aee, 'd8dcffff'),
             0x19d8ea: (0x1986ea, 'e8a4e6ffff'),
             0x1a133c: (0x19c0d4, '558bec83ec0c'),
             0x1a191b: (0x19c6b3, '558bec83ec0c'),
@@ -552,6 +556,7 @@ PORT = {
     },
     '3317246a': {                       # oem.exe
         'va': {
+            0x00408790: 0x00408790,
             0x00427ec9: 0x00427e29,
             0x00428241: 0x004281a1,
             0x0042cda6: 0x0042cd06,
@@ -571,6 +576,7 @@ PORT = {
             0x004d9c3d: 0x004d9add,
             0x0050bcc6: 0x0050b836,
             0x0050c0cb: 0x0050bc3b,
+            0x00514430: 0x00513fa0,
             0x0051444d: 0x00513fbd,
             0x0051448e: 0x00513ffe,
             0x00514576: 0x005140e6,
@@ -748,6 +754,8 @@ PORT = {
             0x188185: (0x187c55, '558bec83ec0c'),
             0x18e341: (0x18de11, 'e2100000'),
             0x18e7b9: (0x18e289, 'e3100000'),
+            0x18e949: (0x18e419, 'e8824ff8ff'),
+            0x18ea14: (0x18e4e4, 'd8dcffff'),
             0x19d8ea: (0x19d3ba, 'e8a4e6ffff'),
             0x1a133c: (0x1a0e0c, '558bec83ec0c'),
             0x1a191b: (0x1a13eb, '558bec83ec0c'),
@@ -1114,6 +1122,8 @@ UI_REFS = (
     (0x1545, 0x06bf5ac),
     (0x1561, 0x06bf5bc),
     (0x156b, 0x066c190),
+    (0x15b1, 0x0408790),
+    (0x15bc, 0x0514430),
 )
 # UI REFS END
 
@@ -1160,7 +1170,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '837c37c0f84f7d1cdd0d42f97b35bff8cfd26516c75f609b541874285a3809ff'
+UI_ASM_SHA = '8368618004197b22e97dca2822f6d938be99ddd07a01233f9742ee9bfe6b1b70'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088983e8180000c783ec18000000000000d905e4'
     'c16b00d84c2408d80de8c16b00d99bdc180000d905e4c16b00d80de8c16b00d99be01800'
@@ -1315,7 +1325,8 @@ UI_CODE = bytes.fromhex(
     '7432eb1a83ff0876138d4ff8c1e10401cab81000000029f8741aeb0289f889c389f1b8e0'
     'f24700ffd089c20335acf56b004b75ec5b5f5ec204005350e8000000005b81eb59150000'
     'a1bcf56b0039c2721c833d90c1660000750c85d2780429c2ebeb01c2ebe7ba00000f00eb'
-    '098b833c1800008b1490585bc3')
+    '098b833c1800008b1490585bc353e8000000005b81eb97150000ffb3c81a0000ffb3c81a'
+    '0000ffb3c81a0000b890874000ffd083c40c5bb830445100ffe0')
 # UI CODE END
 UI_CALLS = [(0x4b5, 0x4800d0), (0x4ca, 0x4804f0),   # rel32 at offset+1
             (0x4df, 0x5670c0), (0x4f4, 0x5674f0)]
@@ -1339,6 +1350,7 @@ UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x117e, 0x1253, 0x128f
 UI_F4 = 0x1399
 UI_ROLLBLIT = 0x1504
 UI_ROWSAFE = 0x1552
+UI_CREDITS_MOON = 0x1591
 UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE = 0x1429, 0x1454, 0x147d, 0x14ad, 0x14e5
 UI_PASS_STUBS = 0x1660                      # 20 bytes per wrapped function
 UI_MODEW = 0x1820                           # mode size, written by the patcher
@@ -1352,6 +1364,7 @@ UI_SPLITST = 0x1a90                         # sub-states drawn split
 UI_DEBUG = 0x1a98                           # 1: state readout on the frame
 UI_F4MODE = 0x1ac0                          # 0: first size in place, 1: second
 UI_F4TAB = 0x1ac4                           # the F4 site table's address
+UI_CMOON = 0x1ac8                           # credits moon card scale, float
 assert len(UI_CODE) <= UI_PASS_STUBS        # data block starts at 0x1800
 UI_F4TAB_OFF = 0x1b00                       # the F4 site table, in the file
 UI_F4TAB_SIZE = 0x1fa0
@@ -1840,6 +1853,18 @@ def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
         '6c00dc0d28476200d91d288b6c00')
     assert len(block) <= len(old)
     sites.append((0x1c782d, old, block.ljust(len(old), b'\x90')))
+    # --- credits -------------------------------------------------------
+    # Two ending assets are sized for the 640x288 band the stock roll
+    # sits behind (see roll_blit). The star field is a grid of tiles
+    # (0x58f59c, 1800-unit columns from -9000, drifting 0.9 a frame) that
+    # runs out on the left before the roll ends once the frame is wider
+    # than 4:3: it starts further left, by the extra width in columns
+    # plus one. The moon card's commit (0x58f549) goes through ui.asm
+    # credits_moon, which scales it to the full height (UI_CMOON).
+    cols = int(math.ceil(max(0.0, w / h / (4 / 3) - 1) * 5)) + 1
+    sites += imm_sites([0x18ea14], -9000, -9000 - cols * 1800)
+    sites.append((0x18e949, b'\xe8' + u32(0x514430 - (0x58f549 + 5)),
+                  b'\xe8' + u32(sec_va + UI_CREDITS_MOON - (0x58f549 + 5))))
     return sites
 
 
@@ -1958,6 +1983,11 @@ def _ui_words(w, hh):
         UI_SCALE: struct.pack('<III', int(h_1p * 65536),
                               int(h_sbs * 65536), int(h_tb * 65536)),
         UI_HUD: struct.pack('<ffff', h_1p, h_sbs, h_tb, h_1p),
+        # The credits moon card: 26 units high at z=80, 0.325 focal
+        # lengths, against the frame's half height of 0.399 - the same at
+        # any size, since the focal length follows the height. 1.25 keeps
+        # a margin over the 1.227 that just covers it.
+        UI_CMOON: f32(1.25),
     }
 
 
