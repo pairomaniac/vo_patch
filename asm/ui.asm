@@ -1406,11 +1406,24 @@ ins_b_done:
 ; on the frame's left inset pushed to x = 0 and every one on its right
 ; inset to x = W-1; the inner tiles and the middle of the outer ones are
 ; untouched. Viewport pixels, after any pass rescale. edx is the record.
+; FLASHATTR is the game's flat red, used from forty-odd sites; the enemy
+; marker's arrow and triangle (56 units) are drawn with it too, and the
+; arrow's slide ends with its tip on the inset. A tile is about 195 HUD
+; units wide, so anything under FILL_MIN is left alone.
+FILL_MIN  equ 120               ; HUD units
 fill:
     cmp dword [ebx+D_ROUND], 0
     je fill_ret
     cmp dword [edx+4], FLASHATTR
     jne fill_ret
+    call extents
+    mov eax, [ebx+D_S16]
+    imul eax, FILL_MIN
+    shr eax, 16
+    mov ecx, [ebx+D_XMAX]
+    sub ecx, [ebx+D_XMIN]
+    cmp ecx, eax
+    jl fill_ret
     mov eax, [ebx+D_OXH]
     add eax, 8                      ; at or left of this: the left edge
     mov ecx, [ebx+D_W]
