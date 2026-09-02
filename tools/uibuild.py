@@ -93,9 +93,22 @@ def fingerprint_check(src_asm):
     sys.exit(1)
 
 
+def data_overlap(src_asm):
+    """Two D_ names on one data-block offset: the second silently
+    overwrites the first (D_ROUND on D_XO shifted the 2D layer once)."""
+    seen = {}
+    for m in re.finditer(r'^(D_\w+)\s+equ\s+(0x[0-9a-f]+)', src_asm, re.M):
+        off = int(m.group(2), 16)
+        if off < 0x1b00 and off in seen:
+            sys.exit('asm/ui.asm: %s and %s share data offset %#x'
+                     % (seen[off], m.group(1), off))
+        seen[off] = m.group(1)
+
+
 def main():
     check = '--check' in sys.argv
     src_asm = open(UI).read()
+    data_overlap(src_asm)
     if not have_nasm():
         if check:
             fingerprint_check(src_asm)

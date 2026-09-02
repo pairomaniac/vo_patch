@@ -144,6 +144,17 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
+The damage flash is a quad about a fifth wider than the 4:3 frame that
+stopped 80 px short of each edge at 1080p. Which renderer and pass it
+comes through was never pinned down, so the insert hooks of both
+renderers run ui.asm fill after the pass handling, in viewport pixels
+where a world polygon and a rescaled HUD one read the same: in a round
+(MODE 4 and a sub-state in HIRES_SPLIT_STATES, per viewport, D_ROUND) a
+polygon whose extents cover the whole 4:3 frame (D_OXH/D_OYH in from the
+viewport's edges) has its vertices moved to x = 0 and x = W-1. The
+hangar is not a round, so its scene is exempt; a large wall or floor
+quad filling the frame in a round would stretch for that frame.
+
 The rescale and the 2D composite agree to the pixel: a HUD vertex at
 frame x lands at round(x * s + offset), and a canvas column at
 floor(X / s). They did not until the compositor's reciprocal was fixed
@@ -254,7 +265,7 @@ in the check pipeline; it reassembles when nasm is present - always, on
 CI - and falls back to a recorded fingerprint of the source only where
 nasm is missing.
 
-Section layout: code (under 0x1660), pass stubs at 0x1660, data block at
+Section layout: code (under 0x1670), pass stubs at 0x1670, data block at
 0x1800 (D_*), split FOV factors at 0x1848, the F4 site table at 0x1b00,
 then the canvas and its copy (UI_OFF/UI_OFF_SIZE), the mask, the row
 table and the polygon pool.
