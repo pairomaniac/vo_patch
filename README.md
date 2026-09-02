@@ -161,6 +161,9 @@ The offsets and internals of every patch are in [NOTES.md](docs/NOTES.md).
       and 1/2 speed. They now read **30 FPS** and **60 FPS**.
 - **Fix crash on round loss** - the game crashes when you lose as Temjin,
   Viper II, Apharmd or Raiden.
+- **Fix the lock-on line** - the line from the enemy to the distance
+  readout flashed across the screen as a grey band whenever the enemy was
+  far off to one side. It is drawn right now.
 - **Fix keyboard input after ALT+TAB** - alt-tabbing away, or opening an
   F-key dialog, kills the keyboard for the rest of the session. The fix
   reads the keyboard in the background, so keys pressed in another window

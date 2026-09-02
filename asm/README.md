@@ -39,6 +39,7 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
+| `lockline.asm` | Fix the lock-on line: the clippers project 2D quads with the 2D scale |
 | `ui.asm` | Native widescreen: the resolution blob, built by `tools/uibuild.py` (see below) |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |

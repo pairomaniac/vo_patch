@@ -271,6 +271,7 @@ SOURCES = [
     ('CREDITS', 'credits.asm'), ('NAMEENTRY', 'nameentry.asm'),
     ('CAMSKIP', 'camskip.asm'), ('OVERLAY', 'overlay.asm'),
     ('TITLEVER', 'titlever.asm'), ('ACTIVATE', 'activate.asm'),
+    ('LOCKLINE', 'lockline.asm'),
 ]
 
 

@@ -245,6 +245,21 @@ view, both computed from the size; the y bounds stay with the vertical
 view. Sized for the 1P view, as the hangar window is: in a split
 viewport the arrow comes a few degrees late.
 
+### The lock-on line
+
+The flat grey band that flashes across the picture as the enemy comes
+on from the side is not the resolution patch's: it is stock's, and it
+has its own Essential patch now (**Fix the lock-on line**, asm/
+lockline.asm). Found while chasing it here, with tools/vo-dbg.sh wedge,
+submit and clip in turn: the 2D quad submits (0x5d79a0 renderer A,
+0x5e2a80 B) project their z = 1.0 vertices with the aspect slot of the
+projection, and the clipper re-projects what it clips or subdivides
+with the 3D slot, focal length included, 600 times the size. The
+marker's leader line to the distance readout is the quad that gets long
+enough. Two dead ends on the way, both reverted: dropping polygons with
+a vertex under z = 4 took a piece of the hangar floor; saturating
+overflowed 16-bit vertex words changed nothing.
+
 ### Stage objects: the see-through switch
 
 Each stage object has a solid model and a meshed twin (tables 0x64bab0
