@@ -158,24 +158,25 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
-The HUD spread applies on any viewport wider than 4:3 - 1P and
-top/bottom split; side by side has no inset. At 4:3 the timer box sits
-82 px from the left edge; a centred frame carries it towards the
-middle. In a round (D_ROUND less sub-states 0xd/0xe) the post-3D 2D
-layer's band rows (above HIRES_HUD_BAND) are composited with the
-columns left of HIRES_HUD_SPREAD's split column (230: the timer and
-its digits) moved left by the frame's inset, so the timer keeps its
-4:3 distance from the left edge; PLAYER/ENEMY and the bars stay
-centred. The pre-fill samples each column from where it lands
-(spread_row). The TOTAL time - 2D rows from 380, columns from 420 -
-moves right the same way. Polygons get the same offset in rescale when
-the outermost HUD pass is the in-game HUD (PASS0/PASS1: the bars,
-their frames and the timer box; hud_enter records the calling stub in
-D_PASSFN) and the polygon lies wholly in the band and wholly left of
-the split column; the reticle and the weapon strips are other passes
-and stay, and in a round the enemy marker is drawn outside the passes.
-The inset is the smaller of the frame's two margins inside the
-viewport (D_SPREAD), computed per call, 0 at 4:3.
+The HUD spread, in a round (D_ROUND less sub-states 0xd/0xe). At 4:3
+the timer box sits 82 px from the left edge; a centred frame carries
+it towards the middle. The post-3D 2D layer's band rows (above
+HIRES_HUD_BAND) are composited with the columns left of
+HIRES_HUD_SPREAD's split column (230: the timer and its digits) moved
+left by the frame's inset, so the timer keeps its 4:3 distance from
+the left edge; the columns right of it - PLAYER/ENEMY and the bars,
+which in stock span 233..523 - move by 320 - HIRES_HUD_BARS units
+(-58), which centres them as a group. The pre-fill samples each column
+from where it lands (spread_row). The TOTAL time - 2D rows from 380,
+columns from 420 - moves right by the inset. Polygons get the same
+offsets in rescale when the outermost HUD pass is the in-game HUD
+(PASS0/PASS1: the bars, their frames and the timer box; hud_enter
+records the calling stub in D_PASSFN) and the polygon lies wholly in
+the band and wholly on one side of the split column; the reticle and
+the weapon strips are other passes and stay, and in a round the enemy
+marker is drawn outside the passes. The inset is the smaller of the
+frame's two margins inside the viewport (D_SPREAD), computed per call,
+0 at 4:3 and in side-by-side split, where only the bars move.
 
 Top/bottom split draws the HUD at the side-by-side scale rather than
 the 4:3 that fits its half-height viewport (1.406 instead of 1.125 at

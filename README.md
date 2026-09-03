@@ -277,8 +277,9 @@ original 640x480.
   outright is turned off.
 - **HUD** - in a match the timer stays at the top left, as close to the
   edge as at 4:3, instead of drifting towards the middle of the wider
-  picture. The machine select and waiting screens of a two-player game,
-  whose photo backdrops sat in a black frame, fill the screen.
+  picture, and the health bars with their labels are centred. The machine
+  select and waiting screens of a two-player game, whose photo backdrops
+  sat in a black frame, fill the screen.
 - **Split screen** - the **Screen Split** row on F5 offers **Ver** (side by
   side) and **Hor** (top and bottom). The third stock option, which
   duplicated the first, is gone. In side-by-side mode the timer and health
