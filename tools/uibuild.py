@@ -99,7 +99,7 @@ def data_overlap(src_asm):
     seen = {}
     for m in re.finditer(r'^(D_\w+)\s+equ\s+(0x[0-9a-f]+)', src_asm, re.M):
         off = int(m.group(2), 16)
-        if off < 0x1b00 and off in seen:
+        if off < 0x1f00 and off in seen:
             sys.exit('asm/ui.asm: %s and %s share data offset %#x'
                      % (seen[off], m.group(1), off))
         seen[off] = m.group(1)

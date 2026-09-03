@@ -96,9 +96,9 @@ import urllib.error
 #      them at runtime, then the surfaces are recreated. The choice is
 #      saved as bit 0 of ScrSize. The 320x240 menu command is defused.
 #
-# The exe grows by one section: 15 KB on disk - 5 KB of code, the data
-# block and the F4 site table - plus a header; the canvas, mask,
-# row-table and pool buffers are zero-filled by the loader.
+# The exe grows by one section: 15 KB on disk - 6 KB of code, the pass
+# stubs, the data block and the F4 site table - plus a header; the
+# canvas, mask, row-table and pool buffers are zero-filled by the loader.
 #
 # Width must be a multiple of 32 and at most 2040 (the coverage-mask
 # stride is an 8-bit immediate in ten places). Nothing else is tied to a
@@ -1202,7 +1202,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = 'aa4dd956cbb72ca04d4540374117d9d0799f912c01a86ae7f9b3d85c61dea372'
+UI_ASM_SHA = '189990a5ee50ea5a266cfb064a0ad7e0ce986890378638ff22e07bbd78968282'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088983e81c0000c783ec1c000000000000d905e4'
     'c16b00d84c2408d80de8c16b00d99bdc1c0000d905e4c16b00d80de8c16b00d99be01c00'
@@ -1445,11 +1445,11 @@ UI_PASS_FUNCS = [
     (0x55d221, 6), (0x5495b1, 6),           # weapon strips
     (0x5a1f3c, 6), (0x5a251b, 6),           # machine select, cursors
     (0x58881e, 6), (0x588d85, 6),           # the same, renderer B
-    (0x4d0280, 6), (0x531f6a, 6),           # untraced: other HUD builds
-    (0x4d9c3d, 9), (0x42cda6, 9),
+    (0x4d0280, 6), (0x531f6a, 6),           # reticle, renderer A/B
+    (0x4d9c3d, 9), (0x42cda6, 9),           # untraced: other HUD builds
     (0x460b70, 6), (0x460cf3, 5),
     (0x432fbe, 6), (0x433141, 5),
-    (0x57f1b0, 6), (0x5829c3, 6),
+    (0x57f1b0, 6), (0x5829c3, 6),           # demo and tutorial drivers
     (0x4b6030, 6), (0x4b981f, 6),
 ]
 
@@ -2025,13 +2025,14 @@ HIRES_POLYS = 8000
 # top of the viewport instead of the centred frame. The timer and the
 # health bars end by 95; the weapon strips start near 300. 0 turns it off.
 HIRES_HUD_BAND = 110
-# The HUD spread on a wide viewport, in a round: the 2D layer's rows above
-# HIRES_HUD_BAND and the in-game HUD pass's polygons in them move outward
-# by the frame's inset, so the timer keeps its 4:3 distance from the left
-# edge and the health bars theirs from the right. (split column: the
-# timer box ends at 226, PLAYER starts at 235; TOTAL row, TOTAL column:
-# the TOTAL time, 2D rows from 402 and columns from 436, goes right the
-# same way.) HUD frame units. None turns it off.
+# The HUD spread on a viewport wider than 4:3, in a round: the 2D layer's
+# rows above HIRES_HUD_BAND and the in-game HUD pass's polygons in them
+# move outward by the frame's inset - columns left of the split column
+# (the timer box ends at 226) to the left, the rest (PLAYER starts at
+# 235) to the right - so the timer keeps its 4:3 distance from the left
+# edge and the health bars theirs from the right. 2D rows from the second
+# value and columns from the third (the TOTAL time, at 402..418 and
+# 436..556) move right the same way. HUD frame units; None turns it off.
 HIRES_HUD_SPREAD = (230, 380, 420)
 # In a split game the split is drawn only while either player's machine is
 # in one of these sub-states: the rounds (9..0x0c), the result and continue
@@ -5535,11 +5536,13 @@ BY_KEY['hires'] = (
     'wider view shows more of the arena at the sides.\n'
     '\n'
     'Picture\tThe 3D view at the new size; menus, HUD and text\n'
-    '\tredrawn to match, not stretched.\n'
+    '\tredrawn to match, not stretched. The timer and health\n'
+    '\tbars keep to the top corners.\n'
     'F4\tSwitches to 1280x720 and back. Also Screen on F5;\n'
     '\tthe choice is saved with the settings.\n'
     'Split screen\tVer or Hor on F5. The machine select is drawn once,\n'
-    '\tfull size.\n'
+    '\tfull size; the photo screens of a two-player game\n'
+    '\tfill the screen.\n'
     'Ending credits\tThe black bands are gone; the roll uses the whole\n'
     '\tscreen.',
     None)

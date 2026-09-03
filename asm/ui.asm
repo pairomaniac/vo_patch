@@ -1,37 +1,44 @@
 bits 32
-; 2D layer drawn into an offscreen canvas, then composited onto the
-; viewport; HUD polygons projected at 640x480 and rescaled at insert.
-; Built into vo_patch.py by tools/uibuild.py; --check guards drift.
-; docs/HIRES.md documents the design and the porting record.
+; Native widescreen: the 2D layer drawn into an offscreen canvas and
+; composited onto the viewport; HUD polygons projected at 640x480 and
+; rescaled at insert. Built into vo_patch.py by tools/uibuild.py, whose
+; --check guards drift. docs/HIRES.md has the design and the porting
+; record.
 ;
 ; 2D: four stubs replace the four 2D calls in 0x5c80df (viewport 1
-; before/after the 3D flush, viewport 2 the same). The canvas is 640x480
-; and the split flag is hidden from the 2D code while it draws, so
-; split-screen viewports get the full-size layout. The canvas is
-; pre-filled with the viewport's own pixels, sampled at the inverse of
-; the 2D scale, and a copy is kept; after the game has drawn, only
-; pixels that differ from the copy are composited back, so translucent
+; before and after the 3D flush, viewport 2 the same). The split flag
+; is hidden from the 2D code while it draws, so split-screen viewports
+; get the full-size layout. The canvas is pre-filled with the
+; viewport's own pixels, sampled at the inverse of the 2D scale, and a
+; copy is kept; after the game has drawn, only pixels that differ from
+; the copy are composited back, nearest-neighbour, so translucent
 ; elements blend against the real background and untouched areas are
-; left alone. The composite is nearest, copying the surface's own
-; pixels whatever their format. The scaled canvas is centred on
-; the viewport and clipped if larger. In the pre-3D phase (backdrops)
-; the canvas has the viewport's own aspect and the game draws its
-; 640-wide picture centred in it (D_XO); in split it is 4:3. The post
-; phase (HUD) is 4:3. The margins either side of the picture are drawn
-; from the game's own plane B tile map (margins below): a tile row with
-; no empty tile is a field - the encounter grid, the noise transition -
-; and continues into the margins at its 80-tile period; any other row
+; left alone. The scaled canvas is centred on the viewport and clipped
+; if larger. In the pre-3D phase (backdrops) of a 1P or single-viewport
+; frame the canvas has the viewport's aspect and the game draws its
+; 640-wide picture centred in it (D_XO); in split, and in the post
+; phase (HUD), it is 4:3. The margins either side of the picture are
+; drawn from the game's own plane B tile ring (margins): a tile row
+; with no empty tile is a field - the encounter grid, the static - and
+; continues into the margins at its 80-tile period; any other row
 ; takes the picture's top-row colour when that row is all one colour,
 ; else black, and only on 2D-only screens (the last 3D flush drew
-; nothing), the 3D showing otherwise. The canvas has 480 guard rows
-; above and below: the 2D code draws outside the viewport in split
-; screen and expects frame memory there.
+; nothing), the 3D showing otherwise. The two-player screens' 512x384
+; photo backdrops are rescaled over the whole canvas instead. The
+; canvas has 480 guard rows above and below: the 2D code draws outside
+; the viewport in split screen and expects frame memory there.
 ;
 ; HUD polygons: the functions that own the HUD projection setups are
 ; wrapped (hud_enter) so the pass depth is known; inside a pass the
 ; projection setups and the submit hooks install a 640x480 projection,
 ; and the insert hooks scale every polygon to the HUD frame on the
 ; viewport. Outside a pass everything is left alone.
+;
+; HUD spread: on a viewport wider than 4:3, in a round, the 2D layer's
+; rows above D_PINTH and the in-game HUD pass's polygons in them move
+; outward by the frame's inset - the timer left, PLAYER/ENEMY and the
+; bars right - so each keeps its 4:3 distance from the nearest edge;
+; the TOTAL time moves right the same way (spread_row, rescale).
 ;
 ; Split-screen HUD band: in side by side the 4:3 HUD frame sits centred
 ; in a taller viewport. In a match the rows of the frame above D_PINTH
@@ -47,20 +54,21 @@ bits 32
 ; Single viewport in a split game: the split only has a use in the
 ; sub-states that draw a round (D_SPLITST, the patcher's list). In every
 ; other frame - the machine select, the waiting card, the wipe, the
-; encounter screen, and outside a match (MODE not 4: the boot splash, the
-; title) - the frame is one full-screen viewport from one player's
-; engine: the player whose sub-state is lower, P1 on a tie, which is the
-; one still doing something while the other waits on a card. frame_setup runs the game's viewport
-; setup with the split flag cleared, which gives both renderers the 1P
-; geometry, then points viewport 2 at the same surface; the other
-; renderer's flush runs with its draw-skip flag set (the list is still
-; sorted and emptied) and its 2D layer is not composited. D_LAYOUT is
-; what the rest of this file keys on: 0 1P or single, 1 side by side,
-; 2 top/bottom.
+; encounter screen, and outside a match (MODE not 4: the boot splash,
+; the title) - the frame is one full-screen viewport from one player's
+; engine: the player whose sub-state is lower, P1 on a tie, which is
+; the one still doing something while the other waits on a card.
+; frame_setup runs the game's viewport setup with the split flag
+; cleared, which gives both renderers the 1P geometry, then points
+; viewport 2 at the same surface; the other renderer's flush runs with
+; its draw-skip flag set (the list is still sorted and emptied) and its
+; 2D layer is not composited. D_LAYOUT is what the rest of this file
+; keys on: 0 1P or single, 1 side by side, 2 top/bottom.
 ;
-; Data is ebx-relative after call/pop. D_MODEW/D_MODEH, D_ROWTAB, the
-; split factors, D_SCALE/D_HUD, D_PINTH, D_SPLITST
-; are written by the patcher.
+; Data is ebx-relative after call/pop. The patcher writes D_MODEW/
+; D_MODEH, D_ROWTAB, D_KSBS, D_SCALE/D_HUD, the float constants,
+; D_CMOON, D_PINTH, D_SPLITC/D_BOTROW/D_BOTCOL, D_SPLITST, D_DEBUG and
+; D_F4TAB; see the UI_ constants in vo_patch.py.
 FB_PTR    equ 0x6bf5a8            ; locked surface pointer
 FB_PITCH  equ 0x6bf5ac
 FB_ROW    equ 0x6bf5b0            ; current row pointer
@@ -130,8 +138,9 @@ D_SAVE_B  equ 0x1cf0            ; the same for renderer B
 D_SAVE_FB equ 0x1cfc
 D_VAR_B   equ 0x1d00
 D_DEPTH   equ 0x1d08            ; HUD pass nesting depth (see hud_enter)
-D_RETS    equ 0x1d0c            ; saved return addresses, D_RETS_N deep (to 0x1d8c)
-D_RETS_N  equ 32
+D_RETS    equ 0x1d0c            ; saved return addresses, D_RETS_N deep,
+D_RETS_N  equ 32                ; to 0x1d8c
+D_RETD    equ 0x1ddc            ; and the depth to come back to for each
 D_SP      equ 0x1dd8            ; how many are saved
 D_DIM     equ 0x1e64            ; hangar: shade factor 16.16 for the mech being
                               ; drawn, 0 when none (see hangar_draw)
@@ -206,7 +215,6 @@ MODE2     equ 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
 SUBMODE2  equ 0x1ef9eb0         ; The in-game HUD is drawn from sub-states
                               ; 9..0x0c, 0x14, 0x15 and 0x1b; 3 and 4 are
                               ; the machine select.
-D_RETD    equ 0x1ddc            ; and the depth to come back to for each
 SCALE_A   equ 0x6bc1e4          ; the game's 3D scale, per renderer
 SCALE_B   equ 0x6c8b24
 CENTRE_AX equ 0x6db530
@@ -1208,8 +1216,8 @@ spread_row_ret:
 ; helpers, column c showing what the picture shows at c mod 80 (the
 ; scroll and the ring's 82-word wrap as the walker applies them, so the
 ; seams are the walker's own), for ring rows with no empty tile: the
-; encounter grid and the noise transition are 80 tiles of pattern and
-; continue in step; the picture's holes continue as holes. Any other
+; encounter grid and the static are 80 tiles of pattern and continue
+; in step; the picture's holes continue as holes. Any other
 ; row - art placed on a backdrop, the plane hidden - gets the flat
 ; colour on the rows its tiles would cover (the last tile row wraps to
 ; the frame top, as the blit does) when no 3D is behind. Rules tried
@@ -1218,7 +1226,7 @@ spread_row_ret:
 ; The photo backdrops of the two-player screens (the machine select
 ; and the network waiting cards) are 64x48-tile blocks at ring (9, 6),
 ; 512x384 of a 640x480 picture, so they sat framed in black even at
-; 4:3. Recognised by two of their cells (PHOTO_SIG: the three blocks'
+; 4:3. Recognised by two of their cells (photo_sig: the three blocks'
 ; words at (0, 0) and (32, 24), the same in every build), with the
 ; plane shown and unscrolled, the block is rescaled over the whole
 ; canvas keeping its aspect - the sides fill the width and the rows

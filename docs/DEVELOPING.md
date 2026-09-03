@@ -70,7 +70,9 @@ chmod +x .git/hooks/pre-push
 ```bash
 python3 asm/build.py              # only if you touched asm/ - regenerates the hex
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
-python3 tools/uibuild.py          # only if you touched asm/ui.asm - the resolution blob
+python3 tools/uibuild.py          # only if you touched asm/ui.asm - the resolution blob;
+                                  # then the other builds' tables and the pinned
+                                  # MD5s: HIRES.md, Rebuilding
 
 python3 tools/check.py            # the checks CI runs, in two seconds
 python3 vo_patch.py               # does the window still open?

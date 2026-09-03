@@ -8,7 +8,7 @@ the record of porting it to the other builds.
 
 ## What is patched
 
-Around 250 sites over the retail executable, in families:
+About 280 sites over the retail executable, in families:
 
 ### Mode and window
 
@@ -70,10 +70,10 @@ background.
 
 In the pre-3D call of a 1P or single-viewport frame the canvas has the
 viewport's aspect (rounded to an even width) and the game's surface
-pointer is set 640 short of centred, so its 80-tile picture lands in
-the middle and the margins either side are the blob's to draw (ui.asm
-margins, run at the start of post while the game's globals still
-address the canvas). They are drawn from the game's own plane B - the
+pointer is offset by D_XO, so its 80-tile picture lands in the middle
+and the margins either side are the blob's to draw (ui.asm margins,
+run at the start of post while the game's globals still address the
+canvas). They are drawn from the game's own plane B - the
 82x62-word tile ring the pre-3D call walks, 80x60 shown, scrolled by
 whole tiles - through the game's own destination and blit helpers:
 margin tile column c shows what the picture shows at c mod 80, with
@@ -130,8 +130,8 @@ after the canvas and fills the whole canvas from it, nearest-neighbour,
 keeping its aspect: the width is filled and the rows outside the height
 are cropped equally top and bottom (48 of 384 each side at 16:9; at 4:3
 the block simply becomes the picture). The margin row loop is skipped.
-Plane A and the sprites are the post-3D call's, so the text and cursors
-on those screens are not scaled. See *The photo backdrops* below.
+Plane A is the post-3D call's, so the text on those screens is not
+scaled. See *The photo backdrops* below.
 
 The ending roll is the 2D layer's too: its bands, window, edge clipping
 and cut are under *Credits letterboxing, found and removed* below.
@@ -157,24 +157,26 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
-The HUD spread, on any viewport wider than 4:3 (1P, top/bottom split;
-side by side has no inset and is untouched): at 4:3 the timer box sits
+The HUD spread applies on any viewport wider than 4:3 - 1P and
+top/bottom split; side by side has no inset. At 4:3 the timer box sits
 82 px from the left edge and the health bars end 110 px short of the
-right, and a centred frame carries both towards the middle. In a round
-(D_ROUND, not sub-states 0xd/0xe) the post-3D 2D layer's band rows
-(above HIRES_HUD_BAND) are composited with their columns left of
+right; a centred frame carries both towards the middle. In a round
+(D_ROUND less sub-states 0xd/0xe) the post-3D 2D layer's band rows
+(above HIRES_HUD_BAND) are composited with the columns left of
 HIRES_HUD_SPREAD's split column (230: the timer and its digits) moved
 left by the frame's inset and the rest (PLAYER/ENEMY, the bars) moved
 right by it, so each keeps its 4:3 distance from the nearest edge; the
-pre-fill samples each column from where it lands (spread_row). The TOTAL
-time - 2D rows from 380, columns from 420 - moves right the same way.
-The polygons get the same offset in rescale, gated on the outermost HUD
-pass being the in-game HUD (PASS0/PASS1, the bars, frames and timer box;
-hud_enter records the stub that called it in D_PASSFN) and on the
-polygon lying wholly in the band and wholly on one side of the split
-column, so the enemy marker, drawn from PASS16/17, is left alone. The
-inset is the smaller of the frame's two margins inside the viewport
-(D_SPREAD), computed per call, 0 at 4:3.
+pre-fill samples each column from where it lands (spread_row). The
+TOTAL time - 2D rows from 380, columns from 420 - moves right the same
+way. Polygons get the same offset in rescale when the outermost HUD
+pass is the in-game HUD (PASS0/PASS1: the bars, their frames and the
+timer box; hud_enter records the calling stub in D_PASSFN) and the
+polygon lies wholly in the band and wholly on one side of the split
+column; the reticle and the weapon strips are other passes and stay,
+and in a round the enemy marker is drawn outside the passes. The inset
+is the
+smaller of the frame's two margins inside the viewport (D_SPREAD),
+computed per call, 0 at 4:3.
 
 The damage flash is the unit quad drawn as a grid of tiles (4 by 3 at
 16:9) through attribute block 0x791ad0, sized a fifth over the 4:3 frame,
@@ -193,7 +195,8 @@ left alone. Nothing else is touched.
 The rescale and the 2D composite agree to the pixel: a HUD vertex at
 frame x lands at round(x * s + offset), and a canvas column at
 floor(X / s). They did not until the compositor's reciprocal was fixed
-(below); the 3 px polygon shift that used to compensate is gone.
+(*The 2D layer* above); the 3 px polygon shift that used to compensate
+is gone.
 
 ### Single viewport in a split game
 
@@ -475,10 +478,11 @@ two modes and fails on any other.
 
 0x5c991c draws centred on (x, y) through GetTextExtentPoint32, halving
 in low resolution under FSFLAGS bit 2 - the test byte, 4 at 0x5c9a98,
-the same bit the docs call low resolution everywhere else. Fonts are HFONTs at 0x6c8568/6c
-built at 0x5c8ca0 from the LOGFONTs at 0x6c8570/0x6c85f0 (24px) and
-0x6c85b0/0x6c8630 (16px, low resolution); the 24px pair is what the patch
-scales, in .data at file 0x2c7370/0x2c73f0. The wrap routine is 0x5c8da6.
+the same bit the docs call low resolution everywhere else. Fonts are
+HFONTs at 0x6c8568/6c built at 0x5c8ca0 from the LOGFONTs at
+0x6c8570/0x6c85f0 (24px) and 0x6c85b0/0x6c8630 (16px, low resolution);
+the 24px pair is what the patch scales, in .data at file
+0x2c7370/0x2c73f0. The wrap routine is 0x5c8da6.
 
 ### F5 Graphic Settings
 
@@ -618,7 +622,8 @@ bytes in the full mode, the only mode left under this patch.
 
 The window itself is 50 tile rows tall - 400 lines, the 0x32 stored at
 0x480568 (its branch twin at 0x480556 is the 44-row low-resolution
-window), plus the partial entering row - top-aligned in a 64-row ring. The writer (the
+window), plus the partial entering row - top-aligned in a 64-row ring.
+The writer (the
 command interpreter at 0x4cdab4, cursors 0xbf7758/0xbf775c, driven by
 the hand-timed schedule in 0x58ecd0) fills each ring row just as it
 scrolls up to the window's foot; below that the ring holds stale content
@@ -749,9 +754,9 @@ row 950 of 1080, under a band in stock.
 
 ## Queued work
 
-- **The weapon strips and the distance digits** keep their 4:3 places;
-  the spread only moves the top band and the TOTAL time.
-
+- **The rest of the HUD at 16:9.** The spread moves the top band and
+  the TOTAL time; the weapon strips and the distance digits keep their
+  4:3 places.
 - **A per-layout marker window.** The x bounds and the bearing window
   are baked for the 1P view; split viewports want their own, keyed on
   D_LAYOUT like the split FOV factors. Needs the two compare pairs to
@@ -804,9 +809,16 @@ spot.
                                         # maps/*.pkl and maps/*_port.txt
     python3 tools/portaudit.py maps/jp.pkl
                                         # instruction shapes at every site
-    # splice a clean table between the PORT TABLES markers in vo_patch.py
+    # splice maps/jp_port.txt and maps/oem_port.txt between the PORT
+    # TABLES markers in vo_patch.py, replacing what is there
+    python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM: the digests
+    # go into EXPECTED_ALL in tools/selftest.py
+
+The port tables must be regenerated after any change to ui.asm: they
+list every blob reference by position (UI_REFS), and the positions
+move. An immediate in the game's address range comes out as a FAIL in
+maps/*_port.txt; shift or add such values at runtime instead.
 
 tools/vo_patch_hires.py is the import shim the tools use to read the
 tables out of vo_patch.py. tools/uibuild.py --check runs in
-tools/check.py. Site or blob changes move the pinned all-patches MD5s in
-tools/selftest.py for every build they apply to.
+tools/check.py.

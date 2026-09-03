@@ -275,6 +275,11 @@ original 640x480.
   centred in the picture, is gone. The choice is saved to `v_on.ini`, so the
   game starts at the size it was left in. The menu entry that picked 320x240
   outright is turned off.
+- **HUD** - in a match the timer stays at the top left and the health bars
+  at the top right, as close to the edges as at 4:3, instead of drifting to
+  the middle of the wider picture. The machine select and waiting screens
+  of a two-player game, whose photo backdrops sat in a black frame, fill
+  the screen.
 - **Split screen** - the **Screen Split** row on F5 offers **Ver** (side by
   side) and **Hor** (top and bottom). The third stock option, which
   duplicated the first, is gone. In side-by-side mode the timer and health
