@@ -160,24 +160,31 @@ unaffected.
 
 The HUD spread applies on any viewport wider than 4:3 - 1P and
 top/bottom split; side by side has no inset. At 4:3 the timer box sits
-82 px from the left edge and the health bars end 110 px short of the
-right; a centred frame carries both towards the middle. In a round
-(D_ROUND less sub-states 0xd/0xe) the post-3D 2D layer's band rows
-(above HIRES_HUD_BAND) are composited with the columns left of
-HIRES_HUD_SPREAD's split column (230: the timer and its digits) moved
-left by the frame's inset and the rest (PLAYER/ENEMY, the bars) moved
-right by it, so each keeps its 4:3 distance from the nearest edge; the
-pre-fill samples each column from where it lands (spread_row). The
-TOTAL time - 2D rows from 380, columns from 420 - moves right the same
-way. Polygons get the same offset in rescale when the outermost HUD
-pass is the in-game HUD (PASS0/PASS1: the bars, their frames and the
-timer box; hud_enter records the calling stub in D_PASSFN) and the
-polygon lies wholly in the band and wholly on one side of the split
-column; the reticle and the weapon strips are other passes and stay,
-and in a round the enemy marker is drawn outside the passes. The inset
-is the
-smaller of the frame's two margins inside the viewport (D_SPREAD),
-computed per call, 0 at 4:3.
+82 px from the left edge; a centred frame carries it towards the
+middle. In a round (D_ROUND less sub-states 0xd/0xe) the post-3D 2D
+layer's band rows (above HIRES_HUD_BAND) are composited with the
+columns left of HIRES_HUD_SPREAD's split column (230: the timer and
+its digits) moved left by the frame's inset, so the timer keeps its
+4:3 distance from the left edge; PLAYER/ENEMY and the bars stay
+centred. The pre-fill samples each column from where it lands
+(spread_row). The TOTAL time - 2D rows from 380, columns from 420 -
+moves right the same way. Polygons get the same offset in rescale when
+the outermost HUD pass is the in-game HUD (PASS0/PASS1: the bars,
+their frames and the timer box; hud_enter records the calling stub in
+D_PASSFN) and the polygon lies wholly in the band and wholly left of
+the split column; the reticle and the weapon strips are other passes
+and stay, and in a round the enemy marker is drawn outside the passes.
+The inset is the smaller of the frame's two margins inside the
+viewport (D_SPREAD), computed per call, 0 at 4:3.
+
+Top/bottom split draws the HUD at the side-by-side scale rather than
+the 4:3 that fits its half-height viewport (1.406 instead of 1.125 at
+1080p: HIRES_HUD_TB_ROWS caps it so frame rows 48..432 stay on
+screen), so both layouts show the HUD at one size. The frame's empty
+top and bottom rows fall outside the viewport: fit clips the
+composite, the pre-fill zero-fills the canvas rows it cannot sample,
+and the HUD projection's centre (D_CXH/D_CYH) is the viewport's, so
+the game culls what falls outside.
 
 The damage flash is the unit quad drawn as a grid of tiles (4 by 3 at
 16:9) through attribute block 0x791ad0, sized a fifth over the 4:3 frame,
@@ -220,7 +227,8 @@ The blob keys its layouts on D_LAYOUT (1P or single, Ver, Hor) rather
 than the split flag. When the layout changes, polygons already submitted
 that frame keep the old placement for that one frame.
 HIRES_DEBUG_STATES prints both machines' states on the frame through the
-game's GDI text.
+game's GDI text: MODE SUBMODE, MODE2 SUBMODE2, D_SHOW, then margins'
+tile scroll x, y and fine y and the two photo cells it read, in hex.
 
 ### GDI text
 

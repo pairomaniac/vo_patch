@@ -34,11 +34,11 @@ bits 32
 ; and the insert hooks scale every polygon to the HUD frame on the
 ; viewport. Outside a pass everything is left alone.
 ;
-; HUD spread: on a viewport wider than 4:3, in a round, the 2D layer's
-; rows above D_PINTH and the in-game HUD pass's polygons in them move
-; outward by the frame's inset - the timer left, PLAYER/ENEMY and the
-; bars right - so each keeps its 4:3 distance from the nearest edge;
-; the TOTAL time moves right the same way (spread_row, rescale).
+; HUD spread: on a viewport wider than 4:3, in a round, the timer (the
+; 2D layer's rows above D_PINTH left of D_SPLITC, and the in-game HUD
+; pass's polygons there) moves left by the frame's inset, keeping its
+; 4:3 distance from the left edge; the TOTAL time moves right the same
+; way (spread_row, rescale). The bars stay centred.
 ;
 ; Split-screen HUD band: in side by side the 4:3 HUD frame sits centred
 ; in a taller viewport. In a match the rows of the frame above D_PINTH
@@ -161,7 +161,8 @@ D_SPLITST equ 0x1e90            ; 64-bit mask of the sub-states drawn split
                               ; (patcher)
 D_DEBUG   equ 0x1e98            ; 1: print both machines' states on the frame
                               ; (patcher, HIRES_DEBUG_STATES)
-D_DBGSTR  equ 0x1ea0            ; the text, 32 bytes
+D_DBGSTR  equ 0x1ea0            ; the text, 32 bytes: "MM SS MM SS SH
+                              ; XXYYFF AAAA BBBB" fills 31
 D_F4MODE  equ 0x1ec0            ; 0: the first size is in place, 1: the second
 D_F4TAB   equ 0x1ec4            ; the F4 site table (patcher); see f4_toggle
 D_F4WANT  equ 0x1ec8            ; the F5 Screen choice: 1 for the second size
@@ -263,8 +264,8 @@ D_PX0     equ 0x1c90            ; source px, 16.16, and the source origin
 D_PY0     equ 0x1c94
 D_SPREAD  equ 0x1c98            ; HUD spread: viewport px the top groups
                                 ; move outward this call, 0 off (set in pre)
-D_SPLITC  equ 0x1ca4            ; frame column between the timer and the
-                                ; bars (patcher; 0 turns the spread off)
+D_SPLITC  equ 0x1ca4            ; frame column the timer ends before
+                                ; (patcher; 0 turns the spread off)
 D_BOTROW  equ 0x1db8            ; the TOTAL time: frame rows from here and
 D_BOTCOL  equ 0x1dbc            ; columns from here move right (patcher)
 D_PASSFN  equ 0x1dc0            ; the outermost HUD pass: its stub's offset
@@ -276,6 +277,8 @@ D_OFFX    equ 0x1d94            ; x rescale offset for the polygon in hand
 STUBS     equ 0x1a70            ; the pass stubs (UI_PASS_STUBS), 20 bytes
 STUB_LEN  equ 20                ; each, in UI_PASS_FUNCS order
 HUD_PASSES equ 2                ; the first two are the in-game HUD
+D_MSIGA   equ 0x1da0            ; margins: the two photo cells last read
+D_MSIGB   equ 0x1da4            ; (for the debug readout)
 D_ROWLAST equ 0x1d98            ; composite: the canvas row last examined
 D_ROWSAME equ 0x1d9c            ; and whether it was all copy (skipped)
 D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
@@ -1199,16 +1202,15 @@ post_out:
     popad
     ret
 
-; The HUD spread. At 4:3 the timer sits 82 px from the left edge and the
-; health bars end 110 px short of the right; on a wider viewport the 4:3
-; frame is centred and both drift towards the middle. In a round, the
-; 2D layer's band rows (above D_PINTH) and the in-game HUD pass's
-; polygons in them are moved by D_SPREAD viewport px - the frame's own
-; inset - outward: columns left of D_SPLITC (the timer and its digits)
-; to the left, the rest (PLAYER/ENEMY and the bars) to the right, so
-; each keeps its stock distance from the nearest edge whatever the
-; aspect. The TOTAL time, 2D layer rows from D_BOTROW and columns from
-; D_BOTCOL, goes right the same way. At 4:3 D_SPREAD is 0.
+; The HUD spread. At 4:3 the timer sits 82 px from the left edge; on a
+; wider viewport the 4:3 frame is centred and it drifts towards the
+; middle. In a round, the 2D layer's band rows (above D_PINTH) and the
+; in-game HUD pass's polygons in them that lie left of D_SPLITC - the
+; timer box and its digits - are moved left by D_SPREAD viewport px,
+; the frame's own inset, so the timer keeps its stock distance from
+; the left edge whatever the aspect; PLAYER/ENEMY and the bars stay
+; centred. The TOTAL time, 2D layer rows from D_BOTROW and columns
+; from D_BOTCOL, goes right the same way. At 4:3 D_SPREAD is 0.
 ;
 ; spread_row: eax is a canvas row; sets D_RTHR/D_RDXL/D_RDXR for the
 ; composite and the pre-fill. Clobbers ecx, edx.
@@ -1223,7 +1225,6 @@ spread_row:
     jge spread_row_low
     mov edx, [ebx+D_SPLITC]
     mov [ebx+D_RTHR], edx
-    mov [ebx+D_RDXR], ecx
     neg ecx
     mov [ebx+D_RDXL], ecx
     ret
@@ -1346,6 +1347,8 @@ margins_sy:
     mov esi, [ebx+D_ERING]
     movzx eax, word [esi+PHOTO_A]
     movzx ecx, word [esi+PHOTO_B]
+    mov [ebx+D_MSIGA], eax
+    mov [ebx+D_MSIGB], ecx
     lea edx, [ebx+photo_sig]
     mov edi, PHOTO_N
 margins_sig:
@@ -1567,18 +1570,34 @@ dbg_draw:
     inc edi
     mov eax, [SUBMODE]
     call dbg_hex
-    mov word [edi], 0x2020
-    add edi, 2
+    mov byte [edi], 0x20
+    inc edi
     mov eax, [MODE2]
     call dbg_hex
     mov byte [edi], 0x20
     inc edi
     mov eax, [SUBMODE2]
     call dbg_hex
-    mov word [edi], 0x2020
-    add edi, 2
+    mov byte [edi], 0x20
+    inc edi
     mov eax, [ebx+D_SHOW]
     call dbg_hex
+    mov byte [edi], 0x20             ; margins: tile scroll x, y, fine y,
+    inc edi                          ; and the two photo cells
+    mov eax, [ebx+D_MSX]
+    call dbg_hex
+    mov eax, [ebx+D_MSY]
+    call dbg_hex
+    mov eax, [ebx+D_MFY]
+    call dbg_hex
+    mov byte [edi], 0x20
+    inc edi
+    mov eax, [ebx+D_MSIGA]
+    call dbg_word
+    mov byte [edi], 0x20
+    inc edi
+    mov eax, [ebx+D_MSIGB]
+    call dbg_word
     mov byte [edi], 0
     mov ecx, [PRIMARY]
     push ecx
@@ -1596,6 +1615,11 @@ dbg_draw:
     pop ecx
     mov [PRIMARY], ecx
     ret
+dbg_word:                           ; low word of eax as four hex digits
+    push eax
+    shr eax, 8
+    call dbg_hex
+    pop eax
 dbg_hex:                            ; low byte of eax as two hex digits
     push eax
     shr eax, 4
@@ -1753,7 +1777,7 @@ rescale:
 rescale_offy:
     mov [ebx+D_OFFY], eax
     ; x offset: the spread, for the in-game HUD pass's polygons in the
-    ; band (PASS0/PASS1: the bars, their frames and the timer box)
+    ; band left of the split column (PASS0/PASS1: the timer box)
     mov eax, [ebx+D_OFFX16]
     mov ecx, [ebx+D_SPREAD]
     test ecx, ecx
@@ -1770,16 +1794,8 @@ rescale_offy:
     sub edi, [ebx+D_CXH]
     add edi, 320                    ; HUD frame column of the rightmost
     cmp edi, [ebx+D_SPLITC]
-    jg rescale_right
+    jg rescale_offx
     sub eax, ecx
-    jmp rescale_offx
-rescale_right:
-    mov edi, [ebx+D_XMIN]
-    sub edi, [ebx+D_CXH]
-    add edi, 320
-    cmp edi, [ebx+D_SPLITC]
-    jl rescale_offx
-    add eax, ecx
 rescale_offx:
     mov [ebx+D_OFFX], eax
     lea esi, [edx+0x10]
