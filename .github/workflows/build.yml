@@ -54,6 +54,11 @@ jobs:
       #          placeholders the apply-time sections fill - the mistakes
       #          nothing downstream notices.
       #          Writes nothing; nasm works in a temporary directory.
+      # ui       reassembles asm/ui.asm (built by tools/uibuild.py rather
+      #          than asm/build.py) and compares against the committed
+      #          UI_CODE. nasm is installed above, so this runner always
+      #          gets the real reassembly, never uibuild's no-toolchain
+      #          fingerprint fallback.
       # net      two mingw versions do not produce identical bytes, so the
       #          blob records a hash of net/dpctrl.c and this compares
       #          against that: "was the blob built from this source".

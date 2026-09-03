@@ -19,6 +19,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Better ini defaults** | `0x10acd7`, `0x10b088`, `0x10b131`, `0x10b1b0`–`0x10b1c4` | fallback immediates changed, Field Graphic branched into the Rich path |
 | **Motion Type 30 / 60 FPS** | `0x273c1`, `0x275d3`, `0x275e2`, `0x6035ac`, `0x60c064` | the radios write 2 and 1 instead of 3 and 2, dialog rebuilt with the new labels |
 | **Fix crash on round loss** | ten sites, `0x077f5a`–`0x0c0ada` | 42-byte blocks → `nop` |
+| **Fix the lock-on line** | `0x1d6da0`, `0x1e1e80`, `0x1d4850`, `0x1df7a0`, eleven `fdivr` sites per renderer from `0x1d23cc` and `0x1dd2ac` | the 2D quad submits' and mesh walkers' prologues call `lockline.asm` to flag the renderer; the clippers' re-projection divides by the aspect slot while it is up |
 | **Fix keyboard input after ALT+TAB** | signature | `push 6` → `push 0xA` at `SetCooperativeLevel` |
 | **Fix crash on ALT+TAB** | `0x1b0920`, `0x1c4aa2`, `0x1c5726`, `0x1c5412` | the intro movie's exit recreates the surfaces however the movie ended (`jne` → `jmp`); a recreate that fails pauses the game, arms the activation handler, and is retried from the idle pass |
 | **XInput gamepad support** | `0x0422a8`, `0x0422ac`, `0x1bc13b`, `0x1bc13f`, `0x095bdc`, `0x095217`, `0x1c530e`, `0x1c52ac`, `0x0971bd`, `0x096731`, the keyboard profile's eleven config-block references, `0x094ea0`, `0x096b61`, `0x096c8e`, F7 page constants, the Simple slot's page, handler, validation and load-route entries, `0x0959f7`, `0x095604`, `0x0958aa`, `0x096253`, `0x09625b`, the annex, `0x60b34e`, `0x285e04`, `0x2c7654`, `0x269b60`, the title artwork at `0x21c000` | routine, twin-stick tables and lever cleanup in the annex; handler, F7 page and picker tables repointed for both players; twin-stick's case sent past the joystick count; Keyboard (Simple) restored in the 2 Joysticks slot, with the shared bind page, its block and the live table forked by the pending device, its own "Simple Assign" ini line saved and loaded, and the list shown in display order through a position map; A writes the camera slot on the win and lose screens; a soft reset on LB, RB, Start and both triggers; two prompts renamed and the title banner redrawn |
@@ -26,6 +27,7 @@ replacement rather than a patch, see [net/](../net/).
 | **Disable menu bar (Extras menu on F11)** | `0x1c4d42`, `0x1c4d4b`, `0x1c4d7e`, appended `.voxt` section | the window procedure hooked, the dialog in the annex and its template in a small appended section, run through the same pause and resume as the built-in F-key dialogs |
 | **Version and credit in the game** | `0x1fcec8`, `0x1fcecc`, `0x2bbb54`, `0x1c5900`, `scrstfcg.bin`, `scrstfmp.bin` | the roll is a list of blocks, 12 bytes each as (flag, width, height) in cells, read from `0x6bcd48` and placed on 51 cells by the flag - `0x448e86` centres, `0x448f54` pushes flush right, and the roll's own text uses the latter where these two use the title's centring; the five blank spacers after the title become five entries carrying the same twenty rows with the lines centred in them, so nothing below moves and the roll keeps its length, the cells go into `scrstfmp.bin` at the same point, and the tiles on the end of `scrstfcg.bin`, whose indices the loader rebases at `0x483d9d`; the loader reads both files to byte counts held at `0x5fdac8` and `0x5fdacc` rather than to their size, so the two constants grow with them; separately, the load before the surface flip is diverted through a stub that prints the version in the corner of the title screen, in the tile font |
 | **Intro, loading and ending screens** | `0x14dc42`, `0x23f`, `0x2c7678`, `0x18fc25`, `0x0d60c8`, `0x1c58e7` | placement routine calls a stub in the annex, which measures the window through cnc-ddraw's own bypass export and sends a destination rect; loading string's first byte → `NUL`; credits handler's opening write calls a stub that puts the sequence past its last phase once A has been held a second, read from the key buffer slot since the press edges are not maintained in that state; the initials screen's two trigger tests replaced by a stub that adds the same slot; the call before the surface flip diverted through a stub that draws HOLD TO SKIP while the button is down |
+| **Native widescreen** | about 280 sites across `.text`, `.data` and `.rsrc`, appended `.vohr` section | every 640x480 assumption rewritten for the new size - mode setting, the viewport globals and row maths, the rasterizers' row tables and coverage mask, the projection scale, the polygon pool, the GDI text bounds and fonts, the F5 split labels; the 2D layer redirected through a canvas in the new section and composited back at scale; F4 switches to 1280x720 and back through a site table the blob copies at runtime; the ending letterbox skipped, the roll's edge clipping wired up and the tile planes' row-table overruns bounded, the roll window shifted to enter at the bottom, the strip watermarks floored and the roll's cut moved so the last line leaves; the enemy marker's window and the hangar's widened to the view. Translated onto the other two builds by table |
 
 Bold entries are not part of original VO_Patch. Offsets are the English
 retail build's, the ones the site table is keyed on; the other builds map
@@ -78,14 +80,17 @@ Nothing is a constant shift, so no address is derived from a neighbour's;
 each build carries its own.
 
 A build is a `Build` in `vo_patch.py`: its sections, where each blob goes,
-what every symbol the blobs name resolves to there, its title artwork,
-and for a build other than retail a site map and an annex. The site map is
-that build's offset and original bytes for every site the table names by
-retail offset, or `None` where the build has no such code; a site one
-build has and retail has not is written the other way round, as
-`In(md5, offset)`. The blobs are one set of bytes for all builds, linked
-from the build's tables when the patcher loads, and the site table's hooks
-and blob sites are expressions the build fills in.
+what every symbol the blobs name resolves to there, its title artwork, and
+for a build other than retail a site map and an annex.
+
+The site map is that build's offset and original bytes for every site the
+table names by retail offset, or `None` where the build has no such code; a
+site one build has and retail has not is written the other way round, as
+`In(md5, offset)`.
+
+The blobs are one set of bytes for all builds, linked from the build's
+tables when the patcher loads, and the site table's hooks and blob sites
+are expressions the build fills in.
 
 The tables are made, not typed. `tools/vomap.py` matches the two
 executables function by function with addresses masked and votes on where
@@ -246,16 +251,22 @@ DirectDraw surfaces released (`0x5b1320`) so the player can have the screen
 and recreated when the movie ends (`0x5b1510`).
 
 Switching away during the movie stops it: `0x54ea39` stops the movie and
-sets `0x6bead4`, "stopped by deactivation", and coming back `0x54e516`
-resumes it and clears the flag. Between those two the intro state polls the
-movie, finds it stopped and takes that for the end, so it calls the exit
-routine - whose first test is that same flag. Set, it clears it and returns
-without recreating anything. Movie mode ends, the normal loop starts, and
-nothing creates a surface again: the activation handler's own recreate
-(`0x5c6d2d`) is gated on `0x6bf570`, which the release cleared and only a
-successful recreate sets. The next frame reads a null back buffer at
-`0x5c8103`; guarded, it would read a null primary at `0x5c650b`, then a
-null `IDirectSound` at `0x58a244`.
+sets `0x6bead4`, "stopped by deactivation"; coming back, `0x54e516`
+resumes it. The flag is cleared only where it is read - the exit
+routine's test (`0x5b1519`, clear at `0x5b1526`, an unconditional clear
+at `0x5b14c4` earlier in the same path) and the activation handler's
+recreate (`0x5c6d14`) - not by the resume.
+
+Between those two the intro state polls the movie, finds it stopped and
+takes that for the end, so it calls the exit routine - whose first test is
+that same flag. Set, it clears it and returns without recreating anything.
+
+Movie mode ends, the normal loop starts, and nothing creates a surface
+again: the activation handler's own recreate (`0x5c6d2d`) is gated on
+`0x6bf570`, which the release cleared and only a successful recreate sets.
+The next frame reads a null back buffer at `0x5c8103`; guarded, it would
+read a null primary at `0x5c650b`, then a null `IDirectSound` at
+`0x58a244`.
 
 Making the exit recreate anyway - the `jne` at `0x5b1520` becomes a `jmp` -
 is half the fix. That recreate runs the moment the stop is noticed, with the
@@ -324,8 +335,9 @@ does the middle one. So that branch is replaced with a jump into the Rich
 block and the fifteen bytes padded out.
 
 `ScrSize` is a bit field rather than a size: bit 0 is Screen Normal, bit 2 is
-low resolution, the 320x240 mode F4 toggles. A default of 0 is Screen Large at
-640x480.
+low resolution, the 320x240 mode F4 toggles. Under **Native widescreen**
+bit 0 means 1280x720 instead (F4 or F5 Screen), and bit 2 is unused. A
+default of 0 is Screen Large at 640x480.
 
 ### Lose-a-round crash
 
@@ -363,19 +375,26 @@ mirror, so both sides are the same routine with a different parameter block.
 The device number keys three tables, not one, and all three had to move
 together: the profile switch at `0x442ea4` picks the handler, `0x4967d4`
 picks the F7 page, and `0x495e0f` validates the device saved in `v_on.ini`
-at startup. The picker skips device slots whose name pointer is null, so
-hiding the legacy profiles is zeroing the rest. Two validation entries skip
-the joystick-presence check now, not one: a keyboard in device 3 must not
-have its saved selection reset for lack of a stick. A last common check
-also demanded the DirectInput joystick subsystem whenever either player's
-saved device was 3 or 7, forcing both to the gamepad and skipping the whole
-ini load when a controller was off at boot - it is 7-only now.
+at startup.
 
-The F7 page has a check of its own, and twin-stick failed it. Before reading
-the two combo boxes, the OK handler at `0x49716e` counts the joysticks
-enumerated at startup, then spends one per selection through a second table
-at `0x497331`, refusing the page if a counter goes negative. It refuses by
-putting focus back on the combo, with no message, so the button looked dead.
+The picker skips device slots whose name pointer is null, so hiding the
+legacy profiles is zeroing the rest. Two validation entries skip the
+joystick-presence check now, not one: a keyboard in device 3 must not have
+its saved selection reset for lack of a stick.
+
+A last common check also demanded the DirectInput joystick subsystem
+whenever either player's saved device was 3 or 7, forcing both to the
+gamepad and skipping the whole ini load when a controller was off at boot -
+it is 7-only now.
+
+The F7 page has a check of its own, and twin-stick failed it. Before
+reading the two combo boxes, the OK handler at `0x49716e` counts the
+joysticks enumerated at startup, then spends one per selection through a
+second table at `0x497331`, refusing the page if a counter goes negative.
+
+It refuses by putting focus back on the combo, with no message, so the
+button looked dead.
+
 Twin-stick spent a joystick it did not need - it reads the pad through
 XInput - and a pad plugged in after launch was never enumerated, which is
 why a restart appeared to fix it. Its case now goes straight to the check,
@@ -429,11 +448,12 @@ Simple and the gamepad share one bind page, told apart by device:
 33 named keys or the 16 pad inputs - and `asm/bindblock.asm` (and
 `asm/blockcur.asm` for the store, whose call site passes a fused
 player-and-slot index) picks the saved block, `+0x08` for the gamepad and
-`+0x38`, the slot's own, for Simple. The device consulted is the
-structure's own `+0x00` dword, the pending pick the F7 screen edits, not
-the committed copy at `0x3651540`: the bind page and the live-table apply
-both run before OK commits, and against the committed device they would
-serve the profile being switched away from.
+`+0x38`, the slot's own, for Simple.
+
+The device consulted is the structure's own `+0x00` dword, the pending pick
+the F7 screen edits, not the committed copy at `0x3651540`: the bind page
+and the live-table apply both run before OK commits, and against the
+committed device they would serve the profile being switched away from.
 
 The letter and digit sections are generated, not listed, and belong to
 Simple alone: `asm/pagesec.asm` and `asm/pagesel.asm` skip them for the
@@ -446,29 +466,31 @@ that match nothing it lists.
 The page seeds its block from the live table at open - and with two
 profiles sharing one live table, an unconditional seed would copy the
 active profile's binds into the other's block, so `asm/blockcur.asm`'s
-wrapper runs it only when the page's device is the committed one. The same
-sharing is why the device page's plain OK needs help: stock, it commits
-the device number and writes the "NP Device No." lines only, since every
-original device family kept its own live table. `asm/commitdev.asm` wraps
-that commit and reseeds the live table from the new device's block when it
-is one of the keyboard-page pair, so a switch takes effect without a trip
-through the bind page.
+wrapper runs it only when the page's device is the committed one.
+
+The same sharing is why the device page's plain OK needs help: stock, it
+commits the device number and writes the "NP Device No." lines only, since
+every original device family kept its own live table. `asm/commitdev.asm`
+wraps that commit and reseeds the live table from the new device's block
+when it is one of the keyboard-page pair, so a switch takes effect without
+a trip through the bind page.
 
 One relaxation narrows: 2P may reuse 1P's key only while 1P is on a pad
 profile, since device 3 makes 1P's keys live again.
 
 #### Saving and loading
 
-Persistence needed its own channel: the structure's blocks reach
-`v_on.ini` as one "Assign" line per player through a per-device dispatch
-at `0x496e4f`, and the slot Simple took over had none - a second copy of
-the startup defaults call re-filled `+0x38` with legacy joystick data on
-every launch. On OK, devices 1 and 3 both route through `asm/inisave.asm`,
-which writes "NP Simple Assign" as hex pairs and falls into the stock
-device 1 case, so "NP Keyboard Assign" always carries the gamepad's set
-and neither profile loses its binds while the other is selected. The hex
-text is built in the dialog frame's own line buffer rather than a static
-one of its own.
+Persistence needed its own channel: the structure's blocks reach `v_on.ini`
+as one "Assign" line per player through a per-device dispatch at
+`0x496e4f`, and the slot Simple took over had none - a second copy of the
+startup defaults call re-filled `+0x38` with legacy joystick data on every
+launch.
+
+On OK, devices 1 and 3 both route through `asm/inisave.asm`, which writes
+"NP Simple Assign" as hex pairs and falls into the stock device 1 case, so
+"NP Keyboard Assign" always carries the gamepad's set and neither profile
+loses its binds while the other is selected. The hex text is built in the
+dialog frame's own line buffer rather than a static one of its own.
 
 On launch the loader routes each player by saved device, and slot 3's route
 was "load nothing" - right for 2 Joysticks, whose data was re-derived from
@@ -494,17 +516,18 @@ them, so with the patch in the blob's bytes were the index and the loop
 crashed on its way back to the title screen.
 
 The stick deadzones load on the same exit: 40% per player unless that
-player's `1P Deadzone=` or `2P Deadzone=` line says otherwise - two
-digits, 05 to 95, anything else keeps the default; an entry the F11 box
-rejects is re-seeded to the percent in force, so it neither lingers nor
-blanks. The key strings ride
-in the names blob rather than beside the Assign keys, whose run turns
-out to end within nine bytes of them. The thresholds the
-tick compares against - per player, indexed by the parameter block's
-own index - are the percent of 32767, and the condition table's axis
-values only pick the side of zero now. The F11 dialog writes both
-lines back through the game's own line writer when it closes; the
-lines are also hand-editable.
+player's `1P Deadzone=` or `2P Deadzone=` line says otherwise - two digits,
+05 to 95, anything else keeps the default; an entry the F11 box rejects is
+re-seeded to the percent in force, so it neither lingers nor blanks.
+
+The key strings ride in the names blob rather than beside the Assign keys,
+whose run turns out to end within nine bytes of them. The thresholds the
+tick compares against - per player, indexed by the parameter block's own
+index - are the percent of 32767, and the condition table's axis values
+only pick the side of zero now.
+
+The F11 dialog writes both lines back through the game's own line writer
+when it closes; the lines are also hand-editable.
 
 #### Pad buttons outside the binds
 
@@ -544,15 +567,19 @@ Start alone is F3, pause, and a paused game never runs the tick.
 No dialog resource ever existed, so one is built at runtime from a template
 in the `.voxt` section this patch appends. Every control carries the game's
 own command ID, so clicks go straight to the main window, and the check
-boxes read the game's own flags. **Credits** is the one control with no
-menu item behind it, so the dialog procedure writes the sub-state itself -
-the title machine's, so it shows that sequence rather than the one a finished
-game runs. It is in the *Debug* box with the rest all the same, since what it
-does to a running match is the same kind of thing. F11 because F9
-disconnects a network game and F10 is a Windows system key. The dialog
-runs through `asm/f11pause.asm`, which wraps it in the same pause and
-resume calls the built-in F-key dialogs use, so the game and the music
-stop and restart around it identically.
+boxes read the game's own flags.
+
+**Credits** is the one control with no menu item behind it, so the dialog
+procedure writes the sub-state itself - the title machine's, so it shows
+that sequence rather than the one a finished game runs. It is in the
+*Debug* box with the rest all the same, since what it does to a running
+match is the same kind of thing.
+
+F11 because F9 disconnects a network game and F10 is a Windows system key.
+
+The dialog runs through `asm/f11pause.asm`, which wraps it in the same
+pause and resume calls the built-in F-key dialogs use, so the game and the
+music stop and restart around it identically.
 
 Motion is not among them any more, the F5 page having taken it over.
 
@@ -604,6 +631,23 @@ makes. cnc-ddraw exports `DDGetProcAddress` for this, which forwards to the
 real `GetProcAddress`, and asking it for user32's `GetClientRect` gives the
 unhooked one.
 
+The size the game passes is its window for the movie - 640x400, 320x200
+or 640x440 - not the movie's: `von.avi` is 320x240, with the picture
+letterboxed inside it (rows 30..209, 16:9 exactly, with a dim edge row
+either side that reads as a thin bar if included). mciavi stretches the frame
+to whatever the window is, so the fitted rectangle has to take the shape
+from the file, through `MCI_WHERE` with `MCI_ANIM_WHERE_SOURCE`, and only
+fall back to the game's numbers if that fails. The letterbox is in the
+frames themselves, so with the frame size known the stub fits the band
+rather than the frame and sends the band as an `MCI_ANIM_PUT_SOURCE`
+rect: 1878x1080 on a 1080p screen. The size query carries
+`MCI_DGV_WHERE_MAX`: the placement runs more than once, and a plain
+`WHERE_SOURCE` answers with the source rect the previous run set, so
+each run would crop the crop (seen: 320x141 after two). The band is measured on the retail
+file (MD5 `1ba89e5aa2098b87208225b8cd698aa8`) and applied as a fraction
+of the frame height; the fallback path, without a frame size, crops
+nothing.
+
 That is more than an edit, so it is a stub in the annex - see
 [asm/](../asm/). Without cnc-ddraw the import is already the real function and
 the result is what the game did before. mciavi does not follow the window, so
@@ -612,15 +656,16 @@ of its own.
 
 ### Ending screens
 
-There are two credit sequences. The one the **Credits**
-button reaches is sub-state `0x20` of the title machine `0x1ae3690`, whose
-handler at `0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the
-ending cutscene and the mission complete screen, 2 is the roll, and anything
-else falls through to a tail that stops the music and moves on. The one a
-finished game reaches is state 32 of the main-game machine `0x1ef9eb0`, whose
-draw table is `0x606fa0`; entry 32 is `0x44a523`, a phase machine on
-`0xbf073c` that runs the roll through `0x4489d6` in its phase 2. The title
-machine's logic table is `0x5ff1c0`.
+There are two credit sequences. The one the **Credits** button reaches is
+sub-state `0x20` of the title machine `0x1ae3690`, whose handler at
+`0x59081f` is a phase machine on `0x1ad0964`: 0 and 1 are the ending
+cutscene and the mission complete screen, 2 is the roll, and anything else
+falls through to a tail that stops the music and moves on.
+
+The one a finished game reaches is state 32 of the main-game machine
+`0x1ef9eb0`, whose draw table is `0x606fa0`; entry 32 is `0x44a523`, a
+phase machine on `0xbf073c` that runs the roll through `0x4489d6` in its
+phase 2. The title machine's logic table is `0x5ff1c0`.
 
 Both read the same block list and the same map, so the credit line lands in
 either; only the scenery behind them differs. Skipping is one write,
@@ -685,3 +730,14 @@ all. All three are set out in [TEXT.md](TEXT.md).
 The mech select screen's *PRESS  BUTTON* and *MACHINE SELECT* are
 pre-rendered word sprites rather than text, and appear in no file as a
 string, so they are left as they are.
+
+### Native widescreen
+
+Lives in vo_patch.py (the section headed "The resolution patch"), blob
+source in asm/ui.asm, built by tools/uibuild.py. Design, the game structures
+it rewrites (viewport globals, row tables, coverage mask, projection,
+the two 2D engines, the two renderer copies), and the full record of
+the JP/OEM porting attempt - what broke, what it taught, and the
+per-build addresses recovered - are in docs/HIRES.md. The other two
+builds' tables are generated by tools/hiresport.py and spliced into
+vo_patch.py between the PORT TABLES markers.

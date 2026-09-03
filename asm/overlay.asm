@@ -22,11 +22,11 @@ extern HELD                     ; credits.asm's hold count
 extern PRIMARY                  ; the surface DRAW paints on, and the one
 extern BACK                     ; that is about to be flipped over it
 
-extern FSFLAGS                  ; the pause text halves its coordinates
-extern FSMODE                   ; on these two, at 0x5c9a98
+extern FBX                      ; picture origin and size on the surface,
+extern FBY                      ; set per mode at 0x5c88ac; 0,0 and 640x480
+extern FBW                      ; in the stock full-screen mode, and
+extern FBH                      ; already halved by it in low resolution
 
-X           equ 320             ; of 640 by 480, halved in low resolution
-Y           equ 440
 COLOUR      equ 0x0000ff00
 
 overlay:
@@ -44,15 +44,21 @@ overlay:
     jne     .out
     cmp     byte [HELD], 0
     je      .out
-    mov     eax, X
-    mov     edx, Y
-    test    byte [FSFLAGS], 4
-    jz      .full
-    cmp     dword [FSMODE], 0
-    je      .full
-    sar     eax, 1
-    sar     edx, 1
-.full:
+    ; 320,440 of the stock 640x480, computed from the picture geometry so
+    ; a resized mode places it the same way. No low-resolution halving
+    ; here: 0x5c88ac halves these four globals itself under FSFLAGS bit 2
+    ; (its sar block at 0x5c89f4), unlike the constants the pause text
+    ; passes, which are in 640x480 terms and halved at the call site.
+    mov     eax, [FBH]
+    imul    eax, eax, 11        ; y = top + height * 440/480
+    mov     ecx, 12
+    cdq
+    idiv    ecx
+    add     eax, [FBY]
+    mov     edx, eax
+    mov     eax, [FBW]          ; x = left + width / 2
+    shr     eax, 1
+    add     eax, [FBX]
     ; DRAW paints on the primary surface, which is what the pause screen
     ; wants: it is not flipping, so the text stays up. Here the frame is
     ; about to flip the back buffer over it, so point it at that instead

@@ -20,6 +20,7 @@ import ctypes
 import errno
 import hashlib
 import io
+import math
 import os
 import queue
 import re
@@ -34,6 +35,2335 @@ import urllib.request
 import zipfile
 import zlib
 import urllib.error
+
+
+# ==========================================================================
+# The resolution patch: the game at a size other than 640x480. docs/HIRES.md
+# describes it; this is the short form.
+#
+# hires_install takes any size the sites can carry, and the window applies
+# 1920x1080. Nothing here overlaps the other patches' sites, and it goes on
+# last, after nodisc.
+#
+# What it changes:
+#
+#   -  Mode, window, the places that refuse any mode but 640x480 and
+#      320x240 (including a mode-availability check that hangs on a black
+#      screen if the display does not enumerate the new mode), viewport
+#      sizes and the projection scale.
+#   -  The perspective-subdivision thresholds, which are in pixels.
+#   -  The renderer's coverage mask: one bit per pixel, 80 bytes a row, 480
+#      rows, in .data with other globals right behind it. It moves to a new
+#      section sized for the new width and height, and the row stride
+#      changes everywhere the renderer has it.
+#   -  The 2D layer (HUD, fonts, backdrops, menus) is drawn at its designed
+#      size into an offscreen buffer and scaled onto its viewport each time
+#      the game calls it, so it keeps its layout and art
+#      (nearest-neighbour). In a wide mode backdrops cover the
+#      full width and the HUD stays 4:3, centred, except that in a
+#      round the timer keeps its 4:3 distance from the left edge and the
+#      health bars with their labels are centred as a group
+#      (HIRES_HUD_SPREAD, HIRES_HUD_BARS); the two-player screens'
+#      496x384 photos are rescaled over the whole viewport.
+#   -  HUD polygons (bars, frames, timer box, reticle, weapon strips,
+#      machine select, cursors) are projected at 640x480 and scaled at
+#      insert to the same 4:3 frame as the 2D layer, so both layers share
+#      one grid whatever the field of view. What counts as HUD is decided
+#      by where it is drawn from: the functions that own the HUD
+#      projection setups (UI_PASS_FUNCS) are wrapped, and everything
+#      submitted while one of them is running is HUD.
+#   -  The machine-select hangar draws a platform mech while it is within
+#      an angle window sized for 4:3; the window is widened to the view,
+#      as is the enemy marker's on-screen test, which decides when the
+#      edge arrow takes over. The renderer's polygon cap is raised to
+#      HIRES_POLYS.
+#   -  The ending roll loses its black bands: the tile window enters at
+#      the bottom and leaves through the top, and the driver's cut moves
+#      so the last line leaves too.
+#   -  Split screen: side by side is two W/2 x H viewports, top/bottom two
+#      W x H/2 (instead of the game's staggered 320x240 boxes). Each gets
+#      a field of view between the 4:3 frame that fits inside it and the
+#      one that covers it (HIRES_SPLIT_FOV); the HUD is drawn at its own
+#      scale: the 4:3 that fits side by side, and the same size top/bottom
+#      (HIRES_HUD_TB_ROWS), where the frame's empty top and bottom rows
+#      are cut. In side by side, where the 4:3 HUD frame sits
+#      centred in a taller viewport, the timer and health bars (frame
+#      rows above HIRES_HUD_BAND) are pinned to the viewport top during
+#      a match; the 2D layer and the HUD polygons move together. The
+#      split is drawn only in the sub-states that draw a round
+#      (HIRES_SPLIT_STATES); every other frame is one full-screen
+#      viewport, so the machine select is no longer the same grid twice.
+#   -  F4 and the F5 Screen row (720p / 1080p) switch between 1920x1080
+#      and 1280x720 (HIRES_ALT): the sites are written for the first, and
+#      a table in the section holds both sets for the blob to copy over
+#      them at runtime, then the surfaces are recreated. The choice is
+#      saved as bit 0 of ScrSize. The 320x240 menu command is defused.
+#
+# The exe grows by one section: 15 KB on disk - 6 KB of code, the pass
+# stubs, the data block and the F4 site table - plus a header; the
+# canvas, mask, row-table and pool buffers are zero-filled by the loader.
+#
+# Width must be a multiple of 32 and at most 2040 (the coverage-mask
+# stride is an 8-bit immediate in ten places). Nothing else is tied to a
+# particular size: scales, offsets and the split factors are computed
+# from the width and height. Tested at 1280x720, 1280x960 and 1920x1080,
+# 1P and both split layouts. In a wide mode the 3D is Hor+ (same
+# vertical field of view, more at the sides); the sky dome was built for
+# 4:3 and may not reach the edges.
+#
+# The PORT table below carries the other builds: every site and address
+# translated by tools/hiresport.py from a vomap map of each, and
+# port_sites redoes the handful of rewrites that depend on the build's
+# own bytes. docs/HIRES.md, Porting to other builds.
+# ==========================================================================
+
+
+
+
+BASE_W, BASE_H = 640, 480
+
+# Each site is (file offset, old bytes, new bytes) built from W and H.
+# Offsets are of the immediate, not the instruction, unless noted.
+
+
+def u32(v):
+    return struct.pack('<I', v & 0xffffffff)
+
+
+def f32(v):
+    return struct.pack('<f', v)
+
+
+def imm_sites(offsets, old, new):
+    return [(o, u32(old), u32(new)) for o in offsets]
+
+
+# --- 2D layer ---------------------------------------------------------
+# The 2D code (HUD, fonts, backdrops, menus) draws in pixel coordinates
+# through the frame globals and the row table. 0x5c80df calls it four
+# times a frame: 0x4800d0/0x4804f0 for viewport 1 before and after the
+# 3D flush, 0x5670c0/0x5674f0 for viewport 2 in split screen. Each call
+# is redirected to a stub that points the viewport's globals at a
+# 640x480 offscreen canvas, pre-filled with the viewport's own pixels
+# sampled down (a copy is kept), hides the split flag so split viewports
+# get the full-size layout, calls the original, then composites every
+# pixel that differs from the copy back onto the viewport with uniform
+# nearest-neighbour scaling, centred, and restores the globals and row
+# table. Translucent elements therefore blend against the real
+# background. In the pre-3D phase (backdrops) the canvas has the
+# viewport's own aspect, unless nothing was painted beyond the 4:3
+# width, in which case it is treated as 4:3 (logos, title, menus); in
+# split it is always 4:3. The post phase (HUD) is 4:3. When the last 3D
+# flush drew nothing, the margins take the picture's top-row colour
+# when that row is all one colour, else black. The canvas has 480 guard
+# rows above and below, since the 2D code draws outside the
+# viewport in split screen. Source: asm/ui.asm; nasm like the rest of
+# asm/, but built by tools/uibuild.py since it is position independent
+# apart from the four calls fixed up here.
+
+def _pe_stamp(buf):
+    pe = struct.unpack_from('<I', buf, 0x3c)[0]
+    return struct.unpack_from('<I', buf, pe + 8)[0]
+
+
+RETAIL_STAMP = 0x334d33fc
+
+# GENERATED - do not edit by hand. tools/hiresport.py writes these from a
+# vomap.py map of each build; regenerate rather than editing.
+# PORT TABLES BEGIN
+PORT = {
+    '345107fa': {                       # jp.exe
+        'va': {
+            0x00408790: 0x00408700,
+            0x00427ec9: 0x00427b29,
+            0x00428241: 0x00427ea1,
+            0x0042cda6: 0x0042cac8,
+            0x00432fbe: 0x0043270e,
+            0x00433141: 0x00432891,
+            0x00460b70: 0x0045fbf0,
+            0x00460cf3: 0x0045fd73,
+            0x0047f2e0: 0x0047de90,
+            0x004800d0: 0x0047ec80,
+            0x004803d0: 0x0047ef80,
+            0x00480410: 0x0047efc0,
+            0x004804f0: 0x0047f0a0,
+            0x004b6030: 0x004b43a0,
+            0x004b981f: 0x004b7a61,
+            0x004c468e: 0x004c24d6,
+            0x004d0280: 0x004cde03,
+            0x004d9c3d: 0x004d715b,
+            0x0050bcc6: 0x0050844c,
+            0x0050c0cb: 0x00508851,
+            0x00514430: 0x00510960,
+            0x0051444d: 0x0051097d,
+            0x0051448e: 0x005109be,
+            0x00514576: 0x00510aa6,
+            0x0051457c: 0x00510aac,
+            0x00531f6a: 0x0052e2ad,
+            0x005495b1: 0x00544c21,
+            0x0055d221: 0x00558711,
+            0x005670c0: 0x00562400,
+            0x005673c0: 0x00562700,
+            0x00567400: 0x00562740,
+            0x005674f0: 0x00562830,
+            0x0057f1b0: 0x0057a480,
+            0x005829c3: 0x0057db65,
+            0x0058881e: 0x0058390a,
+            0x00588d85: 0x00583e71,
+            0x0059cb93: 0x00597993,
+            0x005a1f3c: 0x0059ccd4,
+            0x005a251b: 0x0059d2b3,
+            0x005b5f2e: 0x005b0bb6,
+            0x005c56a2: 0x005bff42,
+            0x005c680b: 0x005c10da,
+            0x005c755a: 0x005c1e29,
+            0x005c79aa: 0x005c2279,
+            0x005c7dfe: 0x005c26cd,
+            0x005c813a: 0x005c2a09,
+            0x005c814c: 0x005c2a1b,
+            0x005c8188: 0x005c2a57,
+            0x005c819a: 0x005c2a69,
+            0x005c8317: 0x005c2be6,
+            0x005c8ca0: 0x005c34e6,
+            0x005c991c: 0x005c4198,
+            0x005cc39d: 0x005c6c3d,
+            0x005cc3de: 0x005c6c7e,
+            0x005cc4c6: 0x005c6d66,
+            0x005cc4cc: 0x005c6d6c,
+            0x005ce180: 0x005c8a10,
+            0x005d1db0: 0x005cc640,
+            0x005dcc80: 0x005d7510,
+            0x00624728: 0x0061f4b0,
+            0x0066c17c: 0x00668104,
+            0x0066c180: 0x00668108,
+            0x0066c190: 0x00668118,
+            0x006a0240: 0x0069bfa0,
+            0x006bc1e4: 0x006b7f44,
+            0x006bc1e8: 0x006b7f48,
+            0x006bc948: 0x006b86a8,
+            0x006bc94c: 0x006b86ac,
+            0x006bf598: 0x006bb2b0,
+            0x006bf5a8: 0x006bb2c0,
+            0x006bf5ac: 0x006bb2c4,
+            0x006bf5b0: 0x006bb2c8,
+            0x006bf5b8: 0x006bb2d0,
+            0x006bf5bc: 0x006bb2d4,
+            0x006c84c8: 0x006c41e0,
+            0x006c84cc: 0x006c41e4,
+            0x006c866c: 0x006c4384,
+            0x006c8b24: 0x006c48b4,
+            0x006c8b28: 0x006c48b8,
+            0x006c8ce8: 0x006c4a78,
+            0x006d0dc4: 0x006ccb54,
+            0x006db4c8: 0x006d7258,
+            0x006db4d0: 0x006d7260,
+            0x006db4d4: 0x006d7264,
+            0x006db530: 0x006d72c0,
+            0x006db534: 0x006d72c4,
+            0x007001d0: 0x006fbf60,
+            0x007087a0: 0x00704530,
+            0x00708818: 0x007045a8,
+            0x0070881c: 0x007045ac,
+            0x00708820: 0x007045b0,
+            0x00708870: 0x00704600,
+            0x00708874: 0x00704604,
+            0x00725f50: 0x00721ce0,
+            0x00791ad0: 0x0078d860,
+            0x00be4300: 0x00bdef40,
+            0x00bf5f78: 0x00bf0bd8,
+            0x00bf5f7c: 0x00bf0bdc,
+            0x01ad0030: 0x01acacb0,
+            0x01ad0034: 0x01acacb4,
+            0x01ae3594: 0x01adcdf0,
+            0x01ae3690: 0x01addc40,
+            0x01ae5f40: 0x01ae0c34,
+            0x01ae5f5c: 0x01ae0c18,
+            0x01cc6700: 0x01cc13b0,
+            0x01ef1140: 0x01edfd90,
+            0x01ef8a90: 0x01ef4230,
+            0x01ef9eb0: 0x01ef5ac8,
+            0x01efb728: 0x01ef63c8,
+            0x01efb730: 0x01ef63d0,
+            0x033cd5f4: 0x033c8280,
+            0x034155c8: 0x0340ffc8,
+            0x034155d0: 0x0340ffd0,
+            0x0345b2c8: 0x03455d88,
+            0x0345bd58: 0x034569a8,
+        },
+        'off': {
+            0x0224e9: (0x022159, '00480000'),
+            0x0224fa: (0x02216a, '00900000'),
+            0x022600: (0x022270, '00380000'),
+            0x022611: (0x022281, '00700000'),
+            0x022706: (0x022376, '00380000'),
+            0x022717: (0x022387, '00700000'),
+            0x0272c4: (0x026f24, 'a340efbd00'),
+            0x02763c: (0x02729c, 'a3b0b26b00'),
+            0x02c1a6: (0x02bec8, '558bec81eca8000000'),
+            0x0323be: (0x031b0e, '558bec83ec04'),
+            0x032541: (0x031c91, '558bec5356'),
+            0x05ff70: (0x05eff0, '558bec83ec04'),
+            0x0600f3: (0x05f173, '558bec5356'),
+            0x074ed0: (0x073eba, '00150000'),
+            0x074edf: (0x073ec9, '00ebffff'),
+            0x075038: (0x074022, '00150000'),
+            0x075047: (0x074031, '00ebffff'),
+            0x07e504: (0x07d0b4, '8b0da8866b003bc80f84bd010000'),
+            0x07f2e0: (0x07de90, '56a108816600'),
+            0x07f88d: (0x07e43d, '8b1495e0326c00'),
+            0x07f8dd: (0x07e48d, '8b1495e0326c00'),
+            0x07f96c: (0x07e51c, '32'),
+            0x07f99b: (0x07e54b, '81e1ffff0000'),
+            0x07fa63: (0x07e613, 'b8080000002bc350'),
+            0x07fd37: (0x07e8e7, '31'),
+            0x07fd71: (0x07e921, 'e0326c00'),
+            0x07fe39: (0x07e9e9, '8b1495e0326c00'),
+            0x07fe9e: (0x07ea4e, '8b1495e0326c00'),
+            0x080074: (0x07ec24, '0f85a6000000'),
+            0x0802f9: (0x07eeb9, '8b1495e0326c00'),
+            0x0804e7: (0x07f0a7, '83e27f'),
+            0x080565: (0x07f125, '83e27f'),
+            0x0808f8: (0x07f4b6, '83e27f'),
+            0x080a0d: (0x07f5cb, '83e27f'),
+            0x080c74: (0x07f828, '83e27f'),
+            0x080e17: (0x07f9d6, '83e27f'),
+            0x081046: (0x07fcb6, '83e27f'),
+            0x0811ec: (0x07fe87, '83e27f'),
+            0x081498: (0x08012a, '83e27f'),
+            0x081611: (0x080295, '83e27f'),
+            0x081bf6: (0x08086d, '83e27f'),
+            0x081ea6: (0x080ae7, '83e27f'),
+            0x082174: (0x080d93, '83e27f'),
+            0x0823b3: (0x080fdd, '83e27f'),
+            0x0827d4: (0x081400, '83e27f'),
+            0x082944: (0x08156f, '83e27f'),
+            0x082c82: (0x0818a6, '83e27f'),
+            0x082d06: (0x08192a, '83e27f'),
+            0x082f07: (0x081b3a, '83e27f'),
+            0x082f8b: (0x081bc8, '83e27f'),
+            0x08325d: (0x081ec2, '83e27f'),
+            0x0832ef: (0x081f5d, '83e27f'),
+            0x0834f3: (0x082187, '83e27f'),
+            0x083577: (0x08220b, '83e27f'),
+            0x0b5430: (0x0b37a0, '558bec83ec34'),
+            0x0b8c1f: (0x0b6e61, '558bec83ec34'),
+            0x0c3a8e: (0x0c18d6, '558bec81ec8c000000'),
+            0x0cf680: (0x0cd203, '558bec535657'),
+            0x0d903d: (0x0d655b, '558bec81eca8000000'),
+            0x10b0c1: (0x107847, '68a0bf6900'),
+            0x10b4c6: (0x107c4c, 'a1b0b26b00'),
+            0x11384d: (0x10fd7d, '558bec535657'),
+            0x11388e: (0x10fdbe, '558bec535657'),
+            0x113976: (0x10fea6, '558bec535657'),
+            0x13136a: (0x12d6ad, '558bec535657'),
+            0x147b60: (0x1432da, '00150000'),
+            0x147b6f: (0x1432e9, '00ebffff'),
+            0x147cc8: (0x143442, '00150000'),
+            0x147cd7: (0x143451, '00ebffff'),
+            0x1489b1: (0x144021, '558bec83ec10'),
+            0x15c621: (0x157b11, '558bec83ec10'),
+            0x166885: (0x161bc5, '8b1495e0326c00'),
+            0x1668dd: (0x161c1d, '8b1495e0326c00'),
+            0x16696c: (0x161cac, '32'),
+            0x16699b: (0x161cdb, '81e1ffff0000'),
+            0x166a63: (0x161da3, 'b8080000002bc750'),
+            0x166d37: (0x162077, '31'),
+            0x166d79: (0x1620b9, 'e0326c00'),
+            0x166e41: (0x162181, '8b1495e0326c00'),
+            0x166eae: (0x1621ee, '8b1495e0326c00'),
+            0x167084: (0x1623c4, '0f85a6000000'),
+            0x167321: (0x162661, '8b1495e0326c00'),
+            0x17e5b0: (0x179880, '558bec83ec34'),
+            0x181dc3: (0x17cf65, '558bec83ec34'),
+            0x187c1e: (0x182d0a, '558bec83ec0c'),
+            0x188185: (0x183271, '558bec83ec0c'),
+            0x189977: (0x184d87, '16'),
+            0x18e341: (0x1894ee, 'e2100000'),
+            0x18e7b9: (0x189893, 'e3100000'),
+            0x18e949: (0x189a23, 'e83863f8ff'),
+            0x18ea14: (0x189aee, 'd8dcffff'),
+            0x19d8ea: (0x1986ea, 'e8a4e6ffff'),
+            0x1a133c: (0x19c0d4, '558bec83ec0c'),
+            0x1a191b: (0x19c6b3, '558bec83ec0c'),
+            0x1b098b: (0x1ab647, 'e0010000'),
+            0x1b0990: (0x1ab64c, '80020000'),
+            0x1b532e: (0x1affb6, '558bec81ec8c000000'),
+            0x1bd799: (0x1b8159, '00480000'),
+            0x1bd7aa: (0x1b816a, '00900000'),
+            0x1bd8b0: (0x1b8270, '00380000'),
+            0x1bd8c1: (0x1b8281, '00700000'),
+            0x1bd9b6: (0x1b8376, '00380000'),
+            0x1bd9c7: (0x1b8387, '00700000'),
+            0x1c4dd3: (0x1bf6b8, 'e0010000'),
+            0x1c4dd8: (0x1bf6bd, '80020000'),
+            0x1c4f73: (0x1bf842, 'e0326c00'),
+            0x1c4fc9: (0x1bf898, '603a6c00'),
+            0x1c5011: (0x1bf8e0, '80020000'),
+            0x1c501e: (0x1bf8ed, 'e0010000'),
+            0x1c617a: (0x1c0a49, 'e0010000'),
+            0x1c617f: (0x1c0a4e, '80020000'),
+            0x1c6894: (0x1c1163, 'e872f3ffff'),
+            0x1c68ec: (0x1c11bb, 'f605b0b26b0004'),
+            0x1c68fc: (0x1c11cb, 'e0010000'),
+            0x1c6901: (0x1c11d0, '80020000'),
+            0x1c6d3d: (0x1c160c, 'e0010000'),
+            0x1c6d42: (0x1c1611, '80020000'),
+            0x1c6daa: (0x1c1679, '6a1068f0000000'),
+            0x1c751b: (0x1c1dea, 'e8f7010000'),
+            0x1c753a: (0x1c1e09, 'e872c2ebff'),
+            0x1c754c: (0x1c1e1b, 'e8e0f9f9ff'),
+            0x1c7566: (0x1c1e35, 'e8069c0000'),
+            0x1c7578: (0x1c1e47, 'e8c44a0100'),
+            0x1c7588: (0x1c1e57, 'e844c6ebff'),
+            0x1c759a: (0x1c1e69, 'e8c2fdf9ff'),
+            0x1c7726: (0x1c1ff5, '0000803f'),
+            0x1c7730: (0x1c1fff, '0000003f'),
+            0x1c782d: (0x1c2093, 'd905447f6b00dc35a8f46100d91d447f6b00d905487f6b00dc0db0f46100d91d487f6b00d905b8486c00dc0db0f46100d91db8486c008b45088b40248945fc8b45088b40108945f88b45fca3300cae018b45'),
+            0x1c78f0: (0x1c2138, '80020000'),
+            0x1c7907: (0x1c214f, '28000000'),
+            0x1c794a: (0x1c2190, '80020000'),
+            0x1c7961: (0x1c21a7, '28000000'),
+            0x1c799b: (0x1c21e1, '8d0c498d0c89c1e104'),
+            0x1c79bd: (0x1c2203, '004b0000'),
+            0x1c7a2c: (0x1c2272, '28000000'),
+            0x1c7a8e: (0x1c22d4, '28000000'),
+            0x1c7ad2: (0x1c2318, 'c1e1038d0c498d0c89'),
+            0x1c7af4: (0x1c233a, '80250000'),
+            0x1c7b72: (0x1c23b8, '80020000'),
+            0x1c7b89: (0x1c23cf, '28000000'),
+            0x1c7bb1: (0x1c23f7, '8d04408d0480c1e004'),
+            0x1c7bd0: (0x1c2416, '004b0000'),
+            0x1c7c0e: (0x1c2454, '28000000'),
+            0x1c7c36: (0x1c247c, 'c1e0038d04408d0480'),
+            0x1c7c55: (0x1c249b, '80250000'),
+            0x1c7cb8: (0x1c24fe, '02'),
+            0x1c7cc5: (0x1c250b, '40010000'),
+            0x1c7ccf: (0x1c2515, 'f0000000'),
+            0x1c7cf2: (0x1c2538, '40010000'),
+            0x1c7cfc: (0x1c2542, 'f0000000'),
+            0x1c7d68: (0x1c25ae, 'f0010000'),
+            0x1c7d72: (0x1c25b8, '80010000'),
+            0x1c7d77: (0x1c25bd, '80020000'),
+            0x1c7d89: (0x1c25cf, 'e0010000'),
+            0x1c7da5: (0x1c25eb, '80020000'),
+            0x1c7daf: (0x1c25f5, 'e0010000'),
+            0x1c7e3a: (0x1c2680, '02'),
+            0x1c824e: (0x1c2ab4, 'e0010000'),
+            0x1c834b: (0x1c2bdb, '80020000'),
+            0x1c8435: (0x1c2ce9, '50010000'),
+            0x1c843c: (0x1c2cf0, '80020000'),
+            0x1c8443: (0x1c2cf7, 'e0010000'),
+            0x1c8491: (0x1c2d45, 'b0010000'),
+            0x1c8498: (0x1c2d4c, '80020000'),
+            0x1c849f: (0x1c2d53, 'e0010000'),
+            0x1c84d6: (0x1c2d8a, 'b0010000'),
+            0x1c84dd: (0x1c2d91, '80020000'),
+            0x1c84e4: (0x1c2d98, 'e0010000'),
+            0x1c8810: (0x1c308c, '80020000'),
+            0x1c881d: (0x1c3099, 'e0010000'),
+            0x1c898b: (0x1c3207, 'e0010000'),
+            0x1c8990: (0x1c320c, '80020000'),
+            0x1c8a88: (0x1c3304, 'a1a0436c00'),
+            0x1c8ab9: (0x1c3335, 'e0010000'),
+            0x1c8abe: (0x1c333a, '80020000'),
+            0x1c8b4d: (0x1c33c9, 'e0010000'),
+            0x1c8b52: (0x1c33ce, '80020000'),
+            0x1c8e8d: (0x1c3709, '40010000'),
+            0x1c8e94: (0x1c3710, 'a0000000'),
+            0x1c8f1d: (0x1c3799, '40010000'),
+            0x1c8f24: (0x1c37a0, 'a0000000'),
+            0x1c90b8: (0x1c3934, 'e0326c00'),
+            0x1c90e9: (0x1c3965, 'e0326c00'),
+            0x1cb79d: (0x1c603d, '558bec535657'),
+            0x1cb7de: (0x1c607e, '558bec535657'),
+            0x1cb8c6: (0x1c6166, '558bec535657'),
+            0x1cd5d4: (0x1c7e64, '70cb6c008d0570da6c00b9e0010000890783c05089470483c05083c70883e9027fed'),
+            0x1cd5da: (0x1c7e6a, '70da6c00'),
+            0x1cd605: (0x1c7e95, '70da6c00'),
+            0x1cd60c: (0x1c7e9c, '80250000'),
+            0x1cd8a5: (0x1c8135, '70da6c00'),
+            0x1cd8b8: (0x1c8148, '83c850'),
+            0x1cd9db: (0x1c826b, '70da6c00'),
+            0x1cd9ee: (0x1c827e, '83c850'),
+            0x1ce0f9: (0x1c8989, '70da6c00'),
+            0x1ce11b: (0x1c89ab, '83c850'),
+            0x1ce988: (0x1c9218, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1ce9de: (0x1c926e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cf028: (0x1c98b8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cf07e: (0x1c990e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cf6d8: (0x1c9f68, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cf72e: (0x1c9fbe, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cfd88: (0x1ca618, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1cfdde: (0x1ca66e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1cfe32: (0x1ca6c2, '50000000'),
+            0x1cfe90: (0x1ca720, '50000000'),
+            0x1d0eac: (0x1cb73c, 'c4090000'),
+            0x1d0ed0: (0x1cb760, '4c986f00'),
+            0x1d11d8: (0x1cba68, '50986f00'),
+            0x1d161f: (0x1cbeaf, '70da6c00'),
+            0x1d162c: (0x1cbebc, '83c850'),
+            0x1d1a30: (0x1cc2c0, '70da6c00'),
+            0x1d1a3d: (0x1cc2cd, '83c850'),
+            0x1d1deb: (0x1cc67b, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1d1e22: (0x1cc6b2, 'a1784a6c000ffefe83c0508b0dc4b26b00a3784a6c00'),
+            0x1d2111: (0x1cc9a1, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1d2152: (0x1cc9e2, 'a1784a6c000ffefe83c0508b0dc4b26b00a3784a6c00'),
+            0x1d395b: (0x1ce1eb, 'c4090000'),
+            0x1d3967: (0x1ce1f7, '70756d00'),
+            0x1d3970: (0x1ce200, '304a6f00'),
+            0x1d3a28: (0x1ce2b8, '8b349d60bf6f00'),
+            0x1d46ae: (0x1cef3e, 'c4090000'),
+            0x1d46ba: (0x1cef4a, '70756d00'),
+            0x1d46c3: (0x1cef53, '304a6f00'),
+            0x1d4760: (0x1ceff0, '8b349d60bf6f00'),
+            0x1d876b: (0x1d2ffb, '70da6c00'),
+            0x1d877e: (0x1d300e, '83c850'),
+            0x1d88a7: (0x1d3137, '70da6c00'),
+            0x1d88ba: (0x1d314a, '83c850'),
+            0x1d8fcf: (0x1d385f, '70da6c00'),
+            0x1d8ff1: (0x1d3881, '83c850'),
+            0x1d9858: (0x1d40e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1d98ae: (0x1d413e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1d9ef8: (0x1d4788, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1d9f4e: (0x1d47de, 'a1784a6c0083c05046a3784a6c00'),
+            0x1da5a8: (0x1d4e38, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1da5fe: (0x1d4e8e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1dac58: (0x1d54e8, 'a1784a6c004683c0505ba3784a6c00'),
+            0x1dacae: (0x1d553e, 'a1784a6c0083c05046a3784a6c00'),
+            0x1dad02: (0x1d5592, '50000000'),
+            0x1dad60: (0x1d55f0, '50000000'),
+            0x1dbd7c: (0x1d660c, 'c4090000'),
+            0x1dbda0: (0x1d6630, '9cfd7100'),
+            0x1dc0a8: (0x1d6938, 'a0fd7100'),
+            0x1dc4f8: (0x1d6d88, '70da6c00'),
+            0x1dc502: (0x1d6d92, '83c850'),
+            0x1dc919: (0x1d71a9, '70da6c00'),
+            0x1dc923: (0x1d71b3, '83c850'),
+            0x1dcccb: (0x1d755b, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1dcd02: (0x1d7592, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
+            0x1dcff1: (0x1d7881, 'a1784a6c000ffefe83c0505ea3784a6c00'),
+            0x1dd032: (0x1d78c2, 'a1784a6c000ffefe83c0508b0dccb26b00a3784a6c00'),
+            0x1de86b: (0x1d90fb, 'd0070000'),
+            0x1de877: (0x1d9107, '20487000'),
+            0x1de880: (0x1d9110, '20bf7100'),
+            0x1de938: (0x1d91c8, '8b349de01c7200'),
+            0x1df5fe: (0x1d9e8e, 'd0070000'),
+            0x1df60a: (0x1d9e9a, '20487000'),
+            0x1df613: (0x1d9ea3, '20bf7100'),
+            0x1df6b0: (0x1d9f40, '8b349de01c7200'),
+            0x1fb4a0: (0x1f5ca0, '000080c3'),
+            0x1fb4a4: (0x1f5ca4, '00008043'),
+            0x205d38: (0x2002c8, '000080c3'),
+            0x205d3c: (0x2002cc, '00008043'),
+            0x2213f0: (0x21b978, '52b81e85eb913f40'),
+            0x2213f8: (0x21b980, 'ae47e17a146e3c40'),
+            0x2baff4: (0x2b6154, '00000047'),
+            0x2baffc: (0x2b615c, '00000048'),
+            0x2c734c: (0x2c2464, '40000000'),
+            0x2c7350: (0x2c2468, '40000000'),
+            0x2c7354: (0x2c246c, 'b0000000'),
+            0x2c7358: (0x2c2470, '00010000'),
+            0x2c735c: (0x2c2474, '78000000'),
+            0x2c7360: (0x2c2478, '78000000'),
+            0x2c7370: (0x2c2488, '18000000'),
+            0x2c73f0: (0x2c2508, '18000000'),
+        },
+        'passlen': {
+            0x004d0280: 5,
+            0x00531f6a: 5,
+        },
+        'absent': (0x1c7775,),
+    },
+    '3317246a': {                       # oem.exe
+        'va': {
+            0x00408790: 0x00408790,
+            0x00427ec9: 0x00427e29,
+            0x00428241: 0x004281a1,
+            0x0042cda6: 0x0042cd06,
+            0x00432fbe: 0x00432f1e,
+            0x00433141: 0x004330a1,
+            0x00460b70: 0x00460ad0,
+            0x00460cf3: 0x00460c53,
+            0x0047f2e0: 0x0047f1e0,
+            0x004800d0: 0x0047ffe0,
+            0x004803d0: 0x004802e0,
+            0x00480410: 0x00480320,
+            0x004804f0: 0x00480400,
+            0x004b6030: 0x004b5ed0,
+            0x004b981f: 0x004b96bf,
+            0x004c468e: 0x004c452e,
+            0x004d0280: 0x004d0120,
+            0x004d9c3d: 0x004d9add,
+            0x0050bcc6: 0x0050b836,
+            0x0050c0cb: 0x0050bc3b,
+            0x00514430: 0x00513fa0,
+            0x0051444d: 0x00513fbd,
+            0x0051448e: 0x00513ffe,
+            0x00514576: 0x005140e6,
+            0x0051457c: 0x005140ec,
+            0x00531f6a: 0x00531ada,
+            0x005495b1: 0x00549121,
+            0x0055d221: 0x0055cd91,
+            0x005670c0: 0x00566c30,
+            0x005673c0: 0x00566f30,
+            0x00567400: 0x00566f70,
+            0x005674f0: 0x00567060,
+            0x0057f1b0: 0x0057ec80,
+            0x005829c3: 0x00582493,
+            0x0058881e: 0x005882ee,
+            0x00588d85: 0x00588855,
+            0x0059cb93: 0x0059c663,
+            0x005a1f3c: 0x005a1a0c,
+            0x005a251b: 0x005a1feb,
+            0x005b5f2e: 0x005b59fe,
+            0x005c56a2: 0x005c5172,
+            0x005c680b: 0x005c6324,
+            0x005c755a: 0x005c7073,
+            0x005c79aa: 0x005c74c3,
+            0x005c7dfe: 0x005c7917,
+            0x005c813a: 0x005c7c53,
+            0x005c814c: 0x005c7c65,
+            0x005c8188: 0x005c7ca1,
+            0x005c819a: 0x005c7cb3,
+            0x005c8317: 0x005c7e52,
+            0x005c8ca0: 0x005c87d8,
+            0x005c991c: 0x005c9454,
+            0x005cc39d: 0x005cbedd,
+            0x005cc3de: 0x005cbf1e,
+            0x005cc4c6: 0x005cc006,
+            0x005cc4cc: 0x005cc00c,
+            0x005ce180: 0x005cdcc0,
+            0x005d1db0: 0x005d18f0,
+            0x005dcc80: 0x005dc7c0,
+            0x00624728: 0x00624718,
+            0x0066c17c: 0x0066c174,
+            0x0066c180: 0x0066c178,
+            0x0066c190: 0x0066c188,
+            0x006a0240: 0x006a01d8,
+            0x006bc1e4: 0x006bc17c,
+            0x006bc1e8: 0x006bc180,
+            0x006bc948: 0x006bc8e0,
+            0x006bc94c: 0x006bc8e4,
+            0x006bf598: 0x006bf530,
+            0x006bf5a8: 0x006bf540,
+            0x006bf5ac: 0x006bf544,
+            0x006bf5b0: 0x006bf548,
+            0x006bf5b8: 0x006bf550,
+            0x006bf5bc: 0x006bf554,
+            0x006c84c8: 0x006c8460,
+            0x006c84cc: 0x006c8464,
+            0x006c866c: 0x006c8604,
+            0x006c8b24: 0x006c8aec,
+            0x006c8b28: 0x006c8af0,
+            0x006c8ce8: 0x006c8ca8,
+            0x006d0dc4: 0x006d0d84,
+            0x006db4c8: 0x006db488,
+            0x006db4d0: 0x006db490,
+            0x006db4d4: 0x006db494,
+            0x006db530: 0x006db4f0,
+            0x006db534: 0x006db4f4,
+            0x007001d0: 0x00700190,
+            0x007087a0: 0x00708760,
+            0x00708818: 0x007087d8,
+            0x0070881c: 0x007087dc,
+            0x00708820: 0x007087e0,
+            0x00708870: 0x00708830,
+            0x00708874: 0x00708834,
+            0x00725f50: 0x00725f10,
+            0x00791ad0: 0x00791a90,
+            0x00be4300: 0x00be42c0,
+            0x00bf5f78: 0x00bf5f38,
+            0x00bf5f7c: 0x00bf5f3c,
+            0x01ad0030: 0x01acffc8,
+            0x01ad0034: 0x01acffcc,
+            0x01ae3594: 0x01ae3524,
+            0x01ae3690: 0x01ae3620,
+            0x01ae5f40: 0x01ae5ed0,
+            0x01ae5f5c: 0x01ae5eec,
+            0x01cc6700: 0x01cc6690,
+            0x01ef1140: 0x01ef10d0,
+            0x01ef8a90: 0x01ef8a20,
+            0x01ef9eb0: 0x01ef9e40,
+            0x01efb728: 0x01efb6b8,
+            0x01efb730: 0x01efb6c0,
+            0x033cd5f4: 0x033cd584,
+            0x034155c8: 0x03415558,
+            0x034155d0: 0x03415560,
+            0x0345b2c8: 0x0345b258,
+            0x0345bd58: 0x0345bce8,
+        },
+        'off': {
+            0x0224e9: (0x022449, '00480000'),
+            0x0224fa: (0x02245a, '00900000'),
+            0x022600: (0x022560, '00380000'),
+            0x022611: (0x022571, '00700000'),
+            0x022706: (0x022666, '00380000'),
+            0x022717: (0x022677, '00700000'),
+            0x0272c4: (0x027224, 'a3c042be00'),
+            0x02763c: (0x02759c, 'a330f56b00'),
+            0x02c1a6: (0x02c106, '558bec81eca8000000'),
+            0x0323be: (0x03231e, '558bec83ec04'),
+            0x032541: (0x0324a1, '558bec5356'),
+            0x05ff70: (0x05fed0, '558bec83ec04'),
+            0x0600f3: (0x060053, '558bec5356'),
+            0x074ed0: (0x074dd0, '00150000'),
+            0x074edf: (0x074ddf, '00ebffff'),
+            0x075038: (0x074f38, '00150000'),
+            0x075047: (0x074f47, '00ebffff'),
+            0x07e504: (0x07e404, '8b0de0c86b003bc80f84bd010000'),
+            0x07f2e0: (0x07f1f0, '56a178c16600'),
+            0x07f88d: (0x07f79d, '8b149560756c00'),
+            0x07f8dd: (0x07f7ed, '8b149560756c00'),
+            0x07f96c: (0x07f87c, '32'),
+            0x07f99b: (0x07f8ab, '81e1ffff0000'),
+            0x07fa63: (0x07f973, 'b8080000002bc350'),
+            0x07fd37: (0x07fc47, '31'),
+            0x07fd71: (0x07fc81, '60756c00'),
+            0x07fe39: (0x07fd49, '8b149560756c00'),
+            0x07fe9e: (0x07fdae, '8b149560756c00'),
+            0x080074: (0x07ff84, '0f859e000000'),
+            0x0802f9: (0x080209, '8b149560756c00'),
+            0x0804e7: (0x0803f7, '83e27f'),
+            0x080565: (0x080475, '83e27f'),
+            0x0808f8: (0x080813, '83e27f'),
+            0x080a0d: (0x080924, '83e27f'),
+            0x080c74: (0x080b96, '83e27f'),
+            0x080e17: (0x080d36, '83e27f'),
+            0x081046: (0x080f66, '83e27f'),
+            0x0811ec: (0x08110c, '83e27f'),
+            0x081498: (0x0813b9, '83e27f'),
+            0x081611: (0x081530, '83e27f'),
+            0x081bf6: (0x081b0f, '83e27f'),
+            0x081ea6: (0x081da3, '83e27f'),
+            0x082174: (0x082059, '83e27f'),
+            0x0823b3: (0x08228c, '83e27f'),
+            0x0827d4: (0x0826ae, '83e27f'),
+            0x082944: (0x08281d, '83e27f'),
+            0x082c82: (0x082b58, '83e27f'),
+            0x082d06: (0x082bdc, '83e27f'),
+            0x082f07: (0x082de0, '83e27f'),
+            0x082f8b: (0x082e64, '83e27f'),
+            0x08325d: (0x083146, '83e27f'),
+            0x0832ef: (0x0831d8, '83e27f'),
+            0x0834f3: (0x0833e9, '83e27f'),
+            0x083577: (0x08346d, '83e27f'),
+            0x0b5430: (0x0b52d0, '558bec83ec34'),
+            0x0b8c1f: (0x0b8abf, '558bec83ec34'),
+            0x0c3a8e: (0x0c392e, '558bec81ec8c000000'),
+            0x0cf680: (0x0cf520, '558bec83ec08'),
+            0x0d903d: (0x0d8edd, '558bec81eca8000000'),
+            0x10b0c1: (0x10ac31, '68d8016a00'),
+            0x10b4c6: (0x10b036, 'a130f56b00'),
+            0x11384d: (0x1133bd, '558bec535657'),
+            0x11388e: (0x1133fe, '558bec535657'),
+            0x113976: (0x1134e6, '558bec535657'),
+            0x13136a: (0x130eda, '558bec83ec08'),
+            0x147b60: (0x1476d0, '00150000'),
+            0x147b6f: (0x1476df, '00ebffff'),
+            0x147cc8: (0x147838, '00150000'),
+            0x147cd7: (0x147847, '00ebffff'),
+            0x1489b1: (0x148521, '558bec83ec10'),
+            0x15c621: (0x15c191, '558bec83ec10'),
+            0x166885: (0x1663f5, '8b149560756c00'),
+            0x1668dd: (0x16644d, '8b149560756c00'),
+            0x16696c: (0x1664dc, '32'),
+            0x16699b: (0x16650b, '81e1ffff0000'),
+            0x166a63: (0x1665d3, 'b8080000002bc350'),
+            0x166d37: (0x1668a7, '31'),
+            0x166d79: (0x1668e9, '60756c00'),
+            0x166e41: (0x1669b1, '8b149560756c00'),
+            0x166eae: (0x166a1e, '8b149560756c00'),
+            0x167084: (0x166bf4, '0f85a6000000'),
+            0x167321: (0x166e91, '8b149560756c00'),
+            0x17e5b0: (0x17e080, '558bec83ec34'),
+            0x181dc3: (0x181893, '558bec83ec34'),
+            0x187c1e: (0x1876ee, '558bec83ec0c'),
+            0x188185: (0x187c55, '558bec83ec0c'),
+            0x189977: (0x189447, '16'),
+            0x18e341: (0x18de11, 'e2100000'),
+            0x18e7b9: (0x18e289, 'e3100000'),
+            0x18e949: (0x18e419, 'e8824ff8ff'),
+            0x18ea14: (0x18e4e4, 'd8dcffff'),
+            0x19d8ea: (0x19d3ba, 'e8a4e6ffff'),
+            0x1a133c: (0x1a0e0c, '558bec83ec0c'),
+            0x1a191b: (0x1a13eb, '558bec83ec0c'),
+            0x1b098b: (0x1b045b, 'e0010000'),
+            0x1b0990: (0x1b0460, '80020000'),
+            0x1b532e: (0x1b4dfe, '558bec81ec8c000000'),
+            0x1bd799: (0x1bd269, '00480000'),
+            0x1bd7aa: (0x1bd27a, '00900000'),
+            0x1bd8b0: (0x1bd380, '00380000'),
+            0x1bd8c1: (0x1bd391, '00700000'),
+            0x1bd9b6: (0x1bd486, '00380000'),
+            0x1bd9c7: (0x1bd497, '00700000'),
+            0x1c4dd3: (0x1c48a3, 'e0010000'),
+            0x1c4dd8: (0x1c48a8, '80020000'),
+            0x1c4f73: (0x1c4a42, '60756c00'),
+            0x1c4fc9: (0x1c4a98, 'e07c6c00'),
+            0x1c5011: (0x1c4ae0, '80020000'),
+            0x1c501e: (0x1c4aed, 'e0010000'),
+            0x1c617a: (0x1c5c93, 'e0010000'),
+            0x1c617f: (0x1c5c98, '80020000'),
+            0x1c6894: (0x1c63ad, 'e872f3ffff'),
+            0x1c68ec: (0x1c6405, 'f60530f56b0004'),
+            0x1c68fc: (0x1c6415, 'e0010000'),
+            0x1c6901: (0x1c641a, '80020000'),
+            0x1c6d3d: (0x1c6856, 'e0010000'),
+            0x1c6d42: (0x1c685b, '80020000'),
+            0x1c6daa: (0x1c68c3, '6a1068f0000000'),
+            0x1c751b: (0x1c7034, 'e819020000'),
+            0x1c753a: (0x1c7053, 'e88883ebff'),
+            0x1c754c: (0x1c7065, 'e8c6eff9ff'),
+            0x1c7566: (0x1c707f, 'e86c9c0000'),
+            0x1c7578: (0x1c7091, 'e82a4b0100'),
+            0x1c7588: (0x1c70a1, 'e85a87ebff'),
+            0x1c759a: (0x1c70b3, 'e8a8f3f9ff'),
+            0x1c7726: (0x1c7261, '0000803f'),
+            0x1c7730: (0x1c726b, '0000003f'),
+            0x1c7775: (0x1c72b0, '3333733f'),
+            0x1c782d: (0x1c7368, 'd9057cc16b00833ddc09a000007508dc3510476200eb11ff3514476200ff3510476200e828d30100d91d7cc16b00d90580c16b00dc0d18476200d91d80c16b00d905f08a6c00dc0d18476200d91df08a6c00'),
+            0x1c78f0: (0x1c7429, '80020000'),
+            0x1c7907: (0x1c7440, '28000000'),
+            0x1c794a: (0x1c7481, '80020000'),
+            0x1c7961: (0x1c7498, '28000000'),
+            0x1c799b: (0x1c74cd, '8d04408d0480c1e004'),
+            0x1c79bd: (0x1c74f5, '004b0000'),
+            0x1c7a2c: (0x1c7564, '28000000'),
+            0x1c7a8e: (0x1c75c6, '28000000'),
+            0x1c7ad2: (0x1c760a, 'c1e1038d0c498d0c89'),
+            0x1c7af4: (0x1c762c, '80250000'),
+            0x1c7b72: (0x1c76aa, '80020000'),
+            0x1c7b89: (0x1c76c1, '28000000'),
+            0x1c7bb1: (0x1c76e9, '8d04408d0480c1e004'),
+            0x1c7bd0: (0x1c7708, '004b0000'),
+            0x1c7c0e: (0x1c7746, '28000000'),
+            0x1c7c36: (0x1c776e, 'c1e0038d04408d0480'),
+            0x1c7c55: (0x1c778d, '80250000'),
+            0x1c7cb8: (0x1c77f0, '02'),
+            0x1c7cc5: (0x1c77fd, '40010000'),
+            0x1c7ccf: (0x1c7807, 'f0000000'),
+            0x1c7cf2: (0x1c782a, '40010000'),
+            0x1c7cfc: (0x1c7834, 'f0000000'),
+            0x1c7d68: (0x1c78a0, 'f0010000'),
+            0x1c7d72: (0x1c78aa, '80010000'),
+            0x1c7d77: (0x1c78af, '80020000'),
+            0x1c7d89: (0x1c78c1, 'e0010000'),
+            0x1c7da5: (0x1c78dd, '80020000'),
+            0x1c7daf: (0x1c78e7, 'e0010000'),
+            0x1c7e3a: (0x1c7972, '02'),
+            0x1c824e: (0x1c7d86, 'e0010000'),
+            0x1c834b: (0x1c7e83, '80020000'),
+            0x1c8435: (0x1c7f6d, '50010000'),
+            0x1c843c: (0x1c7f74, '80020000'),
+            0x1c8443: (0x1c7f7b, 'e0010000'),
+            0x1c8491: (0x1c7fc9, 'b0010000'),
+            0x1c8498: (0x1c7fd0, '80020000'),
+            0x1c849f: (0x1c7fd7, 'e0010000'),
+            0x1c84d6: (0x1c800e, 'b0010000'),
+            0x1c84dd: (0x1c8015, '80020000'),
+            0x1c84e4: (0x1c801c, 'e0010000'),
+            0x1c8810: (0x1c8348, '80020000'),
+            0x1c881d: (0x1c8355, 'e0010000'),
+            0x1c898b: (0x1c84c3, 'e0010000'),
+            0x1c8990: (0x1c84c8, '80020000'),
+            0x1c8a88: (0x1c85c0, 'a120866c00'),
+            0x1c8ab9: (0x1c85f1, 'e0010000'),
+            0x1c8abe: (0x1c85f6, '80020000'),
+            0x1c8b4d: (0x1c8685, 'e0010000'),
+            0x1c8b52: (0x1c868a, '80020000'),
+            0x1c8e8d: (0x1c89c5, '40010000'),
+            0x1c8e94: (0x1c89cc, 'a0000000'),
+            0x1c8f1d: (0x1c8a55, '40010000'),
+            0x1c8f24: (0x1c8a5c, 'a0000000'),
+            0x1c90b8: (0x1c8bf0, '60756c00'),
+            0x1c90e9: (0x1c8c21, '60756c00'),
+            0x1cb79d: (0x1cb2dd, '558bec535657'),
+            0x1cb7de: (0x1cb31e, '558bec535657'),
+            0x1cb8c6: (0x1cb406, '558bec535657'),
+            0x1cd5d4: (0x1cd114, 'a00d6d008d05a01c6d00b9e0010000890783c05089470483c05083c70883e9027fed'),
+            0x1cd5da: (0x1cd11a, 'a01c6d00'),
+            0x1cd605: (0x1cd145, 'a01c6d00'),
+            0x1cd60c: (0x1cd14c, '80250000'),
+            0x1cd8a5: (0x1cd3e5, 'a01c6d00'),
+            0x1cd8b8: (0x1cd3f8, '83c850'),
+            0x1cd9db: (0x1cd51b, 'a01c6d00'),
+            0x1cd9ee: (0x1cd52e, '83c850'),
+            0x1ce0f9: (0x1cdc39, 'a01c6d00'),
+            0x1ce11b: (0x1cdc5b, '83c850'),
+            0x1ce988: (0x1ce4c8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1ce9de: (0x1ce51e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cf028: (0x1ceb68, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cf07e: (0x1cebbe, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cf6d8: (0x1cf218, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cf72e: (0x1cf26e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cfd88: (0x1cf8c8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1cfdde: (0x1cf91e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1cfe32: (0x1cf972, '50000000'),
+            0x1cfe90: (0x1cf9d0, '50000000'),
+            0x1d0eac: (0x1d09ec, 'c4090000'),
+            0x1d0ed0: (0x1d0a10, '7cda6f00'),
+            0x1d11d8: (0x1d0d18, '80da6f00'),
+            0x1d161f: (0x1d115f, 'a01c6d00'),
+            0x1d162c: (0x1d116c, '83c850'),
+            0x1d1a30: (0x1d1570, 'a01c6d00'),
+            0x1d1a3d: (0x1d157d, '83c850'),
+            0x1d1deb: (0x1d192b, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1d1e22: (0x1d1962, 'a1a88c6c000ffefe83c0508b0d44f56b00a3a88c6c00'),
+            0x1d2111: (0x1d1c51, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1d2152: (0x1d1c92, 'a1a88c6c000ffefe83c0508b0d44f56b00a3a88c6c00'),
+            0x1d395b: (0x1d349b, 'c4090000'),
+            0x1d3967: (0x1d34a7, 'a0b76d00'),
+            0x1d3970: (0x1d34b0, '608c6f00'),
+            0x1d3a28: (0x1d3568, '8b349d90017000'),
+            0x1d46ae: (0x1d41ee, 'c4090000'),
+            0x1d46ba: (0x1d41fa, 'a0b76d00'),
+            0x1d46c3: (0x1d4203, '608c6f00'),
+            0x1d4760: (0x1d42a0, '8b349d90017000'),
+            0x1d876b: (0x1d82ab, 'a01c6d00'),
+            0x1d877e: (0x1d82be, '83c850'),
+            0x1d88a7: (0x1d83e7, 'a01c6d00'),
+            0x1d88ba: (0x1d83fa, '83c850'),
+            0x1d8fcf: (0x1d8b0f, 'a01c6d00'),
+            0x1d8ff1: (0x1d8b31, '83c850'),
+            0x1d9858: (0x1d9398, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1d98ae: (0x1d93ee, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1d9ef8: (0x1d9a38, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1d9f4e: (0x1d9a8e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1da5a8: (0x1da0e8, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1da5fe: (0x1da13e, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1dac58: (0x1da798, 'a1a88c6c004683c0505ba3a88c6c00'),
+            0x1dacae: (0x1da7ee, 'a1a88c6c0083c05046a3a88c6c00'),
+            0x1dad02: (0x1da842, '50000000'),
+            0x1dad60: (0x1da8a0, '50000000'),
+            0x1dbd7c: (0x1db8bc, 'c4090000'),
+            0x1dbda0: (0x1db8e0, 'cc3f7200'),
+            0x1dc0a8: (0x1dbbe8, 'd03f7200'),
+            0x1dc4f8: (0x1dc038, 'a01c6d00'),
+            0x1dc502: (0x1dc042, '83c850'),
+            0x1dc919: (0x1dc459, 'a01c6d00'),
+            0x1dc923: (0x1dc463, '83c850'),
+            0x1dcccb: (0x1dc80b, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1dcd02: (0x1dc842, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
+            0x1dcff1: (0x1dcb31, 'a1a88c6c000ffefe83c0505ea3a88c6c00'),
+            0x1dd032: (0x1dcb72, 'a1a88c6c000ffefe83c0508b0d4cf56b00a3a88c6c00'),
+            0x1de86b: (0x1de3ab, 'd0070000'),
+            0x1de877: (0x1de3b7, '508a7000'),
+            0x1de880: (0x1de3c0, '50017200'),
+            0x1de938: (0x1de478, '8b349d105f7200'),
+            0x1df5fe: (0x1df13e, 'd0070000'),
+            0x1df60a: (0x1df14a, '508a7000'),
+            0x1df613: (0x1df153, '50017200'),
+            0x1df6b0: (0x1df1f0, '8b349d105f7200'),
+            0x1fb4a0: (0x1faea0, '000080c3'),
+            0x1fb4a4: (0x1faea4, '00008043'),
+            0x205d38: (0x205728, '000080c3'),
+            0x205d3c: (0x20572c, '00008043'),
+            0x2213f0: (0x220de0, '52b81e85eb913f40'),
+            0x2213f8: (0x220de8, 'ae47e17a146e3c40'),
+            0x2baff4: (0x2ba98c, '00000047'),
+            0x2baffc: (0x2ba994, '00000048'),
+            0x2c734c: (0x2c6ce4, '40000000'),
+            0x2c7350: (0x2c6ce8, '40000000'),
+            0x2c7354: (0x2c6cec, 'b0000000'),
+            0x2c7358: (0x2c6cf0, '00010000'),
+            0x2c735c: (0x2c6cf4, '78000000'),
+            0x2c7360: (0x2c6cf8, '78000000'),
+            0x2c7370: (0x2c6d08, '18000000'),
+            0x2c73f0: (0x2c6d88, '18000000'),
+        },
+    },
+}
+# PORT TABLES END
+
+
+
+# GENERATED - every game-address dword in UI_CODE, by blob offset.
+# tools/hiresport.py translates the targets; install() swaps them
+# in place for non-retail builds. Regenerate if ui.asm changes.
+# UI REFS BEGIN
+UI_REFS = (
+    (0x0023, 0x06bc1e4),
+    (0x002d, 0x06bc1e8),
+    (0x0039, 0x06bc1e4),
+    (0x003f, 0x06bc1e8),
+    (0x006e, 0x06bc1e4),
+    (0x0078, 0x06bc1e8),
+    (0x0083, 0x06bc1e4),
+    (0x008f, 0x06bc1e4),
+    (0x00a4, 0x06db4c8),
+    (0x00af, 0x06db4d0),
+    (0x00ba, 0x06db4d4),
+    (0x00c8, 0x06bc1e8),
+    (0x00db, 0x06db4d0),
+    (0x00e6, 0x06db530),
+    (0x00f1, 0x06db534),
+    (0x0124, 0x06c8b28),
+    (0x012e, 0x06c8b24),
+    (0x013a, 0x06c8b28),
+    (0x0140, 0x06c8b24),
+    (0x0173, 0x06c8b28),
+    (0x0179, 0x06c8b24),
+    (0x0184, 0x06c8b24),
+    (0x0194, 0x06c8b24),
+    (0x01a5, 0x0708818),
+    (0x01b0, 0x070881c),
+    (0x01bb, 0x0708820),
+    (0x01c9, 0x06c8b28),
+    (0x01dc, 0x070881c),
+    (0x01e7, 0x0708870),
+    (0x01f2, 0x0708874),
+    (0x0221, 0x06bc1e8),
+    (0x0227, 0x06db4c8),
+    (0x022c, 0x06bc1e8),
+    (0x023f, 0x06db4d0),
+    (0x024a, 0x06db4d4),
+    (0x0255, 0x06db530),
+    (0x0260, 0x06db534),
+    (0x0277, 0x06db4c8),
+    (0x0282, 0x06db4d0),
+    (0x028d, 0x06db4d4),
+    (0x0298, 0x06db530),
+    (0x02a3, 0x06db534),
+    (0x02ba, 0x051457c),
+    (0x02de, 0x06c8b28),
+    (0x02e4, 0x0708818),
+    (0x02e9, 0x06c8b28),
+    (0x02fc, 0x070881c),
+    (0x0307, 0x0708820),
+    (0x0312, 0x0708870),
+    (0x031d, 0x0708874),
+    (0x0334, 0x0708818),
+    (0x033f, 0x070881c),
+    (0x034a, 0x0708820),
+    (0x0355, 0x0708870),
+    (0x0360, 0x0708874),
+    (0x0377, 0x05cc4cc),
+    (0x0442, 0x06bf5b8),
+    (0x044d, 0x06bf5bc),
+    (0x0458, 0x06db4c8),
+    (0x0463, 0x06db4d0),
+    (0x046e, 0x06db4d4),
+    (0x0479, 0x0708818),
+    (0x0484, 0x070881c),
+    (0x048f, 0x0708820),
+    (0x049a, 0x06db530),
+    (0x04a5, 0x06db534),
+    (0x04b0, 0x0708870),
+    (0x04bb, 0x0708874),
+    (0x0529, 0x06bf5a8),
+    (0x0538, 0x06db534),
+    (0x0543, 0x0708874),
+    (0x054e, 0x06db530),
+    (0x0559, 0x0708870),
+    (0x057a, 0x06bf5a8),
+    (0x0589, 0x06d0dc4),
+    (0x05a9, 0x06bf5b0),
+    (0x05cc, 0x06bf5b0),
+    (0x06da, 0x06bf5ac),
+    (0x06e5, 0x06bf5b8),
+    (0x06f0, 0x06bf5bc),
+    (0x06fb, 0x06bc948),
+    (0x0707, 0x06bc948),
+    (0x0721, 0x06bf598),
+    (0x0882, 0x1ae3594),
+    (0x0888, 0x1ae3690),
+    (0x0892, 0x06bf5a8),
+    (0x089a, 0x1ef8a90),
+    (0x08a0, 0x1ef9eb0),
+    (0x0ada, 0x06bf5ac),
+    (0x0ae9, 0x06bf5b8),
+    (0x0af4, 0x06bf5bc),
+    (0x0b29, 0x06bc948),
+    (0x0b4d, 0x06bf5ac),
+    (0x0b58, 0x06bf5b8),
+    (0x0b63, 0x06bf5bc),
+    (0x0b93, 0x06bf5a8),
+    (0x0d44, 0x06bf5a8),
+    (0x0df8, 0x06bf5a8),
+    (0x0e13, 0x06bc948),
+    (0x0e1f, 0x06bc948),
+    (0x0e2d, 0x1cc6700),
+    (0x0e37, 0x34155c8),
+    (0x0e41, 0x34155d0),
+    (0x0e4b, 0x0480410),
+    (0x0e55, 0x04803d0),
+    (0x0e5f, 0x0bf5f7c),
+    (0x0e69, 0x0bf5f78),
+    (0x0e73, 0x06bf5a8),
+    (0x0e7f, 0x1ef1140),
+    (0x0e89, 0x1efb728),
+    (0x0e93, 0x1efb730),
+    (0x0e9d, 0x0567400),
+    (0x0ea7, 0x05673c0),
+    (0x0eb1, 0x1ad0034),
+    (0x0ebb, 0x1ad0030),
+    (0x1128, 0x06bc948),
+    (0x1225, 0x1ae3594),
+    (0x1233, 0x1ae3690),
+    (0x1241, 0x1ef8a90),
+    (0x124f, 0x1ef9eb0),
+    (0x12af, 0x1ae5f40),
+    (0x12b6, 0x1ae5f5c),
+    (0x12bc, 0x1ae5f40),
+    (0x12d6, 0x05c991c),
+    (0x12e2, 0x1ae5f40),
+    (0x1342, 0x07001d0),
+    (0x136b, 0x0725f50),
+    (0x137c, 0x0791ad0),
+    (0x15e8, 0x06bc948),
+    (0x15f6, 0x1ae3594),
+    (0x15ff, 0x1ae3690),
+    (0x160c, 0x1ef8a90),
+    (0x1615, 0x1ef9eb0),
+    (0x1622, 0x1ae3690),
+    (0x1635, 0x06bc948),
+    (0x163b, 0x06bc948),
+    (0x1648, 0x05c8317),
+    (0x1653, 0x06bc948),
+    (0x1658, 0x06bf5a8),
+    (0x165d, 0x06bf5b0),
+    (0x1663, 0x07087a0),
+    (0x1672, 0x05c8317),
+    (0x16b1, 0x05d1db0),
+    (0x16c0, 0x06c84c8),
+    (0x16c6, 0x06c84c8),
+    (0x16d2, 0x06c84c8),
+    (0x16ed, 0x05dcc80),
+    (0x16fc, 0x06c84cc),
+    (0x1702, 0x06c84cc),
+    (0x170e, 0x06c84cc),
+    (0x1738, 0x345bd58),
+    (0x174b, 0x345b2c8),
+    (0x17af, 0x059cb93),
+    (0x17fc, 0x05c755a),
+    (0x1815, 0x05c56a2),
+    (0x185b, 0x05ce180),
+    (0x1863, 0x06c866c),
+    (0x186e, 0x05c8ca0),
+    (0x188c, 0x0be4300),
+    (0x189e, 0x0427ec9),
+    (0x18c1, 0x06bf598),
+    (0x18c7, 0x0428241),
+    (0x18db, 0x06bc94c),
+    (0x18f7, 0x05c680b),
+    (0x190a, 0x06bf598),
+    (0x1916, 0x06bf598),
+    (0x192a, 0x06a0240),
+    (0x192f, 0x050bcc6),
+    (0x1942, 0x06bf598),
+    (0x194e, 0x050c0cb),
+    (0x1961, 0x066c180),
+    (0x198a, 0x047f2e0),
+    (0x1994, 0x06bf5ac),
+    (0x19b0, 0x06bf5bc),
+    (0x19ba, 0x066c190),
+    (0x1a00, 0x0408790),
+    (0x1a0b, 0x0514430),
+)
+# UI REFS END
+
+# Every game address this tool bakes into written bytes, the ui blob, or
+# its hook tables. PORT (generated by tools/hiresport.py) carries these
+# per build; retail is the identity.
+ADDR = {
+    # ui.asm globals compiled into UI_CODE
+    'FB_PITCH': 0x6bf5ac, 'FB_W': 0x6bf5b8, 'FB_H': 0x6bf5bc,
+    'SPLIT': 0x6bc948, 'FLAGS': 0x6bf598, 'DRAWN': 0x6d0dc4,
+    'PROJ_A': 0x6db4c8, 'ASPECT_A': 0x6bc1e8, 'PROJ_B': 0x708818,
+    'ASPECT_B': 0x6c8b28, 'SCALE_A': 0x6bc1e4, 'SCALE_B': 0x6c8b24,
+    'CENTRE_AX': 0x6db530, 'CENTRE_BX': 0x708870, 'CENTRE_A': 0x6db534,
+    'CENTRE_B': 0x708874, 'LIST_A': 0x7001d0, 'LIST_B': 0x725f50,
+    'PIXFMT': 0x33cd5f4,
+    # plane B of each 2D engine, for the margins (see ui.asm)
+    'RING1': 0x1cc6700, 'SCRX1': 0x34155c8, 'SCRY1': 0x34155d0,
+    'DEST1': 0x480410, 'BLIT1': 0x4803d0, 'WMA1': 0xbf5f7c,
+    'WMB1': 0xbf5f78,
+    'RING2': 0x1ef1140, 'SCRX2': 0x1efb728, 'SCRY2': 0x1efb730,
+    'DEST2': 0x567400, 'BLIT2': 0x5673c0, 'WMA2': 0x1ad0034,
+    'WMB2': 0x1ad0030,
+    # the four 2D calls and their stubs' call sites
+    'CALL_PRE1': 0x4800d0, 'CALL_POST1': 0x4804f0,
+    'CALL_PRE2': 0x5670c0, 'CALL_POST2': 0x5674f0,
+    'STUB1': 0x5c813a, 'STUB2': 0x5c8188, 'STUB3': 0x5c814c,
+    'STUB4': 0x5c819a,
+    # projection setups and submit hooks
+    'WORLD1': 0x51444d, 'WORLD2': 0x51448e, 'WORLD3': 0x5cc39d,
+    'WORLD4': 0x5cc3de, 'SUBMIT_A': 0x514576, 'SUBMIT_B': 0x5cc4c6,
+    # the wrapped pass prologues
+    'PASS0': 0x5b5f2e, 'PASS1': 0x4c468e, 'PASS2': 0x55d221,
+    'PASS3': 0x5495b1, 'PASS4': 0x5a1f3c, 'PASS5': 0x5a251b,
+    'PASS6': 0x58881e, 'PASS7': 0x588d85, 'PASS8': 0x4d0280,
+    'PASS9': 0x531f6a, 'PASS10': 0x4d9c3d, 'PASS11': 0x42cda6,
+    'PASS12': 0x460b70, 'PASS13': 0x460cf3, 'PASS14': 0x432fbe,
+    'PASS15': 0x433141, 'PASS16': 0x57f1b0, 'PASS17': 0x5829c3,
+    'PASS18': 0x4b6030, 'PASS19': 0x4b981f,
+    # addresses in written bytes: the coverage mask pointer, the FOV
+    # block, and the F4 fall-through
+    'MASKPTR': 0x6c8ce8, 'SPRITEMODE': 0x66c17c,
+    'F4EXIT': 0x5c7dfe, 'F4CASE': 0x5c79aa,
+    'FCONST': 0x624728,
+}
+
+# UI CODE BEGIN
+UI_ASM_SHA = '9db3b180ad846884ca1f5b61d1da43c5c22bbe6e74ee3d2d65fb9fa94b905237'
+UI_CODE = bytes.fromhex(
+    '53e8000000005b81eb060000008b4424088983e81c0000c783ec1c000000000000d905e4'
+    'c16b00d84c2408d80de8c16b00d99bdc1c0000d905e4c16b00d80de8c16b00d99be01c00'
+    '00eb4253e8000000005b81eb510000008b4424088983e81c0000c783ec1c000001000000'
+    'd905e4c16b00d84c2408d80de8c16b00d99bdc1c0000a1e4c16b008983e01c0000d905e4'
+    'c16b00d84c2408d99be41c00008b83dc1c0000a3c8b46d008b83e01c0000a3d0b46d008b'
+    '83e41c0000a3d4b46d0083bb081d0000007438a1e8c16b0083bbec1c0000007405b80000'
+    '803fa3d0b46d008b83c81d0000a330b56d008b83cc1d0000a334b56d00c783c01c000001'
+    '0000005bc353e8000000005b81eb070100008b4424088983fc1c0000c783001d00000000'
+    '0000d905288b6c00d84c2408d80d248b6c00d99bf01c0000d905288b6c00d80d248b6c00'
+    'd99bf41c0000eb4253e8000000005b81eb520100008b4424088983fc1c0000c783001d00'
+    '0001000000d9442408d80d288b6c00d80d248b6c00d99bf01c0000a1248b6c008983f41c'
+    '0000d9442408d80d248b6c00d99bf81c00008b83f01c0000a3188870008b83f41c0000a3'
+    '1c8870008b83f81c0000a32088700083bb081d0000007438a1288b6c0083bb001d000000'
+    '7405b80000803fa31c8870008b83c81d0000a3708870008b83cc1d0000a374887000c783'
+    'c41c0000010000005bc35350e8000000005b81eb0902000083bb081d0000007457d983e8'
+    '1c0000d80de8c16b00d91dc8b46d00a1e8c16b0083bbec1c0000007405b80000803fa3d0'
+    'b46d008b83e81c0000a3d4b46d008b83c81d0000a330b56d008b83cc1d0000a334b56d00'
+    'c783c01c000001000000eb418b83dc1c0000a3c8b46d008b83e01c0000a3d0b46d008b83'
+    'e41c0000a3d4b46d008b83b81c0000a330b56d008b839c1c0000a334b56d00c783c01c00'
+    '0000000000585b5589e5535657687c455100c35350e8000000005b81ebc602000083bb08'
+    '1d0000007457d983fc1c0000d80d288b6c00d91d18887000a1288b6c0083bb001d000000'
+    '7405b80000803fa31c8870008b83fc1c0000a3208870008b83c81d0000a3708870008b83'
+    'cc1d0000a374887000c783c41c000001000000eb418b83f01c0000a3188870008b83f41c'
+    '0000a31c8870008b83f81c0000a3208870008b83bc1c0000a3708870008b83a01c0000a3'
+    '74887000c783c41c000000000000585b5589e553565768ccc45c00c3535051e800000000'
+    '5b81eb840300008b83d81d000083f820734585c075128b4c240c29d981e9751a0000898b'
+    'c01d00008b8b081d0000898c83dc1d000041898b081d0000ff83d81d00008b4c2410898c'
+    '830c1d00008d8bdf030000894c241059585bc35350e8000000005b81ebe6030000ff8bd8'
+    '1d00008b83d81d0000508b8483dc1d00008983081d000085c07505e812000000588b8483'
+    '0c1d00008704248b5c2404c2040050c783c01c000000000000c783c41c0000000000008b'
+    '83081c000085c07410a3b8f56b008b830c1c0000a3bcf56b008b83dc1c0000a3c8b46d00'
+    '8b83e01c0000a3d0b46d008b83e41c0000a3d4b46d008b83f01c0000a3188870008b83f4'
+    '1c0000a31c8870008b83f81c0000a3208870008b83b81c0000a330b56d008b839c1c0000'
+    'a334b56d008b83bc1c0000a3708870008b83a01c0000a37488700058c3e84f000000e8ed'
+    '010000e800fc4700e840060000c3e88b000000e8d8010000e80b004800e82b060000c3e8'
+    'a6000000e8c3010000e8c66b5600e816060000c3e8b4000000e8ae010000e8e16f5600e8'
+    '01060000c35350e8000000005b81eb1c050000c7831c1c0000a8f56b00c783381c000001'
+    '000000a134b56d0089839c1c0000a1748870008983a01c0000a130b56d008983b81c0000'
+    'a1708870008983bc1c0000585bc35350e8000000005b81eb6d050000c7831c1c0000a8f5'
+    '6b00c783381c000000000000a1c40d6d008983501c0000585bc353e8000000005b81eb9c'
+    '050000c7831c1c0000b0f56b00c783381c0000010000005bc353e8000000005b81ebbf05'
+    '0000c7831c1c0000b0f56b00c783381c0000000000005bc38b838c1e00008b8483681c00'
+    '0089835c1c000031c0ba01000000f7b35c1c000085d27401408983101c00008983141c00'
+    '008b8b281c00000faf8b5c1c0000c1e9108b83081c000029c8d1f8c783601c0000000000'
+    '0085c0791301c1f7d80faf83101c00008983601c000031c08983341c00008b93081c0000'
+    '29c239d17e0289d1898b301c00008b8b2c1c00000faf8b5c1c0000c1e9108b830c1c0000'
+    '29c8d1f8c783641c00000000000085c0791301c1f7d80faf83141c00008983641c000031'
+    'c08983441c00008b930c1c000029c239d17e0289d1898b401c0000c360e8000000005b81'
+    'ebbe0600008bb31c1c00008b068983001c000085c0750261c3a1acf56b008983041c0000'
+    'a1b8f56b008983081c0000a1bcf56b0089830c1c0000a148c96b008983541c0000c70548'
+    'c96b000000000031c985c0741483bb881e000000750b41f60598f56b0003740141898b8c'
+    '1e00008b8c8b741c0000898b801c0000d983801c0000d88ba81c0000db9bc81c0000db83'
+    '081c0000d983801c0000d88bac1c0000dee9d88bb41c0000db9bcc1c0000db830c1c0000'
+    'd983801c0000d88bb01c0000dee9d88bb41c0000db9bd01c0000db83081c0000d88bb41c'
+    '0000d8b3801c0000db9bc81d0000db830c1c0000d88bb41c0000d8b3801c0000db9bcc1d'
+    '00008b83c81d00002d400100000faf83c81c00008b8bcc1c0000c1e11029c1898bd01d00'
+    '008b83cc1d00002df00000000faf83c81c00008b8bd01c0000c1e11029c1898bd41d0000'
+    'c7832c1c0000e0010000b8e001000083bb381c000000742a83bb8c1e00000075210faf83'
+    '081c000031d2f7b30c1c00004083e0fe3d000400007e13b800040000eb0cc1e00231d2b9'
+    '03000000f7f18983281c00002d80020000d1f88983cc1e000083c007c1f8038983d01e00'
+    '00e866fdffffc783881c0000000000008b0d9435ae018b159036ae0181bb1c1c0000a8f5'
+    '6b00740c8b0d908aef018b15b09eef0183f9047511e8d10d0000740ac783881c00000100'
+    '0000c783701e000000000000c783781e0000000000008b836c1e000085c0745783bb8c1e'
+    '000000744e83bbd01c0000007e4583bb881c000000743c83fa0d743783fa0e7432c78370'
+    '1e0000010000008b8bd01c0000c1e110898b741e000083bb381c00000075100faf835c1c'
+    '0000c1e8108983781e0000c783981c00000000000083bba41c000000744483bb381c0000'
+    '00753b83bb881c000000743283fa0d742d83fa0e74288b83341c00008b8b081c00002b8b'
+    '341c00002b8b301c000039c87e0289c885c07e068983981c0000c783181c000000000000'
+    '8dbb003b0f008bab441c0000c1e5108b83641c0000c1e8100faf835c1c000029c589ab84'
+    '1e000083bb781e000000740231ed89e8c1f8100f888e0000003b830c1c00000f8d820000'
+    '000faf83041c00000383001c000089c68b83181c0000e85e0300008b93341c0000c1e210'
+    '8b83601c0000c1e8100faf835c1c000029c231c98b838c1d00003b8bc41d00007c068b83'
+    '901d0000c1e01001d0c1f810780e3b83081c00007d06668b0446eb0231c06689044f6689'
+    '844f00001e0003935c1c0000413b8b281c00007cb7eb1e5731c08b8b281c0000f366ab5f'
+    '5781c700001e008b8b281c0000f366ab5f81c70008000003ab5c1c0000ff83181c00008b'
+    '83181c000083bb781e000000741d3b836c1e000075158bab841e00000faf835c1c000001'
+    'c58b83181c00003b832c1c00000f8cfffeffff8b83cc1e00008d8443003b0f008bb31c1c'
+    '00008906c705acf56b00000800008b83281c0000a3b8f56b008b832c1c0000a3bcf56b00'
+    '8bbb3c1c000031c031c989048f05000800004181f9e00100007cef61c360e8000000005b'
+    '81eb1b0b00008b83541c0000a348c96b008bb31c1c00008b83001c000085c0750261c3e8'
+    '8302000089068b83041c0000a3acf56b008b83081c0000a3b8f56b008b830c1c0000a3bc'
+    'f56b008bbb3c1c000031c031c989048f0383041c0000413b8b0c1c00007cee8b83881e00'
+    '0085c0742081bb1c1c0000a8f56b00750b83f8020f848a010000eb0983f8010f847f0100'
+    '00e82afaffff8b83401c00008983801e00008b83441c000083bb781e000000740e8b8378'
+    '1e00008983801e000031c00faf83041c00000383001c00008bbb341c00008d3c788b8364'
+    '1c00008983581c0000c783181c000000000000c783981d0000ffffffff8bb3581c0000c1'
+    'ee103bb3981d0000744289b3981d000089f0e8220100005769f6000800008db433003b0f'
+    '008dbe00001e008b8b281c0000d1e9f3a75fc7839c1d000000000000750ac7839c1d0000'
+    '0100000083bb9c1d000000755a8bb3581c0000c1ee1069f6000800008db433003b0f008b'
+    '93601c000031c989d5c1ed10668b046e663b846e00001e00741a3babc41d00008bab8c1d'
+    '00007c068bab901d000001cd6689046f0393101c0000413b8b301c00007cc403bb041c00'
+    '008b83141c00000183581c0000ff83181c00008b83181c00003b83801e00000f8c20ffff'
+    'ff3b83401c00007d338b83401c00008983801e00008b83181c00000383441c00000faf83'
+    '041c00000383001c00008bbb341c00008d3c78e9e5feffff83bb981e000000741a83bb38'
+    '1c000000751181bb1c1c0000a8f56b007505e8cf04000061c3c783c41d0000ffffff7fc7'
+    '838c1d000000000000c783901d0000000000008b8b981c000085c9744d3b836c1e00007d'
+    '2b8b93a41c00008993c41d0000f7d9898b8c1d00008b8ba81d00000faf8b5c1c0000c1f9'
+    '10898b901d0000c33b83b81d00007c128b93bc1d00008993c41d0000898b901d0000c360'
+    '83bb381c0000000f84570300008b838c1e000083f8020f844803000085c0752a8b83881e'
+    '000085c0742081bb1c1c0000a8f56b00750b83f8020f8425030000eb0983f8010f841a03'
+    '0000a148c96b008983601e0000c70548c96b0000000000c783d41e00000067cc01c783d8'
+    '1e0000c8554103c783dc1e0000d0554103c783e01e000010044800c783e41e0000d00348'
+    '00c783e81e00007c5fbf00c783ec1e0000785fbf0081bb1c1c0000a8f56b007446c783d4'
+    '1e00004011ef01c783d81e000028b7ef01c783dc1e000030b7ef01c783e01e0000007456'
+    '00c783e41e0000c0735600c783e81e00003400ad01c783ec1e00003000ad018b83cc1e00'
+    '008db443003b0f000fb706b980020000663b06750883c6024975f5eb0231c08983fc1e00'
+    '008b83dc1e00000fb70089c183e107898b5c1e0000c1e80383e07f83f83e720383e83e89'
+    '83f81e00008b83d81e00000fb700c1e80383e07f8983f41e000085c0757783bbf81e0000'
+    '00756e83bb5c1e00000075658b83dc1e0000f640018075598bb3d41e00000fb786ea0300'
+    '000fb78e8a1300008983a01d0000898ba41d000029c181e1ff3f00000fb7be0622000029'
+    'c781e7ff3f000089f88d9312120000bf03000000663b0a750a663b42020f849301000083'
+    'c2044f75eb83bbcc1e0000000f8473010000c783f01e0000000000008b83f01e00002b83'
+    'f81e0000790383c03e69c0a40000000383d41e000089c631ff83bbf01e00003b750f8bbb'
+    '5c1e000085ff7405f7df83c7088b83dc1e0000f64001800f859c000000b95000000089f2'
+    '66f702ff3f0f848a00000083c2024975ef8babd01e0000f7dd89e985c9790583c150eb03'
+    '83e9508b83f41e000039c1730383c15229c10fb70c4ef7c1ff3f0000743c89c825ff3f00'
+    '008b93e81e0000f7c10040000074068b93ec1e00003b02731d5189e98b93f01e0000ff93'
+    'e01e00005985c0740989c257ff93e41e0000457505bd500000008b83d01e000083c05039'
+    'c57c86eb7183bb501c00000075688b83f01e0000c1e00303835c1e0000b9080000003de0'
+    '0100007c052de0010000505169c0000800008d9403003b0f008b83fc1e000089d78b8bcc'
+    '1e0000f366ab8b8bcc1e00008dbc4a000500008b8b281c00002b8bcc1e000081e9800200'
+    '00f366ab5958404975acff83f01e000083bbf01e00003c0f8c97feffff8b83601e0000a3'
+    '48c96b0061c38b83cc1e00008db44390bb10008dbb003b1e00ba800100005657b9f80000'
+    '00f3a55f5e81c60008000081c7000800004a75e6b8f0010000c1e01031d2f7b3281c0000'
+    '3dcccc00007605b8cccc000089838c1c00008b8b281c00000fafc8baf0010000c1e21029'
+    'cad1fa8993901c000069c8e0010000ba80010000c1e21029cad1fa8993941c00008dbb00'
+    '3b0f00bde00100008b83941c0000c1f81069c0000800008db403003b1e00578b93901c00'
+    '008b8b281c000089d0c1f810668b044666ab03938c1c00004975ec5f81c7000800008b83'
+    '8c1c00000183941c00004d75b3e90fffffffc30002040202b9056b070c0b8dbba01e0000'
+    'a19435ae01e8c3000000c6072047a19036ae01e8b5000000c6072047a1908aef01e8a700'
+    '0000c6072047a1b09eef01e899000000c60720478b83881e0000e88a000000c60720478b'
+    '83f41e0000e87b0000008b83f81e0000e8700000008b835c1e0000e865000000c6072047'
+    '8b83a01d0000e84c000000c60720478b83a41d0000e83d000000c607008b0d405fae0151'
+    '8b0d5c5fae01890d405fae016a016800ff00006a28682c0100008d83a01e000050b81c99'
+    '5c00ffd083c41459890d405fae01c350c1e808e8010000005850c1e804e8010000005883'
+    'e00f04303c3976020407880747c360e8000000005b81eb101300008b83641e000085c074'
+    '0a0faf420cc1e81089420c83bbc01c0000007405e823010000e832000000618b349dd001'
+    '7000c360e8000000005b81eb4d13000083bbc41c0000007405e8fa000000e80900000061'
+    '8b349d505f7200c383bb881c000000746c817a04d01a79007563e85f0000008b83c81c00'
+    '006bc078c1e8108b8bb01d00002b8bd41c000039c17c428b83cc1c000083c0088b8b081c'
+    '00002b8bcc1c000083e9098d7210bf040000000fbf2e39c57f0766c7060000eb0e39cd7c'
+    '0a8bab081c00004d66892e83c6044f75dec3c783d41c0000ffffff7fc783d81c0000ffff'
+    'ff7fc783b01d000001000080c783b41d0000010000808d7210b9040000000fbf063b83d4'
+    '1c00007d068983d41c00003b83b01d00007e068983b01d00000fbf46023b83d81c00007d'
+    '068983d81c00003b83b41d00007e068983b41d000083c6044975bbc3e885ffffff8babb4'
+    '1d00002babcc1d000081c5f00000003bab6c1e00000f9cc18b83d41d000083bb701e0000'
+    '00740a84c974062b83741e000089837c1e00008b83d01d000083bb981c000000745d83bb'
+    'c01d000028735484c974508bbbb01d00002bbbc81d000081c7400100003bbba41c00007f'
+    '0d8b8b981c0000c1e11029c8eb298bbbd41c00002bbbc81d000081c7400100003bbba41c'
+    '00007c0f8b8ba81d00000faf8bc81c000001c88983941d00008d721031c90fbf063b83d4'
+    '1c000075168bbbb01d00003bbbd41c000075218d79ff83ff027319400faf83c81c000003'
+    '83941d00000500800000c1f81048eb150faf83c81c00000383941d00000500800000c1f8'
+    '100fbf7e023bbbd81c000075168babb41d00003babd81c000075228d69ff83fd02731a47'
+    '0fafbbc81c000003bb7c1e000081c700800000c1ff104feb160fafbbc81c000003bb7c1e'
+    '000081c700800000c1ff1025ffff0000c1e71009f8890683c6044183f9040f8c46ffffff'
+    'c3535152e8000000005b81ebd5150000c783881e000000000000833d48c96b0000747eb9'
+    '01000000833d9435ae010475308b159036ae01e8770000007563833d908aef0104751a8b'
+    '15b09eef01e861000000754d3b159036ae017305b902000000898b881e0000ff3548c96b'
+    '00c70548c96b0000000000ff742414b817835c00ffd083c4048f0548c96b00a1a8f56b00'
+    'a3b0f56b00c705a087700000000000eb0eff742410b817835c00ffd083c4045a595bc383'
+    'fa40731b5189d183e11fb801000000d3e089d1c1e90585848b901e000059c331c0c35350'
+    'e8000000005b81eba9160000b8b01d5d0083bb881e000002751bff35c8846c00c705c884'
+    '6c0001000000ffd08f05c8846c00585bc3ffd0585bc35350e8000000005b81ebe5160000'
+    'b880cc5d0083bb881e000001751bff35cc846c00c705cc846c0001000000ffd08f05cc84'
+    '6c00585bc3ffd0585bc353e8000000005b81eb2017000050528b45088d04808b55088d04'
+    '82d9048558bd45038b450c8d04808b550c8d0482d82485c8b24503d883dc170000d88be0'
+    '170000d893e4170000dfe0f6c4017408ddd8d983e4170000d9e8d8d9dfe0f6c401750ed8'
+    '8ba81c0000db9b641e0000eb0cddd8c783641e0000000000005a58508b4424088983681e'
+    '00008d83b417000089442408585b6893cb5900c353e8000000005b81ebba170000c78364'
+    '1e000000000000ffb3681e00008b5c240483c408ff6424f8a470e341abaaaa3d00008037'
+    '60e8000000005b81ebee170000e80700000061685a755c00c3e8220000006a10ffb3241c'
+    '0000ffb3201c0000b8a2565c00ffd083c40c85c07505e801000000c38b83c01e000083f0'
+    '018983c01e00008bb3c41e00008b3e85ff74178b4e0483c6085685c0740201ce89caf3a4'
+    '5e8d3456ebe3b880e15c00ffd0c7056c866c00000000006a01b8a08c5c00ffd083c404c3'
+    '53e8000000005b81eb7e1800000b83c01e0000a30043be00ffb3c01e00008f83c81e0000'
+    '5b68c97e4200c353e8000000005b81eba91800008983c81e000083a3c81e00000183e0fe'
+    'a398f56b005b6841824200c360e8000000005b81ebd2180000833d4cc96b000274138b83'
+    'c81e00003b83c01e00007405e80cffffff61680b685c00c360e8000000005b81eb021900'
+    '00a198f56b00a801741683e0fea398f56b0083bbc01e0000007505e800ffffff61684002'
+    '6a0068c6bc5000c353e8000000005b81eb3a190000a198f56b000b83c01e00005b68cbc0'
+    '5000c356575389ce8b7c241085ff750ba180c1660085c07432eb1a83ff0876138d4ff8c1'
+    'e10401cab81000000029f8741aeb0289f889c389f1b8e0f24700ffd089c20335acf56b00'
+    '4b75ec5b5f5ec204005350e8000000005b81eba8190000a1bcf56b0039c2721c833d90c1'
+    '660000750c85d2780429c2ebeb01c2ebe7ba00000f00eb098b833c1c00008b1490585bc3'
+    '53e8000000005b81ebe6190000ffb3841c0000ffb3841c0000ffb3841c0000b890874000'
+    'ffd083c40c5bb830445100ffe0')
+# UI CODE END
+UI_CALLS = [(0x4cb, 0x4800d0), (0x4e0, 0x4804f0),   # rel32 at offset+1
+            (0x4f5, 0x5670c0), (0x50a, 0x5674f0)]
+UI_STUBS = [(0x1c753a, 0x5c813a, 0x4c1),
+            (0x1c7588, 0x5c8188, 0x4d6),
+            (0x1c754c, 0x5c814c, 0x4eb),
+            (0x1c759a, 0x5c819a, 0x500)]
+# Projection setups: the originals' entries jump to these, and the HUD
+# passes' setup calls go there too (the HUD/world decision is made per
+# submission, by the pass depth).
+UI_WORLD = ((0x51444d, 0x11384d, 0x0),
+(0x51448e, 0x11388e, 0x4b),
+(0x5cc39d, 0x1cb79d, 0x101),
+(0x5cc3de, 0x1cb7de, 0x14c))
+UI_SUBMIT = ((0x514576, 0x113976, 0x202),
+(0x5cc4c6, 0x1cb8c6, 0x2bf))
+UI_INSERT_A, UI_INSERT_B = 0x130a, 0x1347
+UI_HUD_ENTER = 0x37c
+UI_HANGAR_DRAW = 0x171a
+UI_FRAME, UI_FLUSH_A, UI_FLUSH_B = 0x15cd, 0x16a2, 0x16de
+UI_F4 = 0x17e8
+UI_ROLLBLIT = 0x1953
+UI_ROWSAFE = 0x19a1
+UI_CREDITS_MOON = 0x19e0
+UI_DLG_INIT, UI_DLG_OK, UI_DLG_DONE, UI_INI_LOAD, UI_INI_SAVE = 0x1878, 0x18a3, 0x18cc, 0x18fc, 0x1934
+UI_PASS_STUBS = 0x1a70                      # 20 bytes per wrapped function, to 0x1c00
+UI_MODEW = 0x1c20                           # mode size, written by the patcher
+UI_ROWTAB = 0x1c3c                          # row table address, likewise
+UI_KSBS = 0x1c48                            # split FOV factors, likewise
+UI_SCALE = 0x1c68                           # 2D scale per layout, likewise
+UI_HUD = 0x1c74                             # same as floats
+UI_CONST = 0x1ca8                           # 65536, 640, 480, 0.5
+UI_PINTH = 0x1e6c                           # split HUD band threshold, 0 off
+UI_SPLITC = 0x1ca4                          # HUD spread: split column, 0 off
+UI_BOTROW = 0x1db8                          # TOTAL row and column
+UI_BARDX = 0x1da8                           # bar group shift, HUD units
+UI_SPLITST = 0x1e90                         # sub-states drawn split
+UI_DEBUG = 0x1e98                           # 1: state readout on the frame
+UI_F4MODE = 0x1ec0                          # 0: first size in place, 1: second
+UI_F4TAB = 0x1ec4                           # the F4 site table's address
+UI_CMOON = 0x1c84                           # credits moon card scale, float
+assert len(UI_CODE) <= UI_PASS_STUBS        # data block starts at 0x1c00
+UI_F4TAB_OFF = 0x1f00                       # the F4 site table, in the file
+UI_F4TAB_SIZE = 0x1ba0
+UI_FOV = 0x3aa0                             # a ported build's FOV block, when
+                                            # its own is too short to hold it
+UI_OFF = 0x3b00                             # offscreen: guard, canvas, guard
+# Functions that draw HUD elements: everything they submit, directly or
+# through callees, is HUD (see hud_enter in ui.asm). They are the
+# functions that call the projection setup with the HUD focal lengths
+# (600 in game, 128 in the machine select). The first two rows are the
+# ones seen running in the diagnostic traces (1P, machine select, split in
+# both layouts): bars, frames, timer box, reticle and lock-on for each
+# renderer; weapon strips; machine-select portraits and cursors. The
+# rest have the same shape and are wrapped for the modes not traced.
+# VA and the length of the prologue displaced into the stub (push ebp;
+# mov ebp, esp; then sub esp, imm8/imm32 or push ebx; push esi).
+UI_PASS_FUNCS = [
+    (0x5b5f2e, 9), (0x4c468e, 9),           # in-game HUD, renderer A/B
+    (0x55d221, 6), (0x5495b1, 6),           # weapon strips
+    (0x5a1f3c, 6), (0x5a251b, 6),           # machine select, cursors
+    (0x58881e, 6), (0x588d85, 6),           # the same, renderer B
+    (0x4d0280, 6), (0x531f6a, 6),           # reticle, renderer A/B
+    (0x4d9c3d, 9), (0x42cda6, 9),           # untraced: other HUD builds
+    (0x460b70, 6), (0x460cf3, 5),
+    (0x432fbe, 6), (0x433141, 5),
+    (0x57f1b0, 6), (0x5829c3, 6),           # demo and tutorial drivers
+    (0x4b6030, 6), (0x4b981f, 6),
+]
+
+UI_OFF_SIZE = 4 * 1024 * 480 * 2            # guard, canvas, guard, copy
+
+MASK_ROW = 0x50                       # coverage mask bytes per row, 640 px
+MASK_LOAD = bytes.fromhex('a1e88c6c00')      # mov eax, [0x6c8ce8]
+MASK_ADD = bytes.fromhex('83c050')           # add eax, 0x50
+MASK_STORE = bytes.fromhex('a3e88c6c00')     # mov [0x6c8ce8], eax
+
+# Row advances in the span fillers: load, add 0x50, store, with one or
+# two unrelated instructions interleaved (inc esi, pop ebx, pop esi, a
+# paddd, a mov ecx). eax is reloaded right after every one, so the whole
+# span becomes the interleaved instructions, add dword [0x6c8ce8], imm32,
+# and nops. (file offset, span length, interleaved bytes)
+MASK_ADVANCE = [
+    (0x1ce988, 15, '465b'), (0x1ce9de, 14, '46'),
+    (0x1cf028, 15, '465b'), (0x1cf07e, 14, '46'),
+    (0x1cf6d8, 15, '465b'), (0x1cf72e, 14, '46'),
+    (0x1cfd88, 15, '465b'), (0x1cfdde, 14, '46'),
+    (0x1d1deb, 17, '0ffefe5e'), (0x1d1e22, 22, '0ffefe8b0dacf56b00'),
+    (0x1d2111, 17, '0ffefe5e'), (0x1d2152, 22, '0ffefe8b0dacf56b00'),
+    (0x1d9858, 15, '465b'), (0x1d98ae, 14, '46'),
+    (0x1d9ef8, 15, '465b'), (0x1d9f4e, 14, '46'),
+    (0x1da5a8, 15, '465b'), (0x1da5fe, 14, '46'),
+    (0x1dac58, 15, '465b'), (0x1dacae, 14, '46'),
+    (0x1dcccb, 17, '0ffefe5e'), (0x1dcd02, 22, '0ffefe8b0db4f56b00'),
+    (0x1dcff1, 17, '0ffefe5e'), (0x1dd032, 22, '0ffefe8b0db4f56b00'),
+]
+# or eax, 0x50 - packs the stride into the low word of eax, whose low byte
+# is zero at that point. Becomes mov al, stride; nop.
+MASK_PACK = [0x1cd8b8, 0x1cd9ee, 0x1ce11b, 0x1d162c, 0x1d1a3d, 0x1d877e,
+             0x1d88ba, 0x1d8ff1, 0x1dc502, 0x1dc923]
+# mov edx, 0x50 with a 32-bit immediate.
+MASK_EDX = [0x1cfe31, 0x1cfe8f, 0x1dad01, 0x1dad5f]
+
+
+def add_section(buf, size, raw=b'', name=b'.vohr'):
+    """Append a section: `raw` bytes in the file, zero-filled to `size` in
+    memory. Returns its VA and the file offset of the raw bytes."""
+    pe = struct.unpack_from('<I', buf, 0x3c)[0]
+    nsec = struct.unpack_from('<H', buf, pe + 6)[0]
+    optsz = struct.unpack_from('<H', buf, pe + 20)[0]
+    opt = pe + 24
+    base = struct.unpack_from('<I', buf, opt + 28)[0]
+    salign = struct.unpack_from('<I', buf, opt + 32)[0]
+    hdrs = struct.unpack_from('<I', buf, opt + 60)[0]
+    tab = opt + optsz
+    if tab + 40 * (nsec + 1) > hdrs:
+        raise ValueError('no room in the section table')
+    end = 0
+    for i in range(nsec):
+        o = tab + 40 * i
+        if buf[o:o + 8].rstrip(b'\0') == name:
+            raise ValueError('section %s already present' % name.decode())
+        vs, va = struct.unpack_from('<II', buf, o + 8)
+        end = max(end, va + vs)
+    rva = (end + salign - 1) // salign * salign
+    vsize = (size + salign - 1) // salign * salign
+    falign = struct.unpack_from('<I', buf, opt + 36)[0]
+    rawsize = (len(raw) + falign - 1) // falign * falign
+    rawptr = (len(buf) + falign - 1) // falign * falign
+    buf += b'\0' * (rawptr - len(buf))
+    buf += raw.ljust(rawsize, b'\0')
+    o = tab + 40 * nsec
+    buf[o:o + 40] = struct.pack('<8sIIIIIIHHI', name.ljust(8, b'\0'), size,
+                                rva, rawsize, rawptr, 0, 0, 0, 0, 0xE00000E0)
+    struct.pack_into('<H', buf, pe + 6, nsec + 1)
+    struct.pack_into('<I', buf, opt + 56, rva + vsize)      # SizeOfImage
+    return base + rva, rawptr
+
+
+def build_sites(w, h, sec_va, span_va, rowtab_va, pool, A=None):
+    sx, sy = w / BASE_W, h / BASE_H
+    if A is None:
+        A = ADDR.__getitem__
+    sites = []
+    stride = w // 8
+    # Coverage mask at 0x6d1ce0 (twelve references), its row pointer
+    # table at 0x6d0de0 (one). Buffer first, table after it.
+    sites += imm_sites([0x1cd5da, 0x1cd605, 0x1cd8a5, 0x1cd9db, 0x1ce0f9,
+                        0x1d161f, 0x1d1a30, 0x1d876b, 0x1d88a7, 0x1d8fcf,
+                        0x1dc4f8, 0x1dc919], 0x6d1ce0, span_va)
+    # Row pointer table init at 0x5ce1d2: two rows per iteration with an
+    # 8-bit stride. Rewritten as one row per iteration, 32-bit stride.
+    sites += [(0x1cd5d4,
+               bytes.fromhex('e00d6d00' '8d05e01c6d00' 'b9e0010000'
+                             '8907' '83c050' '894704' '83c050' '83c708'
+                             '83e902' '7fed'),
+               u32(span_va + h * stride)
+               + b'\x8d\x05' + u32(span_va)          # lea eax, [buf]
+               + b'\xb9' + u32(h)                    # mov ecx, h
+               + b'\x89\x07'                        # mov [edi], eax
+               + b'\x05' + u32(stride)               # add eax, stride
+               + b'\x83\xc7\x04'                   # add edi, 4
+               + b'\x49'                             # dec ecx
+               + b'\x7f\xf3'                        # jg
+               + b'\x90' * 6)]
+    sites += imm_sites([0x1cd60c], 480 * MASK_ROW // 4,   # dwords to clear
+                       h * stride // 4)
+    # The stride itself, in the three forms the renderer has it.
+    for off, n, between in MASK_ADVANCE:
+        old = MASK_LOAD + bytes.fromhex(between) + MASK_ADD + MASK_STORE
+        assert len(old) == n
+        new = (bytes.fromhex(between) + b'\x81\x05' + u32(A('MASKPTR'))
+               + u32(stride))
+        sites.append((off, None, new.ljust(n, b'\x90')))
+    sites += [(o, bytes.fromhex('83c850'), bytes([0xb0, stride, 0x90]))
+              for o in MASK_PACK]
+    sites += imm_sites([o + 1 for o in MASK_EDX], MASK_ROW, stride)
+    # Sprite blit at 0x47f0c0: split screen always goes through the
+    # downscaling sampler with the size-derived mode (8 full, 4 half, 2
+    # quarter) as the factor. Stock split viewports are 320 wide, so the
+    # sampler only ever ran at factor 2; at 640 it runs at factor 1, a
+    # path that draws the transparent key and miscolours 565. Route mode
+    # 8 to the plain blit whether split or not; the 320x240 low-res mode
+    # is tested just before and still takes the sampler.
+    sites += [(0x7e504, bytes.fromhex('8b0d48c96b003bc80f84bd010000'), bytes.fromhex('833d7cc16600080f84be01000090'))]
+    # The pause text and one more message are drawn centred on 320,160,
+    # halved for the low-res mode (0x5c9a81, 0x5c9afd).
+    sites += imm_sites([0x1c8e8d, 0x1c8f1d], 320, w // 2)
+    sites += imm_sites([0x1c8e94, 0x1c8f24], 160, 160 * h // 480)
+    # The two 24px GDI LOGFONTs (lfHeight, .data) behind the pause,
+    # loading and credits-prompt text.
+    sites += imm_sites([0x2c7370, 0x2c73f0], 24, 24 * h // 480)
+    # GDI text (pause, messages) and the loading strip use 640x480
+    # rectangles: wrap width, height, and the strip rows 336/432 to 480.
+    sites += imm_sites([0x1c834b, 0x1c843c, 0x1c8498, 0x1c84dd], 640, w)
+    sites += imm_sites([0x1c824e, 0x1c8443, 0x1c849f, 0x1c84e4], 480, h)
+    sites += imm_sites([0x1c8435], 336, 336 * h // 480)
+    sites += imm_sites([0x1c8491, 0x1c84d6], 432, 432 * h // 480)
+    # 2D row table: 480+480 entries in .data with the frame divisor right
+    # behind them; a tall split viewport overflows it. Both tables move to
+    # the new section, H entries each. The tile planes' destination
+    # helpers index the first table with rows past either end - stock's
+    # deliberate vertical wrap into the second table, which relocation
+    # breaks (the neighbours are the mask now) - so those ten loads go
+    # through ui.asm rowsafe, which wraps by the frame height, or parks
+    # on the canvas guard during the credits roll, where the second
+    # plane's window pokes past both edges every frame (the top-of-roll
+    # corruption). The two loads with their own bounds and the three
+    # outside the tile planes keep the plain rebased reference.
+    for off in (0x07f88d, 0x07f8dd, 0x07fe39, 0x07fe9e, 0x0802f9,
+                0x166885, 0x1668dd, 0x166e41, 0x166eae, 0x167321):
+        site = 0x400c00 + off
+        sites.append((off, bytes.fromhex('8b1495c8756c00'),
+                      b'\xe8' + u32(sec_va + UI_ROWSAFE - (site + 5))
+                      + b'\x90\x90'))
+    sites += imm_sites([0x07fd71, 0x166d79, 0x1c4f73, 0x1c90b8, 0x1c90e9],
+                       0x6c75c8, rowtab_va)
+    sites += imm_sites([0x1c4fc9], 0x6c7d48, rowtab_va + h * 4)
+    # 2D layer: the four calls in 0x5c80df go to the stubs.
+    for (off, site, stub), (_, target) in zip(UI_STUBS, UI_CALLS):
+        sites.append((off, b'\xe8' + u32(target - (site + 5)),
+                      b'\xe8' + u32(sec_va + stub - (site + 5))))
+    # --- mode ----------------------------------------------------------
+    # push 640 / push 480 into the SetDisplayMode wrapper (0x5c56a2) and
+    # the mode selector (0x5c9404), plus CreateWindowExA at 0x5c59d2.
+    sites += imm_sites([0x1b0990, 0x1c617f, 0x1c6901, 0x1c6d42, 0x1c8990,
+                        0x1c8abe, 0x1c8b52, 0x1c4dd8], 640, w)
+    sites += imm_sites([0x1b098b, 0x1c617a, 0x1c68fc, 0x1c6d3d, 0x1c898b,
+                        0x1c8ab9, 0x1c8b4d, 0x1c4dd3], 480, h)
+    # F4: past the network-game guard, the handler (0x5c74da) toggled
+    # 320x240. It goes to the section instead (ui.asm f4_toggle), which
+    # switches between the two sizes the patcher wrote. The menu command
+    # that picked 320x240 outright (0x5c79aa) jumps to the handler exit.
+    sites += [(0x1c68ec, bytes.fromhex('f60598f56b0004'),
+               b'\xe9' + u32(sec_va + UI_F4 - (0x5c74ec + 5)) + b'\x90\x90'),
+              (0x1c6daa, bytes.fromhex('6a1068f0000000'),
+               b'\xe9' + u32(A('F4EXIT') - (A('F4CASE') + 5)) + b'\x90\x90')]
+    # The F5 Screen row (720p / 1080p, see _split_dialog) drives the
+    # same switch through four hooks in the section, and the ini load
+    # and save carry the choice as bit 0 of ScrSize: the dialog staging
+    # FLAGS (0x427ec4), OK writing it back (0x42823c), the resume after
+    # the dialog (0x5c7494), the ini load's join (0x50bcc1) and the ini
+    # save's read (0x50c0c6).
+    for site, old, routine, op in (
+            (0x427ec4, 'a30043be00', UI_DLG_INIT, b'\xe9'),
+            (0x42823c, 'a398f56b00', UI_DLG_OK, b'\xe9'),
+            (0x5c7494, 'e872f3ffff', UI_DLG_DONE, b'\xe8'),
+            (0x50bcc1, '6840026a00', UI_INI_LOAD, b'\xe9'),
+            (0x50c0c6, 'a198f56b00', UI_INI_SAVE, b'\xe9')):
+        sites.append((site - 0x400c00, bytes.fromhex(old),
+                      op + u32(sec_va + routine - (site + 5))))
+    # 0x5c9404 returns failure for any mode but the two it knows. This is
+    # the crash: the caller then runs on without a surface.
+    sites += imm_sites([0x1c8810], 640, w)
+    sites += imm_sites([0x1c881d], 480, h)
+    # EnumDisplayModes callback at 0x5c5be4 flags 640x480 as available.
+    sites += imm_sites([0x1c5011], 640, w)
+    sites += imm_sites([0x1c501e], 480, h)
+    # If the enumeration does not list the mode but does list 320x240,
+    # 0x5c9661 loops forever trying to pick one: black screen, no crash.
+    # Treat the mode as available and let SetDisplayMode be the judge.
+    sites += [(0x1c8a88, bytes.fromhex('a188866c00'),      # mov eax,[flag]
+               bytes.fromhex('b801000000'))]               # mov eax,1
+    # Viewport in 0x5c8317: width/height globals, the screen size the
+    # Screen=Normal window is centred in, and that window's size.
+    sites += imm_sites([0x1c7da5, 0x1c7d77], 640, w)
+    sites += imm_sites([0x1c7daf, 0x1c7d89], 480, h)
+    sites += imm_sites([0x1c7d68], 496, int(496 * sx))
+    sites += imm_sites([0x1c7d72], 384, int(384 * sy))
+    # Projection scale. 0x51444d builds X as sx*f and Y as sx*sy*f, so the
+    # first float carries the resolution and the second is the aspect
+    # ratio relative to it. Only the first pair changes; the 0.95 is one
+    # hardware-specific case of the same value. The scale comes from the
+    # height, so a wide mode keeps the vertical field of view and sees
+    # more at the sides.
+    # The second renderer's copy (0x6c8b24) is set up pre-halved for split
+    # screen; the split block below applies the per-layout factor to both
+    # copies, so it gets the full scale here.
+    sites += [(0x1c7726, f32(1.0), f32(sy)),
+              (0x1c7730, f32(0.5), f32(sy)),
+              (0x1c7775, f32(0.95), f32(0.95 * sy))]
+    # The projection setups jump to versions in the section that also
+    # keep a copy of the result; the submit functions get an entry hook
+    # that installs the HUD projection inside a HUD pass and the saved
+    # world projection for everything else, on every submission.
+    for site, off, routine in UI_WORLD + UI_SUBMIT:
+        sites.append((off, bytes.fromhex('558bec535657'),
+                      b'\xe9' + u32(sec_va + routine - (site + 5)) + b'\x90'))
+    # HUD pass functions: the prologue jumps to a stub in the section
+    # (built in main) that counts the pass in and out.
+    for n, (site, ln) in enumerate(UI_PASS_FUNCS):
+        stub = sec_va + UI_PASS_STUBS + 20 * n
+        sites.append((site - 0x400c00, None,
+                      b'\xe9' + u32(stub - (site + 5)) + b'\x90' * (ln - 5)))
+    # Render-list inserts (two record writers a renderer): in a HUD pass
+    # the hook scales the whole-pixel 640x480 vertex positions to the HUD
+    # scale, then runs the displaced instruction.
+    for site, off, routine in ((0x5d4628, 0x1d3a28, UI_INSERT_A),
+                               (0x5d5360, 0x1d4760, UI_INSERT_A),
+                               (0x5e02b0, 0x1df6b0, UI_INSERT_B),
+                               (0x5df538, 0x1de938, UI_INSERT_B)):
+        old = bytes.fromhex('8b349dd0017000' if routine == UI_INSERT_A
+                            else '8b349d505f7200')
+        sites.append((off, old, b'\xe8' + u32(sec_va + routine - (site + 5))
+                      + b'\x90\x90'))
+    # Single viewport outside the rounds of a split game: the
+    # viewport setup call and the two flush calls in the frame loop go
+    # through the section (ui.asm frame_setup, flush_a, flush_b).
+    for site, routine, target in ((0x5c811b, UI_FRAME, 0x5c8317),
+                                  (0x5c8166, UI_FLUSH_A, 0x5d1db0),
+                                  (0x5c8178, UI_FLUSH_B, 0x5dcc80)):
+        sites.append((site - 0x400c00, b'\xe8' + u32(target - (site + 5)),
+                      b'\xe8' + u32(sec_va + routine - (site + 5))))
+    # Credits roll: during the ending (sub-state 0x20) the tail of each
+    # engine's 2D post draw blacked rows 0..96 and 384..480 of the
+    # frame, one memset (0x47e580) per row - the letterbox. Both bands
+    # go (the jne past each block becomes a jmp: 0x480c74 engine 1,
+    # 0x567c84 engine 2), which works because the edge clipping the
+    # roll's tile walkers always asked for is wired up at the same
+    # time: the walkers push a visible row count for the window's top
+    # tile and the entering tile at its foot, but the shared blit
+    # (0x47fee0, both engines) discarded it and drew all 8 glyph rows -
+    # the top tile redrew unscrolled at row 0 and the entering line
+    # popped in whole, which the bands existed to hide. The blit's
+    # entry jumps to ui.asm roll_blit, which honours the count, and the
+    # top edge's push is re-encoded as fine+8 (was 8-fine) so the two
+    # edges are distinguishable. Lines now slide in at the window's
+    # foot (row 400: the writer feeds the ring on a hand-timed
+    # schedule, so nothing exists below - see docs/HIRES.md) and out
+    # through the real row 0, with the scenery clean behind both.
+    # The roll starts from the bottom: the writer feeds the ring about
+    # two rows inside the old window (at its 0x31 draw cap, measured on
+    # video: a fed line lands ~0.6s after its ring row would enter),
+    # so instead of stretching the window down into the writer's
+    # workspace, the whole window moves down 13 rows - it begins 13
+    # ring rows earlier, showing the rows that scrolled past, draws 60
+    # rows, and the destination helper's cap rises from 0x31 to 0x3d.
+    # The bottom row (start+47) then trails the feed (start+48) by a
+    # full row, so a line is complete before it slides in at line 480,
+    # and lines leave through line 0 as before. 13 exactly: the writer
+    # composes an entering line over ring rows cursor..cursor+2, which
+    # sit at start-16..start-14 mod 64 - at 14 rows of shift the third
+    # compose row was the top display row and its glyph bottoms
+    # flashed at the screen's top edge (seen at 60 fps on video). At
+    # 13 the window excludes all three scratch rows, and a history row
+    # still has 3 rows of margin before the feed comes around to
+    # rewrite it. Plane B is untouched: the roll's text is all on
+    # plane A (B's uncapped 60-row window never shows a line below 400
+    # on screen).
+    sites += [(0x07f99b, bytes.fromhex('81e1ffff0000'),      # coarse row
+               bytes.fromhex('83e90d83e13f')),               # -13 mod 64
+              (0x16699b, bytes.fromhex('81e1ffff0000'),
+               bytes.fromhex('83e90d83e13f')),
+              (0x07f96c, b'\x32', b'\x3c'),                  # 60 rows
+              (0x16696c, b'\x32', b'\x3c'),
+              (0x07fd37, b'\x31', b'\x3d'),                  # dest cap
+              (0x166d37, b'\x31', b'\x3d')]
+    # The strip loaders' availability watermarks round up: a tile with
+    # only part of its 128 bytes read counts as loaded, and the walkers
+    # draw it. Stock never saw that - the freshly fed rows sat below
+    # the 400-line window and finished loading before they appeared -
+    # but with the window reaching line 480 a half-read tile shows the
+    # moment it is fed (the streamed name strips; the heading strip is
+    # long since loaded). Floored, a partial tile stays culled for the
+    # frame it takes to complete. All 24 stores (12 loader variants,
+    # two banks, shared by both engines); the strips are 128-aligned,
+    # so no final tile is stranded.
+    for off in (0x0804e7, 0x0808f8, 0x080c74, 0x081046, 0x081498,
+                0x081bf6, 0x082174, 0x0827d4, 0x082c82, 0x082f07,
+                0x08325d, 0x0834f3, 0x080565, 0x080a0d, 0x080e17,
+                0x0811ec, 0x081611, 0x081ea6, 0x0823b3, 0x082944,
+                0x082d06, 0x082f8b, 0x0832ef, 0x083577):
+        sites.append((off, bytes.fromhex('83e27f'), bytes.fromhex('83e200')))
+    sites += [(0x080074, bytes.fromhex('0f859e000000'),
+               bytes.fromhex('e99f00000090')),
+              (0x167084, bytes.fromhex('0f85a6000000'),
+               bytes.fromhex('e9a700000090')),
+              (0x07f2e0, bytes.fromhex('56a180c16600'),
+               b'\xe9' + u32(sec_va + UI_ROLLBLIT - (0x47fee0 + 5)) + b'\x90'),
+              (0x07fa63, bytes.fromhex('b8080000002bc350'),
+               bytes.fromhex('8d430850') + b'\x90' * 4),
+              (0x166a63, bytes.fromhex('b8080000002bc350'),
+               bytes.fromhex('8d430850') + b'\x90' * 4)]
+    # The ending driver (0x58ecd0) scrolls the roll one line a frame
+    # from frame 0x116 and cuts it at 0x10e2, timed for the last line
+    # to be under the top band. Its last ring row (53, fed at 0x0f2e)
+    # is off the top at 0x112e; the same rows come round to the foot
+    # at 0x1136, and the blank feed only clears columns 9..59, so
+    # their right-hand tiles would show. The cut moves to 0x1132.
+    sites += imm_sites([0x18e341], 0x10e2, 0x10e2 + 80)
+    sites += imm_sites([0x18e7b9], 0x10e3, 0x10e3 + 80)
+    # The SEGA card after the roll (0x58a570 at frame 0x1490) is 7 rows
+    # of plane A tiles written at cursor row 22, ring row 28, which the
+    # stock walker (scroll zeroed at the cut) shows at line 224. The
+    # 13-row window shift above moved it to line 328, so it is written
+    # 13 rows earlier - cursor row 9 - and lands where stock had it.
+    sites += [(0x189977, b'\x16', b'\x09')]
+    # Machine-select hangar: a platform mech is drawn while its angle is
+    # within a window of the camera's (0x59e3a1: 31.57 degrees to the
+    # left, 28.43 to the right, .data doubles), sized for a 4:3 view;
+    # in a wider one the next mech pops in at the edge. Both bounds are
+    # widened by the extra half field of view plus eight degrees for the
+    # mech's own width (stock's margin over its view). The game keeps
+    # palettes for the selection and the previous selection only (rows
+    # 1/3/5/7 and 9/11 of the colour planes) and loads them
+    # asynchronously, so a mech far enough right can come out in someone
+    # else's colours; past 28.43 degrees right of the camera - stock's
+    # draw bound, where colours stop being guaranteed - its shade is
+    # scaled to black instead, fading over the twelve degrees inside that
+    # edge, so the outermost mech is a silhouette that lights up as it
+    # turns in (ui.asm hangar_draw, wrapping the platform draw at
+    # 0x59e4ea).
+    f = 600 * 1.21875                    # focal times the 1P aspect
+    margin = math.degrees(math.atan(w / (h / 480) / 2 / f)
+                          - math.atan(320 / f))
+    if margin > 0:
+        sites += [(0x2213f0, struct.pack('<d', 31.57),
+                   struct.pack('<d', 31.57 + margin + 8)),
+                  (0x2213f8, struct.pack('<d', 28.43),
+                   struct.pack('<d', 28.43 + margin + 8)),
+                  (0x59e4ea - 0x400c00, b'\xe8' + u32(0x59cb93 - (0x59e4ea + 5)),
+                   b'\xe8' + u32(sec_va + UI_HANGAR_DRAW - (0x59e4ea + 5)))]
+    # Enemy marker and its off-screen arrow. 0x5485c0 (renderer A) and
+    # 0x475930 (B) draw the lock brackets while the enemy's projected
+    # position is inside a 4:3 window (x within 256 in focal-600 space)
+    # and switch to the edge arrow once the bearing is more than 0x1500
+    # (29.5 degrees) off the camera. Both are sized for the stock view:
+    # in a wider one the arrow points at an enemy still on screen. The
+    # x bounds grow with the visible width and the bearing window by
+    # the extra half field of view; the y bounds stay, since the
+    # vertical view is unchanged. Both renderers keep their own copy of
+    # the float pool; the compare immediates are in the code.
+    wide = w / (h / 480) / 640           # visible width over 4:3's
+    win = 0x1500 + round(margin * 65536 / 360)
+    sites += [(0x205d38, f32(-256.0), f32(-256.0 * wide)),
+              (0x205d3c, f32(256.0), f32(256.0 * wide)),
+              (0x1fb4a0, f32(-256.0), f32(-256.0 * wide)),
+              (0x1fb4a4, f32(256.0), f32(256.0 * wide))]
+    sites += [(off, u32(0x1500), u32(win))
+              for off in (0x147b60, 0x147cc8, 0x074ed0, 0x075038)]
+    # Stage objects. 0x5be1d0 (A) and 0x422f20 (B) pick each object's
+    # solid or meshed model by the camera yaw against the object's
+    # authored direction code (2 bits per object in the stage's cell
+    # table, 3 on the eight-way stages), meshed when the yaw is outside
+    # a window of 0x4800 (101 degrees; 0x3800 eight-way) - the object
+    # stands between the camera and the machine. With 90-degree codes
+    # an object beside the machine meshes once the yaw is 11 degrees
+    # past square to it, which at 16:9 is while it is still on screen.
+    # Both windows get 22.5 degrees more (0x1000: the add and its
+    # compare, twice the half window); an object behind the machine
+    # is still 135 degrees or more off and still meshes. Three windows
+    # per renderer; 0x5bed0d/0x5bf07c and 0x423a5d/0x423dcc are
+    # uncalled copies and stay.
+    for add, cmp_ in ((0x1bd799, 0x1bd7aa), (0x0224e9, 0x0224fa)):
+        sites += [(add, u32(0x4800), u32(0x5800)),
+                  (cmp_, u32(0x9000), u32(0xb000))]
+    for add, cmp_ in ((0x1bd8b0, 0x1bd8c1), (0x1bd9b6, 0x1bd9c7),
+                      (0x022600, 0x022611), (0x022706, 0x022717)):
+        sites += [(add, u32(0x3800), u32(0x4800)),
+                  (cmp_, u32(0x7000), u32(0x9000))]
+    sites += [(off, u32(0xffffeb00), u32(-win))
+              for off in (0x147b6f, 0x147cd7, 0x074edf, 0x075047)]
+    # Renderer A's polygon record pool: 2500 records of 0x30 bytes at
+    # 0x6db7e0, a side array of 8 per record at 0x6f8ca0 and the flush
+    # list at 0x6fdabc, with the cap in the two insert paths and the
+    # flush. Moved to the section and enlarged; the stock
+    # cap drops the last polygons of the machine-select hangar once all
+    # three mechs are drawn.
+    pool_va, n = pool
+    sites += imm_sites([0x1d3967, 0x1d46ba], 0x6db7e0, pool_va)
+    sites += imm_sites([0x1d3970, 0x1d46c3], 0x6f8ca0, pool_va + n * 0x30)
+    sites += imm_sites([0x1d0ed0], 0x6fdabc, pool_va + n * 0x38)
+    sites += imm_sites([0x1d11d8], 0x6fdac0, pool_va + n * 0x38 + 4)
+    sites += imm_sites([0x1d395b, 0x1d46ae, 0x1d0eac], 2500, n)
+    # Renderer B's, the same shape behind it: 2000 records at 0x708a90,
+    # sides at 0x720190, list at 0x72400c; its flush cap is 2500.
+    pool_b = pool_va + n * 0x3c + 8
+    sites += imm_sites([0x1de877, 0x1df60a], 0x708a90, pool_b)
+    sites += imm_sites([0x1de880, 0x1df613], 0x720190, pool_b + n * 0x30)
+    sites += imm_sites([0x1dbda0], 0x72400c, pool_b + n * 0x38)
+    sites += imm_sites([0x1dc0a8], 0x724010, pool_b + n * 0x38 + 4)
+    sites += imm_sites([0x1de86b, 0x1df5fe], 2000, n)
+    sites += imm_sites([0x1dbd7c], 2500, n)
+    # Perspective subdivision. 0x5d3430 splits a polygon while any edge is
+    # longer than a threshold, squared, in pixels, with a fixed recursion
+    # budget per polygon. Twice the pixels per edge means four times the
+    # splits, and big polygons run out of budget and vanish. Scale the two
+    # thresholds (.data initial values) by sx*sx to keep the split count
+    # what it was.
+    sites += [(0x2baff4, f32(32768.0), f32(32768.0 * sy * sy)),
+              (0x2baffc, f32(131072.0), f32(131072.0 * sy * sy))]
+    # --- split screen --------------------------------------------------
+    # Side by side: two W/2 x H viewports at (0,0) and (W/2,0). Top and
+    # bottom (split flag bit 1, or Screen=Normal): two W x H/2 at (0,0)
+    # and (0,H/2). The game's own layouts were 320x240 boxes, staggered.
+    sites += imm_sites([0x1c7cc5], 320, w)            # top/bottom size
+    sites += imm_sites([0x1c7ccf], 240, h // 2)
+    sites += imm_sites([0x1c7cf2], 320, w // 2)       # side by side size
+    sites += imm_sites([0x1c7cfc], 240, h)
+    # The two layout tests look at bit 1 only, while the origin case
+    # table treats Screen=Normal (bit 0) as top/bottom too; make them agree.
+    sites += [(0x1c7cb8, b'\x02', b'\x03'), (0x1c7e3a, b'\x02', b'\x03')]
+    # Origins (.data at 0x6c854c: y, x, y, x, y, y) all become zero.
+    sites += imm_sites([0x2c734c, 0x2c7350], 64, 0)
+    sites += imm_sites([0x2c7354], 176, 0)
+    sites += imm_sites([0x2c7358], 256, 0)
+    sites += imm_sites([0x2c735c, 0x2c7360], 120, 0)
+    # Second viewport: half a row in (640 bytes at 16bpp), its coverage
+    # mask offset (0x7087a0) half a row, 240 rows or 120 rows, and the
+    # row offsets pitch*240 and pitch*120 as lea/shl chains replaced with
+    # imul reg, reg, imm32 and nops.
+    sites += imm_sites([0x1c78f0, 0x1c794a, 0x1c7b72], 640, w)
+    sites += imm_sites([0x1c7907, 0x1c7961, 0x1c7a2c, 0x1c7a8e, 0x1c7b89,
+                        0x1c7c0e], 0x28, stride // 2)
+    sites += imm_sites([0x1c79bd, 0x1c7bd0], 0x4b00, h // 2 * stride)
+    sites += imm_sites([0x1c7af4, 0x1c7c55], 0x2580, h // 4 * stride)
+    nop = b'\x90' * 3
+    sites += [
+        (0x1c7bb1, bytes.fromhex('8d04408d0480c1e004'),
+         b'\x69\xc0' + u32(h // 2) + nop),
+        (0x1c7c36, bytes.fromhex('c1e0038d04408d0480'),
+         b'\x69\xc0' + u32(h // 4) + nop),
+        (0x1c799b, bytes.fromhex('8d0c498d0c89c1e104'),
+         b'\x69\xc9' + u32(h // 2) + nop),
+        (0x1c7ad2, bytes.fromhex('c1e1038d0c498d0c89'),
+         b'\x69\xc9' + u32(h // 4) + nop),
+    ]
+    # Field of view. In split mode 0x5c8317 halves the projection scale
+    # because its viewports were half-size both ways. Replaced with a
+    # per-layout factor from the section data, so each viewport gets the
+    # scale of the 4:3 screen that fits inside it; the aspect multiplies
+    # that follow are kept. Fits the original block.
+    ksbs, ktb = sec_va + UI_KSBS, sec_va + UI_KSBS + 4
+    block = (b'\xf6\x05' + u32(A('FLAGS')) + b'\x03'   # test byte [flags], 3
+             + b'\x75\x08'                             # jne top/bottom
+             + b'\xd9\x05' + u32(ksbs)                 # fld [ksbs]
+             + b'\xeb\x06'                             # jmp join
+             + b'\xd9\x05' + u32(ktb)                  # fld [ktb]
+             + b'\xd9\x05' + u32(A('SCALE_A'))             # fld [xscale]
+             + b'\xd8\xc9'                             # fmul st, st(1)
+             + b'\xd9\x1d' + u32(A('SCALE_A'))             # fstp [xscale]
+             + b'\xd8\x0d' + u32(A('SCALE_B'))             # fmul [xscale B]
+             + b'\xd9\x1d' + u32(A('SCALE_B'))             # fstp [xscale B]
+             + b'\xdd\x05' + u32(A('FCONST'))             # fld qword [1.21875]
+             + b'\xd9\x05' + u32(A('ASPECT_A'))             # fld [aspect]
+             + b'\xd8\xc9'                             # fmul st, st(1)
+             + b'\xd9\x1d' + u32(A('ASPECT_A'))             # fstp [aspect]
+             + b'\xd8\x0d' + u32(A('ASPECT_B'))             # fmul [aspect B]
+             + b'\xd9\x1d' + u32(A('ASPECT_B')))            # fstp [aspect B]
+    old = bytes.fromhex(
+        'd905e4c16b00833d1c0aa000007508dc3520476200eb11ff3524476200ff35204762'
+        '00e823d30100d91de4c16b00d905e8c16b00dc0d28476200d91de8c16b00d905288b'
+        '6c00dc0d28476200d91d288b6c00')
+    assert len(block) <= len(old)
+    sites.append((0x1c782d, old, block.ljust(len(old), b'\x90')))
+    # --- credits -------------------------------------------------------
+    # Two ending assets are sized for the 640x288 band the stock roll
+    # sits behind (see roll_blit). The star field is a grid of tiles
+    # (0x58f59c, 1800-unit columns from -9000, drifting 0.9 a frame) that
+    # runs out on the left before the roll ends once the frame is wider
+    # than 4:3: it starts further left, by the extra width in columns
+    # plus one. The moon card's commit (0x58f549) goes through ui.asm
+    # credits_moon, which scales it to the full height (UI_CMOON).
+    cols = int(math.ceil(max(0.0, w / h / (4 / 3) - 1) * 5)) + 1
+    sites += imm_sites([0x18ea14], -9000, -9000 - cols * 1800)
+    sites.append((0x18e949, b'\xe8' + u32(0x514430 - (0x58f549 + 5)),
+                  b'\xe8' + u32(sec_va + UI_CREDITS_MOON - (0x58f549 + 5))))
+    return sites
+
+
+def apply(buf, sites, mask_load=MASK_LOAD, mask_store=MASK_STORE):
+    for off, old, new in sites:
+        if old is None:                  # a rewritten span: check its parts
+            cur = buf[off:off + len(new)]
+            if cur[:3] == bytes.fromhex('558bec'):   # a pass prologue
+                continue
+            if mask_load not in cur or MASK_ADD not in cur \
+                    or mask_store not in cur:
+                raise ValueError('unexpected bytes at 0x%06x: %s'
+                                 % (off, cur.hex()))
+            continue
+        if buf[off:off + len(old)] != old:
+            raise ValueError('unexpected bytes at 0x%06x: %s'
+                             % (off, buf[off:off + len(old)].hex()))
+    for off, old, new in sites:
+        buf[off:off + len(new)] = new
+
+
+def _split_dialog(buf):
+    """Relabel the F5 Screen Split radios for the two layouts this patch
+    keeps: Type1 -> Ver (side by side), Type3 -> Hor (top/bottom). Type2
+    differed from Type1 only by a stagger the new layouts do not have, so
+    it is hidden. The Screen radios become 720p (was Normal) and 1080p
+    (was Large). Located by string and control id: the framerate patch
+    grows this template, so fixed offsets would miss."""
+    lo, hi = 0x602c00, min(len(buf), 0x60e000)
+    for old, new, hide, ident in (('Type1', 'Ver  ', False, 0x42e),
+                                  ('Type2', None, True, 0x42f),
+                                  ('Type3', 'Hor  ', False, 0x431),
+                                  ('Normal', '720p  ', False, 0x420),
+                                  ('Large', '1080p', False, 0x421)):
+        pat = old.encode('utf-16-le') + b'\0\0'
+        hits = []
+        i = buf.find(pat, lo, hi)
+        while i >= 0:
+            if struct.unpack_from('<H', buf, i - 6)[0] == ident:
+                hits.append(i)
+            i = buf.find(pat, i + 1, hi)
+        if len(hits) != 1:
+            raise ValueError('F5 radio %s not found once' % old)
+        i = hits[0]
+        if new:
+            enc = new.encode('utf-16-le')
+            assert len(enc) == len(pat) - 2
+            buf[i:i + len(enc)] = enc
+        if hide:
+            so = i - 22                     # the item's style dword
+            style = struct.unpack_from('<I', buf, so)[0]
+            if style != 0x50010009:         # visible radio, as shipped
+                raise ValueError('Type2 style is not where expected')
+            struct.pack_into('<I', buf, so, style & ~0x10000000)
+
+
+def hires_supported_stamp(stamp):
+    """Whether a build (by PE timestamp) has a full site table."""
+    return stamp == RETAIL_STAMP or '%08x' % stamp in PORT
+
+
+def hires_supported(buf):
+    """Whether this executable's build has a full site table."""
+    return hires_supported_stamp(_pe_stamp(buf))
+
+
+# What the CLI-era knobs settled on: the split FOV between the 4:3 that
+# fits a viewport and the one that fills it, nearest-neighbour compositing,
+# the widened hangar window, and a polygon pool of 8000 per renderer.
+HIRES_SPLIT_FOV = 'mean'
+HIRES_POLYS = 8000
+# Side-by-side split: rows of the 640x480 HUD frame above this go to the
+# top of the viewport instead of the centred frame. The timer and the
+# health bars end by 95; the weapon strips start near 300. 0 turns it off.
+HIRES_HUD_BAND = 110
+# The HUD spread, in a round on a viewport wider than 4:3 (1P and
+# top/bottom split; side by side and 4:3 keep the stock layout): the
+# timer - the 2D layer's rows above HIRES_HUD_BAND left of the first
+# value (the timer box ends at 226, PLAYER starts at 235) and the in-game
+# HUD pass's polygons there - moves left by the frame's inset, keeping
+# its 4:3 distance from the left edge. PLAYER/ENEMY and the bars, right
+# of it, move so that the centre of the group (HIRES_HUD_BARS: the labels
+# start at 233, the bar frames end at 523) sits at 320. 2D rows from the
+# second value and columns from the third (the TOTAL time, at 402..418
+# and 436..556) move right by the inset. HUD frame units; None turns all
+# three off.
+HIRES_HUD_SPREAD = (230, 380, 420)
+HIRES_HUD_BARS = 378
+# Top/bottom split: the HUD scale side by side would use (the same HUD
+# size in both layouts) rather than the 4:3 that fits the half-height
+# viewport, capped so that these frame rows stay on screen - the timer
+# and bars start at 62, the weapon strips end by 320 - and never below
+# the fit. The rows outside are cut.
+HIRES_HUD_TB_ROWS = (48, 432)
+# In a split game the split is drawn only while either player's machine is
+# in one of these sub-states: the rounds (9..0x0c), the result and continue
+# screens (0xd, 0xe), the win and lose screens (0x14, 0x15) and 0x1b. Every
+# other frame - the machine select, the waiting card, the wipe, the encounter
+# screen - is one full-screen viewport from the player whose sub-state is
+# lower (P1 on a tie), and so is everything outside a match (MODE not 4).
+HIRES_SPLIT_STATES = (9, 10, 11, 12, 0xd, 0xe, 0x14, 0x15, 0x1b)
+# Diagnostic: print "MODE SUBMODE  MODE2 SUBMODE2  SHOW" in hex at the top
+# of every frame. For reading the sub-state numbers off a screen.
+HIRES_DEBUG_STATES = False
+
+
+# The size F4 switches to and back from. Both sizes are written: the
+# first into the code, the second into a table in the section that the
+# blob copies over the sites at runtime (ui.asm f4_toggle).
+HIRES_ALT = (1280, 720)
+
+
+def _ui_words(w, hh):
+    """The size-derived words of the data block, by section offset."""
+    # 3D scale: the height (vertical FOV kept, Hor+). Split viewports
+    # take a scale between the 4:3 that fits inside them and the one
+    # that fills them; the game's split block multiplies the 1P scale
+    # by K, and the compositor uses the same scale for the 2D layer.
+    full = hh / 480
+
+    def split_scale(vw, vh, mode):
+        fit, fill = min(vw / 640, vh / 480), max(vw / 640, vh / 480)
+        return {'fit': fit, 'fill': fill,
+                'mean': math.sqrt(fit * fill)}[mode]
+    s_sbs = split_scale(w / 2, hh, HIRES_SPLIT_FOV)
+    s_tb = split_scale(w, hh / 2, HIRES_SPLIT_FOV)
+    # HUD scale: the 4:3 frame that fits inside the viewport, for the
+    # HUD passes (through the compositor's float) and the 2D layer.
+    h_1p = min(w / 640, hh / 480)
+    h_sbs = min(w / 2 / 640, hh / 480)
+    fit_tb = min(w / 640, hh / 2 / 480)
+    top, bottom = HIRES_HUD_TB_ROWS
+    h_tb = max(fit_tb, min(h_sbs, hh / 2 / (bottom - top)))
+    return {
+        UI_MODEW: struct.pack('<II', w, hh),
+        UI_KSBS: struct.pack('<ff', s_sbs / full, s_tb / full),
+        UI_SCALE: struct.pack('<III', int(h_1p * 65536),
+                              int(h_sbs * 65536), int(h_tb * 65536)),
+        UI_HUD: struct.pack('<ffff', h_1p, h_sbs, h_tb, h_1p),
+        # The credits moon card: 26 units high at z=80, 0.325 focal
+        # lengths, against the frame's half height of 0.399 - the same at
+        # any size, since the focal length follows the height. 1.25 keeps
+        # a margin over the 1.227 that just covers it.
+        UI_CMOON: f32(1.25),
+    }
+
+
+def _hires_check_size(width, height):
+    if width % 32 or height % 8 or width > 2040:
+        raise ValueError('width must be a multiple of 32 and at most 2040, '
+                         'height a multiple of 8')
+
+
+def _va_at(pe, off):
+    """A file offset's virtual address."""
+    for x in pe.sections:
+        if x['raddr'] <= off < x['raddr'] + x['rsize']:
+            return pe.base + x['vaddr'] + off - x['raddr']
+    raise ValueError('offset 0x%x is outside every section' % off)
+
+
+def _make_writable(buf, pe, off):
+    """Set the writable flag on the section holding file offset off.
+
+    For the F4 switch: f4_toggle copies the other size's bytes over live
+    code and data at runtime, so every section the table touches - .text
+    and .rdata included - stays writable for the life of the process."""
+    tab = pe.opt + pe.optsz
+    for i, x in enumerate(pe.sections):
+        if x['raddr'] <= off < x['raddr'] + x['rsize']:
+            o = tab + 40 * i + 36
+            chars = struct.unpack_from('<I', buf, o)[0]
+            struct.pack_into('<I', buf, o, chars | 0x80000000)
+            return
+    raise ValueError('offset 0x%x is outside every section' % off)
+
+
+def _annex_pushes(buf, stamp):
+    """The (height, width) push immediates of the idle-pass recreate in
+    asm/activate.asm, as file offsets, when the annex is present."""
+    build = BY_STAMP.get(stamp)
+    if build is None or not build.annex or len(buf) <= build.annex[1]:
+        return None
+    off = build.annex[1] + annex_layout(build)[0]['ACTIVATE']
+    if buf[off + 0xae:off + 0xb8] != bytes.fromhex('68e00100006880020000'):
+        return None
+    return off + 0xae + 1, off + 0xb3 + 1
+
+
+def port_sites(sites, port, A, sec_va=None):
+    """Retail sites translated onto another build: each moved to the
+    build's own offset, its old bytes replaced by the build's, and the
+    handful of shape-dependent rewrites redone from those bytes. Split
+    out so tools/selftest.py can exercise it with an identity port.
+
+    Returns (sites, fov): fov is the FOV block to write at UI_FOV when
+    the build's own block is too short to hold it and the site calls
+    it there instead, else None. sec_va is the section's address; the
+    identity port needs none."""
+    moved, fov = [], None
+    lens = port.get('passlen', {})
+    pass_offs = {s - 0x400c00: n for n, (s, _l)
+                 in enumerate(UI_PASS_FUNCS)}
+    mask_offs = {o: len(b) // 2 for o, _n, b in MASK_ADVANCE}
+    masks = [struct.pack('<I', A('MASKPTR')).join(
+        m.split(struct.pack('<I', ADDR['MASKPTR'])))
+        for m in (MASK_LOAD, MASK_STORE)]
+    for off, old_, new_ in sites:
+        if off in port.get('absent', ()):
+            continue
+        boff, bold = port['off'][off]
+        if off in pass_offs and 0x400c00 + off in lens:
+            # the build's shorter prologue: fewer displaced bytes
+            new_ = new_[:5] + b'\x90' * (lens[0x400c00 + off] - 5)
+        if off in mask_offs:
+            # The interleaved instructions are the build's own, not
+            # retail's: four of them load a frame global by address.
+            span = bytes.fromhex(bold)
+            between = span
+            for part in (masks[0], MASK_ADD, masks[1]):
+                i = between.find(part)
+                if i < 0:
+                    raise ValueError('mask span at 0x%06x: %s'
+                                     % (boff, span.hex()))
+                between = between[:i] + between[i + len(part):]
+            i = mask_offs[off]
+            new_ = (between + new_[i:i + 10]).ljust(len(span), b'\x90')
+            moved.append((boff, None, new_))
+            continue
+        bold = None if old_ is None else bytes.fromhex(bold)
+        if off == 0x1c782d:
+            # the FOV block: the build's ends at its last fstp
+            end = bold.find(b'\xd9\x1d' + u32(A('ASPECT_B')))
+            if end < 0:
+                raise ValueError('FOV block not recognised at 0x%06x'
+                                 % boff)
+            n = end + 6
+            block = new_.rstrip(b'\x90')
+            bold = bold[:n]
+            if len(block) <= n:
+                new_ = block.ljust(n, b'\x90')
+            elif sec_va is None:
+                raise ValueError('FOV block does not fit at 0x%06x' % boff)
+            else:
+                fov = block + b'\xc3'
+                new_ = (b'\xe8' + u32(sec_va + UI_FOV - (0x400c00 + boff + 5))
+                        ).ljust(n, b'\x90')
+            moved.append((boff, bold, new_))
+            continue
+        if off in (0x07fa63, 0x166a63):
+            # 8 - n becomes n + 8, in whichever register the build
+            # keeps n
+            reg = bold[6] & 7
+            new_ = (b'\x8d' + bytes([0x40 | reg, 8]) + b'\x50'
+                    + b'\x90' * 4)
+        if new_ and new_[0] == 0xe9 and bold and bold[:1] == b'\x0f' \
+                and 0x80 <= bold[1] <= 0x8f:
+            # a jcc made unconditional: the build's own target, one
+            # byte nearer (six bytes of jcc to five of jmp)
+            rel = struct.unpack_from('<i', bold, 2)[0]
+            new_ = b'\xe9' + u32(rel + 1) + new_[5:]
+        elif new_ and new_[0] in (0xe8, 0xe9) and sec_va is not None:
+            # a jump into the section: same target, moved site. One
+            # inside the image was built from A() and is already
+            # relative to the build's site (the F4 exit).
+            tgt = (0x400c00 + off + 5
+                   + struct.unpack_from('<i', new_, 1)[0])
+            if tgt >= sec_va:
+                new_ = (new_[:1] + u32(tgt - (0x400c00 + boff + 5))
+                        + new_[5:])
+        if off in (0x1c799b, 0x1c7ad2, 0x1c7bb1, 0x1c7c36):
+            # row maths rewritten as imul: use the register the
+            # build's own lea/shl chain uses
+            reg = None
+            for i2 in range(len(bold) - 1):
+                if bold[i2] == 0xc1 and 0xe0 <= bold[i2 + 1] <= 0xe7:
+                    reg = bold[i2 + 1] & 7
+                    break
+            assert reg is not None, hex(off)
+            new_ = (b'\x69' + bytes([0xc0 | reg << 3 | reg])
+                    + new_[2:6] + b'\x90' * (len(bold) - 6))
+        if off == 0x7e504:
+            # cmp [mode], 8 / je: the je keeps the build's own
+            # distance, one byte further in
+            rel = struct.unpack_from('<i', bold, 10)[0]
+            new_ = (b'\x83\x3d' + u32(A('SPRITEMODE')) + b'\x08'
+                    + b'\x0f\x84' + u32(rel + 1) + b'\x90')
+            assert len(new_) == len(bold)
+        moved.append((boff, bold, new_))
+    return moved, fov
+
+
+def hires_install(buf, width, height, alt=HIRES_ALT):
+    """Patch buf (a bytearray of v_on.exe, stock or vo_patch'd) in place
+    for width x height, with alt as the size F4 switches to. Raises
+    ValueError on a size or byte mismatch. Returns the number of sites
+    written."""
+    _hires_check_size(width, height)
+    _hires_check_size(*alt)
+    stamp = _pe_stamp(buf)
+    port = None
+    if stamp != RETAIL_STAMP:
+        port = PORT.get('%08x' % stamp)
+        if port is None:
+            raise ValueError('not a build this tool knows')
+    if port is None:
+        A = ADDR.__getitem__
+    else:
+        A = lambda name: port['va'][ADDR[name]]     # noqa: E731
+    w, hh = width, height
+    aw, ah = alt
+    mask_off = UI_OFF + UI_OFF_SIZE
+    rowtab_off = mask_off + max(hh * (w // 8 + 4), ah * (aw // 8 + 4))
+    size = rowtab_off + 2 * max(hh, ah) * 4
+    pool_off = size
+    size += 2 * (HIRES_POLYS * 0x3c + 8)   # pool, sides, list; both renderers
+    code = UI_CODE
+    if port is not None:
+        code = bytearray(code)
+        for o, va in UI_REFS:
+            assert struct.unpack_from('<I', code, o)[0] == va
+            struct.pack_into('<I', code, o, port['va'][va])
+        code = bytes(code)
+    raw = bytearray(code.ljust(UI_OFF, b'\0'))
+    sec_va, rawptr = add_section(buf, size, raw=bytes(raw))
+    targets = [A(n) for n in
+               ('CALL_PRE1', 'CALL_POST1', 'CALL_PRE2', 'CALL_POST2')]
+    for (off, _t), target in zip(UI_CALLS, targets):
+        struct.pack_into('<i', buf, rawptr + off + 1,
+                         target - (sec_va + off + 5))
+    # pass stubs: call hud_enter, the displaced prologue, jump back
+    lens = port.get('passlen', {}) if port else {}
+    pass_funcs = [(A('PASS%d' % n), lens.get(s, ln))
+                  for n, (s, ln) in enumerate(UI_PASS_FUNCS)]
+    for n, (site, ln) in enumerate(pass_funcs):
+        o = UI_PASS_STUBS + 20 * n
+        va = sec_va + o
+        stub = (b'\xe8' + u32(sec_va + UI_HUD_ENTER - (va + 5))
+                + buf[site - 0x400c00:site - 0x400c00 + ln]
+                + b'\xe9' + u32(site + ln - (va + 5 + ln + 5)))
+        assert len(stub) <= 20 and o + 20 <= 0x1c00
+        buf[rawptr + o:rawptr + o + len(stub)] = stub
+    words, alt_words = _ui_words(w, hh), _ui_words(aw, ah)
+    for off, val in words.items():
+        buf[rawptr + off:rawptr + off + len(val)] = val
+    struct.pack_into('<I', buf, rawptr + UI_ROWTAB, sec_va + rowtab_off)
+    struct.pack_into('<I', buf, rawptr + UI_PINTH, HIRES_HUD_BAND)
+    splitc, botrow, botcol = HIRES_HUD_SPREAD or (0, 0, 0)
+    struct.pack_into('<I', buf, rawptr + UI_SPLITC, splitc)
+    struct.pack_into('<II', buf, rawptr + UI_BOTROW, botrow, botcol)
+    struct.pack_into('<i', buf, rawptr + UI_BARDX, 320 - HIRES_HUD_BARS)
+    struct.pack_into('<Q', buf, rawptr + UI_SPLITST,
+                     sum(1 << n for n in HIRES_SPLIT_STATES))
+    struct.pack_into('<I', buf, rawptr + UI_DEBUG, int(HIRES_DEBUG_STATES))
+    struct.pack_into('<ffff', buf, rawptr + UI_CONST, 65536.0, 640.0,
+                     480.0, 0.5)
+    sites = build_sites(w, hh, sec_va, sec_va + mask_off,
+                        sec_va + rowtab_off,
+                        pool=(sec_va + pool_off, HIRES_POLYS), A=A)
+    alt_sites = build_sites(aw, ah, sec_va, sec_va + mask_off,
+                            sec_va + rowtab_off,
+                            pool=(sec_va + pool_off, HIRES_POLYS), A=A)
+    if port is not None:
+        sites, fov = port_sites(sites, port, A, sec_va)
+        alt_sites, _fov = port_sites(alt_sites, port, A, sec_va)
+        if fov:                          # the same at either size
+            assert UI_FOV + len(fov) <= UI_OFF
+            buf[rawptr + UI_FOV:rawptr + UI_FOV + len(fov)] = fov
+    # The idle-pass recreate in asm/activate.asm pushes its own size.
+    pushes = _annex_pushes(buf, stamp)
+    if pushes:
+        sites += [(pushes[0], u32(480), u32(hh)), (pushes[1], u32(640), u32(w))]
+        alt_sites += [(pushes[0], u32(480), u32(ah)),
+                      (pushes[1], u32(640), u32(aw))]
+    # The F4 table: every site whose bytes differ between the sizes, and
+    # the data words above.
+    pe = _PE(buf)
+    table = []
+    for (off, old_, new_), (aoff, aold, anew) in zip(sites, alt_sites):
+        assert off == aoff and old_ == aold and len(new_) == len(anew)
+        if new_ != anew:
+            table.append((_va_at(pe, off), new_, anew))
+    for off in sorted(words):
+        if words[off] != alt_words[off]:
+            table.append((sec_va + off, words[off], alt_words[off]))
+    for va, _a, _b in table:
+        if va < sec_va:
+            _make_writable(buf, pe, pe.off(va - pe.base))
+    blob = b''.join(u32(va) + u32(len(a)) + a + b for va, a, b in table)
+    blob += u32(0)
+    if len(blob) > UI_F4TAB_SIZE:
+        raise ValueError('F4 table too large: %d bytes' % len(blob))
+    buf[rawptr + UI_F4TAB_OFF:rawptr + UI_F4TAB_OFF + len(blob)] = blob
+    struct.pack_into('<II', buf, rawptr + UI_F4MODE, 0,
+                     sec_va + UI_F4TAB_OFF)
+    if port is not None:
+        masks = tuple(struct.pack('<I', A('MASKPTR')).join(
+            m.split(struct.pack('<I', ADDR['MASKPTR'])))
+            for m in (MASK_LOAD, MASK_STORE))
+        apply(buf, sites, mask_load=masks[0], mask_store=masks[1])
+    else:
+        apply(buf, sites)
+    _split_dialog(buf)
+    return len(sites)
 
 # Stamped by the build from the tag; see .github/workflows/build.yml. A
 # source checkout has no version of its own, and saying so is more use in a
@@ -81,11 +2411,12 @@ DISC_IMAGES = {
 # a place inside one of ours.
 
 class Build(object):
-    def __init__(self, name, short, md5, size, sections, caves, symbols, art,
-                 sites=None, annex=None):
+    def __init__(self, name, short, md5, size, stamp, sections, caves,
+                 symbols, art, sites=None, annex=None):
         # the name on screen, and a word for a label or a log line
         self.name, self.short = name, short
         self.md5, self.size = md5, size
+        self.stamp = stamp                  # PE timestamp; keys PORT
         # (file offset, virtual address) of each section, in file order
         self.sections = sections
         self.caves, self.symbols = caves, symbols
@@ -139,9 +2470,10 @@ ANNEX_BLOBS = (
     'INIPARSE', 'PAGESEC', 'PAGESEL', 'COMMITDEV', 'INIALL', 'DEVORDER',
     'F11PAUSE', 'MOVIE', 'CREDITS', 'NAMEENTRY', 'CAMSKIP', 'OVERLAY',
     'TITLEVER', 'PAD_COND', 'PAD_BINDS', 'PAD_NAMES', 'PAD_PROFILES',
-    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE')
+    'PAD_SIMPLEDEF', 'PAD_INIKEYS', 'EXTRAS_DATA', 'ACTIVATE', 'LOCKLINE')
 
-RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
+RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE,
+               RETAIL_STAMP, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f4400, 0x005f5000),       # .rdata
     (0x0023de00, 0x0063f000),       # .data
@@ -230,6 +2562,10 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'SETACTIVE': 0x005c6326,       # (pause): the loop stops on 1, runs on 0
     'FSFLAGS': 0x006bf598,         # bit 2: the low-resolution modes
     'FSMODE': 0x006bf560,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bf578,             # picture origin and size on the
+    'FBY': 0x006bf57c,             # surface, set per mode at 0x5c88ac
+    'FBW': 0x006bf5b8,
+    'FBH': 0x006bf5bc,
     'HAVESURF': 0x006bf570,        # the game's "surfaces exist" flag
     'ISICONIC': 0x0365d594,        # IAT: IsIconic
     'ORIGWNDPROC': 0x005c6857,     # the handler the hook falls through to
@@ -256,6 +2592,10 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
     'ACCEPT2': 0x01ad0db1,         # and 2P
     'FLAG': 0x01ae1c1c,            # the displaced write
     'MODE': 0x01ae3594,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006db4c8,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006db4d0,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x00708818,           # renderer B, the same
+    'PROJB2D': 0x0070881c,
     'SUBMODE': 0x01ae3690,         # game sub-state
     'MOVIEX': 0x01ae5f34,          # the offsets the replaced code read
     'MOVIEY': 0x01ae5f38,
@@ -308,7 +2648,8 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE, sections=(
 # for how the addresses were found.
 JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
 JAPAN_SIZE = 6621696
-JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
+JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, 0x345107fa,
+              sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001eec00, 0x005f0000),       # .rdata
     (0x00239200, 0x0063b000),       # .data
@@ -397,6 +2738,10 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'SETACTIVE': 0x005c0bf5,
     'FSFLAGS': 0x006bb2b0,
     'FSMODE': 0x006bb278,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bb290,             # picture origin and size, as retail
+    'FBY': 0x006bb294,
+    'FBW': 0x006bb2d0,
+    'FBH': 0x006bb2d4,
     'HAVESURF': 0x006bb288,
     'ISICONIC': 0x036585a4,
     'ORIGWNDPROC': 0x005c1126,     # the handler the hook falls through to
@@ -423,6 +2768,10 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
     'ACCEPT2': 0x01acba31,         # and 2P
     'FLAG': 0x01adcdf8,            # the displaced write
     'MODE': 0x01adcdf0,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006d7258,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006d7260,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x007045a8,           # renderer B, the same
+    'PROJB2D': 0x007045ac,
     'SUBMODE': 0x01addc40,         # game sub-state
     'MOVIEX': 0x01ae0c1c,          # the offsets the replaced code read
     'MOVIEY': 0x01ae0c20,
@@ -476,7 +2825,7 @@ JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, sections=(
 # to remove: its processor check is an MMX test through cpuid32.dll.
 OEM_MD5 = '4c70f780a7f0d98d74be62304fb99021'
 OEM_SIZE = 6649344
-OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
+OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, 0x3317246a, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f3e00, 0x005f5000),       # .rdata
     (0x0023d800, 0x0063f000),       # .data
@@ -558,6 +2907,10 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'SETACTIVE': 0x005c5e3f,
     'FSFLAGS': 0x006bf530,
     'FSMODE': 0x006bf4f8,          # low-res: 320x240 in the FSFLAGS modes
+    'FBX': 0x006bf510,             # picture origin and size, as retail
+    'FBY': 0x006bf514,
+    'FBW': 0x006bf550,
+    'FBH': 0x006bf554,
     'HAVESURF': 0x006bf508,
     'ISICONIC': 0x0365d5c8,
     'ORIGWNDPROC': 0x005c6370,   # func
@@ -584,6 +2937,10 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
     'ACCEPT2': 0x01ad0d49,   # data 1 votes
     'FLAG': 0x01ae1bac,
     'MODE': 0x01ae3524,            # game state; the tick gates on MODE+SUBMODE
+    'PROJA': 0x006db488,           # renderer A projection: 3D scale (lockline)
+    'PROJA2D': 0x006db490,         # its aspect slot, the 2D quads' scale
+    'PROJB': 0x007087d8,           # renderer B, the same
+    'PROJB2D': 0x007087dc,
     'SUBMODE': 0x01ae3620,         # game sub-state
     'MOVIEX': 0x01ae5ec4,
     'MOVIEY': 0x01ae5ec8,
@@ -630,6 +2987,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, sections=(
 }, art=RETAIL.art, sites=None, annex=ANNEX_BLOBS)   # retail's art
 
 BUILDS = {RETAIL.md5: RETAIL, JAPAN.md5: JAPAN, OEM.md5: OEM}
+BY_STAMP = {b.stamp: b for b in BUILDS.values()}
 
 # GENERATED by tools/buildsites.py - do not edit by hand.
 #
@@ -894,6 +3252,34 @@ JAPAN.sites = {
         '53005400550056005700580059005a005b005c005d005e005f00600061006200'
         '63004d004e004f006400650066006700680069006a006b006c004a00'
     ),
+    # lockline: the 2D quad submits, the mesh walkers and the clippers'
+    # fdivr sites
+    0x001d23cc: (0x001ccc5c, 'd83d58726d00'),
+    0x001d240d: (0x001ccc9d, 'd83d58726d00'),
+    0x001d2472: (0x001ccd02, 'd83d58726d00'),
+    0x001d24e9: (0x001ccd79, 'd83d58726d00'),
+    0x001d2539: (0x001ccdc9, 'd83d58726d00'),
+    0x001d25dc: (0x001cce6c, 'd83d58726d00'),
+    0x001d261d: (0x001ccead, 'd83d58726d00'),
+    0x001d2682: (0x001ccf12, 'd83d58726d00'),
+    0x001d26d2: (0x001ccf62, 'd83d58726d00'),
+    0x001d274a: (0x001ccfda, 'd83d58726d00'),
+    0x001d279a: (0x001cd02a, 'd83d58726d00'),
+    0x001d4850: (0x001cf0e0, '558bec50535152'),
+    0x001d6da0: (0x001d1630, '558bec50535152'),
+    0x001dd2ac: (0x001d7b3c, 'd83da8457000'),
+    0x001dd2ed: (0x001d7b7d, 'd83da8457000'),
+    0x001dd352: (0x001d7be2, 'd83da8457000'),
+    0x001dd3c9: (0x001d7c59, 'd83da8457000'),
+    0x001dd419: (0x001d7ca9, 'd83da8457000'),
+    0x001dd4bc: (0x001d7d4c, 'd83da8457000'),
+    0x001dd4fd: (0x001d7d8d, 'd83da8457000'),
+    0x001dd562: (0x001d7df2, 'd83da8457000'),
+    0x001dd5b2: (0x001d7e42, 'd83da8457000'),
+    0x001dd62a: (0x001d7eba, 'd83da8457000'),
+    0x001dd67a: (0x001d7f0a, 'd83da8457000'),
+    0x001df7a0: (0x001da030, '558bec50535152'),
+    0x001e1e80: (0x001dc710, '558bec50535152'),
 }
 # SITES JAPAN END
 
@@ -1153,6 +3539,34 @@ OEM.sites = {
         '53005400550056005700580059005a005b005c005d005e005f00600061006200'
         '63004d004e004f006400650066006700680069006a006b006c004a00'
     ),
+    # lockline: the 2D quad submits, the mesh walkers and the clippers'
+    # fdivr sites
+    0x001d23cc: (0x001d1f0c, 'd83d88b46d00'),
+    0x001d240d: (0x001d1f4d, 'd83d88b46d00'),
+    0x001d2472: (0x001d1fb2, 'd83d88b46d00'),
+    0x001d24e9: (0x001d2029, 'd83d88b46d00'),
+    0x001d2539: (0x001d2079, 'd83d88b46d00'),
+    0x001d25dc: (0x001d211c, 'd83d88b46d00'),
+    0x001d261d: (0x001d215d, 'd83d88b46d00'),
+    0x001d2682: (0x001d21c2, 'd83d88b46d00'),
+    0x001d26d2: (0x001d2212, 'd83d88b46d00'),
+    0x001d274a: (0x001d228a, 'd83d88b46d00'),
+    0x001d279a: (0x001d22da, 'd83d88b46d00'),
+    0x001d4850: (0x001d4390, '558bec50535152'),
+    0x001d6da0: (0x001d68e0, '558bec50535152'),
+    0x001dd2ac: (0x001dcdec, 'd83dd8877000'),
+    0x001dd2ed: (0x001dce2d, 'd83dd8877000'),
+    0x001dd352: (0x001dce92, 'd83dd8877000'),
+    0x001dd3c9: (0x001dcf09, 'd83dd8877000'),
+    0x001dd419: (0x001dcf59, 'd83dd8877000'),
+    0x001dd4bc: (0x001dcffc, 'd83dd8877000'),
+    0x001dd4fd: (0x001dd03d, 'd83dd8877000'),
+    0x001dd562: (0x001dd0a2, 'd83dd8877000'),
+    0x001dd5b2: (0x001dd0f2, 'd83dd8877000'),
+    0x001dd62a: (0x001dd16a, 'd83dd8877000'),
+    0x001dd67a: (0x001dd1ba, 'd83dd8877000'),
+    0x001df7a0: (0x001df2e0, '558bec50535152'),
+    0x001e1e80: (0x001e19c0, '558bec50535152'),
 }
 # SITES OEM END
 
@@ -1665,46 +4079,54 @@ BLOBS = {
         'annex': 0x0,
     }),
     'MOVIE': (bytes.fromhex(
-        '5589e583ec405356578b7d08a1000000008947f4a1000000008947f031f66858'
-        '010000ff150000000085c0742b686201000050ff150000000085c0741b89c368'
-        '73010000ff150000000085c0740a687e01000050ffd389c685f675068b350000'
-        '00008d45f050ff7708ffd685c00f84e00000008b45f82b45f08945d885c00f8e'
-        'cf0000008b45fc2b45f48945d485c00f8ebe0000000fbf47108945d085c00f8e'
-        'af0000000fbf47148945cc85c00f8ea00000008b45d8f76dcc89c38b45d4f76d'
-        'd039c37f118b45d88945c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f7'
-        '7dcc8945c88b45d82b45c8d1f88947f48b45d42b45c4d1f88947f08b45c88947'
-        '108b45c48947146a01ff75c4ff75c8ff77f0ff77f4ff3500000000ff15000000'
-        '0031c08945dc8945e08945e48b45c88945e88b45c48945ec8d45dc5068000005'
-        '006842080000ff3500000000a100000000ffd05f5e5bc9c364647261772e646c'
-        '6c00444447657450726f6341646472657373007573657233322e646c6c004765'
-        '74436c69656e745265637400'
+        '5589e583ec445356578b7d0831c08945bca1000000008947f4a1000000008947'
+        'f031f668ea010000ff150000000085c0742b68f401000050ff150000000085c0'
+        '741b89c36805020000ff150000000085c0740a681002000050ffd389c685f675'
+        '068b35000000008d45f050ff7708ffd685c00f846d0100008b45f82b45f08945'
+        'd885c00f8e5c0100008b45fc2b45f48945d485c00f8e4b0100000fbf47108945'
+        'd085c00f8e3c0100000fbf47148945cc85c00f8e2d0100008d45dc5068000043'
+        '006843080000ff3500000000a100000000ffd085c075328b45e885c07e2b8b4d'
+        'ec85c97e248945d089c86bc01e99bbf0000000f7fb8945c089c869c0b4000000'
+        '99f7fb8945bc8945cc8b45d8f76dcc89c38b45d4f76dd039c37f118b45d88945'
+        'c8f76dccf77dd08945c4eb0f8b45d48945c4f76dd0f77dcc8945c88b45d82b45'
+        'c8d1f88947f48b45d42b45c4d1f88947f08b45c88947108b45c48947146a01ff'
+        '75c4ff75c8ff77f0ff77f4ff3500000000ff15000000008b45bc85c0743531c0'
+        '8945dc8945e08b45c08945e48b45d08945e88b45bc8945ec8d45dc5068000003'
+        '006842080000ff3500000000a100000000ffd031c08945dc8945e08945e48b45'
+        'c88945e88b45c48945ec8d45dc5068000005006842080000ff3500000000a100'
+        '000000ffd05f5e5bc9c364647261772e646c6c00444447657450726f63416464'
+        '72657373007573657233322e646c6c00476574436c69656e745265637400'
     ), (
-        (0xd, 'abs', 'MOVIEX', 0),
-        (0x13, 'abs8', 'F_X', 0),
-        (0x15, 'abs', 'MOVIEY', 0),
-        (0x1b, 'abs8', 'F_Y', 0),
-        (0x1f, 'abs', '.', 344),
-        (0x25, 'abs', 'GETMODULE', 0),
-        (0x2e, 'abs', '.', 354),
-        (0x35, 'abs', 'GETPROC', 0),
-        (0x40, 'abs', '.', 371),
-        (0x46, 'abs', 'GETMODULE', 0),
-        (0x4f, 'abs', '.', 382),
-        (0x5e, 'abs', 'GETCLIENT', 0),
-        (0xef, 'abs8', 'F_X', 0),
-        (0xfa, 'abs8', 'F_Y', 0),
-        (0x111, 'abs8', 'F_Y', 0),
-        (0x114, 'abs8', 'F_X', 0),
-        (0x117, 'abs', 'MOVIEHWND', 0),
-        (0x11d, 'abs', 'MOVEWINDOW', 0),
-        (0x148, 'abs', 'MOVIEDEV', 0),
-        (0x14d, 'abs', 'MCISEND', 0),
+        (0x12, 'abs', 'MOVIEX', 0),
+        (0x18, 'abs8', 'F_X', 0),
+        (0x1a, 'abs', 'MOVIEY', 0),
+        (0x20, 'abs8', 'F_Y', 0),
+        (0x24, 'abs', '.', 490),
+        (0x2a, 'abs', 'GETMODULE', 0),
+        (0x33, 'abs', '.', 500),
+        (0x3a, 'abs', 'GETPROC', 0),
+        (0x45, 'abs', '.', 517),
+        (0x4b, 'abs', 'GETMODULE', 0),
+        (0x54, 'abs', '.', 528),
+        (0x63, 'abs', 'GETCLIENT', 0),
+        (0xc8, 'abs', 'MOVIEDEV', 0),
+        (0xcd, 'abs', 'MCISEND', 0),
+        (0x145, 'abs8', 'F_X', 0),
+        (0x150, 'abs8', 'F_Y', 0),
+        (0x167, 'abs8', 'F_Y', 0),
+        (0x16a, 'abs8', 'F_X', 0),
+        (0x16d, 'abs', 'MOVIEHWND', 0),
+        (0x173, 'abs', 'MOVEWINDOW', 0),
+        (0x1a8, 'abs', 'MOVIEDEV', 0),
+        (0x1ad, 'abs', 'MCISEND', 0),
+        (0x1da, 'abs', 'MOVIEDEV', 0),
+        (0x1df, 'abs', 'MCISEND', 0),
     ), {
         'movie_place': 0x0,
-        's_ddraw': 0x158,
-        's_ddgpa': 0x162,
-        's_user32': 0x173,
-        's_getclient': 0x17e,
+        's_ddraw': 0x1ea,
+        's_ddgpa': 0x1f4,
+        's_user32': 0x205,
+        's_getclient': 0x210,
     }),
     'CREDITS': (bytes.fromhex(
         'a0000000000a05000000008a1500000000a200000000803d0000000002753284'
@@ -1751,28 +4173,30 @@ BLOBS = {
         'camskip': 0x0,
     }),
     'OVERLAY': (bytes.fromhex(
-        'ff742404e8fcffffff83c404833d0000000004756b833d00000000207562803d'
-        '00000000027559803d00000000007450b840010000bab8010000f60500000000'
-        '04740d833d00000000007404d1f8d1fa8b0d00000000518b0d00000000890d00'
-        '0000006a016800ff000052506881000000e8fcffffff83c41459890d00000000'
-        'c3484f4c4420544f20534b495000'
+        'ff742404e8fcffffff83c404833d00000000047570833d00000000207567803d'
+        '0000000002755e803d00000000007455a1000000006bc00bb90c00000099f7f9'
+        '03050000000089c2a100000000d1e80305000000008b0d00000000518b0d0000'
+        '0000890d000000006a016800ff000052506886000000e8fcffffff83c4145989'
+        '0d00000000c3484f4c4420544f20534b495000'
     ), (
         (0x5, 'rel', 'ORIG', -4),
         (0xe, 'abs', 'MODE', 0),
         (0x17, 'abs', 'SUBMODE', 0),
         (0x20, 'abs', 'PHASE', 0),
         (0x29, 'abs', 'HELD', 0),
-        (0x3c, 'abs', 'FSFLAGS', 0),
-        (0x45, 'abs', 'FSMODE', 0),
-        (0x52, 'abs', 'PRIMARY', 0),
-        (0x59, 'abs', 'BACK', 0),
-        (0x5f, 'abs', 'PRIMARY', 0),
-        (0x6d, 'abs', '.', 129),
-        (0x72, 'rel', 'DRAW', -4),
-        (0x7c, 'abs', 'PRIMARY', 0),
+        (0x31, 'abs', 'FBH', 0),
+        (0x42, 'abs', 'FBY', 0),
+        (0x49, 'abs', 'FBW', 0),
+        (0x51, 'abs', 'FBX', 0),
+        (0x57, 'abs', 'PRIMARY', 0),
+        (0x5e, 'abs', 'BACK', 0),
+        (0x64, 'abs', 'PRIMARY', 0),
+        (0x72, 'abs', '.', 134),
+        (0x77, 'rel', 'DRAW', -4),
+        (0x81, 'abs', 'PRIMARY', 0),
     ), {
         'overlay': 0x0,
-        'prompt': 0x81,
+        'prompt': 0x86,
     }),
     'TITLEVER': (bytes.fromhex(
         'a10000000083f8017545a10000000083f806740a83f817740583f8117531ba55'
@@ -1825,6 +4249,34 @@ BLOBS = {
         'made': 0x19,
         'resume': 0x41,
         'idle': 0x70,
+    }),
+    'LOCKLINE': (bytes.fromhex(
+        '872c2450535152c705aa000000010000008d450289e583c510508b442410c387'
+        '2c2450535152c705ae000000010000008d450289e583c510508b442410c3872c'
+        '2450535152c705aa000000000000008d450289e583c510508b442410c3872c24'
+        '50535152c705ae000000000000008d450289e583c510508b442410c3833daa00'
+        '0000007507d83d00000000c3d83d00000000c3833dae000000007507d83d0000'
+        '0000c3d83d00000000c30000000000000000'
+    ), (
+        (0x9, 'abs', '.', 170),
+        (0x28, 'abs', '.', 174),
+        (0x47, 'abs', '.', 170),
+        (0x66, 'abs', '.', 174),
+        (0x7e, 'abs', '.', 170),
+        (0x87, 'abs', 'PROJA', 0),
+        (0x8e, 'abs', 'PROJA2D', 0),
+        (0x95, 'abs', '.', 174),
+        (0x9e, 'abs', 'PROJB', 0),
+        (0xa5, 'abs', 'PROJB2D', 0),
+    ), {
+        'quad2d_a': 0x0,
+        'quad2d_b': 0x1f,
+        'walk_a': 0x3e,
+        'walk_b': 0x5d,
+        'clipproj_a': 0x7c,
+        'clipproj_b': 0x93,
+        'flag_a': 0xaa,
+        'flag_b': 0xae,
     }),
     'PAD_COND': (bytes.fromhex(
         '0200000000100000020000000020000002000000004000000200000000800000'
@@ -2567,8 +5019,10 @@ FEATURES = [
     ('movie', 'Intro, loading and ending screens',
      'Four fixes to the screens either side of the fighting.\n'
      '\n'
-     'Intro movie\tFitted to the window. The game sizes it for 640x480,\n'
-     '\tso scaled up it sat small in a corner.\n'
+     'Intro movie\tFitted to the window. The film is letterboxed\n'
+     '\tinside its frames; the black bars stay off screen and\n'
+     '\tthe picture fills the height. The game sized it for\n'
+     '\t640x480, so scaled up it sat small in a corner.\n'
      'Loading text\t"Now Loading . . ." is hidden. The load is over\n'
      '\tbefore you read it.\n'
      'Ending credits\tSkippable - hold A, Select or Space for a second.\n'
@@ -2734,7 +5188,7 @@ FEATURES = [
      '\n'
      'F1\tHelp\n'
      'F3\tPause\n'
-     'F4\tHigh / low resolution\n'
+     'F4\tHigh / low resolution (1080p / 720p with Widescreen)\n'
      'F5\tGraphic Settings\n'
      'F6\tMode Settings\n'
      'F7\tDevice Settings\n'
@@ -2748,6 +5202,41 @@ FEATURES = [
          # matching the built-in F-key dialogs; see asm/f11pause.asm
          (site('F11PAUSE'), zeros('F11PAUSE'), blob('F11PAUSE')),
          (site('EXTRAS_DATA'), zeros('EXTRAS_DATA'), blob('EXTRAS_DATA'))]),
+    ('lockline', 'Fix the lock-on line',
+     'The line from the enemy to the distance readout flashed across the\n'
+     'screen as a grey band whenever the enemy was far off to one side.\n'
+     'It is drawn right now.', [
+         (site('LOCKLINE'), zeros('LOCKLINE'), blob('LOCKLINE')),
+         # The 2D quad submits and the mesh walkers: the prologue
+         # (push ebp; mov ebp,esp; push eax; push ebx; push ecx; push edx)
+         # becomes a call that replays it and sets or clears the flag.
+         (0x001d6da0, '558bec50535152', call(0x001d6da0, ('LOCKLINE', 'quad2d_a'), 2)),
+         (0x001e1e80, '558bec50535152', call(0x001e1e80, ('LOCKLINE', 'quad2d_b'), 2)),
+         (0x001d4850, '558bec50535152', call(0x001d4850, ('LOCKLINE', 'walk_a'), 2)),
+         (0x001df7a0, '558bec50535152', call(0x001df7a0, ('LOCKLINE', 'walk_b'), 2)),
+         # The clippers' re-projection, fdivr dword [PROJ], per renderer
+         (0x001d23cc, 'd83dc8b46d00', call(0x001d23cc, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d240d, 'd83dc8b46d00', call(0x001d240d, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2472, 'd83dc8b46d00', call(0x001d2472, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d24e9, 'd83dc8b46d00', call(0x001d24e9, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2539, 'd83dc8b46d00', call(0x001d2539, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d25dc, 'd83dc8b46d00', call(0x001d25dc, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d261d, 'd83dc8b46d00', call(0x001d261d, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d2682, 'd83dc8b46d00', call(0x001d2682, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d26d2, 'd83dc8b46d00', call(0x001d26d2, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d274a, 'd83dc8b46d00', call(0x001d274a, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001d279a, 'd83dc8b46d00', call(0x001d279a, ('LOCKLINE', 'clipproj_a'), 1)),
+         (0x001dd2ac, 'd83d18887000', call(0x001dd2ac, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd2ed, 'd83d18887000', call(0x001dd2ed, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd352, 'd83d18887000', call(0x001dd352, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd3c9, 'd83d18887000', call(0x001dd3c9, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd419, 'd83d18887000', call(0x001dd419, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd4bc, 'd83d18887000', call(0x001dd4bc, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd4fd, 'd83d18887000', call(0x001dd4fd, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd562, 'd83d18887000', call(0x001dd562, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd5b2, 'd83d18887000', call(0x001dd5b2, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd62a, 'd83d18887000', call(0x001dd62a, ('LOCKLINE', 'clipproj_b'), 1)),
+         (0x001dd67a, 'd83d18887000', call(0x001dd67a, ('LOCKLINE', 'clipproj_b'), 1))]),
     ('continuefix', 'Fix crash on round loss',
      'Stops the crash when you lose a round as Temjin, Viper II, Apharmd or\n'
      'Raiden.', [
@@ -3049,6 +5538,7 @@ def by_key(build):
     table = {key: (label, tip, sites)
              for key, label, tip, sites in features(build)}
     table['dinput'] = BY_KEY['dinput']
+    table['hires'] = BY_KEY['hires']
     return table
 
 
@@ -3060,6 +5550,25 @@ DI_FIND = re.compile(
 # key -> (label, description, sites), with sites None meaning DI_FIND.
 BY_KEY = {key: (label, tip, sites)
           for key, label, tip, sites in features(RETAIL)}
+
+# Sites computed at apply time from the chosen size, so it cannot live in
+# FEATURES. Applied last, after nodisc, since it appends its own section.
+BY_KEY['hires'] = (
+    'Native widescreen',
+    'The game renders at 1920x1080 itself, in place of 640x480, and the\n'
+    'wider view shows more of the arena at the sides.\n'
+    '\n'
+    'Picture\tThe 3D view at the new size; menus, HUD and text\n'
+    '\tredrawn to match, not stretched. The timer keeps to the\n'
+    '\ttop left corner, the health bars to the middle.\n'
+    'F4\tSwitches to 1280x720 and back. Also Screen on F5;\n'
+    '\tthe choice is saved with the settings.\n'
+    'Split screen\tVer or Hor on F5. The machine select is drawn once,\n'
+    '\tfull size; the photo screens of a two-player game\n'
+    '\tfill the screen.\n'
+    'Ending credits\tThe black bands are gone; the roll uses the whole\n'
+    '\tscreen.',
+    None)
 
 # The patches a lockstep match cannot differ on are the frame rate and the
 # round-loss fix: both change what the simulation computes. Both are Essential
@@ -3074,12 +5583,14 @@ BY_KEY['dinput'] = (
 # Display order only; see apply_order for the write order. Essential fixes
 # what is broken on modern systems, extra is taste. Both start ticked, extra
 # running from the biggest change down to the smallest.
-ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'dinput', 'activate')
+ESSENTIAL = ('nocpucheck', 'framerate', 'continuefix', 'lockline', 'dinput',
+             'activate')
 # Essential is shown without tick boxes and always applied. Unticking any
 # of them produced a game broken in a way nobody chose: no start on a modern
 # CPU, a crash on a lost round, a third of the frame rate, dead keys after
 # ALT+TAB. Two of them are also what internet play needs.
-EXTRA = ('padxinput', 'nodisc', 'debugbox', 'defaults', 'sound', 'movie')
+EXTRA = ('hires', 'padxinput', 'nodisc', 'debugbox', 'defaults', 'sound',
+         'movie')
 # Its own group so it stays out of the patch list: it fixes nothing and
 # undoes nothing the game does, so it belongs beside the version and the
 # link rather than among the patches. Ticked by default all the same.
@@ -3092,8 +5603,9 @@ def apply_order():
     The menu bar patch appends a section too - the F11 template's - but
     earlier is fine: each append places itself from the headers as they
     are, so the two stack in whatever combination is ticked."""
-    keys = [k for k in ESSENTIAL + EXTRA + ABOUT if k != 'nodisc']
-    return keys + ['nodisc']
+    keys = [k for k in ESSENTIAL + EXTRA + ABOUT
+            if k not in ('nodisc', 'hires')]
+    return keys + ['nodisc', 'hires']
 
 
 def _check_table(build=RETAIL):
@@ -3110,8 +5622,8 @@ def _check_table(build=RETAIL):
     table = by_key(build)
     if set(table) != set(ESSENTIAL) | set(EXTRA) | set(ABOUT):
         raise AssertionError('patch list and display order disagree')
-    if apply_order()[-1] != 'nodisc':
-        raise AssertionError('nodisc must be applied last')
+    if apply_order()[-2:] != ['nodisc', 'hires']:
+        raise AssertionError('nodisc, then hires, must be applied last')
 
     owner = {}
     for key in table:
@@ -5423,6 +7935,21 @@ def apply_selected(buf, wanted, build=RETAIL):
     for key in apply_order():
         if not wanted.get(key):
             continue
+        if key == 'hires':
+            # Computed sites, own section append; wanted['hires'] carries
+            # (width, height) from the window, or True from a caller that
+            # takes the default.
+            size = wanted[key]
+            w, hh = size if isinstance(size, tuple) else (1920, 1080)
+            if not hires_supported(buf):
+                skipped.append((key, 'no resolution table for this build'))
+                continue
+            try:
+                hires_install(buf, w, hh)
+            except Exception as exc:
+                raise PatchFailed(key, exc) from exc
+            applied.append(key)
+            continue
         sites = table[key][2]
         try:
             if sites is not None:
@@ -5499,6 +8026,7 @@ class Patcher:
         self.exe_path = None
         self.compare = None
         self.build = RETAIL
+        self.stamp = None
 
     def load(self, path):
         """Return (description, accepted). Raises OSError.
@@ -5529,6 +8057,8 @@ class Patcher:
         with open(path, 'rb') as fh:
             data = fh.read()
         self.exe_path = path
+        pe = struct.unpack_from('<I', data, 0x3c)[0]
+        self.stamp = struct.unpack_from('<I', data, pe + 8)[0]
         digest = hashlib.md5(data).hexdigest()
         if digest in BUILDS:
             self.build = BUILDS[digest]
@@ -6039,11 +8569,11 @@ ADDONS_HINT = ('Extra files beside the game rather than edits to it. '
 
 # Not a patch and not bundled: a separate download that does the things a
 # byte edit cannot, so it sits under ADD-ONS with the netplay DLL.
-DDRAW_LINK = ('Resolution and windowing', 'cnc-ddraw',
+DDRAW_LINK = ('Windowing and scaling', 'cnc-ddraw',
               'https://github.com/FunkyFr3sh/cnc-ddraw',
-              'Windowed and borderless modes, and 640x480 scaled to your '
-              'monitor without stretching. Install downloads it and puts '
-              'it beside v_on.exe.')
+              'Windowed and borderless modes, and the game scaled to your '
+              'monitor without stretching, whatever size it runs at. '
+              'Install downloads it and puts it beside v_on.exe.')
 
 # Dropping the files in is not enough under Wine, and someone who misses
 # this sees no change at all, so it gets the accent colour rather than
@@ -7781,6 +10311,11 @@ def run_tk():
             for key, check in self.checks.items():
                 self.vars[key].set(state[key] if ok else False)
                 check.state(['!disabled'] if ok else ['disabled'])
+            if ok and 'hires' in self.checks \
+                    and (self.core.stamp is None
+                         or not hires_supported_stamp(self.core.stamp)):
+                self.vars['hires'].set(False)
+                self.checks['hires'].state(['disabled'])
             self._chose = bool(ok)
             self.apply_btn.state(['!disabled'] if ok else ['disabled'])
             self.restore_btn.state(
@@ -7809,6 +10344,8 @@ def run_tk():
         def _apply(self):
             wanted = {k: v.get() for k, v in self.vars.items()}
             wanted.update({key: True for key in ESSENTIAL})
+            if wanted.get('hires'):
+                wanted['hires'] = (1920, 1080)
             ok, lines = self.core.apply(wanted)
             for line in lines:
                 self._log(line)

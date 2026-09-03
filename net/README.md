@@ -69,13 +69,16 @@ the guest. The first `SWDataSendReceive` sends its frame `delay + 1` times
 to fill the pipeline; every call after that sends once.
 
 Game messages that are not frames - whatever the menus exchange between
-rounds - go into an 8 KB ring for `ReceiveDirectPlay` to hand back. The ring
-is bounded: a message that will not fit is dropped and counted rather than
-allowed to lap the reader, because a wrapped write puts a mid-message byte
-where a length belongs and everything read after that is garbage the game
-acts on. If `vo-net.log` starts reporting dropped messages, the game is
-queueing faster than it drains and that is worth investigating rather than
-tuning away.
+rounds - go into an 8 KB ring for `ReceiveDirectPlay` to hand back.
+
+The ring is bounded: a message that will not fit is dropped and counted
+rather than allowed to lap the reader, because a wrapped write puts a
+mid-message byte where a length belongs and everything read after that is
+garbage the game acts on.
+
+If `vo-net.log` starts reporting dropped messages, the game is queueing
+faster than it drains and that is worth investigating rather than tuning
+away.
 
 A missing frame and a missing player are different problems and get
 different answers. A frame that has not arrived means the peer is slow: ask
@@ -160,10 +163,11 @@ The relay cannot be turned into a general tunnel. Each direction of a code
 is a token bucket refilling at 250 packets a second - a 60 fps match spends
 a third of that, so it never notices, while a pair trying to push bulk
 traffic is held to that rate times the 512-byte cap, about 125 KB/s per
-code, whatever they send. It is still a relay between the two endpoints a
-code registered and nothing else: it forwards to the other endpoint, never
-to a third party, so it cannot be aimed at a victim it does not already
-reach.
+code, whatever they send.
+
+It is still a relay between the two endpoints a code registered and nothing
+else: it forwards to the other endpoint, never to a third party, so it
+cannot be aimed at a victim it does not already reach.
 
 ### Running one
 
@@ -260,17 +264,21 @@ see [DEVELOPING.md](../docs/DEVELOPING.md).
 
 Both sides need the same DLL, and must agree on the patches that change the
 simulation - each machine runs its own copy of the game on both players'
-inputs, so a difference there drifts the copies apart. The handshake
-enforces it: the session tag's last byte is a fingerprint of those patches
-(today the frame-rate divisor and the round-loss fix), read from the
-running exe, so a mismatch is refused at connect time rather than left to
-desync mid-match. Visual and input-only patches are deliberately outside
-the fingerprint and may differ.
+inputs, so a difference there drifts the copies apart.
+
+The handshake enforces it: the session tag's last byte is a fingerprint of
+those patches (today the frame-rate divisor and the round-loss fix), read
+from the running exe, so a mismatch is refused at connect time rather than
+left to desync mid-match.
+
+Visual and input-only patches are deliberately outside the fingerprint and
+may differ.
 
 The two bytes it reads are at a different address in each build of the
-game, so the DLL finds the running one by its PE timestamp - `fp_builds`
-in `dpctrl.c`, one row per build. The bytes themselves read the same once
-patched, which is why builds can play each other at all. A DLL older than
-that table reads retail's addresses whatever it is running in, and refuses
-every peer but its own kind; if two installs will not connect, check that
-both have the current DLL before anything else.
+game, so the DLL finds the running one by its PE timestamp - `fp_builds` in
+`dpctrl.c`, one row per build. The bytes themselves read the same once
+patched, which is why builds can play each other at all.
+
+A DLL older than that table reads retail's addresses whatever it is running
+in, and refuses every peer but its own kind; if two installs will not
+connect, check that both have the current DLL before anything else.

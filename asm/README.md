@@ -39,6 +39,8 @@ and release workflow see [DEVELOPING.md](../docs/DEVELOPING.md).
 | `titlever.asm` | credit: prints the patcher's version on the title screen |
 | `nameentry.asm` | ending screens: adds A to the initials screen, beside the triggers |
 | `camskip.asm` | gamepad: lets A skip the win and lose screens, as Select does |
+| `lockline.asm` | Fix the lock-on line: the clippers project 2D quads with the 2D scale |
+| `ui.asm` | Native widescreen: the resolution blob, built by `tools/uibuild.py` (see below) |
 | `layout.py` | data blob layout and string table, shared by `vocd.asm` and the blob |
 | `padtables.py` | gamepad: what each pad input is, what it is called, the F7 device list |
 | `dialogs.py` | the F11 Extras template and its tables, and the F5 frame rate labels |
@@ -92,14 +94,18 @@ it points at.
 ## Addresses
 
 No `.asm` file names an address in the game. Every place it touches is an
-`extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles the
-file as an ELF object, whose relocations say which bytes want which symbol.
+`extern` - `call GRESUME`, `cmp dword [DEVICES], 1` - and nasm assembles
+the file as an ELF object, whose relocations say which bytes want which
+symbol.
+
 `build.py` reads those out and writes them into `vo_patch.py` beside the
-code as the fixup list. The addresses themselves live in one place per
-build, the `symbols` table of its `Build` in `vo_patch.py`: a virtual
-address for a place in the game, or `(blob, label)` for a place in one of
-ours. Where a blob goes is the build's `annex` list, or for the two
-places the game itself reaches, its `caves` table.
+code as the fixup list.
+
+The addresses themselves live in one place per build, the `symbols` table
+of its `Build` in `vo_patch.py`: a virtual address for a place in the game,
+or `(blob, label)` for a place in one of ours. Where a blob goes is the
+build's `annex` list, or for the two places the game itself reaches, its
+`caves` table.
 
 The locals of the game's own functions that a stub reads - a loop counter
 at `[ebp-8]` - are the frame-offset symbols, plain constants from
@@ -152,6 +158,7 @@ will not start until it passes. It installs nasm and runs
 | --- | --- |
 | `tables` | patch table broken: bad length, offset past the end, two patches on one byte, site list reordered; banner bitmap the wrong size or its tiles out of range |
 | `asm` | a source edited without the blobs being regenerated; a blob that fails to link for one of the builds; a placeholder the apply-time sections fill gone missing or duplicated |
+| `ui` | `ui.asm` edited without the resolution blob being rebuilt (`tools/uibuild.py`) |
 | `net` | the baked netplay DLL not built from the current `net/dpctrl.c` |
 | `lint` | pyflakes: unused names, undefined names, bad imports |
 | `tree` | blobs regenerated but not committed |
@@ -199,9 +206,14 @@ reference the file shows, and both have crashed the game before. Two
 runs, at `0x5f80e0` and `0x623d98`, are `qword` constants that scan as
 zeros; `0x5fb140` is a scoreboard template the attract loop copies.
 
-Two patches append a section of their own rather than use the annex,
+Three patches append a section of their own rather than use the annex,
 because what they carry is too big for it and only exists once the patch
-is applied.
+is applied. The third, `.vohr`, is **Native widescreen**'s: its code is
+`ui.asm` here, the same nasm as everything else, but built by
+`tools/uibuild.py` rather than `build.py` - it is position independent
+(no `org`) and carries its own address list, so the blob and its offset
+constants go between their own markers. See
+[HIRES.md](../docs/HIRES.md).
 
 **`vocd.asm`** is the CD audio routine, in a new `.vocd` section that
 `apply_cdaudio` appends to the executable. The code starts with two thunks:
@@ -320,11 +332,12 @@ filled at apply time.
 **The dialog procedure** ticks each check box from the game's own flag on
 `WM_INITDIALOG` (through the loop in `f11pause.asm`'s tail), shows both
 players' deadzone digits, and forwards clicks. Close, Defaults and Quit go
-to the annex in `voxt.asm`, which reads the boxes back on close - two
-digits clamped to 5-95 each, into the thresholds the tick compares per
-player and out to their v_on.ini lines through `iniparse.asm`'s tail, a
-rejected entry re-seeded to the percent in force - seeds 40s on Defaults,
-and says whether to post. Every
+to the annex in `voxt.asm`. On close it reads the deadzone boxes back:
+two digits per player, clamped to 5-95, written into the thresholds the
+tick compares and out to the v_on.ini lines through `iniparse.asm`'s
+tail; a rejected entry is re-seeded to the percent in force. Defaults
+seeds both boxes to 40. The routine also says whether the click should
+be posted on. Every
 control's id is the game's own command id, so a click is posted straight to
 the main window as `WM_COMMAND` and needs no lookup table; the deadzone
 edits are the exception, their notifications being the dialog's own.
@@ -399,22 +412,22 @@ the per-player input tick, and a parameter block per player. Everything else
 in the patch is tables.
 
 The **tick** runs through the F7 profile dispatch, once per player per frame.
-It resolves `XInputGetState`, polls the side's pad through **padpoll**, writes
-Space and the camera key
-into that player's key buffer if A or Back is held - before calling the game's
-keyboard handler, because that is the code which reads them - and then walks
-twelve bind slots, testing each against the condition table and clearing the
-lever bits its mask names.
+It resolves `XInputGetState` and polls the side's pad through
+**padpoll**. If A or Back is held it writes Space and the camera key
+into that player's key buffer - and it does so before calling the game's
+keyboard handler, because the handler is what reads them. Then it walks
+the twelve bind slots, testing each against the condition table and
+clearing the lever bits its mask names.
 
 **padpoll** decides which XInput slot a side reads, since slots are not
 player numbers: the sides on a pad profile, 1P first, take the connected
 slots in ascending order. So two pads on 0 and 1 serve 1P and 2P, and one
 pad on slot 0 serves 2P alone when 1P is on the keyboard - which the fixed
 0/1 of earlier versions could not do. The map (`PADIDX`, slot + 1 per side,
-5 for none) is built on the first poll and rebuilt on the next poll after a
-cached slot stops answering, after a side without a pad has missed 256
-polls, so a pad plugged in later is found within a few seconds, and after a
-device change, which `commitdev.asm` clears it for.
+5 for none) is built on the first poll. It is rebuilt on three
+occasions: when a cached slot stops answering; when a side without a pad
+has missed 256 polls, so a pad plugged in later is found within a few
+seconds; and on a device change, which `commitdev.asm` clears it for.
 
 Not every slot is live in every game state. The stock keyboard handler at
 `0x443074` runs all twelve only when `[0x1ae3594]` is 4 and `[0x1ae3690]` is
@@ -451,11 +464,13 @@ The **soft reset** is in the poll, because that is where both pads are
 read. LB, RB and Start held together with both triggers past XInput's
 threshold, on the press, writes `-1` to the game's mode word - and to the
 second player's, which is a separate state machine, when two are playing.
+
 The game's own tick sees the negative value and reboots to the title along
-a path it already has; see [NOTES.md](../docs/NOTES.md). While the
-combination is down no key is posted for that pad, since Start alone is
-F3 and a paused game never runs the tick, and nothing happens at all
-during a network match, which is what the game's F-key handlers do.
+a path it already has; see [NOTES.md](../docs/NOTES.md).
+
+While the combination is down no key is posted for that pad, since Start
+alone is F3 and a paused game never runs the tick, and nothing happens at
+all during a network match, which is what the game's F-key handlers do.
 
 ## levers.asm
 
@@ -510,12 +525,15 @@ block per player, mostly tables.
 Two unrelated repairs to the keyboard bind page, sharing a blob.
 
 The first is the duplicate-key test. The page refuses a key for 2P if 1P
-already holds it, which is right when both are on the keyboard and needlessly
-strict when 1P is on a pad and its keys are dormant. The stub runs the test
-only when 1P is actually on the keyboard profile. It governs what may be
-entered and nothing more: if 1P later switches back, both sides can hold the
-same key and one press drives both mechs. Catching that means validating on
-the device switch as well, which is a separate job.
+already holds it, which is right when both are on the keyboard and
+needlessly strict when 1P is on a pad and its keys are dormant.
+
+The stub runs the test only when 1P is actually on the keyboard profile.
+
+It governs what may be entered and nothing more: if 1P later switches back,
+both sides can hold the same key and one press drives both mechs. Catching
+that means validating on the device switch as well, which is a separate
+job.
 
 The second is the **Default** button, which passed a hardcoded player 0. On
 the 2P side it reset 1P's binds and left 2P's alone. The gamepad and joystick
@@ -597,13 +615,21 @@ cnc-ddraw exports `DDGetProcAddress` for this, forwarding to the real
 imported one, which without cnc-ddraw is the real function anyway and gives
 what the game did before.
 
-From the real client rect it takes the biggest rectangle of the movie's own
-shape that fits, centres it, and writes the result back into the caller's
-frame - so the game's own `MoveWindow` a few instructions later does the
-work, with the values it was going to use replaced. mciavi does not follow
-the window, so the last thing the stub does is send `MCI_PUT` with a
-destination rect. The game sends no `MCI_PUT` of its own, and this is the
-only one.
+The movie's shape comes from the file, not the game: the size the game
+passes is its window for the movie, 640x400 or 320x200, while `von.avi`
+is 320x240 with the picture letterboxed inside it (rows 30..209). So the
+stub asks mciavi for the frame size with `MCI_WHERE` - `WHERE_SOURCE`
+plus `WHERE_MAX`, since without MAX the answer is the source rect this
+stub set on its last run, and the placement runs more than once - and
+fits the picture band rather than the frame. From the real client rect it
+takes the biggest rectangle of that shape that fits, centres it, and
+writes the result back into the caller's frame, so the game's own
+`MoveWindow` a few instructions later does the work with the values it
+was going to use replaced. mciavi does not follow the window, so the stub
+then sends two `MCI_PUT`s: the band as the source rect and the fitted
+rectangle as the destination. If the size query fails it fits the game's
+16:10 numbers and sends no source rect, which is what the stub did
+before. The game sends no `MCI_PUT` of its own.
 
 It reaches `mciSendCommandA` through a register rather than the six-byte
 indirect call, because `apply_cdaudio` counts those and aborts on anything
@@ -685,16 +711,23 @@ Draws `HOLD TO SKIP` over the credits while the button is down.
 The tile font was the obvious way and the wrong one: that layer is what the
 roll scrolls, so anything printed into it climbs the screen with the
 credits. `0x5c991c` takes screen pixels instead, the same call the pause
-text uses, including the halving at `0x5c9a98` for low resolution.
+text uses. The point is 320, 440 of the picture, computed from the
+origin and size globals at `0x6bf578`/`0x6bf5b8`, so a resized mode - or
+the 320x240 one, which `0x5c88ac` halves those globals for itself -
+places it the same way; unlike the pause text's 640-terms constants,
+nothing here halves again at `0x5c9a98`.
 
-Two things about when and where it paints. It paints at the moment it is
-called, so it has to run after the frame is drawn: the hook is the call at
-`0x5c64e7`, five bytes before the surface is flipped at `0x5c650d`, and the
-stub makes that call first with its argument untouched. And it paints on
-`0x1ae5f40`, the primary surface, which suits the pause screen because that
-is not flipping - here the back buffer is flipped over it the same frame, so
-that global is pointed at the back buffer, `0x1ae5f5c`, across the call and
-put back after.
+Two things about when and where it paints.
+
+It paints at the moment it is called, so it has to run after the frame is
+drawn: the hook is the call at `0x5c64e7`, five bytes before the surface is
+flipped at `0x5c650d`, and the stub makes that call first with its argument
+untouched.
+
+And it paints on `0x1ae5f40`, the primary surface, which suits the pause
+screen because that is not flipping - here the back buffer is flipped over
+it the same frame, so that global is pointed at the back buffer,
+`0x1ae5f5c`, across the call and put back after.
 
 The gate is `MODE` 4, `SUBMODE` `0x20` and phase 2, and only then the hold
 count. `HELD` only means anything while the roll is running, where
@@ -715,12 +748,16 @@ caller goes through it. The **recreate** swaps its caller's return address
 for the stub's, so the stub sees the result: a failure sets the game's
 inactive flag, which its main loop already idles on, and the "surfaces
 exist" flag the activation handler tests before recreating, so the next
-switch tries again. **setactive** refuses a resume while the back buffer
-is null, since the movie player and the F-key dialogs resume through it
-and either would start the loop on nothing. The **idle pass** the loop
-makes each iteration while inactive retries the recreate, choosing the
-resolution from the same two flags the handler does and skipping while
-the window is minimised, and lets the resume through once it works.
+switch tries again.
+
+**setactive** refuses a resume while the back buffer is null, since the
+movie player and the F-key dialogs resume through it and either would start
+the loop on nothing.
+
+The **idle pass** the loop makes each iteration while inactive retries the
+recreate, choosing the resolution from the same two flags the handler does
+and skipping while the window is minimised, and lets the resume through
+once it works.
 
 The rerelease reports each failure inside its recreate with a message
 box, which the retry turns into one box per attempt; those three calls

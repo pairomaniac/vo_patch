@@ -28,15 +28,33 @@ either one draws and you have to redo it by hand. See [TEXT.md](TEXT.md).
 ## Setup, once
 
 ```bash
-sudo dnf install nasm gcc-mingw64-i686 xorg-x11-server-Xvfb
-                                           # or apt: nasm gcc-mingw-w64-i686 xvfb
-pip install pyflakes
+sh tools/setup-dev.sh          # says what is missing and the install line
 ```
 
-`nasm` is needed only to rebuild `asm/`, mingw only to rebuild the netplay
-DLL. Neither is needed to run the patcher or to build the exe - both are baked
-into `vo_patch.py` as text. pyflakes is the `lint` check, and xvfb is the
-display the `gui` one needs; without it that check skips itself and says so.
+Everything comes from the distribution - there is no venv, and nothing here
+needs pip. The script checks and prints; the actual install is one `apt` or
+`dnf` line it gives you.
+
+`nasm` is needed only to rebuild `asm/`, `asm/ui.asm` included, mingw only
+to rebuild the netplay DLL. Neither is needed to run the patcher or to
+build the exe - both are baked into `vo_patch.py` as text.
+
+`python3-pyflakes` is the `lint` check; `python3-capstone` (4.x or 5.x)
+regenerates `UI_REFS` in `tools/uibuild.py` and drives the build-mapping
+tools (`vomap`, `votrans`, `hiresport`); `python3-unicorn` runs the
+resolution blob in the `uiemu` check; the `ui` check compares a
+fingerprint only where nasm is absent.
+
+xvfb is the display the `gui` check needs; without it that check skips
+itself and says so.
+
+Versions, as measured rather than promised: nasm 2.14.02, 2.15.05,
+2.16.01 through 2.16.03 and 3.02 all assemble `asm/ui.asm` to the
+committed bytes - the one construct where 3.x changed its output, the
+prefix order on `rep stosw`, is pinned in the source - and the full
+`asm` check is green under 2.16.01 and 3.02. Older nasm is untested.
+capstone 4.0.2 and 5.0.7 regenerate identical `UI_REFS`. pyflakes and
+python carry no floor anyone has hit.
 
 A pre-push hook catches a forgotten build before CI does:
 
@@ -53,13 +71,16 @@ chmod +x .git/hooks/pre-push
 ```bash
 python3 asm/build.py              # only if you touched asm/ - regenerates the hex
 python3 net/build.py              # only if you touched net/ - recompiles the DLL
+python3 tools/uibuild.py          # only if you touched asm/ui.asm - the resolution blob;
+                                  # then the other builds' tables and the pinned
+                                  # MD5s: HIRES.md, Rebuilding
 
 python3 tools/check.py            # the checks CI runs, in two seconds
 python3 vo_patch.py               # does the window still open?
 ```
 
-Both build scripts rewrite blobs inside `vo_patch.py`, so `git diff` after one
-shows the hex changing and nothing else. If it shows more, something else
+All three build scripts rewrite blobs inside `vo_patch.py`, so `git diff`
+after one shows the hex changing and nothing else. If it shows more, something else
 moved too.
 
 For anything non-trivial, branch and open a PR - CI runs on both.
@@ -87,6 +108,7 @@ wrong on the build it is for; before tagging, give all three.
 | --- | --- |
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
+| `ui` | `asm/ui.asm` matches the committed resolution blob: reassembled with nasm when it is installed (always, on CI), by the recorded fingerprint of the source when it is not |
 | `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
@@ -95,6 +117,7 @@ wrong on the build it is for; before tagging, give all three.
 | `offsets` | `selftest.py`: every `original` column against a real file, hundreds of patch combinations applied, and the fully patched MD5, on whichever build the file is |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte, on whichever build the folder holds |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
+| `uiemu` | `uiemu.py`: the resolution blob run under Unicorn on the retail exe, patched in memory at 1080p - the plane B walker plus the blob with a photo block in the ring as the loader leaves it, the HUD spread's 2D and polygon positions, the pre-fill against the viewport, and the layouts' insets and scales. Needs nasm and python3-unicorn, and says so when it has neither |
 
 Some need a copy of the game, which is not in the repository, so CI skips
 them and says so. They are the manual step before tagging.
@@ -203,13 +226,14 @@ committed:
    Then someone has to play it.
 
 Two things to check by eye before anyone runs it. A site the matcher has
-placed by its bytes may be in the wrong function - ten bytes of
-`cmp [ebp-8], 0x1a; jge` occur in more than one place, and only the
-disassembly says which copy has the recompiled frame. And anything the
-apply code writes outside the site table - the annex code in `.voxt` -
-must be linked for the build being patched, not taken from a module-level
-constant, which is retail's. `tools/whereis.py` turns a crash address into
-a blob and label.
+placed by its bytes may be in the wrong function - ten bytes of `cmp
+[ebp-8], 0x1a; jge` occur in more than one place, and only the disassembly
+says which copy has the recompiled frame.
+
+And anything the apply code writes outside the site table - the annex code
+in `.voxt` - must be linked for the build being patched, not taken from a
+module-level constant, which is retail's. `tools/whereis.py` turns a crash
+address into a blob and label.
 
 ## Netplay
 
@@ -228,10 +252,13 @@ physics value, anything that alters what the game computes from a given
 input - it needs two entries: one in `fp_builds` in `dpctrl.c`, per build,
 and one in `SYNC_SITES` in `vo_patch.py`, which is what warns when the
 netplay add-on is installed beside an executable an older release patched
-without it. Miss either and two copies, one with the patch and one without,
-desync mid-match instead of refusing to connect. A patch that only changes
-what a machine shows, or how it reads its own controls, stays out: those are
-each player's own business.
+without it.
+
+Miss either and two copies, one with the patch and one without, desync
+mid-match instead of refusing to connect.
+
+A patch that only changes what a machine shows, or how it reads its own
+controls, stays out: those are each player's own business.
 
 Two scripts under `tools/` build the DLL and put it in a game folder. Both
 read `~/.vo-test`, which is yours and is not in the repository:
@@ -252,6 +279,10 @@ tools/vo-dll.sh build
 tools/vo-dll.sh install               # or install /other/folder
 tools/vo-dll.sh restore
 ```
+
+`tools/vo-dbg.sh` is gdb on the running game: interactive, or one of
+pixel / watch / break / read / cmd for a question answered in one go (who
+draws this pixel, who writes this address). Its header lists them.
 
 `tools/vo-loopback.sh` puts two local instances against each other. It needs
 two installs with two prefixes - both write `v_on.ini` and save state, and

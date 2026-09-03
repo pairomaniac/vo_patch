@@ -7,7 +7,7 @@ Splits both .text sections into functions (call targets, reloc-listed code
 pointers, prologues), signs each by its opcode stream with addresses masked,
 matches them in order, then pairs the absolute references inside matched
 functions to derive the data map. Writes MAP.pkl (default vomap.pkl in the
-current directory) for votrans.py. Needs capstone: pip install capstone.
+current directory) for votrans.py. Needs python3-capstone.
 
 Neither executable is in the repository.
 """
