@@ -10,7 +10,7 @@ no port forwarding.
 <img height="220" alt="Widescreen match" src="https://github.com/user-attachments/assets/464143ee-a63b-4004-83f5-16cf28c146dd" />
 &nbsp;
 <img height="220" alt="Widescreen title screen" src="https://github.com/user-attachments/assets/eaa35047-e49a-4ca9-8ff1-9cb7e1d8a07f" />
-<img height="448" alt="virtual_on_for_pc_2026-09-03_19-36-07(1)" src="https://github.com/user-attachments/assets/3f1e19b6-406d-4a80-8a0c-e2fd9f0ffdea" />
+<img height="448" alt="Widescreen ending cutscene: Temjin over the Earth and the Moon" src="https://github.com/user-attachments/assets/3f1e19b6-406d-4a80-8a0c-e2fd9f0ffdea" />
 <br />
 ...in a nutshell - the patch makes the game <i>just work ™️</i>
 <br /><br />
@@ -262,9 +262,9 @@ sides rather than stretching the middle.
 &nbsp;
 <img height="220" alt="Widescreen menu" src="https://github.com/user-attachments/assets/dc17fcbd-5898-4ca5-907e-865024d2d509" />
 <br />
-<img height="220" alt="virtual_on_for_pc_2026-09-03_19-32-21(1)" src="https://github.com/user-attachments/assets/f5ccbf1a-fca8-47c0-9c43-cd41c13f6f6c" />
+<img height="220" alt="Widescreen NEXT ENEMY screen" src="https://github.com/user-attachments/assets/f5ccbf1a-fca8-47c0-9c43-cd41c13f6f6c" />
 &nbsp;
-<img height="220" alt="virtual_on_for_pc_2026-09-03_18-58-45(1)" src="https://github.com/user-attachments/assets/690d6e7c-e480-4144-bc3d-f4a8be750c62" />
+<img height="220" alt="Widescreen two-player machine select" src="https://github.com/user-attachments/assets/690d6e7c-e480-4144-bc3d-f4a8be750c62" />
 <br /><br />
 
 It is **on by default**, like the other Extra patches. Untick it for the
@@ -736,12 +736,14 @@ each of those runs once per build.
 
 ## AI Disclaimer
 
-LLMs are part of the toolchain here. The scope, the disc dumps, the testing
-and the debugging are human, and nothing ships without a thorough read of
-the code and a run on the real game. Offsets and byte sequences are verified
-against the original executable before anything is written, and the patcher
-refuses any file that is not an unmodified build it has tables for. It is
-still a hobby project poking at a nearly 30-year-old binary, so expect bugs.
+LLMs are part of the toolchain here, alongside Ghidra, gdb and winedbg on
+the running game, Cheat Engine and Unicorn. The scope, the disc dumps, the
+testing and the debugging are human: every change is read before it goes
+in and played on the real game, across all three builds, before it ships.
+Offsets and byte sequences are verified against the original executable
+before anything is written, and the patcher refuses any file that is not
+an unmodified build it has tables for. It is still a hobby project poking
+at a nearly 30-year-old binary, so expect bugs.
 
 ## Credits and licence
 
