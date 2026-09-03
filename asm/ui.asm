@@ -1273,15 +1273,21 @@ spread_row_ret:
 ; canvas keeping its aspect - the sides fill the width and the rows
 ; outside the canvas's height are cropped equally top and bottom -
 ; nearest-neighbour from a staged copy, and the row loop is skipped.
-; At 4:3 that is the only thing this does.
+; At 4:3, and in side by side, where each engine's canvas is 4:3 and
+; margins otherwise has nothing to do, that is the only thing this
+; does; in top/bottom the frame's rows 48..432 - the photo's own - are
+; what the viewport shows already.
 margins:
     pushad
     cmp dword [ebx+D_PHASE], 0
     je margins_ret
-    cmp dword [ebx+D_LAYOUT], 0
-    jne margins_ret
-    mov eax, [ebx+D_SHOW]           ; not this engine's frame
+    mov eax, [ebx+D_LAYOUT]
+    cmp eax, 2                      ; top/bottom: the frame is already cut
+    je margins_ret                  ; to the viewport's rows; leave it
     test eax, eax
+    jne margins_engine              ; side by side: both engines draw, each
+    mov eax, [ebx+D_SHOW]           ; its own 4:3 canvas; a photo fills it
+    test eax, eax                   ; not this engine's frame
     je margins_engine
     cmp dword [ebx+D_BASEPTR], FB_PTR
     jne margins_show2

@@ -133,6 +133,10 @@ after the canvas and fills the whole canvas from it, nearest-neighbour,
 keeping its aspect: the width is filled and the rows outside the height
 are cropped equally top and bottom (48 of 384 each side at 16:9; at 4:3
 the block simply becomes the picture). The margin row loop is skipped.
+Side by side gets the same, each engine over its own 4:3 canvas, so a
+waiting card fills its half's width; top/bottom is left alone, since
+the frame rows its viewport shows (HIRES_HUD_TB_ROWS, 48..432) are
+exactly the photo's.
 Plane A is the post-3D call's, so the text on those screens is not
 scaled. See *The photo backdrops* below.
 
