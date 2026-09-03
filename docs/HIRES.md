@@ -175,8 +175,8 @@ records the calling stub in D_PASSFN) and the polygon lies wholly in
 the band and wholly on one side of the split column; the reticle and
 the weapon strips are other passes and stay, and in a round the enemy
 marker is drawn outside the passes. The inset is the smaller of the
-frame's two margins inside the viewport (D_SPREAD), computed per call,
-0 at 4:3 and in side-by-side split, where only the bars move.
+frame's two margins inside the viewport (D_SPREAD), computed per call;
+at 4:3 and in side-by-side split it is 0 and nothing moves.
 
 Top/bottom split draws the HUD at the side-by-side scale rather than
 the 4:3 that fits its half-height viewport (1.406 instead of 1.125 at

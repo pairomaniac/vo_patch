@@ -34,12 +34,12 @@ bits 32
 ; and the insert hooks scale every polygon to the HUD frame on the
 ; viewport. Outside a pass everything is left alone.
 ;
-; HUD spread: in a round, the timer (the 2D layer's rows above D_PINTH
-; left of D_SPLITC, and the in-game HUD pass's polygons there) moves
-; left by the frame's inset, keeping its 4:3 distance from the left
-; edge on any aspect; PLAYER/ENEMY and the bars move by D_BARDX units,
-; which centres them as a group; the TOTAL time moves right by the
-; inset (spread_row, rescale).
+; HUD spread: in a round on a viewport wider than 4:3, the timer (the
+; 2D layer's rows above D_PINTH left of D_SPLITC, and the in-game HUD
+; pass's polygons there) moves left by the frame's inset, keeping its
+; 4:3 distance from the left edge; PLAYER/ENEMY and the bars move by
+; D_BARDX units, which centres them as a group; the TOTAL time moves
+; right by the inset (spread_row, rescale). Side by side is untouched.
 ;
 ; Split-screen HUD band: in side by side the 4:3 HUD frame sits centred
 ; in a taller viewport. In a match the rows of the frame above D_PINTH
@@ -282,7 +282,6 @@ D_MSIGA   equ 0x1da0            ; margins: the two photo cells last read
 D_MSIGB   equ 0x1da4            ; (for the debug readout)
 D_BARDX   equ 0x1da8            ; HUD units PLAYER/ENEMY and the bars move,
                                 ; signed: what centres them (patcher)
-D_SPREADON equ 0x1dac           ; 1 while the spread applies this call
 D_ROWLAST equ 0x1d98            ; composite: the canvas row last examined
 D_ROWSAME equ 0x1d9c            ; and whether it was all copy (skipped)
 D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
@@ -931,7 +930,6 @@ pre_round:
 pre_pin:
     ; the HUD spread: in a round, the post-3D call; the timer moves by
     ; as many px as the frame has to either side inside the viewport
-    mov dword [ebx+D_SPREADON], 0
     mov dword [ebx+D_SPREAD], 0
     cmp dword [ebx+D_SPLITC], 0
     je pre_spread_done
@@ -943,7 +941,6 @@ pre_pin:
     je pre_spread_done
     cmp edx, 0xe
     je pre_spread_done
-    mov dword [ebx+D_SPREADON], 1
     mov eax, [ebx+D_XOFF]
     mov ecx, [ebx+D_W]
     sub ecx, [ebx+D_XOFF]
@@ -1210,11 +1207,12 @@ post_out:
 
 ; The HUD spread. At 4:3 the timer sits 82 px from the left edge; on a
 ; wider viewport the 4:3 frame is centred and it drifts towards the
-; middle. In a round, the 2D layer's band rows (above D_PINTH) and the
-; in-game HUD pass's polygons in them that lie left of D_SPLITC - the
-; timer box and its digits - are moved left by D_SPREAD viewport px,
-; the frame's own inset, so the timer keeps its stock distance from
-; the left edge whatever the aspect; what lies right of D_SPLITC -
+; middle. In a round, on a viewport with an inset (D_SPREAD, viewport
+; px: 1P and top/bottom split; 0 at 4:3 and side by side, where nothing
+; moves), the 2D layer's band rows (above D_PINTH) and the in-game HUD
+; pass's polygons in them that lie left of D_SPLITC - the timer box and
+; its digits - are moved left by the inset, so the timer keeps its
+; stock distance from the left edge; what lies right of D_SPLITC -
 ; PLAYER/ENEMY and the bars, off-centre as a group in stock - moves by
 ; D_BARDX units, which centres it. The TOTAL time, 2D layer rows from
 ; D_BOTROW and columns from D_BOTCOL, goes right by the inset.
@@ -1225,16 +1223,18 @@ spread_row:
     mov dword [ebx+D_RTHR], 0x7fffffff
     mov dword [ebx+D_RDXL], 0
     mov dword [ebx+D_RDXR], 0
-    cmp dword [ebx+D_SPREADON], 0
-    je spread_row_ret
     mov ecx, [ebx+D_SPREAD]
+    test ecx, ecx
+    je spread_row_ret
     cmp eax, [ebx+D_PINTH]
     jge spread_row_low
     mov edx, [ebx+D_SPLITC]
     mov [ebx+D_RTHR], edx
     neg ecx
     mov [ebx+D_RDXL], ecx
-    mov ecx, [ebx+D_BARDX]
+    mov ecx, [ebx+D_BARDX]          ; HUD units to viewport px
+    imul ecx, [ebx+D_S]
+    sar ecx, 16
     mov [ebx+D_RDXR], ecx
     ret
 spread_row_low:
@@ -1790,7 +1790,7 @@ rescale_offy:
     ; left by the inset, the bars and their frames right of it by
     ; D_BARDX units
     mov eax, [ebx+D_OFFX16]
-    cmp dword [ebx+D_SPREADON], 0
+    cmp dword [ebx+D_SPREAD], 0
     je rescale_offx
     cmp dword [ebx+D_PASSFN], HUD_PASSES*STUB_LEN
     jae rescale_offx
