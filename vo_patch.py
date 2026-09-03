@@ -64,7 +64,7 @@ import urllib.error
 #      round the timer keeps its 4:3 distance from the left edge and the
 #      health bars with their labels are centred as a group
 #      (HIRES_HUD_SPREAD, HIRES_HUD_BARS); the two-player screens'
-#      512x384 photos are rescaled over the whole viewport.
+#      496x384 photos are rescaled over the whole viewport.
 #   -  HUD polygons (bars, frames, timer box, reticle, weapon strips,
 #      machine select, cursors) are projected at 640x480 and scaled at
 #      insert to the same 4:3 frame as the 2D layer, so both layers share
@@ -1205,7 +1205,7 @@ ADDR = {
 }
 
 # UI CODE BEGIN
-UI_ASM_SHA = '620750f8e7c4cc0350ec9ca231ba80a194039ffeed0f19c5dc81e0bd73fb99df'
+UI_ASM_SHA = '297477013112cbf6051d98513adc17b1ee5280590810d410e78e1970707c007a'
 UI_CODE = bytes.fromhex(
     '53e8000000005b81eb060000008b4424088983e81c0000c783ec1c000000000000d905e4'
     'c16b00d84c2408d80de8c16b00d99bdc1c0000d905e4c16b00d80de8c16b00d99be01c00'
@@ -1329,9 +1329,9 @@ UI_CODE = bytes.fromhex(
     '0100007c052de0010000505169c0000800008d9403003b0f008b83fc1e000089d78b8bcc'
     '1e0000f366ab8b8bcc1e00008dbc4a000500008b8b281c00002b8bcc1e000081e9800200'
     '00f366ab5958404975acff83f01e000083bbf01e00003c0f8c97feffff8b83601e0000a3'
-    '48c96b0061c38b83cc1e00008db44390bb10008dbb003b1e00ba800100005657b9000100'
-    '00f3a55f5e81c60008000081c7000800004a75e6b800020000c1e01031d2f7b3281c0000'
-    '3dcccc00007605b8cccc000089838c1c00008b8b281c00000fafc8ba00020000c1e21029'
+    '48c96b0061c38b83cc1e00008db44390bb10008dbb003b1e00ba800100005657b9f80000'
+    '00f3a55f5e81c60008000081c7000800004a75e6b8f0010000c1e01031d2f7b3281c0000'
+    '3dcccc00007605b8cccc000089838c1c00008b8b281c00000fafc8baf0010000c1e21029'
     'cad1fa8993901c000069c8e0010000ba80010000c1e21029cad1fa8993941c00008dbb00'
     '3b0f00bde00100008b83941c0000c1f81069c0000800008db403003b1e00578b93901c00'
     '008b8b281c000089d0c1f810668b044666ab03938c1c00004975ec5f81c7000800008b83'

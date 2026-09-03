@@ -123,18 +123,18 @@ shown once.
 
 The photo backdrops of the two-player screens - the machine select and
 the network waiting cards - are 64x48-tile blocks placed at ring (9, 6),
-the low-resolution window: 512x384 of the 640x480 picture, framed in
-black even at 4:3. margins recognises one by the differences between
+the low-resolution window: 496x384 of picture in the 640x480 (the
+blocks' last two tile columns are blank), framed in black even at 4:3. margins recognises one by the differences between
 three of its cells - (32, 24) and (0, 47) against (0, 0), the same in
 every build - since the game rebases a block's tile indices to wherever
 its tiles were loaded (0x2380 read back as 0x154e on the select); with
-the plane shown and unscrolled it stages the 512x384 into the guard rows
+the plane shown and unscrolled it stages the 496x384 into the guard rows
 after the canvas and fills the whole canvas from it, nearest-neighbour,
 keeping its aspect: the width is filled and the rows outside the height
-are cropped equally top and bottom (48 of 384 each side at 16:9; at 4:3
-the block simply becomes the picture). The margin row loop is skipped.
-Side by side gets the same, each engine over its own 4:3 canvas, so a
-waiting card fills its half's width; top/bottom is left alone, since
+are cropped equally top and bottom (53 of 384 each side at 16:9, 6 at
+4:3). The margin row loop is skipped. Side by side gets the same, each
+engine over its own 4:3 canvas, so a waiting card fills its half's
+width; top/bottom is left alone, since
 the frame rows its viewport shows (HIRES_HUD_TB_ROWS, 48..432) are
 exactly the photo's.
 Plane A is the post-3D call's, so the text on those screens is not

@@ -23,7 +23,7 @@ bits 32
 ; continues into the margins at its 80-tile period; any other row
 ; takes the picture's top-row colour when that row is all one colour,
 ; else black, and only on 2D-only screens (the last 3D flush drew
-; nothing), the 3D showing otherwise. The two-player screens' 512x384
+; nothing), the 3D showing otherwise. The two-player screens' 496x384
 ; photo backdrops are rescaled over the whole canvas instead. The
 ; canvas has 480 guard rows above and below: the 2D code draws outside
 ; the viewport in split screen and expects frame memory there.
@@ -247,8 +247,8 @@ BLIT2     equ 0x5673c0
 WMA2      equ 0x1ad0034
 WMB2      equ 0x1ad0030
 PHOTO_X   equ 72                ; the 64x48-tile photo blocks: ring (9, 6),
-PHOTO_Y   equ 48                ; picture px (72, 48), 512x384
-PHOTO_W   equ 512
+PHOTO_Y   equ 48                ; picture px (72, 48); their last two tile
+PHOTO_W   equ 496               ; columns are blank, so 496x384 of picture
 PHOTO_H   equ 384
 PHOTO_A   equ 6*164+9*2         ; ring bytes of their cells (0, 0),
 PHOTO_B   equ 30*164+41*2       ; (32, 24) and (0, 47)
@@ -286,7 +286,7 @@ D_BARDX   equ 0x1da8            ; HUD units PLAYER/ENEMY and the bars move,
 D_ROWLAST equ 0x1d98            ; composite: the canvas row last examined
 D_ROWSAME equ 0x1d9c            ; and whether it was all copy (skipped)
 D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
-                                ; photo's 512x384, staged for the rescale
+                                ; photo's 496x384, staged for the rescale
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
 D_COPY    equ 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
@@ -1264,7 +1264,8 @@ spread_row_ret:
 ;
 ; The photo backdrops of the two-player screens (the machine select
 ; and the network waiting cards) are 64x48-tile blocks at ring (9, 6),
-; 512x384 of a 640x480 picture, so they sat framed in black even at
+; 496x384 of picture (the last two tile columns are blank) in the
+; 640x480, so they sat framed in black even at
 ; 4:3. The game rebases a block's tile indices to wherever its tiles
 ; were loaded, so a block is recognised by the differences between
 ; three of its cells - (32, 24) and (0, 47) against (0, 0) - which
@@ -1510,7 +1511,7 @@ margins_ret:
     popad
     ret
 
-; the photo: stage its 512x384 off the canvas, then fill the canvas
+; the photo: stage its 496x384 off the canvas, then fill the canvas
 ; from the stage. step is source px per canvas px, the smaller of the
 ; two axes' so the picture covers the canvas; the source origin centres
 ; what is cropped.
