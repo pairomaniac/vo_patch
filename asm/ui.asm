@@ -74,104 +74,104 @@ ASPECT_A  equ 0x6bc1e8
 PROJ_B    equ 0x708818          ; renderer B projection: 3D, aspect, HUD
 ASPECT_B  equ 0x6c8b28
 OFF_PITCH equ 2048              ; canvas up to 1024 px wide
-D_BASE    equ 0x1800            ; data block; code below, stubs at 0x1670
-D_PITCH   equ 0x1804
-D_W       equ 0x1808
-D_H       equ 0x180c
-D_XSTEP   equ 0x1810            ; canvas px per viewport px, 16.16
-D_YSTEP   equ 0x1814
-D_Y       equ 0x1818
-D_BASEPTR equ 0x181c
-D_MODEW   equ 0x1820
-D_MODEH   equ 0x1824
-D_LW      equ 0x1828            ; canvas size
-D_LH      equ 0x182c
-D_DW      equ 0x1830            ; composited size on the viewport (clipped)
-D_XOFF    equ 0x1834            ; where it starts on the viewport
-D_PHASE   equ 0x1838            ; 1 before the 3D flush
-D_ROWTAB  equ 0x183c            ; relocated 2D row table
-D_DH      equ 0x1840
-D_YOFF    equ 0x1844
-D_KSBS    equ 0x1848            ; split FOV factors, read by the game code
-D_3D      equ 0x1850            ; pixels the last 3D flush drew
-D_SPLIT   equ 0x1854            ; saved split flag
-D_YF      equ 0x1858            ; canvas row position, 16.16
-D_S       equ 0x185c            ; scale in use, 16.16
-D_CX      equ 0x1860            ; canvas x/y (16.16) at D_XOFF/D_YOFF
-D_CY      equ 0x1864
-D_SCALE   equ 0x1868            ; 2D scale 16.16: 1P, side by side, top/bottom
-D_HUD     equ 0x1874            ; the same as floats
-D_HUDF    equ 0x1880            ; float in use; read by the game's projection
-D_CA      equ 0x189c            ; renderer A/B screen centre y, as the game set
-D_CB      equ 0x18a0            ; it this frame (captured in pre)
-D_C65536  equ 0x18a8            ; float constants, written by the patcher
-D_C640    equ 0x18ac
-D_C480    equ 0x18b0
-D_CHALF   equ 0x18b4
-D_CAX     equ 0x18b8            ; screen centre x, as the game set it
-D_CBX     equ 0x18bc
-D_PASS_A  equ 0x18c0            ; 1 while a HUD pass is being submitted,
-D_PASS_B  equ 0x18c4            ; per renderer
-D_S16     equ 0x18c8            ; HUD scale, 16.16
-D_OXH     equ 0x18cc            ; HUD offset on the viewport, pixels
-D_OYH     equ 0x18d0
-D_CXH     equ 0x19c8            ; HUD-space centre: the viewport centre in
-D_CYH     equ 0x19cc            ; HUD units, whole, so culling sees the viewport
-D_OFFX16  equ 0x19d0            ; rescale offsets, 16.16: D_OXH less what the
-D_OFFY16  equ 0x19d4            ; centre already contributes
-D_XMIN    equ 0x18d4            ; scratch for the rescale
-D_XMAX    equ 0x19b0
-D_YMAX    equ 0x19b4
-D_YMIN    equ 0x18d8
-D_SAVE_A  equ 0x18dc            ; last world projection, renderer A (3)
-D_SAVE_FA equ 0x18e8            ; its focal length
-D_VAR_A   equ 0x18ec            ; 1 if set by the variant without aspect
-D_SAVE_B  equ 0x18f0            ; the same for renderer B
-D_SAVE_FB equ 0x18fc
-D_VAR_B   equ 0x1900
-D_DEPTH   equ 0x1908            ; HUD pass nesting depth (see hud_enter)
-D_RETS    equ 0x190c            ; saved return addresses, D_RETS_N deep
+D_BASE    equ 0x1c00            ; data block; code below, stubs at 0x1a70
+D_PITCH   equ 0x1c04
+D_W       equ 0x1c08
+D_H       equ 0x1c0c
+D_XSTEP   equ 0x1c10            ; canvas px per viewport px, 16.16
+D_YSTEP   equ 0x1c14
+D_Y       equ 0x1c18
+D_BASEPTR equ 0x1c1c
+D_MODEW   equ 0x1c20
+D_MODEH   equ 0x1c24
+D_LW      equ 0x1c28            ; canvas size
+D_LH      equ 0x1c2c
+D_DW      equ 0x1c30            ; composited size on the viewport (clipped)
+D_XOFF    equ 0x1c34            ; where it starts on the viewport
+D_PHASE   equ 0x1c38            ; 1 before the 3D flush
+D_ROWTAB  equ 0x1c3c            ; relocated 2D row table
+D_DH      equ 0x1c40
+D_YOFF    equ 0x1c44
+D_KSBS    equ 0x1c48            ; split FOV factors, read by the game code
+D_3D      equ 0x1c50            ; pixels the last 3D flush drew
+D_SPLIT   equ 0x1c54            ; saved split flag
+D_YF      equ 0x1c58            ; canvas row position, 16.16
+D_S       equ 0x1c5c            ; scale in use, 16.16
+D_CX      equ 0x1c60            ; canvas x/y (16.16) at D_XOFF/D_YOFF
+D_CY      equ 0x1c64
+D_SCALE   equ 0x1c68            ; 2D scale 16.16: 1P, side by side, top/bottom
+D_HUD     equ 0x1c74            ; the same as floats
+D_HUDF    equ 0x1c80            ; float in use; read by the game's projection
+D_CA      equ 0x1c9c            ; renderer A/B screen centre y, as the game set
+D_CB      equ 0x1ca0            ; it this frame (captured in pre)
+D_C65536  equ 0x1ca8            ; float constants, written by the patcher
+D_C640    equ 0x1cac
+D_C480    equ 0x1cb0
+D_CHALF   equ 0x1cb4
+D_CAX     equ 0x1cb8            ; screen centre x, as the game set it
+D_CBX     equ 0x1cbc
+D_PASS_A  equ 0x1cc0            ; 1 while a HUD pass is being submitted,
+D_PASS_B  equ 0x1cc4            ; per renderer
+D_S16     equ 0x1cc8            ; HUD scale, 16.16
+D_OXH     equ 0x1ccc            ; HUD offset on the viewport, pixels
+D_OYH     equ 0x1cd0
+D_CXH     equ 0x1dc8            ; HUD-space centre: the viewport centre in
+D_CYH     equ 0x1dcc            ; HUD units, whole, so culling sees the viewport
+D_OFFX16  equ 0x1dd0            ; rescale offsets, 16.16: D_OXH less what the
+D_OFFY16  equ 0x1dd4            ; centre already contributes
+D_XMIN    equ 0x1cd4            ; scratch for the rescale
+D_XMAX    equ 0x1db0
+D_YMAX    equ 0x1db4
+D_YMIN    equ 0x1cd8
+D_SAVE_A  equ 0x1cdc            ; last world projection, renderer A (3)
+D_SAVE_FA equ 0x1ce8            ; its focal length
+D_VAR_A   equ 0x1cec            ; 1 if set by the variant without aspect
+D_SAVE_B  equ 0x1cf0            ; the same for renderer B
+D_SAVE_FB equ 0x1cfc
+D_VAR_B   equ 0x1d00
+D_DEPTH   equ 0x1d08            ; HUD pass nesting depth (see hud_enter)
+D_RETS    equ 0x1d0c            ; saved return addresses, D_RETS_N deep
 D_RETS_N  equ 32
-D_SP      equ 0x19d8            ; how many are saved
-D_DIM     equ 0x1a64            ; hangar: shade factor 16.16 for the mech being
+D_SP      equ 0x1dd8            ; how many are saved
+D_DIM     equ 0x1e64            ; hangar: shade factor 16.16 for the mech being
                               ; drawn, 0 when none (see hangar_draw)
-D_HDRET   equ 0x1a68            ; hangar_draw's return address
-D_PINTH   equ 0x1a6c            ; HUD band: frame rows pinned to the top, 0 off
+D_HDRET   equ 0x1e68            ; hangar_draw's return address
+D_PINTH   equ 0x1e6c            ; HUD band: frame rows pinned to the top, 0 off
                               ; (patcher)
-D_PINON   equ 0x1a70            ; 1 while the band applies (set in pre)
-D_PINSUB  equ 0x1a74            ; D_OYH 16.16: centred less this is pinned
-D_PINROWS equ 0x1a78            ; viewport rows the band covers; 0 outside
+D_PINON   equ 0x1e70            ; 1 while the band applies (set in pre)
+D_PINSUB  equ 0x1e74            ; D_OYH 16.16: centred less this is pinned
+D_PINROWS equ 0x1e78            ; viewport rows the band covers; 0 outside
                               ; the HUD phase
-D_OFFY    equ 0x1a7c            ; y rescale offset for the polygon in hand
-D_YEND    equ 0x1a80            ; composite loop bound
-D_YSAVE   equ 0x1a84            ; pre-fill: the centred frame's row start
-D_SHOW    equ 0x1a88            ; 0 split as set, 1 viewport 1 full screen, 2
+D_OFFY    equ 0x1e7c            ; y rescale offset for the polygon in hand
+D_YEND    equ 0x1e80            ; composite loop bound
+D_YSAVE   equ 0x1e84            ; pre-fill: the centred frame's row start
+D_SHOW    equ 0x1e88            ; 0 split as set, 1 viewport 1 full screen, 2
                               ; viewport 2 (frame_setup)
-D_LAYOUT  equ 0x1a8c            ; 0 1P or single, 1 side by side, 2 top/bottom
-D_SPLITST equ 0x1a90            ; 64-bit mask of the sub-states drawn split
+D_LAYOUT  equ 0x1e8c            ; 0 1P or single, 1 side by side, 2 top/bottom
+D_SPLITST equ 0x1e90            ; 64-bit mask of the sub-states drawn split
                               ; (patcher)
-D_DEBUG   equ 0x1a98            ; 1: print both machines' states on the frame
+D_DEBUG   equ 0x1e98            ; 1: print both machines' states on the frame
                               ; (patcher, HIRES_DEBUG_STATES)
-D_DBGSTR  equ 0x1aa0            ; the text, 32 bytes
-D_F4MODE  equ 0x1ac0            ; 0: the first size is in place, 1: the second
-D_F4TAB   equ 0x1ac4            ; the F4 site table (patcher); see f4_toggle
-D_F4WANT  equ 0x1ac8            ; the F5 Screen choice: 1 for the second size
-D_XO      equ 0x1acc            ; canvas x of the game's 640-wide picture in
+D_DBGSTR  equ 0x1ea0            ; the text, 32 bytes
+D_F4MODE  equ 0x1ec0            ; 0: the first size is in place, 1: the second
+D_F4TAB   equ 0x1ec4            ; the F4 site table (patcher); see f4_toggle
+D_F4WANT  equ 0x1ec8            ; the F5 Screen choice: 1 for the second size
+D_XO      equ 0x1ecc            ; canvas x of the game's 640-wide picture in
                               ; the pre phase, 0 when the canvas is 4:3
-D_MXT     equ 0x1ad0            ; margin tile columns each side
-D_ERING   equ 0x1ad4            ; the engine's plane B, set per call (margins):
-D_ESCRX   equ 0x1ad8            ; ring, scroll x/y, tile destination, tile
-D_ESCRY   equ 0x1adc            ; blit, bank watermarks
-D_EDEST   equ 0x1ae0
-D_EBLIT   equ 0x1ae4
-D_EWMA    equ 0x1ae8
-D_EWMB    equ 0x1aec
-D_MR      equ 0x1af0            ; margins: tile row, scroll column/row, flat
-D_MSX     equ 0x1af4            ; colour, fine scroll
-D_MSY     equ 0x1af8
-D_MCOL    equ 0x1afc
-D_MFY     equ 0x1a5c
-D_MSPLIT  equ 0x1a60            ; margins: the split flag, cleared while it runs
+D_MXT     equ 0x1ed0            ; margin tile columns each side
+D_ERING   equ 0x1ed4            ; the engine's plane B, set per call (margins):
+D_ESCRX   equ 0x1ed8            ; ring, scroll x/y, tile destination, tile
+D_ESCRY   equ 0x1edc            ; blit, bank watermarks
+D_EDEST   equ 0x1ee0
+D_EBLIT   equ 0x1ee4
+D_EWMA    equ 0x1ee8
+D_EWMB    equ 0x1eec
+D_MR      equ 0x1ef0            ; margins: tile row, scroll column/row, flat
+D_MSX     equ 0x1ef4            ; colour, fine scroll
+D_MSY     equ 0x1ef8
+D_MCOL    equ 0x1efc
+D_MFY     equ 0x1e5c
+D_MSPLIT  equ 0x1e60            ; margins: the split flag, cleared while it runs
 PRIMARY   equ 0x1ae5f40         ; the surface DRAW paints on, and the one
 BACK      equ 0x1ae5f5c         ; about to be flipped over it
 DRAW      equ 0x5c991c          ; GDI text (text, x, y, colour, flag), cdecl
@@ -206,7 +206,7 @@ MODE2     equ 0x1ef8a90         ; both, same tables (0x5ff1c0 / 0x606fa0).
 SUBMODE2  equ 0x1ef9eb0         ; The in-game HUD is drawn from sub-states
                               ; 9..0x0c, 0x14, 0x15 and 0x1b; 3 and 4 are
                               ; the machine select.
-D_RETD    equ 0x19dc            ; and the depth to come back to for each
+D_RETD    equ 0x1ddc            ; and the depth to come back to for each
 SCALE_A   equ 0x6bc1e4          ; the game's 3D scale, per renderer
 SCALE_B   equ 0x6c8b24
 CENTRE_AX equ 0x6db530
@@ -236,13 +236,25 @@ DEST2     equ 0x567400
 BLIT2     equ 0x5673c0
 WMA2      equ 0x1ad0034
 WMB2      equ 0x1ad0030
+PHOTO_X   equ 72                ; the 64x48-tile photo blocks: ring (9, 6),
+PHOTO_Y   equ 48                ; picture px (72, 48), 512x384
+PHOTO_W   equ 512
+PHOTO_H   equ 384
+PHOTO_A   equ 6*164+9*2         ; ring bytes of their cells (0, 0) and
+PHOTO_B   equ 30*164+41*2       ; (32, 24)
+PHOTO_N   equ 3
 MATSCALE  equ 0x408790          ; scales the current matrix by (x, y, z), cdecl
 FLASHATTR equ 0x791ad0          ; the damage flash tiles' attribute block
 COMMIT    equ 0x514430          ; copies the current matrix for the next submit
-D_CMOON   equ 0x1884            ; credits moon card scale, float, written by
+D_CMOON   equ 0x1c84            ; credits moon card scale, float, written by
                                 ; the patcher
-D_ROUND   equ 0x1888            ; 1 while this viewport's player is in a round
+D_ROUND   equ 0x1c88            ; 1 while this viewport's player is in a round
                                 ; (set in pre); gates the fill in rescale
+D_PSTEP   equ 0x1c8c            ; margins, photo backdrop: canvas px to
+D_PX0     equ 0x1c90            ; source px, 16.16, and the source origin
+D_PY0     equ 0x1c94
+D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
+                                ; photo's 512x384, staged for the rescale
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
 D_COPY    equ 0x2d3b00         ; copy of the pre-fill, canvas rows only
                               ; (layout: guard, canvas, guard, copy)
@@ -1104,10 +1116,19 @@ post_out:
 ; colour on the rows its tiles would cover (the last tile row wraps to
 ; the frame top, as the blit does) when no 3D is behind. Rules tried
 ; and dropped are on record in docs/HIRES.md.
+;
+; The photo backdrops of the two-player screens (the machine select
+; and the network waiting cards) are 64x48-tile blocks at ring (9, 6),
+; 512x384 of a 640x480 picture, so they sat framed in black even at
+; 4:3. Recognised by two of their cells (PHOTO_SIG: the three blocks'
+; words at (0, 0) and (32, 24), the same in every build), with the
+; plane shown and unscrolled, the block is rescaled over the whole
+; canvas keeping its aspect - the sides fill the width and the rows
+; outside the canvas's height are cropped equally top and bottom -
+; nearest-neighbour from a staged copy, and the row loop is skipped.
+; At 4:3 that is the only thing this does.
 margins:
     pushad
-    cmp dword [ebx+D_XO], 0
-    je margins_ret
     cmp dword [ebx+D_PHASE], 0
     je margins_ret
     cmp dword [ebx+D_LAYOUT], 0
@@ -1178,6 +1199,33 @@ margins_sy:
     shr eax, 3
     and eax, 0x7f
     mov [ebx+D_MSX], eax
+    ; a photo backdrop: shown, unscrolled, and its two cells in place
+    test eax, eax
+    jne margins_rows
+    cmp dword [ebx+D_MSY], 0
+    jne margins_rows
+    cmp dword [ebx+D_MFY], 0
+    jne margins_rows
+    mov eax, [ebx+D_ESCRY]
+    test byte [eax+1], 0x80
+    jne margins_rows
+    mov esi, [ebx+D_ERING]
+    movzx eax, word [esi+PHOTO_A]
+    movzx ecx, word [esi+PHOTO_B]
+    lea edx, [ebx+photo_sig]
+    mov edi, PHOTO_N
+margins_sig:
+    cmp ax, [edx]
+    jne margins_signext
+    cmp cx, [edx+2]
+    je margins_photo
+margins_signext:
+    add edx, 4
+    dec edi
+    jnz margins_sig
+margins_rows:
+    cmp dword [ebx+D_XO], 0         ; 4:3: no margins
+    je margins_done
     mov dword [ebx+D_MR], 0
 margins_row:
     mov eax, [ebx+D_MR]             ; the ring row shown on this tile row
@@ -1294,11 +1342,86 @@ margins_rownext:
     inc dword [ebx+D_MR]
     cmp dword [ebx+D_MR], 60
     jl margins_row
+margins_done:
     mov eax, [ebx+D_MSPLIT]
     mov [SPLIT], eax
 margins_ret:
     popad
     ret
+
+; the photo: stage its 512x384 off the canvas, then fill the canvas
+; from the stage. step is source px per canvas px, the smaller of the
+; two axes' so the picture covers the canvas; the source origin centres
+; what is cropped.
+margins_photo:
+    mov eax, [ebx+D_XO]
+    lea esi, [ebx+eax*2+D_OFF+PHOTO_Y*OFF_PITCH+PHOTO_X*2]
+    lea edi, [ebx+D_STAGE]
+    mov edx, PHOTO_H
+margins_stage:
+    push esi
+    push edi
+    mov ecx, PHOTO_W/2
+    rep movsd
+    pop edi
+    pop esi
+    add esi, OFF_PITCH
+    add edi, OFF_PITCH
+    dec edx
+    jnz margins_stage
+    mov eax, PHOTO_W                ; shifted, not immediates: the 16.16
+    shl eax, 16                     ; sizes read as game addresses to the
+    xor edx, edx                    ; port tool
+    div dword [ebx+D_LW]
+    cmp eax, (PHOTO_H << 16) / 480
+    jbe margins_step
+    mov eax, (PHOTO_H << 16) / 480
+margins_step:
+    mov [ebx+D_PSTEP], eax
+    mov ecx, [ebx+D_LW]
+    imul ecx, eax
+    mov edx, PHOTO_W
+    shl edx, 16
+    sub edx, ecx
+    sar edx, 1
+    mov [ebx+D_PX0], edx
+    imul ecx, eax, 480
+    mov edx, PHOTO_H
+    shl edx, 16
+    sub edx, ecx
+    sar edx, 1
+    mov [ebx+D_PY0], edx
+    lea edi, [ebx+D_OFF]
+    mov ebp, 480
+margins_prow:
+    mov eax, [ebx+D_PY0]
+    sar eax, 16
+    imul eax, eax, OFF_PITCH
+    lea esi, [ebx+eax+D_STAGE]
+    push edi
+    mov edx, [ebx+D_PX0]
+    mov ecx, [ebx+D_LW]
+margins_ppx:
+    mov eax, edx
+    sar eax, 16
+    mov ax, [esi+eax*2]
+    stosw
+    add edx, [ebx+D_PSTEP]
+    dec ecx
+    jnz margins_ppx
+    pop edi
+    add edi, OFF_PITCH
+    mov eax, [ebx+D_PSTEP]
+    add [ebx+D_PY0], eax
+    dec ebp
+    jnz margins_prow
+    jmp margins_done
+
+; the three photo blocks: cell (0, 0) and cell (32, 24)
+photo_sig:
+    dw 0x2380, 0x2443
+    dw 0x0700, 0x0902
+    dw 0x2380, 0x2aeb
 
 ; dbg_draw: "MODE SUBMODE  MODE2 SUBMODE2  SHOW", hex, through the game's
 ; GDI text on the frame about to be shown (as asm/overlay.asm does).

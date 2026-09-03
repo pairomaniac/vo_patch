@@ -120,6 +120,19 @@ is now 2^32 / s rounded up, and the composite is verified against an
 exact nearest-neighbour model at 1080p and 720p, every canvas pixel
 shown once.
 
+The photo backdrops of the two-player screens - the machine select and
+the network waiting cards - are 64x48-tile blocks placed at ring (9, 6),
+the low-resolution window: 512x384 of the 640x480 picture, framed in
+black even at 4:3. margins recognises one by two of its cells (the three
+blocks' words at (0, 0) and (32, 24), byte-identical in every build) with
+the plane shown and unscrolled, stages its 512x384 into the guard rows
+after the canvas and fills the whole canvas from it, nearest-neighbour,
+keeping its aspect: the width is filled and the rows outside the height
+are cropped equally top and bottom (48 of 384 each side at 16:9; at 4:3
+the block simply becomes the picture). The margin row loop is skipped.
+Plane A and the sprites are the post-3D call's, so the text and cursors
+on those screens are not scaled. See *The photo backdrops* below.
+
 The ending roll is the 2D layer's too: its bands, window, edge clipping
 and cut are under *Credits letterboxing, found and removed* below.
 
@@ -307,10 +320,12 @@ in the check pipeline; it reassembles when nasm is present - always, on
 CI - and falls back to a recorded fingerprint of the source only where
 nasm is missing.
 
-Section layout: code (under 0x1670), pass stubs at 0x1670, data block at
-0x1800 (D_*), split FOV factors at 0x1848, the F4 site table at 0x1b00,
+Section layout: code (under 0x1a70), pass stubs at 0x1a70, data block at
+0x1c00 (D_*), split FOV factors at 0x1c48, the F4 site table at 0x1f00,
 then the canvas and its copy (UI_OFF/UI_OFF_SIZE), the mask, the row
-table and the polygon pool.
+table and the polygon pool. Immediates in the game's address range
+(0x401000..0x3660000) are read as addresses by the port tool, so sizes
+in 16.16 are shifted at runtime rather than written as constants.
 
 The blob stands down for a frame whose saved surface base is null (pre
 stores the flag, post honours it): the Japanese build runs its 2D layer
@@ -483,6 +498,20 @@ tile row likewise against 62. Title (0x4d1408, a 62x34 block from
 plane B blocks narrower than the picture; tile 0 is skipped by the
 blit, so their outer columns are untouched frame. The same static
 block is used at 0x482353, 0x533cdc and 0x53440b.
+
+### The photo backdrops
+
+Three 64x48-tile blocks in .data - 0x940168, 0x92f8ba, 0x941968 - copied
+raw into plane B at the low-resolution window (0x1cc6aea, ring (9, 6))
+by 0x4d1328(n) through the row copy 0x4d056c, which also serves the
+title (0x4d1408) and splash (0x4d053b). Callers: the two-player machine
+select 0x5a1cf6 (block 2; the 1P sub-state 3 handler 0x5a21fc branches
+to it on 0x6bea88/0x6bea8c), sub-states 2 and 6 (0x4b1b87, 0x4b1f99,
+block 1) and the network cards 0x4d54c1 and its neighbours, which pick
+one of the three at random. 0x4d1328 leaves plane B's scroll y at
+0x4000 (tile row 0). Each block has 1088..1804 distinct tiles; the
+splash has 287. The maps are identical in the JP and OEM builds, which
+is why the recognition is by cell value rather than by address.
 
 ### Machine select (the hangar)
 
