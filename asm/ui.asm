@@ -250,8 +250,9 @@ PHOTO_X   equ 72                ; the 64x48-tile photo blocks: ring (9, 6),
 PHOTO_Y   equ 48                ; picture px (72, 48), 512x384
 PHOTO_W   equ 512
 PHOTO_H   equ 384
-PHOTO_A   equ 6*164+9*2         ; ring bytes of their cells (0, 0) and
-PHOTO_B   equ 30*164+41*2       ; (32, 24)
+PHOTO_A   equ 6*164+9*2         ; ring bytes of their cells (0, 0),
+PHOTO_B   equ 30*164+41*2       ; (32, 24) and (0, 47)
+PHOTO_C   equ 53*164+9*2
 PHOTO_N   equ 3
 MATSCALE  equ 0x408790          ; scales the current matrix by (x, y, z), cdecl
 FLASHATTR equ 0x791ad0          ; the damage flash tiles' attribute block
@@ -1264,8 +1265,10 @@ spread_row_ret:
 ; The photo backdrops of the two-player screens (the machine select
 ; and the network waiting cards) are 64x48-tile blocks at ring (9, 6),
 ; 512x384 of a 640x480 picture, so they sat framed in black even at
-; 4:3. Recognised by two of their cells (photo_sig: the three blocks'
-; words at (0, 0) and (32, 24), the same in every build), with the
+; 4:3. The game rebases a block's tile indices to wherever its tiles
+; were loaded, so a block is recognised by the differences between
+; three of its cells - (32, 24) and (0, 47) against (0, 0) - which
+; survive the rebase (photo_sig; the same in every build). With the
 ; plane shown and unscrolled, the block is rescaled over the whole
 ; canvas keeping its aspect - the sides fill the width and the rows
 ; outside the canvas's height are cropped equally top and bottom -
@@ -1358,12 +1361,18 @@ margins_sy:
     movzx ecx, word [esi+PHOTO_B]
     mov [ebx+D_MSIGA], eax
     mov [ebx+D_MSIGB], ecx
+    sub ecx, eax
+    and ecx, 0x3fff                 ; tile index bits
+    movzx edi, word [esi+PHOTO_C]
+    sub edi, eax
+    and edi, 0x3fff
+    mov eax, edi
     lea edx, [ebx+photo_sig]
     mov edi, PHOTO_N
 margins_sig:
-    cmp ax, [edx]
+    cmp cx, [edx]
     jne margins_signext
-    cmp cx, [edx+2]
+    cmp ax, [edx+2]
     je margins_photo
 margins_signext:
     add edx, 4
@@ -1563,11 +1572,11 @@ margins_ppx:
     jnz margins_prow
     jmp margins_done
 
-; the three photo blocks: cell (0, 0) and cell (32, 24)
+; the three photo blocks: cells (32, 24) and (0, 47) less cell (0, 0)
 photo_sig:
-    dw 0x2380, 0x2443
-    dw 0x0700, 0x0902
-    dw 0x2380, 0x2aeb
+    dw 0x00c3, 0x0402               ; 0x940168
+    dw 0x0202, 0x05b9               ; 0x92f8ba
+    dw 0x076b, 0x0b0c               ; 0x941968
 
 ; dbg_draw: "MODE SUBMODE  MODE2 SUBMODE2  SHOW", hex, through the game's
 ; GDI text on the frame about to be shown (as asm/overlay.asm does).

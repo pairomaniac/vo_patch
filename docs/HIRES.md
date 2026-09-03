@@ -124,9 +124,11 @@ shown once.
 The photo backdrops of the two-player screens - the machine select and
 the network waiting cards - are 64x48-tile blocks placed at ring (9, 6),
 the low-resolution window: 512x384 of the 640x480 picture, framed in
-black even at 4:3. margins recognises one by two of its cells (the three
-blocks' words at (0, 0) and (32, 24), byte-identical in every build) with
-the plane shown and unscrolled, stages its 512x384 into the guard rows
+black even at 4:3. margins recognises one by the differences between
+three of its cells - (32, 24) and (0, 47) against (0, 0), the same in
+every build - since the game rebases a block's tile indices to wherever
+its tiles were loaded (0x2380 read back as 0x154e on the select); with
+the plane shown and unscrolled it stages the 512x384 into the guard rows
 after the canvas and fills the whole canvas from it, nearest-neighbour,
 keeping its aspect: the width is filled and the rows outside the height
 are cropped equally top and bottom (48 of 384 each side at 16:9; at 4:3
@@ -544,7 +546,12 @@ block 1) and the network cards 0x4d54c1 and its neighbours, which pick
 one of the three at random. 0x4d1328 leaves plane B's scroll y at
 0x4000 (tile row 0). Each block has 1088..1804 distinct tiles; the
 splash has 287. The maps are identical in the JP and OEM builds, which
-is why the recognition is by cell value rather than by address.
+is why the recognition is by cell content rather than by address. The
+copy is a plain memcpy, yet the ring reads back with every index
+lowered by one constant (0xe32 on the select, another on the encounter
+card): the tile loader rebases the block to its bank slot after the
+copy, so the recognition uses differences between cells, which the
+rebase preserves. HIRES_DEBUG_STATES shows the two cells it reads.
 
 ### Machine select (the hangar)
 
