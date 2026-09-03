@@ -128,10 +128,22 @@ jobs:
         with:
           python-version: '3.12'
 
-      # certifi is not imported unless the platform trust store fails, but it
-      # has to be installed here or there is nothing to fall back to in the
-      # exe. The bundle check below is what notices if it goes missing.
-      - run: pip install pyinstaller==6.21.0 certifi
+      # PyInstaller from source, with its bootloader built here rather than
+      # taken from the wheel. The wheel's bootloader is the same bytes in
+      # every PyInstaller exe ever shipped, malware included, so antivirus
+      # signatures match it; one built on this runner matches nothing.
+      # Needs the MSVC toolchain, which windows-latest carries. certifi is
+      # not imported unless the platform trust store fails, but it has to be
+      # installed here or there is nothing to fall back to in the exe; the
+      # bundle check below is what notices if it goes missing.
+      - name: PyInstaller with a fresh bootloader
+        shell: bash
+        run: |
+          git clone -q --depth 1 --branch v6.21.0 https://github.com/pyinstaller/pyinstaller.git pyi
+          cd pyi/bootloader && python ./waf all
+          cd .. && pip install -q .
+          cd .. && pip install -q certifi
+          python -c "import PyInstaller; print(PyInstaller.__version__)"
 
       # The source carries no version. A tag build takes it from the tag, so
       # the tag and the filename cannot disagree; anything else takes the
@@ -189,10 +201,14 @@ jobs:
           echo 'the exe runs and its tables check out'
 
       # To the log, not an asset: a checksum beside its own binary proves
-      # nothing.
+      # nothing. The VirusTotal line is a lookup, not an upload: it says
+      # whether anyone has already scanned this exact file, and where.
+      # Upload it there by hand before a release and read the verdicts.
       - name: Checksum
         shell: bash
-        run: cd dist && sha256sum *.exe
+        run: |
+          cd dist && sha256sum *.exe
+          echo "VirusTotal: https://www.virustotal.com/gui/file/$(sha256sum *.exe | cut -c1-64)"
 
       # Linux users run the script, so ship it too. Strip CR or the shebang
       # breaks when it is run directly.
