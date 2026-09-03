@@ -1789,15 +1789,17 @@ extents_next:
     ret
 rescale:
     call extents
-    ; y offset: the top-aligned one for a polygon wholly inside the band
+    mov ebp, [ebx+D_YMAX]
+    sub ebp, [ebx+D_CYH]
+    add ebp, 240                    ; HUD frame row of the lowest vertex
+    cmp ebp, [ebx+D_PINTH]
+    setl cl                         ; cl: wholly inside the band
+    ; y offset: the top-aligned one for a polygon inside the band
     mov eax, [ebx+D_OFFY16]
     cmp dword [ebx+D_PINON], 0
     je rescale_offy
-    mov edi, [ebx+D_YMAX]
-    sub edi, [ebx+D_CYH]
-    add edi, 240                    ; HUD frame row of the lowest vertex
-    cmp edi, [ebx+D_PINTH]
-    jge rescale_offy
+    test cl, cl
+    je rescale_offy
     sub eax, [ebx+D_PINSUB]
 rescale_offy:
     mov [ebx+D_OFFY], eax
@@ -1810,11 +1812,8 @@ rescale_offy:
     je rescale_offx
     cmp dword [ebx+D_PASSFN], HUD_PASSES*STUB_LEN
     jae rescale_offx
-    mov edi, [ebx+D_YMAX]
-    sub edi, [ebx+D_CYH]
-    add edi, 240
-    cmp edi, [ebx+D_PINTH]
-    jge rescale_offx
+    test cl, cl
+    je rescale_offx
     mov edi, [ebx+D_XMAX]
     sub edi, [ebx+D_CXH]
     add edi, 320                    ; HUD frame column of the rightmost

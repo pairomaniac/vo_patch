@@ -34,7 +34,8 @@ LABELS = ['world_a', 'world_a2', 'world_b', 'world_b2', 'submit_a',
           'stub1_call', 'stub2_call', 'stub3_call', 'stub4_call',
           'insert_a', 'insert_b', 'hangar_draw', 'frame_setup', 'flush_a',
           'flush_b', 'f4_toggle', 'dlg_init', 'dlg_ok', 'dlg_done',
-          'ini_load', 'ini_save', 'roll_blit', 'rowsafe', 'credits_moon']
+          'ini_load', 'ini_save', 'roll_blit', 'rowsafe', 'credits_moon',
+          'pre', 'post', 'rescale']      # the last three for tools/uiemu.py
 
 # Ends the label table a temporary copy of the source carries; the blob
 # is everything before it.

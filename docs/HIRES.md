@@ -236,6 +236,9 @@ that frame keep the old placement for that one frame.
 HIRES_DEBUG_STATES prints both machines' states on the frame through the
 game's GDI text: MODE SUBMODE, MODE2 SUBMODE2, D_SHOW, then margins'
 tile scroll x, y and fine y and the two photo cells it read, in hex.
+On video the line came out as `04 04 01 000000 154E 1CB9` - the second
+machine's pair missing, the rest intact - which is not understood; the
+tail is what the readout is for.
 
 ### GDI text
 
@@ -842,4 +845,8 @@ maps/*_port.txt; shift or add such values at runtime instead.
 
 tools/vo_patch_hires.py is the import shim the tools use to read the
 tables out of vo_patch.py. tools/uibuild.py --check runs in
-tools/check.py.
+tools/check.py, and so does tools/uiemu.py when a retail exe is given:
+it runs the blob under Unicorn - the game's own plane B walker with a
+photo block in the ring as the loader leaves it, the HUD spread, the
+pre-fill, the layouts - and is where "verified under emulation" in this
+document is kept honest.

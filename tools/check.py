@@ -61,7 +61,8 @@ CHECKS = [
       'tools/guitest.py', 'tools/check.py', 'tools/buildsites.py',
       'tools/vomap.py', 'tools/votrans.py', 'tools/whereis.py',
       'tools/uibuild.py', 'tools/hiresport.py', 'tools/vo_patch_hires.py',
-      'tools/rvload.py', 'net/rendezvous.py'], False, False),
+      'tools/rvload.py', 'tools/uiemu.py', 'net/rendezvous.py'], False,
+     False),
     ('tree', 'no uncommitted generated files',
      ['git', 'diff', '--exit-code', '--stat'], False, True),
     ('offsets', 'every patch against a real v_on.exe',
@@ -70,6 +71,8 @@ CHECKS = [
      [PY, 'tools/bannertest.py', '{game}'], True, False),
     ('credit', 'the credit line reads back out of the roll',
      [PY, 'tools/credittest.py', '{game}'], True, False),
+    ('uiemu', 'the resolution blob run under Unicorn (retail)',
+     [PY, 'tools/uiemu.py', '{exe}'], True, False),
 ]
 
 

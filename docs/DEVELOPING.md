@@ -41,7 +41,8 @@ build the exe - both are baked into `vo_patch.py` as text.
 
 `python3-pyflakes` is the `lint` check; `python3-capstone` (4.x or 5.x)
 regenerates `UI_REFS` in `tools/uibuild.py` and drives the build-mapping
-tools (`vomap`, `votrans`, `hiresport`); the `ui` check compares a
+tools (`vomap`, `votrans`, `hiresport`); `python3-unicorn` runs the
+resolution blob in the `uiemu` check; the `ui` check compares a
 fingerprint only where nasm is absent.
 
 xvfb is the display the `gui` check needs; without it that check skips
@@ -116,6 +117,7 @@ wrong on the build it is for; before tagging, give all three.
 | `offsets` | `selftest.py`: every `original` column against a real file, hundreds of patch combinations applied, and the fully patched MD5, on whichever build the file is |
 | `banner` | `bannertest.py`: the title prompt decodes back to the bitmap it was written from, and both files restore byte for byte, on whichever build the folder holds |
 | `credit` | `credittest.py`: the credit line recomposes out of the patched roll files, and both restore byte for byte. The line is spread over three files that have to agree - the block list in the executable, the cells in `scrstfmp.bin`, the tiles in `scrstfcg.bin` - so it patches a copy, walks the block list the way `0x448d39` does, expands the cells back through the tile sheet and compares the pixels against the bitmap the patcher started from |
+| `uiemu` | `uiemu.py`: the resolution blob run under Unicorn on the retail exe, patched in memory at 1080p - the plane B walker plus the blob with a photo block in the ring as the loader leaves it, the HUD spread's 2D and polygon positions, the pre-fill against the viewport, and the layouts' insets and scales. Needs nasm and python3-unicorn, and says so when it has neither |
 
 Some need a copy of the game, which is not in the repository, so CI skips
 them and says so. They are the manual step before tagging.
