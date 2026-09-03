@@ -130,7 +130,7 @@ D_SAVE_B  equ 0x1cf0            ; the same for renderer B
 D_SAVE_FB equ 0x1cfc
 D_VAR_B   equ 0x1d00
 D_DEPTH   equ 0x1d08            ; HUD pass nesting depth (see hud_enter)
-D_RETS    equ 0x1d0c            ; saved return addresses, D_RETS_N deep
+D_RETS    equ 0x1d0c            ; saved return addresses, D_RETS_N deep (to 0x1d8c)
 D_RETS_N  equ 32
 D_SP      equ 0x1dd8            ; how many are saved
 D_DIM     equ 0x1e64            ; hangar: shade factor 16.16 for the mech being
@@ -253,6 +253,19 @@ D_ROUND   equ 0x1c88            ; 1 while this viewport's player is in a round
 D_PSTEP   equ 0x1c8c            ; margins, photo backdrop: canvas px to
 D_PX0     equ 0x1c90            ; source px, 16.16, and the source origin
 D_PY0     equ 0x1c94
+D_SPREAD  equ 0x1c98            ; HUD spread: viewport px the top groups
+                                ; move outward this call, 0 off (set in pre)
+D_SPLITC  equ 0x1ca4            ; frame column between the timer and the
+                                ; bars (patcher; 0 turns the spread off)
+D_BOTROW  equ 0x1db8            ; the TOTAL time: frame rows from here and
+D_BOTCOL  equ 0x1dbc            ; columns from here move right (patcher)
+D_PASSFN  equ 0x1dc0            ; the outermost HUD pass: its stub's offset
+                                ; from the first, 20 a function
+D_RTHR    equ 0x1dc4            ; the composite row in hand: canvas
+D_RDXL    equ 0x1d8c            ; columns below D_RTHR move D_RDXL px,
+D_RDXR    equ 0x1d90            ; the rest D_RDXR (spread_row)
+D_OFFX    equ 0x1d94            ; x rescale offset for the polygon in hand
+STUBS     equ 0x1a70            ; the pass stubs (UI_PASS_STUBS)
 D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
                                 ; photo's 512x384, staged for the rescale
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
@@ -512,6 +525,13 @@ hud_enter_here:
     mov eax, [ebx+D_SP]
     cmp eax, D_RETS_N
     jae enter_done
+    test eax, eax                   ; outermost: which stub called
+    jne enter_nested
+    mov ecx, [esp+12]
+    sub ecx, ebx
+    sub ecx, STUBS+5
+    mov [ebx+D_PASSFN], ecx
+enter_nested:
     mov ecx, [ebx+D_DEPTH]
     mov [ebx+D_RETD+eax*4], ecx     ; depth to come back to
     inc ecx
@@ -890,6 +910,31 @@ pre_round:
     shr eax, 16
     mov [ebx+D_PINROWS], eax
 pre_pin:
+    ; the HUD spread: in a round, the post-3D call, as many px as the
+    ; frame has to either side inside the viewport
+    mov dword [ebx+D_SPREAD], 0
+    cmp dword [ebx+D_SPLITC], 0
+    je pre_spread_done
+    cmp dword [ebx+D_PHASE], 0
+    jne pre_spread_done
+    cmp dword [ebx+D_ROUND], 0
+    je pre_spread_done
+    cmp edx, 0xd
+    je pre_spread_done
+    cmp edx, 0xe
+    je pre_spread_done
+    mov eax, [ebx+D_XOFF]
+    mov ecx, [ebx+D_W]
+    sub ecx, [ebx+D_XOFF]
+    sub ecx, [ebx+D_DW]
+    cmp eax, ecx
+    jle pre_spread_min
+    mov eax, ecx
+pre_spread_min:
+    test eax, eax
+    jle pre_spread_done
+    mov [ebx+D_SPREAD], eax
+pre_spread_done:
     ; pre-fill: canvas (cx, cy) from frame (fx0 + cx*s, fy0 + cy*s),
     ; fx0 = xoff - cx0*s; outside the viewport reads as 0.
     mov dword [ebx+D_Y], 0
@@ -913,6 +958,8 @@ pre_fill_row:
     imul eax, [ebx+D_PITCH]
     add eax, [ebx+D_BASE]
     mov esi, eax
+    mov eax, [ebx+D_Y]
+    call spread_row
     mov edx, [ebx+D_XOFF]
     shl edx, 16
     mov eax, [ebx+D_CX]
@@ -921,7 +968,13 @@ pre_fill_row:
     sub edx, eax
     xor ecx, ecx
 pre_fill_px:
-    mov eax, edx
+    mov eax, [ebx+D_RDXL]           ; the spread moves this column
+    cmp ecx, [ebx+D_RTHR]
+    jl pre_fill_dx
+    mov eax, [ebx+D_RDXR]
+pre_fill_dx:
+    shl eax, 16
+    add eax, edx
     sar eax, 16
     js pre_fill_zero
     cmp eax, [ebx+D_W]
@@ -1056,6 +1109,8 @@ post_start:
 post_yloop:
     mov esi, [ebx+D_YF]
     shr esi, 16
+    mov eax, esi
+    call spread_row
     imul esi, esi, OFF_PITCH
     lea esi, [ebx+esi+D_OFF]
     mov edx, [ebx+D_CX]
@@ -1066,7 +1121,13 @@ post_xloop:
     mov ax, [esi+ebp*2]
     cmp ax, [esi+ebp*2+D_COPY-D_OFF]
     je post_skip
-    mov [edi+ecx*2], ax
+    cmp ebp, [ebx+D_RTHR]           ; the spread moves this column
+    mov ebp, [ebx+D_RDXL]
+    jl post_put
+    mov ebp, [ebx+D_RDXR]
+post_put:
+    add ebp, ecx
+    mov [edi+ebp*2], ax
 post_skip:
     add edx, [ebx+D_XSTEP]
     inc ecx
@@ -1100,6 +1161,43 @@ post_done:
     call dbg_draw
 post_out:
     popad
+    ret
+
+; The HUD spread. At 4:3 the timer sits 82 px from the left edge and the
+; health bars end 110 px short of the right; on a wider viewport the 4:3
+; frame is centred and both drift towards the middle. In a round, the
+; 2D layer's band rows (above D_PINTH) and the in-game HUD pass's
+; polygons in them are moved by D_SPREAD viewport px - the frame's own
+; inset - outward: columns left of D_SPLITC (the timer and its digits)
+; to the left, the rest (PLAYER/ENEMY and the bars) to the right, so
+; each keeps its stock distance from the nearest edge whatever the
+; aspect. The TOTAL time, 2D layer rows from D_BOTROW and columns from
+; D_BOTCOL, goes right the same way. At 4:3 D_SPREAD is 0.
+;
+; spread_row: eax is a canvas row; sets D_RTHR/D_RDXL/D_RDXR for the
+; composite and the pre-fill. Clobbers ecx, edx.
+spread_row:
+    mov dword [ebx+D_RTHR], 0x7fffffff
+    mov dword [ebx+D_RDXL], 0
+    mov dword [ebx+D_RDXR], 0
+    mov ecx, [ebx+D_SPREAD]
+    test ecx, ecx
+    je spread_row_ret
+    cmp eax, [ebx+D_PINTH]
+    jge spread_row_low
+    mov edx, [ebx+D_SPLITC]
+    mov [ebx+D_RTHR], edx
+    mov [ebx+D_RDXR], ecx
+    neg ecx
+    mov [ebx+D_RDXL], ecx
+    ret
+spread_row_low:
+    cmp eax, [ebx+D_BOTROW]
+    jl spread_row_ret
+    mov edx, [ebx+D_BOTCOL]
+    mov [ebx+D_RTHR], edx
+    mov [ebx+D_RDXR], ecx
+spread_row_ret:
     ret
 
 ; margins: the pre phase of a 1P or single-viewport frame, called before
@@ -1618,6 +1716,36 @@ rescale:
     sub eax, [ebx+D_PINSUB]
 rescale_offy:
     mov [ebx+D_OFFY], eax
+    ; x offset: the spread, for the in-game HUD pass's polygons in the
+    ; band (PASS0/PASS1: the bars, their frames and the timer box)
+    mov eax, [ebx+D_OFFX16]
+    mov ecx, [ebx+D_SPREAD]
+    test ecx, ecx
+    je rescale_offx
+    cmp dword [ebx+D_PASSFN], 2*20
+    jae rescale_offx
+    mov edi, [ebx+D_YMAX]
+    sub edi, [ebx+D_CYH]
+    add edi, 240
+    cmp edi, [ebx+D_PINTH]
+    jge rescale_offx
+    shl ecx, 16
+    mov edi, [ebx+D_XMAX]
+    sub edi, [ebx+D_CXH]
+    add edi, 320                    ; HUD frame column of the rightmost
+    cmp edi, [ebx+D_SPLITC]
+    jg rescale_right
+    sub eax, ecx
+    jmp rescale_offx
+rescale_right:
+    mov edi, [ebx+D_XMIN]
+    sub edi, [ebx+D_CXH]
+    add edi, 320
+    cmp edi, [ebx+D_SPLITC]
+    jl rescale_offx
+    add eax, ecx
+rescale_offx:
+    mov [ebx+D_OFFX], eax
     lea esi, [edx+0x10]
     xor ecx, ecx                    ; vertex index
 rescale_loop:
@@ -1635,14 +1763,14 @@ rescale_loop:
 rescale_x_high:
     inc eax
     imul eax, [ebx+D_S16]
-    add eax, [ebx+D_OFFX16]
+    add eax, [ebx+D_OFFX]
     add eax, 0x8000
     sar eax, 16
     dec eax
     jmp rescale_x_done
 rescale_x_low:
     imul eax, [ebx+D_S16]
-    add eax, [ebx+D_OFFX16]
+    add eax, [ebx+D_OFFX]
     add eax, 0x8000
     sar eax, 16
 rescale_x_done:

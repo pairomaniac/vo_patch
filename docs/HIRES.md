@@ -157,6 +157,25 @@ The state gate keeps the machine-select hangar, a 3D scene inside a HUD
 pass, in one piece; top/bottom split and 1P have no centred frame and are
 unaffected.
 
+The HUD spread, on any viewport wider than 4:3 (1P, top/bottom split;
+side by side has no inset and is untouched): at 4:3 the timer box sits
+82 px from the left edge and the health bars end 110 px short of the
+right, and a centred frame carries both towards the middle. In a round
+(D_ROUND, not sub-states 0xd/0xe) the post-3D 2D layer's band rows
+(above HIRES_HUD_BAND) are composited with their columns left of
+HIRES_HUD_SPREAD's split column (230: the timer and its digits) moved
+left by the frame's inset and the rest (PLAYER/ENEMY, the bars) moved
+right by it, so each keeps its 4:3 distance from the nearest edge; the
+pre-fill samples each column from where it lands (spread_row). The TOTAL
+time - 2D rows from 380, columns from 420 - moves right the same way.
+The polygons get the same offset in rescale, gated on the outermost HUD
+pass being the in-game HUD (PASS0/PASS1, the bars, frames and timer box;
+hud_enter records the stub that called it in D_PASSFN) and on the
+polygon lying wholly in the band and wholly on one side of the split
+column, so the enemy marker, drawn from PASS16/17, is left alone. The
+inset is the smaller of the frame's two margins inside the viewport
+(D_SPREAD), computed per call, 0 at 4:3.
+
 The damage flash is the unit quad drawn as a grid of tiles (4 by 3 at
 16:9) through attribute block 0x791ad0, sized a fifth over the 4:3 frame,
 so the outer tiles stopped 80 px short of each edge at 1080p. It is an
@@ -729,6 +748,9 @@ card phase after the roll both the stars and the moon are cut at about
 row 950 of 1080, under a band in stock.
 
 ## Queued work
+
+- **The weapon strips and the distance digits** keep their 4:3 places;
+  the spread only moves the top band and the TOTAL time.
 
 - **A per-layout marker window.** The x bounds and the bearing window
   are baked for the 1P view; split viewports want their own, keyed on
