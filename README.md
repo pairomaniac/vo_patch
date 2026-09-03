@@ -10,11 +10,10 @@ no port forwarding.
 <img height="220" alt="Widescreen match" src="https://github.com/user-attachments/assets/464143ee-a63b-4004-83f5-16cf28c146dd" />
 &nbsp;
 <img height="220" alt="Widescreen title screen" src="https://github.com/user-attachments/assets/eaa35047-e49a-4ca9-8ff1-9cb7e1d8a07f" />
-<br /><br />
-
-In a nutshell - the patch makes the game <i>just work ™️</i>
-
+<img height="448" alt="virtual_on_for_pc_2026-09-03_19-36-07(1)" src="https://github.com/user-attachments/assets/3f1e19b6-406d-4a80-8a0c-e2fd9f0ffdea" />
 <br />
+...in a nutshell - the patch makes the game <i>just work ™️</i>
+<br /><br />
 <img height="700" alt="The patcher window" src="https://github.com/user-attachments/assets/a3344ff2-fa48-4961-b983-7019ab8dffa8" />
 
 <h4 align="center">
@@ -262,6 +261,10 @@ sides rather than stretching the middle.
 <img height="220" alt="Widescreen split screen" src="https://github.com/user-attachments/assets/4fa56492-db68-4a9b-92b7-a2724adf0bef" />
 &nbsp;
 <img height="220" alt="Widescreen menu" src="https://github.com/user-attachments/assets/dc17fcbd-5898-4ca5-907e-865024d2d509" />
+<br />
+<img height="220" alt="virtual_on_for_pc_2026-09-03_19-32-21(1)" src="https://github.com/user-attachments/assets/f5ccbf1a-fca8-47c0-9c43-cd41c13f6f6c" />
+&nbsp;
+<img height="220" alt="virtual_on_for_pc_2026-09-03_18-58-45(1)" src="https://github.com/user-attachments/assets/690d6e7c-e480-4144-bc3d-f4a8be750c62" />
 <br /><br />
 
 It is **on by default**, like the other Extra patches. Untick it for the
