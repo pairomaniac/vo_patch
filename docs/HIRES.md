@@ -66,7 +66,8 @@ pre redirects the 2D draw to a canvas in the section (480 guard rows
 either side, since split draws outside the viewport) and post composites
 every pixel that differs from a copy back onto the viewport,
 nearest-neighbour, centred, so translucency blends against the real
-background.
+background. A canvas row that is all copy - most rows of the HUD phase -
+is found with one compare and every viewport row sampling it is skipped.
 
 In the pre-3D call of a 1P or single-viewport frame the canvas has the
 viewport's aspect (rounded to an even width) and the game's surface

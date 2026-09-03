@@ -273,7 +273,11 @@ D_RTHR    equ 0x1dc4            ; the composite row in hand: canvas
 D_RDXL    equ 0x1d8c            ; columns below D_RTHR move D_RDXL px,
 D_RDXR    equ 0x1d90            ; the rest D_RDXR (spread_row)
 D_OFFX    equ 0x1d94            ; x rescale offset for the polygon in hand
-STUBS     equ 0x1a70            ; the pass stubs (UI_PASS_STUBS)
+STUBS     equ 0x1a70            ; the pass stubs (UI_PASS_STUBS), 20 bytes
+STUB_LEN  equ 20                ; each, in UI_PASS_FUNCS order
+HUD_PASSES equ 2                ; the first two are the in-game HUD
+D_ROWLAST equ 0x1d98            ; composite: the canvas row last examined
+D_ROWSAME equ 0x1d9c            ; and whether it was all copy (skipped)
 D_STAGE   equ 0x1e3b00         ; the guard rows after the canvas: the
                                 ; photo's 512x384, staged for the rescale
 D_OFF     equ 0xf3b00          ; canvas; 480 guard rows either side
@@ -1114,11 +1118,34 @@ post_start:
     mov eax, [ebx+D_CY]
     mov [ebx+D_YF], eax
     mov dword [ebx+D_Y], 0
+    mov dword [ebx+D_ROWLAST], -1
 post_yloop:
+    ; a new canvas row: its spread, and whether it differs from the copy
+    ; at all - most HUD-phase rows do not, and every viewport row that
+    ; samples such a row is skipped whole
     mov esi, [ebx+D_YF]
     shr esi, 16
+    cmp esi, [ebx+D_ROWLAST]
+    je post_rowknown
+    mov [ebx+D_ROWLAST], esi
     mov eax, esi
     call spread_row
+    push edi
+    imul esi, esi, OFF_PITCH
+    lea esi, [ebx+esi+D_OFF]
+    lea edi, [esi+D_COPY-D_OFF]
+    mov ecx, [ebx+D_LW]
+    shr ecx, 1
+    repe cmpsd
+    pop edi
+    mov dword [ebx+D_ROWSAME], 0
+    jne post_rowknown
+    mov dword [ebx+D_ROWSAME], 1
+post_rowknown:
+    cmp dword [ebx+D_ROWSAME], 0
+    jne post_rownext
+    mov esi, [ebx+D_YF]
+    shr esi, 16
     imul esi, esi, OFF_PITCH
     lea esi, [ebx+esi+D_OFF]
     mov edx, [ebx+D_CX]
@@ -1141,6 +1168,7 @@ post_skip:
     inc ecx
     cmp ecx, [ebx+D_DW]
     jl post_xloop
+post_rownext:
     add edi, [ebx+D_PITCH]
     mov eax, [ebx+D_YSTEP]
     add [ebx+D_YF], eax
@@ -1585,9 +1613,9 @@ dbg_put:
     ret
 
 ; Render-list insert hooks (0x5d4628, 0x5d5360 for A; 0x5e02b0, 0x5df538
-; for B). In a HUD pass the record's four packed vertex positions, whole
-; 640x480 pixels, are scaled to the HUD scale and offset to the
-; viewport. The renderer fills inclusively, so a vertex on the low side
+; for B: two record writers a renderer, both filing four packed vertex
+; positions at +0x10). In a HUD pass the four positions, whole 640x480
+; pixels, are scaled to the HUD scale and offset to the viewport. The renderer fills inclusively, so a vertex on the low side
 ; of its axis maps to x*s and one on the high side to (x+1)*s-1; a
 ; degenerate axis (the frame lines are zero-width quads) is opened to
 ; the same s px, so a line covers the same scaled column as a fill edge
@@ -1687,28 +1715,28 @@ extents:
     mov dword [ebx+D_YMAX], -0x7fffffff
     lea esi, [edx+0x10]
     mov ecx, 4
-rescale_min:
+extents_v:
     movsx eax, word [esi]
     cmp eax, [ebx+D_XMIN]
-    jge rescale_min_x2
+    jge extents_x2
     mov [ebx+D_XMIN], eax
-rescale_min_x2:
+extents_x2:
     cmp eax, [ebx+D_XMAX]
-    jle rescale_min_y
+    jle extents_y
     mov [ebx+D_XMAX], eax
-rescale_min_y:
+extents_y:
     movsx eax, word [esi+2]
     cmp eax, [ebx+D_YMIN]
-    jge rescale_min_y2
+    jge extents_y2
     mov [ebx+D_YMIN], eax
-rescale_min_y2:
+extents_y2:
     cmp eax, [ebx+D_YMAX]
-    jle rescale_min_next
+    jle extents_next
     mov [ebx+D_YMAX], eax
-rescale_min_next:
+extents_next:
     add esi, 4
     dec ecx
-    jnz rescale_min
+    jnz extents_v
     ret
 rescale:
     call extents
@@ -1730,7 +1758,7 @@ rescale_offy:
     mov ecx, [ebx+D_SPREAD]
     test ecx, ecx
     je rescale_offx
-    cmp dword [ebx+D_PASSFN], 2*20
+    cmp dword [ebx+D_PASSFN], HUD_PASSES*STUB_LEN
     jae rescale_offx
     mov edi, [ebx+D_YMAX]
     sub edi, [ebx+D_CYH]
@@ -1785,15 +1813,11 @@ rescale_x_done:
     movsx edi, word [esi+2]
     cmp edi, [ebx+D_YMIN]
     jne rescale_y_high
-    push eax
-    mov eax, [ebx+D_YMAX]
-    cmp eax, [ebx+D_YMIN]
-    pop eax
+    mov ebp, [ebx+D_YMAX]
+    cmp ebp, [ebx+D_YMIN]
     jne rescale_y_low
-    push eax
-    lea eax, [ecx-1]
-    cmp eax, 2
-    pop eax
+    lea ebp, [ecx-1]
+    cmp ebp, 2
     jae rescale_y_low
 rescale_y_high:
     inc edi
