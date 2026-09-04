@@ -425,18 +425,18 @@ runtime, which is the lesson in itself.
    builds. Anything with a duplicate must be resolved from a
    disambiguating anchor - here, the call instructions at the stub
    sites.
-3. Boot order differs between builds. JP shows a warning screen through
+3. Boot order differs between builds. JPRE shows a warning screen through
    the 2D layer before any viewport init; the null-surface guard exists
    because of it.
 4. A fuzzy resolver that can start a pattern mid-instruction matches
    junk with junk. A whole-build 48-byte window placed the flush-bucket
-   site 16 bytes off, inside two `and` instructions of JP's flush -
+   site 16 bytes off, inside two `and` instructions of JPRE's flush -
    corrupted list-type masks, blank screens, then a null bucket walk.
    That tier is deleted; windows align to instruction boundaries; and
    the boundary audit is the gate.
-5. Identical code copies fool the map twice over. JP's mask sites all
+5. Identical code copies fool the map twice over. JPRE's mask sites all
    collided onto renderer B, and the explanation written first - that
-   JP's renderer A was an MMX variant with no scalar mask code - was
+   JPRE's renderer A was an MMX variant with no scalar mask code - was
    wrong: every build is MMX throughout (it is a start-up requirement),
    and the scalar mask-advance idiom is in all three, sixteen times
    each. The map had translated the mask pointer to a neighbouring
@@ -444,7 +444,7 @@ runtime, which is the lesson in itself.
    renderer B, twice. The generator now derives the mask pointer from
    the build's own spans, and any site whose surroundings occur more
    than once in retail is paired by order of occurrence rather than by
-   the map. JP generated clean with that; OEM's table did not change,
+   the map. JPRE generated clean with that; OEM's table did not change,
    so its rasterizer fault had another cause.
 6. Bytes the patch writes can carry retail addresses of their own. The
    rasterizer fault on both builds was four of the MMX mask spans: their
@@ -456,10 +456,10 @@ runtime, which is the lesson in itself.
    mask span from the build's own bytes, and the port record above is
    a reminder that a site's new bytes need reading for addresses as
    well as its old ones.
-7. A shorter block is not a matching block. JP dropped the 0.95
+7. A shorter block is not a matching block. JPRE dropped the 0.95
    projection case, so its FOV block is 54 bytes to retail's 82; the
    82-byte replacement ran 28 bytes into the viewport function's
-   pointer stores, which is why JP's surface pointer was always null
+   pointer stores, which is why JPRE's surface pointer was always null
    and the blob stood down every frame. The old-bytes check passed
    because the table's old bytes are read from the build. port_sites
    now cuts the block at the build's last fstp [ASPECT_B] and, when the
@@ -472,7 +472,7 @@ runtime, which is the lesson in itself.
 8. A jump's new bytes are retail's until proven otherwise. The credits
    jne-to-jmp sites (0x080074, 0x167084) carry retail's displacement,
    and port_sites rebased every e8/e9 from the retail site, so the
-   ported jmp landed on retail's target inside JP's engine - mid
+   ported jmp landed on retail's target inside JPRE's engine - mid
    instruction, three bytes into a mov. port_sites now takes the
    displacement from the build's own jcc, and only rebases jumps whose
    target is in the appended sections; the F4 exit is built from A()
@@ -552,7 +552,7 @@ to it on 0x6bea88/0x6bea8c), sub-states 2 and 6 (0x4b1b87, 0x4b1f99,
 block 1) and the network cards 0x4d54c1 and its neighbours, which pick
 one of the three at random. 0x4d1328 leaves plane B's scroll y at
 0x4000 (tile row 0). Each block has 1088..1804 distinct tiles; the
-splash has 287. The maps are identical in the JP and OEM builds, which
+splash has 287. The maps are identical in the JPRE and OEM builds, which
 is why the recognition is by cell content rather than by address. The
 copy is a plain memcpy, yet the ring reads back with every index
 lowered by one constant (0xe32 on the select, another on the encounter
@@ -785,7 +785,7 @@ row 950 of 1080, under a band in stock.
   are baked for the 1P view; split viewports want their own, keyed on
   D_LAYOUT like the split FOV factors. Needs the two compare pairs to
   read section data instead of immediates.
-- **JP and OEM on video.** Both tables ship after lessons 6 and 7;
+- **JPRE and OEM on video.** Both tables ship after lessons 6 and 7;
   neither has had the retail build's hours of play yet.
 - **Wider than 16:9.** Untested and partly blocked: the width limit of
   2040 (the mask stride immediates), the 1024-px canvas (OFF_PITCH and
@@ -836,13 +836,13 @@ spot.
 ## Rebuilding
 
     python3 tools/uibuild.py            # asm/ui.asm -> UI_CODE + constants
-    sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe JPORIG.exe
+    sh tools/maps.sh RETAIL.exe JPRE.exe OEM.exe JP.exe
                                         # maps/*.pkl and maps/*_port.txt
     python3 tools/portaudit.py maps/jpre.pkl
                                         # instruction shapes at every site
     # splice maps/jpre_port.txt, maps/oem_port.txt and maps/jp_port.txt
     # between the PORT TABLES markers in vo_patch.py, replacing what is there
-    python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM, JPORIG: the digests
+    python3 tools/selftest.py RETAIL.exe   # and JPRE, OEM, JP: the digests
     # go into EXPECTED_ALL in tools/selftest.py
 
 The port tables must be regenerated after any change to ui.asm: they

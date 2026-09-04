@@ -3,7 +3,7 @@
 
     python3 tools/buildsites.py NAME RETAIL.exe OTHER.exe [MAP.pkl]
 
-NAME is the Build's name in vo_patch.py (JAPAN). For every site the table
+NAME is the Build's name in vo_patch.py (JPRE). For every site the table
 names by retail offset: where it is in the other build, through votrans.py,
 and the bytes that build has there. A site whose retail original is not
 what the retail file holds is one an earlier site in the same patch wrote,

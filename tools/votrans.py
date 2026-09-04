@@ -121,7 +121,7 @@ def translate_off(off):
 # Resolved by hand from the disassembly, per target build (by MD5); see
 # docs/NOTES.md. Sites by retail file offset, then addresses by retail VA.
 HAND = {'d19320bdc3381a48228990907910a391': ({           # Japanese rerelease
-    0x000970bf: 0x00095c1c, 0x000970d5: 0x00095c32,   # bind page fill loop, [ebp-8] is [ebp-0x18] in JP
+    0x000970bf: 0x00095c1c, 0x000970d5: 0x00095c32,   # bind page fill loop, [ebp-8] is [ebp-0x18] in JPRE
     0x00095ec7: 0x00094a26,                           # mov dl,[eax+ecx*2+block]: block moved
     0x00096b61: 0x000956bf,                           # 2P-key check, retail split this function in two
     0x000958aa: 0x0009440a,                           # jmp +0 at loop exit

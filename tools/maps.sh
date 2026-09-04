@@ -2,7 +2,7 @@
 # Build the retail->other-build maps and the resolution patch's port
 # tables, into maps/.
 #
-#     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe [JPORIG.exe]
+#     sh tools/maps.sh RETAIL.exe JPRE.exe OEM.exe [JP.exe]
 #
 # Writes maps/jpre.pkl, maps/oem.pkl and, given the Japanese original,
 # maps/jp.pkl (vomap.py, about a minute each) and a *_port.txt beside
@@ -13,7 +13,7 @@
 set -e
 cd "$(dirname "$0")/.."
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-    echo "usage: sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe [JPORIG.exe]" >&2
+    echo "usage: sh tools/maps.sh RETAIL.exe JPRE.exe OEM.exe [JP.exe]" >&2
     exit 2
 fi
 retail=$1

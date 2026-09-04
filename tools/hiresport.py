@@ -370,7 +370,7 @@ def resolve(pkl):
 
     # The coverage-mask pointer, from the build's own advance spans: the
     # sixteen mov/add/mov idioms share one global, and that is it. The
-    # map's vote once landed on a neighbouring global for JP, and every
+    # map's vote once landed on a neighbouring global for JPRE, and every
     # mask site went wrong from there.
     seen = {}
     for pat in (rb'\xa1(....)\x46\x83\xc0\x50\x5b\xa3(....)',

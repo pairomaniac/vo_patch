@@ -189,8 +189,9 @@ regenerated, one command per build, with `vomap.py` run first if there is
 no map:
 
 ```bash
-python3 tools/buildsites.py JAPAN retail.exe jp.exe jp.pkl
-python3 tools/buildsites.py OEM   retail.exe oem.exe oem.pkl
+python3 tools/buildsites.py JPRE retail.exe jpre.exe jpre.pkl
+python3 tools/buildsites.py OEM  retail.exe oem.exe oem.pkl
+python3 tools/buildsites.py JP   retail.exe jp.exe jp.pkl
 ```
 
 The order of the edits does not matter: both tools import the patcher in
@@ -215,7 +216,7 @@ committed:
    caves are the game's own device list, translated like any symbol, and
    the levers tail, as in every build. `SYNC_SITES` follows from the site
    map.
-4. Put `# SITES NAME BEGIN` / `END` markers after the JAPAN ones and run
+4. Put `# SITES NAME BEGIN` / `END` markers after the JPRE ones and run
    `python3 tools/buildsites.py NAME retail.exe other.exe map.pkl`. What
    it cannot place is listed; those go in `HAND` in `votrans.py`, keyed by
    the build's MD5, with a reason each.
