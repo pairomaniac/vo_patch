@@ -7,8 +7,8 @@ using the patcher see [README.md](../README.md); for what the patches do see
 ## The four layers
 
 ```
-asm/*.asm    ──nasm──►  hex strings in vo_patch.py  ──PyInstaller──►  vo_patch-X.Y.Z.exe
-net/dpctrl.c ──mingw─►  base64 blob in vo_patch.py       CI builds this
+asm/*.asm    ──nasm──►  hex strings in vo_patch.py  ──PyInstaller──►  vo_patch-X.Y.Z-win.zip
+net/dpctrl.c ──mingw─►  net/dpctrl.dll                     CI builds this  (exe + _internal/)
   you edit             asm/build.py, net/build.py
                        write these
 ```
@@ -350,8 +350,20 @@ gh run watch               # follow CI
 ```
 
 CI runs `verify` (ubuntu) and, only if it passes, `windows`, which stamps the
-version, builds the exe, checks the bundle, runs `--selfcheck` on it, stages
-the LF-normalised script, and attaches both to the release.
+version, installs PyInstaller from source with its bootloader compiled on the
+runner, builds `dist/vo_patch/` (the exe with its `_internal/` folder: the
+runtime, the libraries, `dpctrl.dll`), checks the bundle, runs `--selfcheck`
+on the exe, prints its checksum and VirusTotal link, and attaches two zips to
+the release: `vo_patch-vX.Y.Z-win.zip`, the folder with the exe at its top,
+and `vo_patch-vX.Y.Z-src.zip`, the LF-normalised script with `net/dpctrl.dll`.
+
+The exe is unsigned, and scanners have opinions about an unsigned program
+that edits another program. Before announcing: upload the exe from the win
+zip to VirusTotal once, and submit it to Microsoft as a false positive
+(Security Intelligence, as a developer, with the repository in the notes);
+the verdict usually clears within a day. Do not reanalyze on VirusTotal
+while it is still flagged - detections feed each other. The README's *Virus
+warnings* section tells users how to allow it in Defender meanwhile.
 
 `--generate-notes` writes the release body from commit subjects, which for a
 squashed history is close to useless. Replace it once CI is green:
