@@ -26,7 +26,8 @@ no port forwarding.
   <a href="#internet-play">Internet play</a> &nbsp;·&nbsp;
   <a href="#music">Music</a> &nbsp;·&nbsp;
   <a href="#windowing-and-scaling-cnc-ddraw">Windowing</a> &nbsp;·&nbsp;
-  <a href="#builds">Builds</a>
+  <a href="#builds">Builds</a> &nbsp;·&nbsp;
+  <a href="#running-the-python-script">Python script</a>
 </h4>
 
 ## Quick start
@@ -37,7 +38,7 @@ unzip it anywhere and run `vo_patch-*.exe`; the `_internal` folder beside it
 has to stay. It is unsigned, so SmartScreen calls it an unknown publisher the
 first time you run it. If a virus scanner objects, see
 [Virus warnings](#virus-warnings). On Linux, see
-[Running from source](#running-from-source).
+[Running the Python script](#running-the-python-script).
 
 The window is split into numbered sections. Work through them in order:
 
@@ -76,9 +77,9 @@ threat protection → Protection history → the entry for the file → Allow,
 then run it again.
 
 If you would rather not run it, `vo_patch.py` does everything the download
-does - see [Running from source](#running-from-source). Each release is
-built on GitHub from this repository, and the build log lists the file's
-checksum if you want to check that yours matches.
+does - see [Running the Python script](#running-the-python-script). Each
+release is built on GitHub from this repository, and the build log lists the
+file's checksum if you want to check that yours matches.
 
 ## Installing from a disc image
 
@@ -689,10 +690,19 @@ wrote as `v_on.ini.patched`. Use it rather than copying a `.bak` over by
 hand: the artwork and `v_on.exe` have to match, and restoring one alone
 draws the title prompt as scrambled letters.
 
-## Running from source
+## Running the Python script
 
-Working on the patcher rather than running it? [docs/README.md](docs/README.md)
-maps the developer documentation.
+The patcher is one Python script, `vo_patch.py`; the Windows download is
+that script frozen into an exe. On Linux, or if you would rather not run
+an unsigned exe, run the script itself. Two ways to get it:
+
+- `vo_patch-*-python.zip` from the
+  [latest release](https://github.com/pairomaniac/vo_patch/releases/latest):
+  the script with the netplay DLL beside it in `net/`, nothing else.
+- A checkout of this repository; the same two files are in the same places.
+
+GitHub's own "Source code" zip on the release page is the whole repository,
+which also works, but carries the development tree with it.
 
 Windows, with Python from python.org - Tk ships with it, nothing else needed:
 
@@ -709,9 +719,6 @@ sudo pacman -S tk                  # Arch, EndeavourOS
 python3 vo_patch.py
 ```
 
-The release's `vo_patch-*-src.zip` is the same file with the netplay
-DLL in `net/`, as a checkout has it.
-
 Everything the patcher does is also available without a window:
 
 ```bash
@@ -722,6 +729,10 @@ python3 vo_patch.py --netplay DIR      # install the UDP netplay DLL
 python3 vo_patch.py --selfcheck        # validate the patch tables
 ```
 
+## Working on the patcher
+
+[docs/README.md](docs/README.md) maps the developer documentation.
+
 To build the Windows binary yourself, `pip install pyinstaller` and run
 `pyinstaller vo_patch.spec`. It builds `dist/vo_patch/`, the exe with its
 `_internal` folder, as `vo_patch-dev.exe` - releases take their version from
@@ -730,16 +741,6 @@ the git tag, and a source tree has none.
 To change the machine code the patches install, see [asm/](asm/);
 `asm/build.py` builds it into the hex strings in `vo_patch.py`. Never edit
 those by hand.
-
-The netplay DLL is built from [net/](net/): edit `net/dpctrl.c` and run
-`python3 net/build.py`, which compiles it with mingw to `net/dpctrl.dll` and
-records its hash in `vo_patch.py`. [net/README.md](net/README.md) covers the
-protocol and the matchcode server.
-
-`python3 tools/check.py` runs every check in the project. Give it a game
-folder and it runs the ones that need one; give it a folder per build and
-each of those runs once per build.
-[docs/DEVELOPING.md](docs/DEVELOPING.md) covers the rest of the workflow.
 
 ## AI Disclaimer
 

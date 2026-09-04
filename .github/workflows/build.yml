@@ -242,8 +242,9 @@ jobs:
             echo "artifact=vo_patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           fi
 
-      # Two zips: -win with the exe and _internal/ at its top, -src with
-      # the script and the netplay DLL beside it.
+      # Two zips: -win with the exe and _internal/ at its top, -python with
+      # the script and the netplay DLL beside it. Not -src: GitHub adds its
+      # own "Source code" zip to every release, and two of those confuse.
       - name: Zip
         shell: bash
         run: |
@@ -254,7 +255,7 @@ jobs:
                   for f in files:
                       p = os.path.join(root, f)
                       z.write(p, os.path.relpath(p, 'vo_patch'))
-          with zipfile.ZipFile('$artifact-src.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+          with zipfile.ZipFile('$artifact-python.zip', 'w', zipfile.ZIP_DEFLATED) as z:
               for f in os.listdir('.'):
                   if f.endswith('.py'):
                       z.write(f)

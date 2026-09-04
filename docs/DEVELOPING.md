@@ -356,7 +356,8 @@ runner, builds `dist/vo_patch/` (the exe with its `_internal/` folder: the
 runtime, the libraries, `dpctrl.dll`), checks the bundle, runs `--selfcheck`
 on the exe, prints its checksum and VirusTotal link, and attaches two zips to
 the release: `vo_patch-vX.Y.Z-win.zip`, the folder with the exe at its top,
-and `vo_patch-vX.Y.Z-src.zip`, the LF-normalised script with `net/dpctrl.dll`.
+and `vo_patch-vX.Y.Z-python.zip`, the LF-normalised script with
+`net/dpctrl.dll`.
 
 The exe is unsigned, and scanners have opinions about an unsigned program
 that edits another program. Before announcing: upload the exe from the win
