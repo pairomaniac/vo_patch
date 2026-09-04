@@ -710,8 +710,8 @@ sudo pacman -S tk                  # Arch, EndeavourOS
 python3 vo_patch.py
 ```
 
-The release's `vo_patch-*-src.zip` has the same file, with the netplay
-DLL beside it; a checkout has the DLL in `net/`.
+The release's `vo_patch-*-src.zip` is the same file with the netplay
+DLL in `net/`, as a checkout has it.
 
 Everything the patcher does is also available without a window:
 

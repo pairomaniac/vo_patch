@@ -256,8 +256,9 @@ jobs:
                       z.write(p, os.path.relpath(p, 'vo_patch'))
           with zipfile.ZipFile('$artifact-src.zip', 'w', zipfile.ZIP_DEFLATED) as z:
               for f in os.listdir('.'):
-                  if f.endswith('.py') or f == 'dpctrl.dll':
+                  if f.endswith('.py'):
                       z.write(f)
+              z.write('dpctrl.dll', 'net/dpctrl.dll')
           "
           ls -l *.zip
           for z in *.zip; do unzip -l "$z" | sed -n '1,5p'; done
