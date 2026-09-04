@@ -840,7 +840,7 @@ spot.
                                         # maps/*.pkl and maps/*_port.txt
     python3 tools/portaudit.py maps/jpre.pkl
                                         # instruction shapes at every site
-    # splice maps/jpre_port.txt, maps/oem_port.txt and maps/jporig_port.txt
+    # splice maps/jpre_port.txt, maps/oem_port.txt and maps/jp_port.txt
     # between the PORT TABLES markers in vo_patch.py, replacing what is there
     python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM, JPORIG: the digests
     # go into EXPECTED_ALL in tools/selftest.py

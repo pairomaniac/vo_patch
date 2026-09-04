@@ -3,7 +3,7 @@
 
     python3 tools/check.py                       # everything that needs no game
     python3 tools/check.py /path/to/VIRTUAL-ON   # and the ones that do
-    python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/      # once per build
+    python3 tools/check.py RETAIL/ OEM/ JP/ JPRE/      # once per build
     VO_GAME=/path/to/VIRTUAL-ON python3 tools/check.py
 
 The game is not in the repository, so CI can only run the first form. The

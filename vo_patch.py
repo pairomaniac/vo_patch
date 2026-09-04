@@ -3392,7 +3392,7 @@ OEM = Build('USA OEM', 'oem', OEM_MD5, OEM_SIZE, 0x3317246a, sections=(
 # rerelease's, byte for byte.
 JPORIG_MD5 = '9764d946ffc8cee94788707c91753478'
 JPORIG_SIZE = 6644224
-JPORIG = Build('Japanese original', 'jporig', JPORIG_MD5, JPORIG_SIZE,
+JPORIG = Build('Japanese original', 'jp', JPORIG_MD5, JPORIG_SIZE,
                 0x33120494, sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001f3200, 0x005f4000),       # .rdata
