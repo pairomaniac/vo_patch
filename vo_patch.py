@@ -6570,21 +6570,27 @@ NETPLAY_MARK = b'vo-net.log'
 
 
 def netplay_dll():
-    """The DLL bytes, from the file shipped beside the program: in the
-    frozen build PyInstaller's _internal/, from source net/."""
+    """The DLL bytes, from the file shipped with the program: the frozen
+    build's _internal/, a checkout's net/, or beside the script - where
+    the release's dpctrl.dll goes for the released .py."""
     if getattr(sys, 'frozen', False):
-        path = os.path.join(sys._MEIPASS, NETPLAY_NAME)
+        paths = [os.path.join(sys._MEIPASS, NETPLAY_NAME)]
     else:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            'net', NETPLAY_NAME)
-    try:
-        with open(path, 'rb') as f:
-            data = f.read()
-    except OSError as exc:
-        raise ValueError('netplay DLL missing: %s' % exc)
-    if hashlib.sha256(data).hexdigest() != NETPLAY_DLL_SHA:
-        raise ValueError('%s is not the DLL this build was made with' % path)
-    return data
+        here = os.path.dirname(os.path.abspath(__file__))
+        paths = [os.path.join(here, 'net', NETPLAY_NAME),
+                 os.path.join(here, NETPLAY_NAME)]
+    for path in paths:
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+        except OSError:
+            continue
+        if hashlib.sha256(data).hexdigest() != NETPLAY_DLL_SHA:
+            raise ValueError('%s is not the DLL this build was made with'
+                             % path)
+        return data
+    raise ValueError('netplay DLL missing: put %s from the release beside '
+                     '%s' % (NETPLAY_NAME, os.path.basename(__file__)))
 
 
 def _netplay_read(path):

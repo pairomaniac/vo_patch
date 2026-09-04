@@ -217,12 +217,13 @@ jobs:
         shell: bash
         run: |
           python - <<'EOF'
-          import pathlib, re
+          import pathlib, re, shutil
           src = pathlib.Path('vo_patch.py')
           text = src.read_bytes().replace(b'\r\n', b'\n')
           version = re.search(rb"^VERSION = '(.*)'$", text, re.M).group(1).decode()
           pathlib.Path('dist/vo_patch-%s.py' % version).write_bytes(text)
-          print('staged vo_patch-%s.py' % version)
+          shutil.copy('net/dpctrl.dll', 'dist/dpctrl.dll')
+          print('staged vo_patch-%s.py and dpctrl.dll' % version)
           EOF
           if grep -q $'\r' dist/vo_patch-*.py; then
             echo 'a CR survived - ./vo_patch.py would not run on Linux'
@@ -262,6 +263,7 @@ jobs:
           path: |
             dist/*.zip
             dist/*.py
+            dist/dpctrl.dll
 
       # gh is preinstalled on the runner, so no third party action is needed
       - name: Attach to the release
@@ -274,4 +276,4 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
-            dist/*.zip dist/*.py --clobber
+            dist/*.zip dist/*.py dist/dpctrl.dll --clobber

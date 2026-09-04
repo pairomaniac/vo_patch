@@ -710,6 +710,9 @@ sudo pacman -S tk                  # Arch, EndeavourOS
 python3 vo_patch.py
 ```
 
+The release's `vo_patch-*.py` is the same file. For netplay it needs the
+release's `dpctrl.dll` beside it; a checkout has it in `net/`.
+
 Everything the patcher does is also available without a window:
 
 ```bash
