@@ -71,6 +71,12 @@ MANUAL = {
         # renderer A's row maths uses eax where retail uses ecx
         0x1c799b: 0x1c74cd,
     },
+    '33120494': {                          # Japan original
+        # no 0.95 hardware case, as the rerelease
+        0x1c7775: None,
+        # renderer A's row maths uses eax, as the OEM
+        0x1c799b: 0x1c686c,
+    },
 }
 
 

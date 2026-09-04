@@ -821,7 +821,14 @@ USA OEM (stamp 3317246a):
   distinctness invariant
 - mask pointer 0x6c8ca8 family per its own spans
 
-Both: prologue frame layouts and instruction encodings differ from retail
+Japanese original (stamp 33120494):
+
+- the 0.95 projection case is absent, as in the rerelease; the 1.0
+  store is at 0x1c6631
+- renderer A's row maths uses eax, as in the OEM (0x1c686c)
+- PASS8/PASS9 have the rerelease's 5-byte prologues
+
+All: prologue frame layouts and instruction encodings differ from retail
 even inside "exact" stream matches, so linear placement inside a matched
 function is only trustworthy with a byte or shape check at the landing
 spot.
@@ -829,13 +836,13 @@ spot.
 ## Rebuilding
 
     python3 tools/uibuild.py            # asm/ui.asm -> UI_CODE + constants
-    sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe
+    sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe JPORIG.exe
                                         # maps/*.pkl and maps/*_port.txt
     python3 tools/portaudit.py maps/jp.pkl
                                         # instruction shapes at every site
     # splice maps/jp_port.txt and maps/oem_port.txt between the PORT
     # TABLES markers in vo_patch.py, replacing what is there
-    python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM: the digests
+    python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM, JPORIG: the digests
     # go into EXPECTED_ALL in tools/selftest.py
 
 The port tables must be regenerated after any change to ui.asm: they

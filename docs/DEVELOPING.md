@@ -103,7 +103,7 @@ python3 tools/check.py --only asm,net         # just those
 `VO_GAME` works instead of one argument, and either a folder or any file
 inside one will do. The checks that need the game run once per folder
 given and are named by build - `offsets/jp` - because a table can only be
-wrong on the build it is for; before tagging, give all three.
+wrong on the build it is for; before tagging, give all four.
 
 | Name | What it proves |
 | --- | --- |

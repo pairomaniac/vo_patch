@@ -143,6 +143,16 @@ HAND = {'d19320bdc3381a48228990907910a391': ({           # Japanese rerelease
     0x0000023f: 0x0000023f, 0x000000a8: 0x000000a8,   # PE header: same section order
 }, {
     0x004977c6: 0x00497664,                           # kbpage: the 2P-key accept label
+}), '9764d946ffc8cee94788707c91753478': ({            # Japanese original
+    0x00107930: None,                                 # no vendor check: the OEM's
+                                                      # cpuid32.dll test, sites of its own
+    0x000958aa: 0x0009584a,                           # jmp +0 at loop exit
+    0x006035ac: 0x00601dac,                           # .rsrc: the directory is -0x1800,
+                                                      # the dialog data -0x180c
+    0x0000023f: 0x0000023f, 0x000000a8: 0x000000a8,   # PE header: same section order
+}, {
+    0x004977c6: 0x00497764,                           # kbpage: the 2P-key accept label,
+                                                      # its two loads the other way round
 })}
 
 import hashlib                                                  # noqa: E402

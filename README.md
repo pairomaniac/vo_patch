@@ -307,7 +307,7 @@ still asks the display for exclusive fullscreen at 1920x1080, as it always
 asked for 640x480, and cnc-ddraw fits that to your monitor without
 stretching.
 
-It applies to all three [builds](#builds). On the USA OEM and Japanese
+It applies to all four [builds](#builds). On the USA OEM and Japanese
 builds it is newer and has had less play; if something looks wrong there,
 say which build in the report - the window names it.
 
@@ -647,23 +647,22 @@ gamescope -W 1920 -H 1080 -w 640 -h 480 -f -S integer -- %command%
 
 ## Builds
 
-Four builds of the game exist. Three of them patch:
+Four builds of the game exist, and all four patch:
 
 | Build | Size | MD5 | Patcher |
 | --- | --- | --- | --- |
 | English retail | 6,650,880 | `a464b0ff32d5bab499f265e45658504e` | patches |
 | USA OEM | 6,649,344 | `4c70f780a7f0d98d74be62304fb99021` | patches |
 | Japanese rerelease | 6,621,696 | `d19320bdc3381a48228990907910a391` | patches |
-| Japanese original | not sourced | not sourced | not supported |
+| Japanese original | 6,644,224 | `9764d946ffc8cee94788707c91753478` | patches |
 
 The USA, USA Alt and European discs all carry the same English retail
-`v_on.exe`, so any of them will do. Every patch works on all three builds
-above, and the window names the build it is looking at.
+`v_on.exe`, so any of them will do. Every patch works on all four builds,
+and the window names the build it is looking at.
 
-**[The Japanese original](https://redump.info/disc/133978)** has not been
-sourced, so there is nothing to write tables against and the patcher treats
-it as an unknown file. If you have a disc image of it, please get in touch -
-see [Credits and licence](#credits-and-licence).
+**[The Japanese original](https://redump.info/disc/133978)** is the 1997
+1.04J pressing, also found in the Sega PC Greatest Hits Vol. 3 bundle. Its
+tables are the newest here and it has had the least play.
 
 A repack, a bad rip or a copy already modified is refused, with its size and
 MD5 shown beside a supported build's - in **GAME FILE** for a file you
@@ -747,7 +746,7 @@ each of those runs once per build.
 LLMs are part of the toolchain here, alongside Ghidra, gdb and winedbg on
 the running game, Cheat Engine and Unicorn. The scope, the disc dumps, the
 testing and the debugging are human: every change is read before it goes
-in and played on the real game, across all three builds, before it ships.
+in and played on the real game, across all four builds, before it ships.
 Offsets and byte sequences are verified against the original executable
 before anything is written, and the patcher refuses any file that is not
 an unmodified build it has tables for. It is still a hobby project poking

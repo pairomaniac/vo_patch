@@ -62,19 +62,19 @@ Discs offer smaller installs as well - `Select2` skips the AVI, `Select3`
 copies the list in `MinimumCopy3` - and the patcher ignores both. It always
 does the full copy, which is `Select1`.
 
-Five pressings were read for this: USA, USA Alt, the EU rerelease, the USA
-OEM and the Japanese rerelease, which has the OEM shape. The Japanese
-original has not been, so nothing here is known about its `ssp.ini` - the
-rule may well cover it, since none of it depends on the build or the
-language, but that is a guess until a copy is read.
+Six pressings were read for this: USA, USA Alt, the EU rerelease, the USA
+OEM, the Japanese rerelease and the Japanese original. The two Japanese
+discs have the OEM shape: 99 files, `cpuid32.dll`, the help files in
+`v_on\`, and both `LangExeclusive` keys empty.
 
 ### The other builds
 
-Three builds of `v_on.exe` patch: English retail, the USA OEM pressing and
-the Japanese rerelease. They are compiles of the same source through the
-same toolchain - the OEM a month before retail, the rerelease four months
-after, link 3.0 against 3.10 - with the same section order and a `.reloc`
-in each. A recompile is not a relayout: data moves by a different delta
+Four builds of `v_on.exe` patch: English retail, the USA OEM pressing, the
+Japanese original and the Japanese rerelease. They are compiles of the same
+source through the same toolchain - the Japanese original and the OEM in
+February 1997, four days apart, retail in April, the rerelease in October,
+link 3.0 against 3.10 - with the same section order and a `.reloc` in
+each. A recompile is not a relayout: data moves by a different delta
 per region, functions grow or lose locals, a few globals change order.
 Nothing is a constant shift, so no address is derived from a neighbour's;
 each build carries its own.
@@ -131,6 +131,16 @@ classify the CPU and accepts two classes, neither of which a modern CPU is.
 So its version of the processor check patch makes the accept branch
 unconditional and sets the MMX flag the game would set for the class that
 has it.
+
+**The Japanese original** (February 1997, `0x33120494`) is the oldest,
+and sits between the other two: 7821 of 7934 functions match, 7506
+identically, every frame as retail's, and the map placed all but three
+sites. It has the OEM's `cpuid32.dll` processor check, 0xc30 earlier in
+the file, and the rerelease's `jscrgame.bin`, byte for byte. Every section
+starts one page below retail's, so its data addresses are retail's minus
+0x1000 to 0x14e0 by region where the OEM's are minus a few dozen bytes.
+The resolution port lacks the 0.95 hardware projection case, like the
+rerelease, and does renderer A's row maths in eax, like the OEM.
 
 **The Japanese rerelease** (October 1997, `0x345107FA`) is the furthest:
 7291 of 7934 functions match, 6329 identically. Frame layouts differ in

@@ -23,11 +23,13 @@ import sys
 
 # MD5 of the original with every patch applied. Update deliberately, and only
 # when a patch actually changed.
-# Everything ticked, per build: retail, the Japanese rerelease, the OEM.
+# Everything ticked, per build: retail, the Japanese rerelease, the OEM,
+# the Japanese original.
 EXPECTED_ALL = {
     'a464b0ff32d5bab499f265e45658504e': '16f71287b3ade9b3f436dfff2ca225c6',
     'd19320bdc3381a48228990907910a391': '60cedf570539fc5ebf93ebb789e72b1e',
     '4c70f780a7f0d98d74be62304fb99021': 'acbb7a7f55ebda41fd6f029ad8fd30ec',
+    '9764d946ffc8cee94788707c91753478': '18f1aec4269774e25ed2df9788ea3531',
 }
 
 HERE = os.path.dirname(os.path.abspath(__file__))

@@ -2,24 +2,26 @@
 # Build the retail->other-build maps and the resolution patch's port
 # tables, into maps/.
 #
-#     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe
+#     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe [JPORIG.exe]
 #
-# Writes maps/jp.pkl and maps/oem.pkl (vomap.py, about a minute each) and
-# maps/jp_port.txt, maps/oem_port.txt (hiresport.py). A port table that
-# fails generation is kept as its FAIL list: that list is the work left
-# for that build. Needs python3-capstone (tools/setup-dev.sh checks).
+# Writes maps/jp.pkl, maps/oem.pkl and, given the Japanese original,
+# maps/jporig.pkl (vomap.py, about a minute each) and a *_port.txt beside
+# each (hiresport.py). A port table that fails generation is kept as its
+# FAIL list: that list is the work left for that build. Needs python3-capstone (tools/setup-dev.sh checks).
 # maps/ is ignored by git; the executables are not in the repository and
 # neither is anything derived from them.
 set -e
 cd "$(dirname "$0")/.."
-if [ $# -ne 3 ]; then
-    echo "usage: sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe" >&2
+if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+    echo "usage: sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe [JPORIG.exe]" >&2
     exit 2
 fi
 retail=$1
 mkdir -p maps
-for build in jp oem; do
-    if [ "$build" = jp ]; then other=$2; else other=$3; fi
+builds="jp oem"
+[ $# -eq 4 ] && builds="$builds jporig"
+for build in $builds; do
+    case $build in jp) other=$2;; oem) other=$3;; jporig) other=$4;; esac
     python3 tools/vomap.py "$retail" "$other" "maps/$build.pkl"
     if python3 tools/hiresport.py "maps/$build.pkl" > "maps/${build}_port.txt"; then
         echo "$build: port table generated - byte-verified only, see docs/HIRES.md before shipping it"
