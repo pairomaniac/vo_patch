@@ -31,11 +31,13 @@ no port forwarding.
 
 ## Quick start
 
-**Download** `vo_patch-*.exe` from the
-[latest release](https://github.com/pairomaniac/vo_patch/releases/latest).
-It is unsigned, so SmartScreen calls it an unknown publisher the first time
-you run it. If a virus scanner objects, see [Virus warnings](#virus-warnings).
-On Linux, see [Running from source](#running-from-source).
+**Download** `vo_patch-*-win.zip` from the
+[latest release](https://github.com/pairomaniac/vo_patch/releases/latest),
+unzip it anywhere and run `vo_patch-*.exe`; the `_internal` folder beside it
+has to stay. It is unsigned, so SmartScreen calls it an unknown publisher the
+first time you run it. If a virus scanner objects, see
+[Virus warnings](#virus-warnings). On Linux, see
+[Running from source](#running-from-source).
 
 The window is split into numbered sections. Work through them in order:
 
@@ -69,12 +71,14 @@ Restore leave them alone.
 
 Defender and other scanners sometimes flag the download. It is a false
 positive: an unsigned program that edits another program is the sort of
-thing they warn about.
+thing they warn about. To allow it in Defender: Windows Security → Virus &
+threat protection → Protection history → the entry for the file → Allow,
+then run it again.
 
 If you would rather not run it, `vo_patch.py` does everything the download
 does - see [Running from source](#running-from-source). Each release is
-built on GitHub, and the build log lists the file's checksum if you want to
-check that yours matches.
+built on GitHub from this repository, and the build log lists the file's
+checksum if you want to check that yours matches.
 
 ## Installing from a disc image
 
@@ -717,17 +721,18 @@ python3 vo_patch.py --selfcheck        # validate the patch tables
 ```
 
 To build the Windows binary yourself, `pip install pyinstaller` and run
-`pyinstaller vo_patch.spec`. It builds as `vo_patch-dev.exe` - releases take
-their version from the git tag, and a source tree has none.
+`pyinstaller vo_patch.spec`. It builds `dist/vo_patch/`, the exe with its
+`_internal` folder, as `vo_patch-dev.exe` - releases take their version from
+the git tag, and a source tree has none.
 
 To change the machine code the patches install, see [asm/](asm/);
 `asm/build.py` builds it into the hex strings in `vo_patch.py`. Never edit
 those by hand.
 
-The netplay DLL is built the same way from [net/](net/): edit `net/dpctrl.c`
-and run `python3 net/build.py`, which compiles it with mingw and bakes it
-back into `vo_patch.py`. [net/README.md](net/README.md) covers the protocol
-and the matchcode server.
+The netplay DLL is built from [net/](net/): edit `net/dpctrl.c` and run
+`python3 net/build.py`, which compiles it with mingw to `net/dpctrl.dll` and
+records its hash in `vo_patch.py`. [net/README.md](net/README.md) covers the
+protocol and the matchcode server.
 
 `python3 tools/check.py` runs every check in the project. Give it a game
 folder and it runs the ones that need one; give it a folder per build and

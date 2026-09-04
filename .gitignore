@@ -14,7 +14,6 @@ asm/strings.inc
 asm/*.bin
 
 # net/build.py bakes the DLL into vo_patch.py; the file itself is scratch.
-net/dpctrl.dll
 vo-net.log
 
 

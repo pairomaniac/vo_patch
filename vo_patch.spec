@@ -56,7 +56,7 @@ a = Analysis(
     [SOURCE],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('net/dpctrl.dll', '.')],   # netplay DLL, read at install time
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -65,25 +65,30 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+# Tcl's time zone tables and the Tcl/Tk message catalogues (4 MB on disk)
+# are not used by a tkinter window; the catalogues only translate Tk's own
+# dialogs, which fall back to English. The encodings stay: Tcl loads the
+# system code page from them at startup.
+TRIM = ('_tcl_data/tzdata', '_tcl_data/msgs', '_tk_data/msgs')
+a.datas = [d for d in a.datas
+           if not d[0].replace('\\', '/').startswith(TRIM)]
+
 pyz = PYZ(a.pure)
 
-# No COLLECT, so this is a one-file build: everything lands in the exe and is
-# unpacked to a temporary directory at startup.
+# A one-dir build: the exe is the bootloader and the script; the runtime,
+# the libraries and the netplay DLL sit beside it in _internal/. Nothing is
+# unpacked at startup, and fewer scanners object to it than to a one-file
+# exe.
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='vo_patch-%s' % VERSION,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    # UPX is not on the CI runner, so this was a no-op; a packed unsigned exe
-    # also looks worse to SmartScreen than an unpacked one.
     upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,                  # no console window behind the GUI
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -91,4 +96,12 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version=str(_version_file),
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name='vo_patch',
 )

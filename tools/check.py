@@ -47,7 +47,7 @@ CHECKS = [
      [PY, 'asm/build.py', '--check'], False, False),
     ('ui', 'asm/ui.asm matches the committed resolution blob',
      [PY, 'tools/uibuild.py', '--check'], False, False),
-    ('net', 'netplay blob matches net/dpctrl.c',
+    ('net', 'net/dpctrl.dll matches net/dpctrl.c',
      [PY, 'net/build.py', '--check'], False, False),
     ('disc', 'the disc reader, on images built for the test',
      [PY, 'tools/disctest.py'], False, False),

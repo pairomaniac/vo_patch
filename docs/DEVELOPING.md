@@ -13,10 +13,10 @@ net/dpctrl.c ──mingw─►  base64 blob in vo_patch.py       CI builds this
                        write these
 ```
 
-`vo_patch.py` ships as one self-contained file, so it cannot read `asm/` or
-`net/` at runtime. The machine code and the netplay DLL are baked in as text
-between marker comments. `asm/build.py` and `net/build.py` are the only things
-that put them there.
+`vo_patch.py` cannot read `asm/` at runtime, so the machine code is baked in
+as text between marker comments; `asm/build.py` is the only thing that puts
+it there. The netplay DLL is a file, `net/dpctrl.dll`, that `net/build.py`
+compiles and the release ships beside the exe.
 
 **Never edit a blob by hand.** The next build run silently discards it.
 
@@ -37,7 +37,8 @@ needs pip. The script checks and prints; the actual install is one `apt` or
 
 `nasm` is needed only to rebuild `asm/`, `asm/ui.asm` included, mingw only
 to rebuild the netplay DLL. Neither is needed to run the patcher or to
-build the exe - both are baked into `vo_patch.py` as text.
+build the exe: the machine code is in `vo_patch.py` as text, the DLL is
+committed as `net/dpctrl.dll`.
 
 `python3-pyflakes` is the `lint` check; `python3-capstone` (4.x or 5.x)
 regenerates `UI_REFS` in `tools/uibuild.py` and drives the build-mapping
@@ -109,7 +110,7 @@ wrong on the build it is for; before tagging, give all three.
 | `tables` | patch tables, blobs and the banner bitmap: lengths, bounds, collisions between patches, the intra-patch overlap the XInput routine relies on |
 | `asm` | `asm/` reassembles to the committed blobs, every blob links for every build, and the two placeholders the apply-time sections fill occur exactly once each |
 | `ui` | `asm/ui.asm` matches the committed resolution blob: reassembled with nasm when it is installed (always, on CI), by the recorded fingerprint of the source when it is not |
-| `net` | the baked DLL was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes |
+| `net` | `net/dpctrl.dll` was built from the current `net/dpctrl.c`, by hash - two mingw versions do not produce identical bytes - and is the file `vo_patch.py` expects |
 | `disc` | `disctest.py`: the disc reader, on ISO9660 images the test builds itself - one per sector layout, plus a cue that names the wrong one. Extraction is byte-exact, the `ssp.ini` rules give the retail and OEM file lists, and every refusal names what is wrong. Needs no game and no disc, so CI runs it |
 | `gui` | `guitest.py`: the window, opened under xvfb and driven without its loop - which button is offered for which source, that a copy holds both down until it finishes, and that the two columns end level whatever is open. None of these raise on their own, so each asserts the property. Needs a display; with none it skips and prints a note rather than passing quietly |
 | `lint` | pyflakes |
@@ -422,7 +423,7 @@ gh release delete v0.8.4 --yes     # if a release was created
 **"asm/ does not match the blobs"** - run `python3 asm/build.py`, commit,
 push.
 
-**"net/dpctrl.c and the baked DLL disagree"** - run `python3 net/build.py`,
+**"net/dpctrl.c and net/dpctrl.dll disagree"** - run `python3 net/build.py`,
 commit, push. It needs mingw; `--check` does not, it only compares hashes.
 
 **`--selfcheck` AssertionError** - it names the patch and offset. "expects XX

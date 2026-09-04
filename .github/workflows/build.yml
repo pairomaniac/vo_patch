@@ -178,12 +178,13 @@ jobs:
       - name: Inspect the bundle
         shell: bash
         run: |
-          ls -l dist/
-          pyi-archive_viewer -l -b dist/*.exe > listing.txt
-          grep -q '_tkinter' listing.txt || { echo 'tkinter was not bundled'; exit 1; }
+          ls -l dist/ dist/vo_patch/
+          pyi-archive_viewer -l -b dist/vo_patch/*.exe > listing.txt
           grep -q 'pyi_rth__tkinter' listing.txt || { echo 'no Tk runtime hook'; exit 1; }
-          grep -q 'cacert.pem' listing.txt || { echo 'certifi CA list was not bundled'; exit 1; }
-          echo "$(grep -c . listing.txt) entries, tkinter and CA list present"
+          ls dist/vo_patch/_internal/_tkinter*.pyd || { echo 'tkinter was not bundled'; exit 1; }
+          ls dist/vo_patch/_internal/certifi/cacert.pem || { echo 'certifi CA list was not bundled'; exit 1; }
+          ls dist/vo_patch/_internal/dpctrl.dll || { echo 'netplay DLL was not bundled'; exit 1; }
+          echo "$(find dist/vo_patch -type f | wc -l) files, tkinter, CA list and DLL present"
 
       # The listing cannot see inside the PYZ, so an over-eager entry in
       # EXCLUDES looks fine there and dies at the exe's own import line -
@@ -197,7 +198,7 @@ jobs:
       - name: The exe starts
         shell: bash
         run: |
-          timeout 60 dist/vo_patch-*.exe --selfcheck
+          timeout 60 dist/vo_patch/vo_patch-*.exe --selfcheck
           echo 'the exe runs and its tables check out'
 
       # To the log, not an asset: a checksum beside its own binary proves
@@ -207,7 +208,7 @@ jobs:
       - name: Checksum
         shell: bash
         run: |
-          cd dist && sha256sum *.exe
+          cd dist/vo_patch && sha256sum *.exe
           echo "VirusTotal: https://www.virustotal.com/gui/file/$(sha256sum *.exe | cut -c1-64)"
 
       # Linux users run the script, so ship it too. Strip CR or the shebang
@@ -235,16 +236,31 @@ jobs:
         shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "artifact=vo_patch-$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-$GITHUB_REF_NAME-win" >> "$GITHUB_ENV"
           else
-            echo "artifact=vo_patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-${GITHUB_SHA::7}-win" >> "$GITHUB_ENV"
           fi
+
+      # One zip, the exe and _internal/ at its top: unzip, run the exe.
+      # The source copy goes beside the zip, not inside it.
+      - name: Zip the folder
+        shell: bash
+        run: |
+          cd dist/vo_patch && python -c "
+          import os, zipfile
+          with zipfile.ZipFile('../$artifact.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, _dirs, files in os.walk('.'):
+                  for f in files:
+                      p = os.path.join(root, f)
+                      z.write(p, os.path.relpath(p, '.'))
+          "
+          cd .. && ls -l *.zip && unzip -l $artifact.zip | sed -n '1,5p'
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.artifact }}
           path: |
-            dist/*.exe
+            dist/*.zip
             dist/*.py
 
       # gh is preinstalled on the runner, so no third party action is needed
@@ -258,4 +274,4 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
-            dist/*.exe dist/*.py --clobber
+            dist/*.zip dist/*.py --clobber

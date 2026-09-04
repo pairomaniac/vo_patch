@@ -242,17 +242,20 @@ to get the spin back and feel the difference.
 ## Building
 
 ```bash
-python3 net/build.py            # compile and bake into vo_patch.py
-python3 net/build.py --check    # is the blob current? no compiler needed
+python3 net/build.py            # compile to net/dpctrl.dll, record its hash
+python3 net/build.py --check    # is the DLL current? no compiler needed
 ```
 
-The patcher ships as one file and cannot read this directory at runtime,
-so the compiled DLL rides along as compressed base64 between marker
-comments. Never edit that by hand; the next `build.py` run discards it.
+`net/dpctrl.dll` is committed: the release build ships it beside the exe
+(PyInstaller's `_internal/`), a source checkout reads it from here, and the
+patcher checks it against the hash `build.py` recorded in `vo_patch.py`
+before installing it. The linker is pinned (no timestamp, fixed image base)
+so the same mingw produces the same bytes.
 
-`--check` compares a hash of `dpctrl.c` against the one recorded beside the
-blob, rather than recompiling and diffing bytes: two mingw versions do not
-produce identical output from identical source.
+`--check` compares a hash of `dpctrl.c` against the one recorded in
+`vo_patch.py`, and the DLL file against its recorded hash, rather than
+recompiling and diffing bytes: two mingw versions do not produce identical
+output from identical source.
 
 ## Testing
 

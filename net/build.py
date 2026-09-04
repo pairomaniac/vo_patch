@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
-"""Compile net/dpctrl.c and bake it into vo_patch.py.
+"""Compile net/dpctrl.c to net/dpctrl.dll and record its hashes in
+vo_patch.py.
 
-Same idea as asm/build.py: the patcher ships as one file, so it cannot read
-net/ at runtime and the DLL rides along as text between marker comments.
+The DLL is a file in the repository: the release build ships it beside the
+exe (PyInstaller's _internal/), a source checkout reads it from net/. The
+patcher checks the file against NETPLAY_DLL_SHA before installing it.
 
-    python3 net/build.py            compile, compress, write the blob
-    python3 net/build.py --check    is the blob current? writes nothing
+    python3 net/build.py            compile, write the DLL and the hashes
+    python3 net/build.py --check    is the DLL current? writes nothing
 
---check compares a hash of dpctrl.c against the one recorded beside the
-blob, rather than recompiling and comparing bytes. Two mingw versions do
-not produce identical output from identical source, so a byte comparison
-would fail on any machine but the one that last ran this. The hash answers
-the question that actually matters: was the blob made from this source?
-
-Never edit the blob by hand. The next run discards it.
+--check compares a hash of dpctrl.c against the one recorded in vo_patch.py
+and the DLL file against its recorded hash, rather than recompiling: two
+mingw versions do not produce identical output from identical source, so a
+byte comparison would fail on any machine but the one that last ran this.
 """
 
-import base64
 import hashlib
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = os.path.join(HERE, 'dpctrl.c')
 DEF = os.path.join(HERE, 'dpctrl.def')
 TARGET = os.path.join(ROOT, 'vo_patch.py')
+DLL = os.path.join(HERE, 'dpctrl.dll')
 
 CC = 'i686-w64-mingw32-gcc'
 
@@ -39,8 +37,8 @@ CC = 'i686-w64-mingw32-gcc'
 # Stripping is done by the linker: a separate strip pass re-stamps the time.
 IMAGE_BASE = 0x6c540000
 
-BEGIN = '# --- netplay blob: written by net/build.py, do not edit ---'
-END = '# --- end netplay blob ---'
+BEGIN = '# --- netplay hashes: written by net/build.py, do not edit ---'
+END = '# --- end netplay hashes ---'
 
 EXPORTS = ('InitialDirectPlay', 'DestroyDirectPlay', 'SendDirectPlay',
            'SendDirectPlayWaitMessage', 'ReceiveDirectPlay',
@@ -78,22 +76,16 @@ def compile_dll(workdir):
 
 
 def render(blob, sha):
-    """The blob as it appears in vo_patch.py."""
-    packed = base64.b64encode(zlib.compress(blob, 9)).decode()
-    lines = [packed[i:i + 72] for i in range(0, len(packed), 72)]
-    body = '\n'.join("    '%s'" % line for line in lines)
+    """The hash block as it appears in vo_patch.py."""
     dll_sha = hashlib.sha256(blob).hexdigest()
     return (
         "%s\n"
         "# Source: net/dpctrl.c, compiled by net/build.py.\n"
         "NETPLAY_SRC_SHA = '%s'\n"
-        "# sha256 of the compiled DLL, so the patcher can tell its own build\n"
+        "# sha256 of net/dpctrl.dll, so the patcher can tell its own build\n"
         "# from an older one already installed.\n"
         "NETPLAY_DLL_SHA = '%s'\n"
-        "NETPLAY_DLL_Z = (\n"
-        "%s\n"
-        ")\n"
-        "%s" % (BEGIN, sha, dll_sha, body, END))
+        "%s" % (BEGIN, sha, dll_sha, END))
 
 
 def splice(text, block):
@@ -102,11 +94,19 @@ def splice(text, block):
     return text[:start] + block + text[stop:]
 
 
-def recorded_hash(text):
+def recorded(text, name):
     for line in text.splitlines():
-        if line.startswith('NETPLAY_SRC_SHA'):
+        if line.startswith(name):
             return line.split("'")[1]
     return None
+
+
+def file_hash(path):
+    try:
+        with open(path, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return None
 
 
 def main(argv):
@@ -120,23 +120,33 @@ def main(argv):
     sha = source_hash()
 
     if check:
-        have = recorded_hash(text)
+        have = recorded(text, 'NETPLAY_SRC_SHA')
         if have != sha:
-            print('net/dpctrl.c and the baked DLL disagree.')
+            print('net/dpctrl.c and net/dpctrl.dll disagree.')
             print('  source: %s' % sha)
-            print('  blob:   %s' % (have or 'none'))
+            print('  built:  %s' % (have or 'none'))
             print('Run: python3 net/build.py')
             return 1
-        print('netplay blob matches net/dpctrl.c (%s)' % sha[:12])
+        want = recorded(text, 'NETPLAY_DLL_SHA')
+        got = file_hash(DLL)
+        if got != want:
+            print('net/dpctrl.dll is not the file vo_patch.py expects.')
+            print('  recorded: %s' % want)
+            print('  file:     %s' % (got or 'missing'))
+            print('Run: python3 net/build.py')
+            return 1
+        print('net/dpctrl.dll matches net/dpctrl.c (%s)' % sha[:12])
         return 0
 
     with tempfile.TemporaryDirectory() as workdir:
         blob = compile_dll(workdir)
 
+    with open(DLL, 'wb') as f:
+        f.write(blob)
     with open(TARGET, 'w', encoding='utf-8') as f:
         f.write(splice(text, render(blob, sha)))
 
-    print('baked %d bytes of DLL (%s)' % (len(blob), sha[:12]))
+    print('wrote net/dpctrl.dll, %d bytes (%s)' % (len(blob), sha[:12]))
     return 0
 
 
