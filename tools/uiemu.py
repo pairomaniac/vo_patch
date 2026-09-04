@@ -329,17 +329,17 @@ def main(path):
     try:
         __import__('unicorn')
     except ImportError:
-        print('no python3-unicorn, so the blob was not run')
+        print('note: no python3-unicorn, so the blob was not run')
         return 0
     from credittest import pristine
     from uibuild import have_nasm
     if not have_nasm():
-        print('no nasm, so the blob was not run')
+        print('note: no nasm, so the blob was not run')
         return 0
     exe, read = pristine(path, RETAIL_MD5)
     if exe is None:
-        print('%s is not the retail build; the harness knows only its '
-              'addresses' % path)
+        print('note: %s is not the retail build; the harness knows only '
+              'its addresses' % path)
         return 0
     e = Emu(exe)
     ok = check_layouts(e)

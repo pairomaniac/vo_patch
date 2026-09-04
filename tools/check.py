@@ -71,8 +71,8 @@ CHECKS = [
      [PY, 'tools/bannertest.py', '{game}'], True, False),
     ('credit', 'the credit line reads back out of the roll',
      [PY, 'tools/credittest.py', '{game}'], True, False),
-    ('uiemu', 'the resolution blob run under Unicorn (retail)',
-     [PY, 'tools/uiemu.py', '{exe}'], True, False),
+    ('uiemu', 'the resolution blob run under Unicorn',
+     [PY, 'tools/uiemu.py', '{exe}'], True, False, ('retail',)),
 ]
 
 
@@ -126,7 +126,7 @@ def main():
 
     c = colours({'auto': None, 'always': True, 'never': False}[args.colour])
     if args.list:
-        for name, what, _cmd, needs, ci in CHECKS:
+        for name, what, _cmd, needs, ci, *_rest in CHECKS:
             note = 'needs the game' if needs else ('CI only' if ci else '')
             print('  %-13s %-46s %s' % (name, what, note))
         return 0
@@ -144,7 +144,10 @@ def main():
     in_ci = os.environ.get('CI') == 'true'
     os.chdir(ROOT)
     results = []
-    for name, what, cmd, needs_game, ci_only in CHECKS:
+    for name, what, cmd, needs_game, ci_only, *rest in CHECKS:
+        # a sixth field names the builds the check knows; the rest run on
+        # every folder given
+        builds = rest[0] if rest else None
         if wanted and name not in wanted:
             continue
         if ci_only and not (in_ci or wanted):
@@ -162,6 +165,14 @@ def main():
         # a game-dependent check runs once per build given; the rest once,
         # against the first folder if one is wanted for its {game}
         runs = games if needs_game else games[:1] or [(None,) * 4]
+        if builds:
+            runs = [r for r in runs if r[3] in builds]
+            if not runs:
+                print('  %s%-9s SKIP%s  %s %s(pass the %s folder)%s'
+                      % (c['warn'], name, c['off'], what, c['dim'],
+                         ' or '.join(builds), c['off']))
+                results.append((name, None))
+                continue
         for game, exe, build, short in runs:
             run = [a.replace('{exe}', exe or '').replace('{game}', game or '')
                    for a in cmd]
