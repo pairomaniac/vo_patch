@@ -3048,7 +3048,7 @@ RETAIL = Build('English retail', 'retail', ORIGINAL_MD5, EXE_SIZE,
 # for how the addresses were found.
 JAPAN_MD5 = 'd19320bdc3381a48228990907910a391'
 JAPAN_SIZE = 6621696
-JAPAN = Build('Japanese rerelease', 'jp', JAPAN_MD5, JAPAN_SIZE, 0x345107fa,
+JAPAN = Build('Japanese rerelease', 'jpre', JAPAN_MD5, JAPAN_SIZE, 0x345107fa,
               sections=(
     (0x00000400, 0x00401000),       # .text
     (0x001eec00, 0x005f0000),       # .rdata

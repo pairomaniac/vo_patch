@@ -175,7 +175,7 @@ giving the runner a folder per build:
 python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/
 ```
 
-Each runs once per folder and is named by build - `offsets/jp` - because a
+Each runs once per folder and is named by build - `offsets/jpre` - because a
 table can only be wrong on the build it is for. `offsets` is the only check
 that catches a wrong offset: it verifies every `original` column against the
 real file, applies 350-odd combinations of patches, and compares the fully

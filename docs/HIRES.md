@@ -838,10 +838,10 @@ spot.
     python3 tools/uibuild.py            # asm/ui.asm -> UI_CODE + constants
     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe JPORIG.exe
                                         # maps/*.pkl and maps/*_port.txt
-    python3 tools/portaudit.py maps/jp.pkl
+    python3 tools/portaudit.py maps/jpre.pkl
                                         # instruction shapes at every site
-    # splice maps/jp_port.txt and maps/oem_port.txt between the PORT
-    # TABLES markers in vo_patch.py, replacing what is there
+    # splice maps/jpre_port.txt, maps/oem_port.txt and maps/jporig_port.txt
+    # between the PORT TABLES markers in vo_patch.py, replacing what is there
     python3 tools/selftest.py RETAIL.exe   # and JAPAN, OEM, JPORIG: the digests
     # go into EXPECTED_ALL in tools/selftest.py
 

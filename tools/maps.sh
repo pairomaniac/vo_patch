@@ -4,7 +4,7 @@
 #
 #     sh tools/maps.sh RETAIL.exe JAPAN.exe OEM.exe [JPORIG.exe]
 #
-# Writes maps/jp.pkl, maps/oem.pkl and, given the Japanese original,
+# Writes maps/jpre.pkl, maps/oem.pkl and, given the Japanese original,
 # maps/jporig.pkl (vomap.py, about a minute each) and a *_port.txt beside
 # each (hiresport.py). A port table that fails generation is kept as its
 # FAIL list: that list is the work left for that build. Needs python3-capstone (tools/setup-dev.sh checks).
@@ -18,10 +18,10 @@ if [ $# -lt 3 ] || [ $# -gt 4 ]; then
 fi
 retail=$1
 mkdir -p maps
-builds="jp oem"
+builds="jpre oem"
 [ $# -eq 4 ] && builds="$builds jporig"
 for build in $builds; do
-    case $build in jp) other=$2;; oem) other=$3;; jporig) other=$4;; esac
+    case $build in jpre) other=$2;; oem) other=$3;; jporig) other=$4;; esac
     python3 tools/vomap.py "$retail" "$other" "maps/$build.pkl"
     if python3 tools/hiresport.py "maps/$build.pkl" > "maps/${build}_port.txt"; then
         echo "$build: port table generated - byte-verified only, see docs/HIRES.md before shipping it"

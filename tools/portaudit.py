@@ -2,7 +2,7 @@
 """Compare every placed site's instruction shape between retail and a
 build, whether or not the generator would print its table.
 
-    python3 tools/portaudit.py maps/jp.pkl
+    python3 tools/portaudit.py maps/jpre.pkl
 
 For each site: the instructions covering [off, off+len) in retail and at
 the placed offset in the build, decoded from the enclosing function's
