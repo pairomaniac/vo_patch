@@ -95,7 +95,7 @@ cannot drift apart.
 ```bash
 python3 tools/check.py                        # the ones CI can run
 python3 tools/check.py /path/to/VIRTUAL-ON    # and the ones that need the game
-python3 tools/check.py RETAIL/ OEM/ JP/       # those once per build
+python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/ # those once per build
 python3 tools/check.py --list                 # what they are
 python3 tools/check.py --only asm,net         # just those
 ```
@@ -341,7 +341,7 @@ per release.
 
 ```bash
 git pull
-python3 tools/check.py RETAIL/ OEM/ JP/        # everything, nothing skipped
+python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/ # everything, nothing skipped
 
 git tag v0.8.4
 git push && git push --tags

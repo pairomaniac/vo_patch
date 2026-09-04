@@ -100,7 +100,7 @@ jobs:
       # is named by build, because a table can only be wrong on the build
       # it is for:
       #
-      #     python3 tools/check.py RETAIL/ OEM/ JP/
+      #     python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/
       #
       # offsets  the only check that catches a wrong offset
       # banner   the only check that proves the title prompt reads back as

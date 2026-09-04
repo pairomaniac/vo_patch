@@ -172,7 +172,7 @@ repository, so three checks are skipped there. Run them before tagging by
 giving the runner a folder per build:
 
 ```
-python3 tools/check.py RETAIL/ OEM/ JP/
+python3 tools/check.py RETAIL/ OEM/ JP/ JPORIG/
 ```
 
 Each runs once per folder and is named by build - `offsets/jp` - because a

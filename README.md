@@ -677,7 +677,7 @@ unless every selected patch applied, so a failure leaves the game as it was.
 **XInput gamepad support** touches two more files. `v_on.ini` is moved to
 `v_on.ini.bak` and the game writes a fresh one, because binds saved by the
 unpatched game do not fit the new device list. The title artwork -
-`escrgame.bin`, or `jscrgame.bin` on the Japanese rerelease - is rewritten
+`escrgame.bin`, or `jscrgame.bin` on the Japanese builds - is rewritten
 with the new title prompt, after a copy is kept as `.bak`.
 
 **Native widescreen** adds a section to `v_on.exe` for its own code and its

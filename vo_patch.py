@@ -170,7 +170,7 @@ RETAIL_STAMP = 0x334d33fc
 # vomap.py map of each build; regenerate rather than editing.
 # PORT TABLES BEGIN
 PORT = {
-    '345107fa': {                       # jp.exe
+    '345107fa': {                       # the Japanese rerelease
         'va': {
             0x00408790: 0x00408700,
             0x00427ec9: 0x00427b29,
@@ -572,7 +572,7 @@ PORT = {
         },
         'absent': (0x1c7775,),
     },
-    '3317246a': {                       # oem.exe
+    '3317246a': {                       # the USA OEM
         'va': {
             0x00408790: 0x00408790,
             0x00427ec9: 0x00427e29,

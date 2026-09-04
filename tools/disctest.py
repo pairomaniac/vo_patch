@@ -6,7 +6,7 @@
 Needs no game and no disc: it writes small ISO9660 images itself, one per
 sector layout, wraps them in a cue sheet and checks that what comes back out
 is what went in. That covers the part of the installer that would otherwise
-only be exercised by owning four pressings - the sector probe, the directory
+only be exercised by owning six pressings - the sector probe, the directory
 walk, the ssp.ini rules, and the refusals.
 """
 
