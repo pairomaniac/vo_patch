@@ -237,33 +237,35 @@ jobs:
         shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "artifact=vo_patch-$GITHUB_REF_NAME-win" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-$GITHUB_REF_NAME" >> "$GITHUB_ENV"
           else
-            echo "artifact=vo_patch-${GITHUB_SHA::7}-win" >> "$GITHUB_ENV"
+            echo "artifact=vo_patch-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           fi
 
-      # One zip, the exe and _internal/ at its top: unzip, run the exe.
-      # The source copy goes beside the zip, not inside it.
-      - name: Zip the folder
+      # Two zips: -win with the exe and _internal/ at its top, -src with
+      # the script and the netplay DLL beside it.
+      - name: Zip
         shell: bash
         run: |
-          cd dist/vo_patch && python -c "
+          cd dist && python -c "
           import os, zipfile
-          with zipfile.ZipFile('../$artifact.zip', 'w', zipfile.ZIP_DEFLATED) as z:
-              for root, _dirs, files in os.walk('.'):
+          with zipfile.ZipFile('$artifact-win.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, _dirs, files in os.walk('vo_patch'):
                   for f in files:
                       p = os.path.join(root, f)
-                      z.write(p, os.path.relpath(p, '.'))
+                      z.write(p, os.path.relpath(p, 'vo_patch'))
+          with zipfile.ZipFile('$artifact-src.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+              for f in os.listdir('.'):
+                  if f.endswith('.py') or f == 'dpctrl.dll':
+                      z.write(f)
           "
-          cd .. && ls -l *.zip && unzip -l $artifact.zip | sed -n '1,5p'
+          ls -l *.zip
+          for z in *.zip; do unzip -l "$z" | sed -n '1,5p'; done
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.artifact }}
-          path: |
-            dist/*.zip
-            dist/*.py
-            dist/dpctrl.dll
+          path: dist/*.zip
 
       # gh is preinstalled on the runner, so no third party action is needed
       - name: Attach to the release
@@ -276,4 +278,4 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
-            dist/*.zip dist/*.py dist/dpctrl.dll --clobber
+            dist/*.zip --clobber
